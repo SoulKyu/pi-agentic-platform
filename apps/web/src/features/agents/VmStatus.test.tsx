@@ -13,8 +13,8 @@ const status = (patch: Partial<VmStatusView> = {}): VmStatusView => ({
   vmdVersion: "1.2.3",
   claudeToken: "set",
   agents: [
-    { id: "atlas-1a2b", phase: "running", migrated: false },
-    { id: "bolt-0001", phase: "stopped", migrated: true },
+    { id: "atlas-1a2b", phase: "running" },
+    { id: "bolt-0001", phase: "stopped" },
   ],
   ...patch,
 });

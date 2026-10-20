@@ -10,8 +10,8 @@ interface Props {
   set(patch: Partial<Draft>): void;
 }
 
-// The host's own ceilings (its memory, its cores) are checked by the daemon at save (RT-30, a plain `bad_request`) and no
-// view carries them, so the form shows the contract's bounds.
+// The host's own ceilings (its memory, its cores) are checked by the daemon at save (RT-30, a plain `bad_request`).
+// `agents.vmStatus` carries them as `host` (AVM-E33) but this form does not read them: it shows the contract's bounds.
 const FIELDS = [
   { key: "memoryMb", label: "agentVm.memory", bounds: Bounds.shape.memoryMb },
   { key: "cpus", label: "agentVm.cpus", bounds: Bounds.shape.cpus },

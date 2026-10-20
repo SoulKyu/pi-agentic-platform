@@ -129,8 +129,8 @@ describe("the VM status view", () => {
       // 8192 less the VM's own 512; 30000 free less the 1024 floor (M-floor).
       host: { memoryMb: 7680, cpus: 4, diskMb: 28_976 },
       agents: [
-        { id: "helper-1a2b", phase: "running", migrated: false },
-        { id: "scout-9c8d", phase: "stopped", migrated: false },
+        { id: "helper-1a2b", phase: "running" },
+        { id: "scout-9c8d", phase: "stopped" },
       ],
     });
   });

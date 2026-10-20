@@ -202,8 +202,8 @@ describe("composeVmStatus", () => {
     const list = vi.fn((ownerId: string) => (ownerId === "u1" ? [{ id: "a-0001" }, { id: "b-0002" }] : []));
     bindAgents({ list } as never);
     expect((await status.view("u1")).agents).toEqual([
-      { id: "a-0001", phase: "running", migrated: false },
-      { id: "b-0002", phase: "stopped", migrated: false },
+      { id: "a-0001", phase: "running" },
+      { id: "b-0002", phase: "stopped" },
     ]);
     expect((await status.view("u2")).agents).toEqual([]);
   });
@@ -255,7 +255,7 @@ describe("agents.vmStatus in both modes (AVM-P17)", () => {
       reason: null,
       vmdVersion: "1",
       claudeToken: "missing" as const,
-      agents: [{ id: `of-${ownerId}`, phase: "stopped" as const, migrated: false }],
+      agents: [{ id: `of-${ownerId}`, phase: "stopped" as const }],
     }));
     bindStatus(view);
     expect((await handlers["agents.vmStatus"]({}, ctxOf("u7"))).agents[0]?.id).toBe("of-u7");

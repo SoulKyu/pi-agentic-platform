@@ -72,7 +72,7 @@ describe("agentsVmMethods", () => {
       reason: null,
       vmdVersion: "1.0.0",
       claudeToken: "set",
-      agents: [{ id: "helper-1a2b", phase: "running", migrated: false }],
+      agents: [{ id: "helper-1a2b", phase: "running" }],
     };
     expect(result.safeParse(view).success).toBe(true);
     // AVM-E33: the host's ceilings for one agent; absent or null in host mode.
@@ -83,10 +83,14 @@ describe("agentsVmMethods", () => {
     expect(result.safeParse({ ...view, host: { ...host, cpus: 0 } }).success).toBe(false);
     expect(result.safeParse({ ...view, host: { ...host, path: "/x" } }).success).toBe(false);
     expect(result.safeParse({ ...view, runtime: "kata" }).success).toBe(false);
+    // AVM-E53: no agent is migrated, so the view has no such field (the entry is strict).
     expect(
-      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "gone", migrated: false }] }).success,
+      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "running", migrated: false }] }).success,
     ).toBe(false);
-    const many = Array.from({ length: 33 }, () => ({ id: "helper-1a2b", phase: "stopped", migrated: true }));
+    expect(
+      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "gone" }] }).success,
+    ).toBe(false);
+    const many = Array.from({ length: 33 }, () => ({ id: "helper-1a2b", phase: "stopped" }));
     expect(result.safeParse({ ...view, agents: many }).success).toBe(false);
   });
 });

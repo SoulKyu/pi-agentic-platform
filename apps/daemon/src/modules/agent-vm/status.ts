@@ -113,11 +113,10 @@ export function createVmStatus(deps: VmStatusDeps): VmStatus {
         // AVM-E33: what the form's fields may reach. Without an answer from pap-vmd there is nothing to promise.
         host:
           stack.health === null ? null : ceilings(deps.host(), stack.health.stateFreeMb, deps.minFreeDiskMb),
-        // AVM-E53: existing agents are not migrated, so no agent is `migrated`.
         agents: deps
           .agentsOf(ownerId)
           .slice(0, VIEW_AGENTS_MAX)
-          .map(({ id }) => ({ id, phase: deps.phaseOf(id), migrated: false })),
+          .map(({ id }) => ({ id, phase: deps.phaseOf(id) })),
       };
     },
     async require() {

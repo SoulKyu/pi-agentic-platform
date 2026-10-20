@@ -19,7 +19,7 @@ import { copyTreeSafely } from "./safe-tree.ts";
 
 const MIB = 1024 * 1024;
 const MKFS_TIMEOUT_MS = 10 * 60_000;
-/** The most a migrated home can be (AgentResources' ceiling), and the floor of a new disk. */
+/** The most a home can be (AgentResources' ceiling), and the floor of a new disk. */
 const POPULATE_MAX_MB = 65_536;
 const POPULATE_MIN_MB = 1024;
 const POPULATE_MAX_ENTRIES = 500_000;

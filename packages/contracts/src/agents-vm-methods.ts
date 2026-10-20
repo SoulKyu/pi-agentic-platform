@@ -34,7 +34,7 @@ export const VmStatusView = z
       .nullable()
       .optional(),
     agents: z
-      .array(z.object({ id: AgentId, phase: z.enum(VM_PHASES), migrated: z.boolean() }).strict())
+      .array(z.object({ id: AgentId, phase: z.enum(VM_PHASES) }).strict())
       .max(32),
   })
   .strict();
