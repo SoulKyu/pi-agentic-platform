@@ -270,5 +270,21 @@ describe("the agent VM checks", () => {
       expect((await run("vm.listeners", idle)).status).toBe("info");
       expect((await run("vm.listeners", idle, vmCtx({ lockHeld: true }))).status).toBe("warn");
     });
+    // T20b M7. Mutant "warn whatever sets the mode": the shell-forced case warns (a daemon in host mode is not at fault).
+    it("is info, with a hint, when the lock is held and only this shell (no unit) says vm", async () => {
+      const idle = only(none, { listening: false, pid: null, parent: null });
+      const shellOnly = ctx({
+        unit: null,
+        env: { PAP_AGENTS_RUNTIME: "vm" },
+        lockHeld: true,
+      });
+      const result = await run("vm.listeners", idle, shellOnly);
+      expect(result.status).toBe("info");
+      expect(result.detail).toContain("PAP_AGENTS_RUNTIME");
+    });
+    it("tells a warning at boot to be run again", async () => {
+      const idle = only(none, { listening: false, pid: null, parent: null });
+      expect((await run("vm.listeners", idle, vmCtx({ lockHeld: true }))).detail).toContain("just started");
+    });
   });
 });

@@ -68,10 +68,10 @@ They apply only when the unit (else the shell) sets `PAP_AGENTS_RUNTIME=vm`; oth
 | `vm.network` | the bridge `pap0` is up | down: `sudo pap vm setup` | | |
 | `vm.images` | `image.list` holds a `pap-agent-base-` image | | the list could not be read | none built yet: the first agent start builds it |
 | `vm.disk` | the state folder's free space against the agents' disks (4096 MB for a profile that names none) plus the kept mirrors (`agents/.mirrors/*/replaced`) plus `PAP_MIN_FREE_DISK_MB` | | less free space than that sum (disks are sparse: it is the worst case) | |
-| `vm.listeners` | who holds the sockets on 10.213.0.1:7841 and :7842 (`/proc/net/tcp`, then the fd tables of the user's processes): the relay's holder must be a child of the gateway's | held by a process that is not pap's (the daemon refuses launches too: `relay_listener_foreign`) | only the gateway listens, or pap runs and nothing listens | pap is not running |
+| `vm.listeners` | who holds the sockets on 10.213.0.1:7841 and :7842 (`/proc/net/tcp` and `tcp6`, then the fd tables of the user's processes): the relay's holder must be a child of the gateway's | held by a process that is not pap's (the daemon refuses launches too: `relay_listener_foreign`) | only the gateway listens, or pap runs and nothing listens | pap is not running |
 | `vm.firewall` | `ufw` (`/etc/ufw/ufw.conf`) or `firewalld` (its pid file) is active | | active: it can drop ports 7841 and 7842 on `pap0` (the fix lists the allow rule) | |
 
-`vm.listeners` also warns while another daemon holds the home's lock and your shell sets `PAP_AGENTS_RUNTIME=vm` (the preview server running beside a shell that forces vm mode, for one), and for a moment at boot before the relay binds. With a unit that sets the variable the warning is right. Topic note: `agents-vm.md`.
+`vm.listeners` is `info` (not a warning) while another daemon holds the home's lock and only your shell sets `PAP_AGENTS_RUNTIME=vm` (no unit says so: the preview server running beside a shell that forces vm mode, for one). With a unit that sets it, nothing on the sockets while pap runs is a warning, and it shows for a moment at boot before the relay binds: run doctor again. With a unit that sets the variable the warning is right. Topic note: `agents-vm.md`.
 
 The `bwrap` probe starts bubblewrap, and makes and removes one temporary folder in `os.tmpdir()`; it is the only thing doctor creates, and nothing under the home.
 

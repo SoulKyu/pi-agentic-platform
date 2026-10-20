@@ -262,14 +262,21 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
         if (!asVm(ctx)) return NOT_VM;
         const { gateway, relay } = probes.listeners();
         const where = `${AGENT_NET.host}:${AGENT_NET.gatewayPort} and :${AGENT_NET.relayPort}`;
-        if (!gateway.listening && !relay.listening)
-          return ctx.lockHeld
-            ? {
-                status: "warn",
-                detail: `pap runs but nothing listens on ${where}`,
-                fix: "journalctl --user -u pap -n 50",
-              }
-            : { status: "info", detail: `pap is not running: nothing listens on ${where}` };
+        if (!gateway.listening && !relay.listening) {
+          if (!ctx.lockHeld)
+            return { status: "info", detail: `pap is not running: nothing listens on ${where}` };
+          // T20b M7: with no unit, the mode is only this shell's; the daemon that holds the lock may run in host mode.
+          if (ctx.unit === null)
+            return {
+              status: "info",
+              detail: `another pap holds the home's lock and nothing listens on ${where}; only this shell sets PAP_AGENTS_RUNTIME=vm, so that pap may run in host mode`,
+            };
+          return {
+            status: "warn",
+            detail: `pap runs but nothing listens on ${where} (if it just started, run doctor again in a moment)`,
+            fix: "journalctl --user -u pap -n 50",
+          };
+        }
         const foreign = (what: string): CheckResult => ({
           status: "fail",
           detail: `${what} is held by a process that is not pap's: the agents' VMs would reach it, never pap`,

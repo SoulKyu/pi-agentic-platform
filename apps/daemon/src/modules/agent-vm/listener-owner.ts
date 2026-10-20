@@ -4,11 +4,13 @@ import { AGENT_NET } from "@pap/contracts";
 /**
  * AVM-E49 M9b: 10.213.0.1:7841 and :7842 are unprivileged ports and the firewall filters by interface, not by the receiving
  * socket. So the daemon checks that the sockets listening there belong to pap's own processes: the gateway to the daemon, the
- * relay to its child. What it reads is `/proc/net/tcp` (the LISTEN rows) and `/proc/<pid>/fd` (the socket inodes of a process).
+ * relay to its child. What it reads is `/proc/net/tcp` and `tcp6` (the LISTEN rows) and `/proc/<pid>/fd` (the socket inodes of a process).
  */
 export interface ProcReader {
   /** `/proc/net/tcp`. */
   tcp(): string;
+  /** `/proc/net/tcp6` ("" or absent on a host without IPv6): a dual-stack socket on the port is listed there only. */
+  tcp6?(): string;
   /** The targets of `/proc/<pid>/fd/*` (`socket:[123]`); empty when the process is gone or unreadable. */
   fdTargets(pid: number): readonly string[];
   /** The numeric entries of `/proc`. */
@@ -36,8 +38,15 @@ function dotted(hex: string): string {
   return bytes.length === 4 ? bytes.reverse().join(".") : "";
 }
 
-/** The LISTEN rows of `/proc/net/tcp`. */
-export function parseListeners(text: string): Listener[] {
+/** A `/proc/net/tcp6` address: the wildcard, or a v4-mapped one as its dotted form; any other v6 address is "" (no pap endpoint). */
+function dotted6(hex: string): string {
+  if (/^0{32}$/.test(hex)) return WILDCARD;
+  const mapped = /^0{16}FFFF0000([0-9A-F]{8})$/i.exec(hex);
+  return mapped?.[1] === undefined ? "" : dotted(mapped[1]);
+}
+
+/** The LISTEN rows of `/proc/net/tcp` (`v6`: of `/proc/net/tcp6`). */
+export function parseListeners(text: string, v6 = false): Listener[] {
   const found: Listener[] = [];
   for (const line of text.split("\n").slice(1)) {
     const columns = line.trim().split(/\s+/);
@@ -45,7 +54,7 @@ export function parseListeners(text: string): Listener[] {
     if (columns[3] !== "0A" || local?.length !== 2) continue;
     const inode = Number(columns[9]);
     if (!Number.isSafeInteger(inode)) continue;
-    found.push({ host: dotted(local[0] ?? ""), port: parseInt(local[1] ?? "", 16), inode });
+    found.push({ host: (v6 ? dotted6 : dotted)(local[0] ?? ""), port: parseInt(local[1] ?? "", 16), inode });
   }
   return found;
 }
@@ -62,7 +71,7 @@ export function socketInodes(targets: readonly string[]): Set<number> {
 
 /** The sockets that listen where `endpoint` is served: its own address, or a wildcard on its port. */
 function listenersAt(proc: ProcReader, endpoint: Endpoint): Listener[] {
-  return parseListeners(proc.tcp()).filter(
+  return [...parseListeners(proc.tcp()), ...parseListeners(proc.tcp6?.() ?? "", true)].filter(
     (one) => one.port === endpoint.port && (one.host === endpoint.host || one.host === WILDCARD),
   );
 }
@@ -97,6 +106,13 @@ export function ownerOf(proc: ProcReader, endpoint: Endpoint): { listening: bool
 export function realProcReader(): ProcReader {
   return {
     tcp: () => readFileSync("/proc/net/tcp", "utf8"),
+    tcp6() {
+      try {
+        return readFileSync("/proc/net/tcp6", "utf8");
+      } catch {
+        return ""; // no IPv6 on this host
+      }
+    },
     fdTargets(pid) {
       try {
         return readdirSync(`/proc/${pid}/fd`).flatMap((fd) => {
