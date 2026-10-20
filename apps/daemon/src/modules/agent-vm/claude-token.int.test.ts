@@ -51,7 +51,7 @@ describe("the Claude token methods", () => {
     ]);
     expect(JSON.stringify(audited).includes(TOKEN)).toBe(false);
     expect(JSON.stringify(lines).includes(TOKEN)).toBe(false);
-    // The two methods that still have their placeholder (T15, T18) keep answering it.
+    // The method that still has its placeholder (T18) and the purge (host mode: no VM runtime) keep answering as before.
     expect(await owner.client.call("agents.purgeTrash", { agentId: "scout-0001" })).toMatchObject({
       ok: false,
       error: { code: "sandbox_unavailable" },

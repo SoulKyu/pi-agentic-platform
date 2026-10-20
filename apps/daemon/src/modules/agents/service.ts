@@ -21,11 +21,12 @@ import { withDeadline } from "./deadline.ts";
 import { checkAgentSave } from "./resources-check.ts";
 import { homeExists, HomeMovedRunsLeft, homePath, initHome, makeHome, trashHomeOrFind } from "./homes.ts";
 import { changedFields, type ReachDeps, stepUpIfWider } from "./reach.ts";
-import type { AgentLinks } from "./links.ts";
+import type { AgentLinks, AgentVmLink } from "./links.ts";
 import { createScratchPort, type ScratchPort } from "./scratch-port.ts";
 import { type AgentRecord, createAgentStore } from "./store.ts";
 import { type AgentGuard, createAgentGuard } from "./threads.ts";
-import { actorOf, pageOf, viewOf } from "./view.ts";
+import { actorOf, pageOf, profileOf, viewOf } from "./view.ts";
+import { deleteVmStep } from "./vm-steps.ts";
 
 export interface AgentsDeps extends ReachDeps {
   readonly db: Db;
@@ -42,6 +43,7 @@ export interface AgentsDeps extends ReachDeps {
   /** The host's ceilings for an agent VM (RT-30); missing: no VM runtime, nothing to check. */
   readonly resourceHost?: () => { memoryCapMb: number; cores: number };
   readonly checkPackages?: (ids: readonly string[]) => Promise<void>; // AVM-E33: an unknown id throws the refusal
+  readonly vm?: AgentVmLink; // T15: the VM runtime, `vm` mode only
 }
 
 export interface AgentChanged {
@@ -74,7 +76,6 @@ export type AgentRail = Pick<AgentsPort, "state" | "publish" | "requestChanged">
 
 /** A delete waits this long for the agent's queued tasks to be cancelled; a slower queue fails the delete, retryable. */
 export const CANCEL_QUEUED_MS = 10_000;
-const PROFILE_MAX_CHARS = 32_768;
 const ID_TRIES = 8;
 
 const isUnique = (error: unknown): boolean => String((error as Error)?.message).includes("UNIQUE constraint");
@@ -85,7 +86,7 @@ export function createAgents(deps: AgentsDeps) {
   const listeners = new Set<(change: AgentChanged) => void>();
   /** A resume of an agent with a delete in flight is `session_busy` (M11R183); so is a delete during a thread's open. */
   const { deleting, opening, quarantining } = deps.guard ?? createAgentGuard();
-  let links: AgentLinks = {};
+  let links: AgentLinks = deps.vm ? { vm: deps.vm } : {};
   let rail: AgentRail | null = null;
 
   const owned = (ownerId: string, agentId: string): AgentRecord => {
@@ -113,12 +114,6 @@ export function createAgents(deps: AgentsDeps) {
       reason: `agent ${reason}`,
       detail: { agentId, ...(fields === null ? {} : { fields: fields.join(",") }) },
     });
-  }
-
-  function profileOf(input: AgentInput): string {
-    const profile = JSON.stringify(input);
-    if (profile.length > PROFILE_MAX_CHARS) throw new PapError("bad_request");
-    return profile;
   }
 
   const randomHex = deps.randomHex ?? ((): string => randomBytes(2).toString("hex"));
@@ -196,6 +191,7 @@ export function createAgents(deps: AgentsDeps) {
         links.threads?.archive(ownerId, record.threadSessionId);
         links.threads?.releaseIdle(ownerId, record.threadSessionId);
       }
+      await deleteVmStep(links.vm, id, clock.now());
       links.vault?.drop(ownerId, id);
       trashedAs = trashHomeOrFind(papHome, id, clock.now());
     } catch (error) {
@@ -380,6 +376,7 @@ export function createAgents(deps: AgentsDeps) {
       const quarantined = !paused && owned(caller.userId, agentId).quarantinedAt !== null;
       if (quarantined) deps.requireStepUp(caller, clock.now());
       const record = setPaused(caller.userId, agentId, paused, quarantined);
+      if (!paused) links.vm?.resume(agentId);
       // One row per switch, whoever flips it: the agent id only (M11R49).
       audit(caller, paused ? "paused" : quarantined ? "resumed from quarantine" : "resumed", agentId, null);
       return viewOf(record);

@@ -10,12 +10,12 @@ import { agentsVmTokenRpc, type ClaudeTokenStore, createClaudeTokenStore } from 
 
 export type AgentsVmRpc = Pick<
   HandlerTable,
-  "agents.vm.setClaudeToken" | "agents.vm.clearClaudeToken" | "agents.vmStatus" | "agents.purgeTrash"
+  "agents.vm.setClaudeToken" | "agents.vm.clearClaudeToken" | "agents.vmStatus"
 >;
 
 /**
- * The four `agents.vm.*` / `agents.vmStatus` / `agents.purgeTrash` handlers, in host and vm modes alike (AVM-P17, no
- * `unknown_method` in host mode), and the Claude token store behind the first two (`$PAP_HOME/secrets/claude-token`).
+ * The `agents.vm.*` / `agents.vmStatus` handlers, in host and vm modes alike (AVM-P17, no `unknown_method` in host mode), and
+ * the Claude token store behind the first two (`$PAP_HOME/secrets/claude-token`). `agents.purgeTrash` is the agents module's.
  */
 export function composeAgentsVmRpc(
   config: Pick<Config, "home">,

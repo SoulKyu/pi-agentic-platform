@@ -227,6 +227,18 @@ export function createAgentStore(db: Db) {
         .map((row) => ({ agentId: row.agent_id, name: row.name, deletedAt: row.deleted_at }));
     },
 
+    /** Whether the owner has this deleted agent in the trash (the entry is the proof "Purge now" is theirs to ask). */
+    inTrash: (ownerId: string, id: string): boolean =>
+      db.get("SELECT 1 AS n FROM agent_trash WHERE agent_id = $id AND owner_id = $ownerId", {
+        id,
+        ownerId,
+      }) !== undefined,
+
+    /** The entry goes once its disk and mirrors have (or after 7 days, at a delete or a listing). */
+    dropTrash: (ownerId: string, id: string): boolean =>
+      db.run("DELETE FROM agent_trash WHERE agent_id = $id AND owner_id = $ownerId", { id, ownerId })
+        .changes === 1,
+
     transaction: <T>(fn: () => T): T => db.transaction(fn),
   };
 }

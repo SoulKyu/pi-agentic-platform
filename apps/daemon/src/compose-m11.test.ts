@@ -77,6 +77,7 @@ describe("composeM11", () => {
       "agents.permissions",
       "agents.prompt",
       "agents.prompts",
+      "agents.purgeTrash",
       "agents.quarantine",
       "agents.queueTask",
       "agents.recheckSandbox",

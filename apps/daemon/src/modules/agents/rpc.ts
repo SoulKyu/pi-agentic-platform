@@ -8,6 +8,7 @@ import type { Quarantine } from "./quarantine.ts";
 import type { Agents } from "./service.ts";
 import type { AgentReads } from "./status.ts";
 import type { Threads } from "./threads.ts";
+import type { TrashPurge } from "./trash-purge.ts";
 import type { Unread } from "./unread.ts";
 
 export type AgentsRpc = Pick<
@@ -32,6 +33,7 @@ export type AgentsRpc = Pick<
   | "agents.permissions"
   | "agents.prompts"
   | "agents.prompt"
+  | "agents.purgeTrash"
   | "subscribe.agents"
 >;
 
@@ -40,6 +42,7 @@ export interface AgentSafetyServices {
   readonly quarantine: Pick<Quarantine, "run">;
   readonly permissions: Pick<Permissions, "view">;
   readonly prompts: Pick<Prompts, "list" | "read">;
+  readonly trash: Pick<TrashPurge, "purge">;
 }
 
 /** Each handler decodes (the dispatcher did), calls one service method and lets typed errors through (C §1.4.3). */
@@ -84,6 +87,10 @@ export function agentsRpc(
     "agents.permissions": async ({ agentId }, ctx) => safety.permissions.view(ctx.caller, agentId),
     "agents.prompts": async ({ agentId }, ctx) => safety.prompts.list(ctx.caller, agentId),
     "agents.prompt": async ({ agentId, name }, ctx) => safety.prompts.read(ctx.caller, agentId, name),
+    "agents.purgeTrash": async ({ agentId }, ctx) => {
+      await safety.trash.purge(ctx.caller, agentId);
+      return { ok: true };
+    },
     "subscribe.agents": async ({ after }, ctx) => ({
       sub: ctx.openSubscription("agents", ctx.caller.userId, after),
     }),
