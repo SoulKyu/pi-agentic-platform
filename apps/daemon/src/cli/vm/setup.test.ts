@@ -48,7 +48,7 @@ const opts = (extra: Partial<SetupOptions> = {}): SetupOptions => ({
 });
 
 // S1 item 2 mutants: M-a chown/chmod only inside `if (changed)` (the old shape): "retries a failed chmod on the next run";
-// M-b the opt marker written before chown/chmod: same case (the marker would list node after the failed run).
+// M-b the opt marker written before chown/chmod: "lists nothing in the opt marker when chmod failed on the first run".
 describe("pap vm setup: refusals", () => {
   it("refuses a non-root caller with the sudo hint", async () => {
     const b = bed();

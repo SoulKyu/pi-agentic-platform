@@ -50,6 +50,8 @@ describe("a container whose removal failed", () => {
     await expect(fx.ops.handle(other())).rejects.toMatchObject({ code: "unavailable" });
     expect(runs(fx)).toBe(1); // only the first start's failed run
     expect(fx.net.events.filter((event) => event === `prepare ${WRITER}`)).toEqual([]);
+    // M-log-anonymous (S1 round 1): the refusal names the container the owner has to find.
+    expect(fx.logs.find((line) => line.event === "vmd_start_refused")?.fields).toMatchObject({ vm: HELPER });
   });
 
   it("retries the failed removal at the head of the next start, before its prepare", async () => {

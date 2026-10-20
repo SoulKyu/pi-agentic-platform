@@ -124,7 +124,7 @@ export function createVmOps(deps: OpsDeps) {
       const inspected = await exec(inspectArgv(name));
       if (inspected.code === 0 && stateOfInspect(inspected.stdout) === "stopped") unremoved.delete(name);
       else {
-        log.info("vmd_start_refused", { reason: "container_not_removed" });
+        log.info("vmd_start_refused", { reason: "container_not_removed", vm: name });
         throw new VmdFailure("unavailable");
       }
     }
@@ -255,7 +255,10 @@ export function createVmOps(deps: OpsDeps) {
 
   async function status(request: Status): Promise<unknown> {
     const result = await exec(inspectArgv(vmName(request.agentId, request.taskKey)));
-    return { state: result.code === 0 ? stateOfInspect(result.stdout) : "absent" };
+    if (result.code === 0) return { state: stateOfInspect(result.stdout) };
+    // Only "no such container" is absent: a containerd or nerdctl failure says nothing about the VM (S1, fail closed).
+    if (NO_SUCH_CONTAINER.test(result.stderr)) return { state: "absent" };
+    throw new VmdFailure("failed");
   }
 
   return { start, stop, pause: control(pauseArgv), resume: control(unpauseArgv), status, list };

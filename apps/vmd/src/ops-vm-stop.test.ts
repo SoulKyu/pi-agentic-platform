@@ -92,9 +92,18 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
         state,
       });
     }
-    use((argv) => (argv.includes("inspect") ? { code: 1 } : undefined));
+    use((argv) =>
+      argv.includes("inspect") ? { code: 1, stderr: "Error: No such container: x" } : undefined,
+    );
     await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: TASK })).resolves.toEqual({
       state: "absent",
+    });
+    // M-inspect-failure-absent (S1 round 1): any other failure says nothing of the VM, so it is not "absent".
+    use((argv) =>
+      argv.includes("inspect") ? { code: 1, stderr: "containerd: connection refused" } : undefined,
+    );
+    await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: TASK })).rejects.toMatchObject({
+      code: "failed",
     });
     expect(fx.exec.calls[0]?.slice(-4)).toEqual([
       "inspect",
