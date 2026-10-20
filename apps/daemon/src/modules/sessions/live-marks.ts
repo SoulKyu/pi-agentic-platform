@@ -11,7 +11,8 @@ export function markUnsent(
   handle: { unsentUserMessage?(message: unknown): boolean },
 ): PiEvent {
   if (event.type !== "message_end") return event;
-  const { unverified: _workerSays, ...rest } = event;
+  const rest = { ...event };
+  delete rest.unverified;
   const message = event.message as { role?: unknown } | null | undefined;
   return message?.role === "user" && handle.unsentUserMessage?.(message) === true
     ? { ...rest, unverified: true }

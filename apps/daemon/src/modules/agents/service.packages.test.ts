@@ -16,7 +16,7 @@ const { refusalOf } = bedHelpers(() => bed);
 const ID = "a".repeat(32);
 const OTHER = "b".repeat(32);
 let unknown = false;
-const checkPackages = vi.fn(async (_ids: readonly string[]) => {
+const checkPackages = vi.fn<(ids: readonly string[]) => Promise<void>>(async () => {
   if (unknown) throw new PapError("not_found");
 });
 const open = () => {

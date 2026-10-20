@@ -84,6 +84,7 @@ describe("composeM11", () => {
       "agents.sandboxStatus",
       "agents.setPaused",
       "agents.status",
+      "agents.trash",
       "agents.update",
       "memory.decide",
       "memory.forget",

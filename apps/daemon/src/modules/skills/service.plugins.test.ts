@@ -9,6 +9,7 @@ import { fakePool, type RunCall } from "../models/testing/bed.ts";
 import { createSkillsService } from "./service.ts";
 
 const PLUGIN = {
+  id: "0123456789abcdef0123456789abcdef",
   source: "../../pkgs/tools",
   scope: "user",
   installedPath: "/h/pkgs/tools",

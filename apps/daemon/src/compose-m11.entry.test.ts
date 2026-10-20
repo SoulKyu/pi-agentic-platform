@@ -39,10 +39,16 @@ describe("the daemon's M11 entry", () => {
       "automation/202610151153_task_setter.sql",
       "subagents/202610151155_subagents.sql",
     ]);
-    expect(ids.slice(-2)).toEqual(["push/202610172000_push.sql", "audit/202610191000_audit_card_timing.sql"]);
+    // The trash entry's table (J1b): an agents migration, stamped after the approvals fix's audit one.
+    expect(ids.slice(-3)).toEqual([
+      "push/202610172000_push.sql",
+      "audit/202610191000_audit_card_timing.sql",
+      "agents/202610201300_agent_trash.sql",
+    ]);
     expect(discoverMigrations(M11_MIGRATION_SOURCES).map((migration) => migration.id)).toEqual([
       "agents/202610151110_agents.sql",
       "subagents/202610151155_subagents.sql",
+      "agents/202610201300_agent_trash.sql",
     ]);
   });
 });
