@@ -32,9 +32,12 @@ describe("trustedAutonomy (owner a6)", () => {
 
 describe("widensReach from no host list to the agent's own (W5-R36)", () => {
   const own = { allowHosts: ["a.example"] };
-  it("does not widen when the owner's list reaches the host, exactly or by wildcard", () => {
+  it("does not widen when the owner's list reaches the host exactly, or by a wildcard for a wildcard entry (AVM2-E12)", () => {
     expect(widens({}, own, ["a.example"])).toBe(false);
-    expect(widens({}, own, ["*.example"])).toBe(false);
+    expect(widens({}, { allowHosts: ["*.a.example"] }, ["*.example"])).toBe(false);
+  });
+  it("widens when only a wildcard of the owner's list matches an exact host (AVM2-E12, also for names that are not host entries)", () => {
+    expect(widens({}, own, ["*.example"])).toBe(true);
   });
   it("widens when the owner's list does not reach a host", () => {
     expect(widens({}, own, ["b.example"])).toBe(true);

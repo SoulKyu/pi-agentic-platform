@@ -92,6 +92,11 @@ export interface AgentLinks {
     /** The names in the agent's vault, never a value (the sheet and quarantine list them). */
     list?(caller: Caller, agentId: string): { entries: SecretEntry[]; state: "ok" | "unreadable" };
   };
+  /** The agent's imported files (spec 7): their paths, listed by quarantine, and their folder, sent to the trash by a delete. */
+  readonly files?: {
+    paths(ownerId: string, agentId: string): string[];
+    dispose(agentId: string, stamp: number): void;
+  };
   /** The agent's pending requests, closed as cancelled when it is quarantined (Task 17). */
   readonly requests?: { cancelAllOf(ownerId: string, agentId: string): number };
   /** The agent's staged memory facts, moved aside by quarantine's last step (Task 32); how many were moved. */

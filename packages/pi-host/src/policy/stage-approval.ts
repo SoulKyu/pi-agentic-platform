@@ -172,7 +172,7 @@ export async function approvalStage(
       modelReason: "pap-policy blocked this shell call.",
     };
   const attended = profile === "interactive" || profile === "agent-thread";
-  // AVM-E20: kept for pap's VM shell too: it runs in bwrap with no network and `.pi` out of view, like the host sandboxed shell.
+  // AVM-E20: kept for pap's VM shell too: it runs in bwrap with `.pi` out of view and, when the agent's network is on, only the egress proxy to reach, like the host sandboxed shell.
   if (attended && (await readOnlyCommand(call, ctx, deps))) {
     // M7R12: a read, never external: taint asks only for what can carry data out.
     const verdict = decide({

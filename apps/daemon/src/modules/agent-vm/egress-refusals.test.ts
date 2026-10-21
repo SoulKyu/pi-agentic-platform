@@ -198,6 +198,38 @@ describe("the refusal sink", () => {
     ]);
     await clock.advance(61_000);
     sink(refusal({ host: "late.lan" }));
-    expect(lines().at(-1)).toEqual(["egress_refusal_card_cap", { agentId: AGENT, suppressed: 999 }]);
+    expect(lines().at(-1)).toEqual(["egress_refusal_card_cap", { agentId: AGENT }]);
+    expect(lines()).toContainEqual(["egress_refusal_card_cap", { agentId: AGENT, suppressed: 999 }]);
+  });
+
+  // Mutant: no timer on a skipped line. Killed here: a burst that stops never logs its total.
+  it("a burst that stops logs its total when the window ends, without another refusal", async () => {
+    const { clock, logger, sink } = setup();
+    for (let i = 0; i < 20; i++) sink(refusal({ host: `h${i}.lan` }));
+    for (let i = 0; i < 50; i++) sink(refusal({ host: `x${i}.lan` }));
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    await clock.advance(60_000);
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+    expect(logger.warn).toHaveBeenLastCalledWith("egress_refusal_card_cap", {
+      agentId: AGENT,
+      suppressed: 49,
+    });
+    await clock.advance(10 * 60_000);
+    expect(logger.warn).toHaveBeenCalledTimes(2);
+  });
+
+  // Mutant: no try/catch in the flush. Killed here: the timer's throw is uncaught and the count is lost.
+  it("a flush that throws from the timer is logged, and the count stays in memory for the next one", async () => {
+    const { clock, events, logger, sink } = setup();
+    sink(refusal());
+    sink(refusal());
+    events.update.mockImplementationOnce(() => {
+      throw new Error("database is locked");
+    });
+    await expect(clock.advance(60_000)).resolves.not.toThrow();
+    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_flush_failed", { agentId: AGENT });
+    sink(refusal());
+    await clock.advance(60_000);
+    expect(events.update).toHaveBeenLastCalledWith("u1", 10, expect.objectContaining({ count: 3 }));
   });
 });

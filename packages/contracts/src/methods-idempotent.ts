@@ -10,6 +10,8 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "agents.create": false,
   "agents.delete": false,
   "agents.events": true,
+  "agents.files.list": true,
+  "agents.files.remove": false,
   "agents.get": true,
   "agents.list": true,
   "agents.markRead": false,

@@ -184,3 +184,19 @@ describe("the daily sweep of the daemon's trash (RT-40)", () => {
     stop();
   });
 });
+
+describe("the agent file store's trash", () => {
+  it("is purged by Purge now even without a mirrors trash, and swept after the keep time with the rest", async () => {
+    const purged: string[] = [];
+    const swept: Array<[number, number]> = [];
+    const files = {
+      purgeTrash: (id: string) => void purged.push(id),
+      sweepTrash: (now: number, keep: number) => void swept.push([now, keep]),
+    };
+    await purgeAgent({ ...deps(), files }, "scout-0001");
+    expect(purged).toEqual(["scout-0001"]);
+    const stop = startTrashSweep({ ...deps(), files });
+    expect(swept).toEqual([[clock.now(), TRASH_KEEP_MS]]);
+    stop();
+  });
+});

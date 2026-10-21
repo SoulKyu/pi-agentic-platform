@@ -184,6 +184,20 @@ describe("the result (M11R115)", () => {
     expect(body()).toContain("Tasks cancelled: 3");
   });
 
+  it("lists the imported files' paths to revoke at their source, and the intro announces the step", async () => {
+    bed.handlers["agents.quarantine"] = () => result({ filePaths: [".kube/config", "token.txt"] });
+    await show();
+    expect(body()).toContain("list the files you imported into its home");
+    await confirmTwice();
+    expect(body()).toContain("Revoke these at their source: .kube/config, token.txt");
+  });
+
+  it("says nothing about files when none were imported", async () => {
+    await show();
+    await confirmTwice();
+    expect(body()).not.toContain("Revoke these at their source");
+  });
+
   it("lists the steps that did not finish, in pap's words", async () => {
     bed.handlers["agents.quarantine"] = () =>
       result({

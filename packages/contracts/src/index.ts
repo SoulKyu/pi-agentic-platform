@@ -1,4 +1,5 @@
 export * from "./agents.ts";
+export * from "./agents-files.ts";
 export * from "./agents-net.ts";
 export * from "./agents-resources.ts";
 export * from "./agents-vm.ts";

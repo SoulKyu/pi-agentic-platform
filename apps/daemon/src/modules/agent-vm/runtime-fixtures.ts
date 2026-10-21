@@ -10,6 +10,7 @@ import {
   createAgentRuntime,
   type AgentRuntime,
   type AgentRuntimeBackend,
+  type AgentRuntimeDeps,
   type LaunchGrant,
   type VmSpec,
 } from "./runtime.ts";
@@ -105,7 +106,7 @@ export interface Bed {
   grantAt(index: number): LaunchGrant;
 }
 
-export function bed(): Bed {
+export function bed(extra: Partial<AgentRuntimeDeps> = {}): Bed {
   const clock = createFakeClock();
   const tokens = createLaunchTokens();
   const order: string[] = [];
@@ -174,6 +175,7 @@ export function bed(): Bed {
     onLaunchEnd: (launchId) => void result.ended.push(launchId),
     onCrashPause: (agentId) => void result.crashPauses.push(agentId),
     notifyCapacity: (running) => void result.capacity.push(running),
+    ...extra,
   });
   return result;
 }

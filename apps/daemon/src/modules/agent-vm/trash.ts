@@ -19,6 +19,8 @@ export interface TrashDeps {
   readonly logger: Pick<Logger, "warn" | "info">;
   /** Removes one entry of the trash. The agents module's `removeTree` (which unlocks a scratch folder an agent chmod-ed) in production. */
   readonly remove?: (path: string) => void;
+  /** The agent file store's trash (spec 7): purged with "Purge now" and swept with the rest. */
+  readonly files?: { purgeTrash(agentId: string): void; sweepTrash(now: number, keepMs: number): void };
 }
 
 const trashOf = (papHome: string): string => join(papHome, "agents", ".trash");
@@ -75,6 +77,7 @@ export async function purgeAgent(deps: TrashDeps, agentId: string): Promise<void
       throw papErrorOf(error);
     }
   }
+  deps.files?.purgeTrash(agentId);
   const trash = trashOf(deps.papHome);
   if (!existsSync(trash)) return;
   const mine = new RegExp(`^${agentId}-\\d{10,16}\\.mirrors(-\\d+)?$`);
@@ -82,6 +85,11 @@ export async function purgeAgent(deps: TrashDeps, agentId: string): Promise<void
 }
 
 function sweep(deps: TrashDeps): void {
+  try {
+    deps.files?.sweepTrash(deps.clock.now(), TRASH_KEEP_MS);
+  } catch (error) {
+    deps.logger.warn("agent_trash_sweep_failed", { err: error });
+  }
   const trash = trashOf(deps.papHome);
   let names: string[];
   try {

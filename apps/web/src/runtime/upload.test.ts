@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { uploadAttachment, uploadFile, UploadError } from "./upload.ts";
+import { uploadAgentFile, uploadAttachment, uploadFile, UploadError } from "./upload.ts";
 
 const attachment = { id: "AAAAAAAAAAAAAAAAAAAAAA", name: "a b.png", size: 3, kind: "file", mimeType: null };
 const meta = {
@@ -177,5 +177,26 @@ describe("uploadFile (M8R70)", () => {
     online(true);
     const run = uploadFile("/w/a", file(), { conflict: "skip", signal: new AbortController().signal });
     expect(await failure(run)).toBe("interrupted");
+  });
+});
+
+describe("uploadAgentFile (sub-project 2)", () => {
+  const stored = { path: ".kube/config", size: 3, importedAt: 5 };
+
+  it("PUTs the raw file to /agent-files with the agent and the encoded path, and decodes the view", async () => {
+    const fetchMock = stubFetch(() => reply(200, stored));
+    const input = file("config");
+    const signal = new AbortController().signal;
+    await expect(uploadAgentFile("atlas-1a2b", ".kube/config", input, signal)).resolves.toEqual(stored);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("/agent-files?agentId=atlas-1a2b&path=.kube%2Fconfig");
+    expect(init).toMatchObject({ method: "PUT", credentials: "same-origin", body: input });
+  });
+
+  it("maps the server's refusal to its code", async () => {
+    stubFetch(() => reply(413, undefined));
+    expect(await failure(uploadAgentFile("a", "p", file(), new AbortController().signal))).toBe(
+      "payload_too_large",
+    );
   });
 });

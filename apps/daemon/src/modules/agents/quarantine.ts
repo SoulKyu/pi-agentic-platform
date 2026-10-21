@@ -57,6 +57,7 @@ export function createQuarantine(deps: QuarantineDeps) {
     const result = { secrets: [], vaultNames: [], tasksCancelled: 0, errors: [] } as {
       secrets: QuarantineResult["secrets"][number][];
       vaultNames: string[];
+      filePaths?: string[];
       tasksCancelled: number;
       errors: QuarantineResult["errors"][number][];
     };
@@ -132,6 +133,11 @@ export function createQuarantine(deps: QuarantineDeps) {
     });
 
     // Step 7: the agent's staged memory facts (untrusted text awaiting the owner) are moved aside, never applied.
+    await run("files", () => {
+      const paths = links.files?.paths(ownerId, agentId);
+      if (paths !== undefined) result.filePaths = paths;
+    });
+
     await run("memory", () => void links.memory?.moveStaged(ownerId, agentId));
 
     deps.audit.append({

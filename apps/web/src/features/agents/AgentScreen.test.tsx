@@ -365,3 +365,28 @@ describe("marking the thread read (pi-web's rule: 1 s of visibility)", () => {
     hidden.mockRestore();
   });
 });
+
+describe("the Files tab follows the runtime (sub-project 2)", () => {
+  const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+
+  it("is offered in VM mode and shows the agent's files", async () => {
+    bed.handlers["agents.vmStatus"] = () => vm;
+    bed.handlers["agents.files.list"] = () => ({ files: [] });
+    await load([atlas]);
+    const { page } = await show();
+    await click(button(page.container, "Files"));
+    await settle();
+    expect(bed.called("agents.files.list")).toEqual([
+      expect.objectContaining({ params: { agentId: "atlas-1a2b" } }),
+    ]);
+    expect(text(page.container)).toContain("No file yet");
+  });
+
+  it("is not offered in host mode", async () => {
+    bed.handlers["agents.vmStatus"] = () => ({ ...vm, runtime: "host" });
+    await load([atlas]);
+    const { page } = await show();
+    expect(hasButton(page.container, "Files")).toBe(false);
+    expect(hasButton(page.container, "Settings")).toBe(true);
+  });
+});

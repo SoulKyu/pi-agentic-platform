@@ -7,6 +7,7 @@ export { createProcessBackend } from "./process-backend.ts";
 export {
   type AgentRuntime,
   type AgentRuntimeBackend,
+  type AgentRuntimeDeps,
   createAgentRuntime,
   type LaunchGrant,
   type VmSpec,
@@ -65,3 +66,9 @@ export {
   RELAY_ENDPOINT,
 } from "./listener-owner.ts";
 export { createRefusalSink } from "./egress-refusals.ts";
+export { type AgentFiles, createAgentFiles } from "./agent-files.ts";
+export { agentFilesRpc } from "./agent-files-rpc.ts";
+export { mountAgentFilesRoute } from "./agent-files-http.ts";
+export { startFilesTrashSweep } from "./files-sweep.ts";
+export { createAgentFilesService } from "./agent-files-service.ts";
+export { type AgentFilesPort, createFilesDelivery } from "./deliver-files.ts";

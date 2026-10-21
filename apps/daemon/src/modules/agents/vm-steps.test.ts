@@ -56,6 +56,43 @@ describe("delete (RT-40, T15 brief)", () => {
     expect(bed.agents.port.get("u1", id)).toBeNull();
   });
 
+  it("sends the agent's files to the trash after its disk, before the home moves, and in host mode too", async () => {
+    const log: string[] = [];
+    bed = createAgentsBed({ extra: { vm: link(log) } });
+    const { id } = await bed.agents.create(bed.owner(), agentInput());
+    bed.agents.setLinks({
+      files: { paths: () => [], dispose: (agentId, stamp) => void log.push(`files:${agentId}:${stamp}`) },
+    });
+    log.length = 0;
+    await bed.agents.remove(bed.owner(), id);
+    expect(log).toEqual([`stop:${id}`, `dispose:${id}:${bed.clock.now()}`, `files:${id}:${bed.clock.now()}`]);
+    bed.dispose();
+    const host: string[] = [];
+    bed = createAgentsBed();
+    const { id: hostId } = await bed.agents.create(bed.owner(), agentInput());
+    bed.agents.setLinks({ files: { paths: () => [], dispose: (agentId) => void host.push(agentId) } });
+    await bed.agents.remove(bed.owner(), hostId);
+    expect(host).toEqual([hostId]);
+  });
+
+  it("leaves the home and the row when the files cannot be trashed, and a retry finishes", async () => {
+    bed = createAgentsBed();
+    const { id } = await bed.agents.create(bed.owner(), agentInput());
+    let failing = true;
+    bed.agents.setLinks({
+      files: {
+        paths: () => [],
+        dispose: () => {
+          if (failing) throw new Error("disk full");
+        },
+      },
+    });
+    await expect(bed.agents.remove(bed.owner(), id)).rejects.toMatchObject({ code: "command_failed" });
+    expect(existsSync(join(bed.papHome, "agents", id))).toBe(true);
+    failing = false;
+    await expect(bed.agents.remove(bed.owner(), id)).resolves.toBeDefined();
+  });
+
   it("changes nothing in host mode (no VM link)", async () => {
     bed = createAgentsBed();
     const { id } = await bed.agents.create(bed.owner(), agentInput());

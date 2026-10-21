@@ -17,6 +17,7 @@ import { silentLogger } from "../../../kernel/logger.ts";
 import {
   type AgentRuntime,
   type AgentRuntimeBackend,
+  type AgentRuntimeDeps,
   createAgentRuntime,
   createGateway,
   createLaunchTokens,
@@ -78,11 +79,16 @@ export interface RuntimeBed {
   readonly grants: Array<{ launchId: string; agentId: string; relayKey: string; address: string }>;
   readonly ended: string[];
   /** Spawns a worker in `agentId`'s VM (started if needed). `sessionFile`: a reopen. */
-  spawn(agentId: string, input?: Partial<WorkerSpawnInput>): Promise<Spawned & { relayKey: string }>;
+  spawn(
+    agentId: string,
+    input?: Partial<WorkerSpawnInput>,
+    taskKey?: string,
+  ): Promise<Spawned & { relayKey: string }>;
   /** Spawns a worker and sends it a VM init on the scripted provider; resolves when it is ready. */
   spawnReady(
     agentId: string,
     input?: Partial<WorkerSpawnInput>,
+    taskKey?: string,
   ): Promise<Spawned & { relayKey: string; ready: Record<string, unknown> }>;
   dispose(): Promise<void>;
 }
@@ -92,7 +98,12 @@ export interface RuntimeBed {
  * socket, on the scripted provider. No daemon around them: the tests of T6 and T7 together (J1).
  */
 export async function startRuntimeBed(
-  options: { script?: object; idleMs?: number; memoryCapMb?: number } = {},
+  options: {
+    script?: object;
+    idleMs?: number;
+    memoryCapMb?: number;
+    deliverFiles?: AgentRuntimeDeps["deliverFiles"];
+  } = {},
 ): Promise<RuntimeBed> {
   const root = mkdtempSync(join(tmpdir(), "pap-rt-bed-"));
   const papHome = join(root, "home");
@@ -141,14 +152,15 @@ export async function startRuntimeBed(
     onLaunchEnd: (launchId) => void ended.push(launchId),
     onCrashPause: () => {},
     notifyCapacity: () => {},
+    ...(options.deliverFiles ? { deliverFiles: options.deliverFiles } : {}),
   });
   imageOf = runtime.imageOf;
   await runtime.stopAll();
 
-  const specOf = (agentId: string): VmSpec => ({
+  const specOf = (agentId: string, taskKey?: string): VmSpec => ({
     agentId,
-    kind: "thread",
-    taskKey: null,
+    kind: taskKey === undefined ? "thread" : "isolated",
+    taskKey: taskKey ?? null,
     image: IMAGE,
     resources: { ...DEFAULT_AGENT_RESOURCES, memoryMb: 512 },
   });
@@ -159,8 +171,8 @@ export async function startRuntimeBed(
     unsent: () => false,
     sent: () => {},
   };
-  async function spawn(agentId: string, input: Partial<WorkerSpawnInput> = {}) {
-    const spec = specOf(agentId);
+  async function spawn(agentId: string, input: Partial<WorkerSpawnInput> = {}, taskKey?: string) {
+    const spec = specOf(agentId, taskKey);
     const started = await runtime.spawn(spec, { ...noMirror, ...input }, null);
     return {
       handle: started.handle,
@@ -180,12 +192,12 @@ export async function startRuntimeBed(
     stops,
     grants,
     ended,
-    spawn: async (agentId, input) => {
-      const started = await spawn(agentId, input);
+    spawn: async (agentId, input, taskKey) => {
+      const started = await spawn(agentId, input, taskKey);
       return { handle: started.handle, slot: started.slot, spec: started.spec, relayKey: started.relayKey };
     },
-    async spawnReady(agentId, input) {
-      const started = await spawn(agentId, input);
+    async spawnReady(agentId, input, taskKey) {
+      const started = await spawn(agentId, input, taskKey);
       const run = join(started.layout.root, "run");
       mkdirSync(run, { recursive: true });
       const script = join(run, "provider-script.json");

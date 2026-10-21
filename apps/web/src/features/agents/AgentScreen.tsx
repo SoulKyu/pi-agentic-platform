@@ -3,6 +3,7 @@ import { type AgentRequestView, type AgentSummary, type ToolPreset } from "@pap/
 import { Button, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
+import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { agentById, requestsOf } from "../../stores/agents-reducer.ts";
 import { useAgents } from "../../stores/agents-store.ts";
@@ -11,7 +12,8 @@ import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { setPaused } from "./agent-actions.ts";
-import { AgentHeader } from "./AgentHeader.tsx";
+import { AgentFiles } from "./AgentFiles.tsx";
+import { AgentHeader, type AgentTab } from "./AgentHeader.tsx";
 import { OpenStatus, PanelSlot } from "./AgentScreenParts.tsx";
 import { PendingStrip } from "./PendingStrip.tsx";
 import { ComposerLifecycle } from "./LifecycleChip.tsx";
@@ -135,12 +137,13 @@ function AgentSpace({
   // The setting says how the panel starts, in the column only; the toggle then decides until the layout changes.
   const [asked, setAsked] = useState<boolean | null>(null);
   const panelOpen = asked ?? (layout === "side" && statusPanel === "shown");
-  // Thread / Settings (M11R126). Settings can land on the budget group; Quarantine and Delete open their dialogs.
-  const [tab, setTab] = useState<"thread" | "settings">("thread");
+  // Thread / Files (VM mode) / Settings (M11R126). Settings can land on the budget group; Quarantine and Delete open their dialogs.
+  const [tab, setTab] = useState<AgentTab>("thread");
+  const filesTab = useVmStatus().status?.runtime === "vm";
   const [focus, setFocus] = useState<"budget" | undefined>(undefined);
   const [dialog, setDialog] = useState<"quarantine" | "delete" | null>(null);
   const panelShown = panelOpen && tab === "thread";
-  const openTab = (next: "thread" | "settings") => {
+  const openTab = (next: AgentTab) => {
     setFocus(undefined);
     setTab(next);
   };
@@ -192,7 +195,7 @@ function AgentSpace({
       onQueueTask={() => setQueueing(true)}
       onQuarantine={() => setDialog("quarantine")}
       onDelete={() => setDialog("delete")}
-      tab={{ value: tab, onChange: openTab }}
+      tab={{ value: tab, files: filesTab, onChange: openTab }}
       statusToggle={{ open: panelShown, onToggle: toggleStatus }}
       confirm={
         confirmingReset ? (
@@ -243,19 +246,23 @@ function AgentSpace({
     </section>
   );
 
-  if (tab === "settings")
+  if (tab !== "thread")
     return frame(
       <>
         {header}
-        <AgentSettingsTab
-          agent={agent}
-          canReset={sessionId !== null && !agent.quarantined}
-          presetField={presetField ?? (() => null)}
-          {...(focus === undefined ? {} : { focus })}
-          onReset={() => setConfirmingReset(true)}
-          onQuarantine={() => setDialog("quarantine")}
-          onDelete={() => setDialog("delete")}
-        />
+        {tab === "files" ? (
+          <AgentFiles agentId={agentId} />
+        ) : (
+          <AgentSettingsTab
+            agent={agent}
+            canReset={sessionId !== null && !agent.quarantined}
+            presetField={presetField ?? (() => null)}
+            {...(focus === undefined ? {} : { focus })}
+            onReset={() => setConfirmingReset(true)}
+            onQuarantine={() => setDialog("quarantine")}
+            onDelete={() => setDialog("delete")}
+          />
+        )}
       </>,
       "flex min-h-0 min-w-0 flex-1 flex-col gap-s3 p-s4",
     );

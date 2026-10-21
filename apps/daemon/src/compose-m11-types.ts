@@ -6,7 +6,7 @@ import type { GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { AgentsVm } from "./compose-m11-vm.ts";
-import type { AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
+import type { AgentLinks, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
 import type { EgressPort } from "./modules/egress/index.ts";
 import type { M11RunsPort } from "./compose-subagents.ts";
@@ -28,6 +28,8 @@ export interface M11Core {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly readOnly: boolean;
+  /** The agent file store's link: quarantine's `files` step lists its paths, a delete sends its folder to the trash. */
+  readonly agentFilesLink?: AgentLinks["files"] | undefined;
   readonly hub: Pick<StreamHub, "publish" | "registerSnapshot">;
   /** Tests only: the process spawn of the sandbox probe. */
   readonly probeSpawn?: typeof spawn | undefined;

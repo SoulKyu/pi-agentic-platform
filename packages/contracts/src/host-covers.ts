@@ -1,9 +1,9 @@
 import { parseHostEntry, tryParseHostEntry } from "./host-entry.ts";
 
-/** The name-only rule, for an entry that is not a valid host entry (a stored legacy one, a shorthand in a test). */
+/** The name-only rule, for an entry that is not a valid host entry (a stored legacy one, a shorthand in a test). A wildcard never covers an exact entry (AVM2-E12). */
 const coversByName = (list: readonly string[], entry: string): boolean =>
   list.includes(entry) ||
-  list.some((own) => own.startsWith("*.") && entry.replace(/^\*\./, "").endsWith(own.slice(1)));
+  list.some((own) => own.startsWith("*.") && entry.startsWith("*.") && entry.slice(2).endsWith(own.slice(1)));
 /** Whether `list` reaches every host and port `entry` names (an exact entry is covered by itself, `*.x` by `*.x` or a wider `*.`; no port: 80 and 443). */
 export const covers = (list: readonly string[], entry: string): boolean => {
   const wanted = tryParseHostEntry(entry);

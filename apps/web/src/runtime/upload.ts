@@ -1,4 +1,11 @@
-import { AttachmentView, ERROR_CODES, FILE_LIMITS, UploadAnswer, type ErrorCode } from "@pap/contracts";
+import {
+  AgentFileView,
+  AttachmentView,
+  ERROR_CODES,
+  FILE_LIMITS,
+  UploadAnswer,
+  type ErrorCode,
+} from "@pap/contracts";
 
 /**
  * Why an upload failed: a server code, or one of the client's own. `offline`: the browser reports itself offline.
@@ -89,6 +96,20 @@ export function uploadFile(path: string, file: File, options: UploadFileOptions)
   const url = `/files/raw?path=${encodeURIComponent(path)}&conflict=${options.conflict}${confirm}`;
   return send(url, { method: "PUT", body: file, signal: options.signal }, file, (body) => {
     const parsed = UploadAnswer.safeParse(body);
+    return parsed.success ? parsed.data : null;
+  });
+}
+
+/** `PUT /agent-files` (sub-project 2): one file into a VM agent's home, at a path relative to it. */
+export function uploadAgentFile(
+  agentId: string,
+  path: string,
+  file: File,
+  signal: AbortSignal,
+): Promise<AgentFileView> {
+  const url = `/agent-files?agentId=${encodeURIComponent(agentId)}&path=${encodeURIComponent(path)}`;
+  return send(url, { method: "PUT", body: file, signal }, file, (body) => {
+    const parsed = AgentFileView.safeParse(body);
     return parsed.success ? parsed.data : null;
   });
 }

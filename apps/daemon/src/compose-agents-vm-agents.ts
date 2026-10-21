@@ -59,6 +59,8 @@ export interface AgentsLinkContext {
   readonly logger: Pick<Logger, "warn" | "info">;
   /** The agent is gone: the image policy's notice memory and its package pairs go. */
   forget(agentId: string): void;
+  /** The agent file store's trash, purged and swept with the disk's and the mirrors'. */
+  readonly files?: TrashDeps["files"] | undefined;
 }
 
 /**
@@ -72,6 +74,7 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
     clock: ctx.clock,
     logger: ctx.logger,
     remove: removeTree,
+    ...(ctx.files === undefined ? {} : { files: ctx.files }),
   };
   return {
     link: {

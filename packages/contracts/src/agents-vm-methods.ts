@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AgentFilePath, AgentFileView } from "./agents-files.ts";
 import { defineMethod } from "./define.ts";
 import { ApiKeyValue } from "./models-methods.ts";
 import { AgentId } from "./platform.ts";
@@ -93,5 +94,23 @@ export const agentsVmMethods = {
     params: Params({ agentId: AgentId }),
     result: Ok,
     errors: ["step_up_required", "not_found", "sandbox_unavailable", "command_failed"],
+  }),
+  // Agent files (sub-project 2): browser only like the agent form (agents:admin is outside the token permissions). The import
+  // itself is `PUT /agent-files` (a body of up to 1 MiB does not fit a frame); a replace is an import to the same path.
+  "agents.files.list": defineMethod({
+    name: "agents.files.list",
+    permission: "agents:admin",
+    idempotent: true,
+    params: Params({ agentId: AgentId }),
+    result: z.object({ files: z.array(AgentFileView).max(32) }).strict(),
+    errors: ["not_found"],
+  }),
+  "agents.files.remove": defineMethod({
+    name: "agents.files.remove",
+    permission: "agents:admin",
+    idempotent: false,
+    params: Params({ agentId: AgentId, path: AgentFilePath }),
+    result: Ok,
+    errors: ["not_found"],
   }),
 };

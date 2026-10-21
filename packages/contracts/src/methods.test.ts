@@ -19,6 +19,7 @@ describe("method catalogue", () => {
       "agents.answerApproval",
       "agents.create",
       "agents.delete",
+      "agents.files.remove",
       "agents.markRead",
       "agents.openThread",
       "agents.purgeTrash",

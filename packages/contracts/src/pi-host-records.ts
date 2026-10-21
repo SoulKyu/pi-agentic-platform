@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { EgressClose, EgressOpen } from "./egress.ts";
-import { FilePutResult, SessionAppend } from "./agents-vm.ts";
+import { FilePutResult, HomeResult, SessionAppend } from "./agents-vm.ts";
 import {
   AlwaysScopes,
   ApprovalAnswers,
@@ -147,6 +147,7 @@ const PapRecord = z.discriminatedUnion("type", [
   EgressClose,
   SessionAppend,
   FilePutResult,
+  HomeResult,
 ]);
 const PiEventRecord = z.looseObject({ type: z.string() });
 // Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.

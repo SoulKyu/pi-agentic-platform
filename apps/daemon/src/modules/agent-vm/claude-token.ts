@@ -1,20 +1,7 @@
-import { randomBytes } from "node:crypto";
-import {
-  chmodSync,
-  closeSync,
-  constants,
-  fstatSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  readSync,
-  renameSync,
-  unlinkSync,
-  writeSync,
-} from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { ClaudeToken, PapError } from "@pap/contracts";
+import { ensurePrivateFolder, PrivateFolderError, writePrivateFile } from "../../kernel/fs/private-write.ts";
 import type { Logger } from "../../kernel/logger.ts";
 
 /** The most a token file holds: a `claude setup-token` value is a few hundred characters. */
@@ -109,16 +96,14 @@ export function createClaudeTokenStore(deps: {
 
   /** The folder exists, is a real folder (not a link) and is 0700. */
   function ensureFolder(): void {
-    mkdirSync(secretsDir, { recursive: true, mode: 0o700 });
-    const stat = lstatSync(secretsDir);
-    if (!stat.isDirectory()) {
+    try {
+      ensurePrivateFolder(secretsDir);
+    } catch (error) {
       // A link or a file where the folder should be: said by class, then refused.
-      logger.error("claude_token_folder_refused", {
-        err: stat.isSymbolicLink() ? "link" : "not_a_directory",
-      });
-      throw new PapError("internal");
+      if (error instanceof PrivateFolderError)
+        logger.error("claude_token_folder_refused", { err: error.reason });
+      throw error instanceof PrivateFolderError ? new PapError("internal") : error;
     }
-    if ((stat.mode & 0o077) !== 0) chmodSync(secretsDir, 0o700);
   }
 
   const load = (): string | null =>
@@ -132,28 +117,9 @@ export function createClaudeTokenStore(deps: {
     load,
     set(token) {
       ensureFolder();
-      const temporary = join(secretsDir, `.${CLAUDE_TOKEN_FILE}.${randomBytes(8).toString("hex")}.tmp`);
-      let fd: number | undefined;
       try {
-        fd = openSync(
-          temporary,
-          constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-          0o600,
-        );
-        const bytes = Buffer.from(token, "utf8");
-        let written = 0;
-        while (written < bytes.length) written += writeSync(fd, bytes, written);
-        fsyncSync(fd);
-        closeSync(fd);
-        fd = undefined;
-        renameSync(temporary, path);
+        writePrivateFile(path, Buffer.from(token, "utf8"));
       } catch (error) {
-        if (fd !== undefined) closeSync(fd);
-        try {
-          unlinkSync(temporary);
-        } catch {
-          // Never made, or already renamed.
-        }
         logger.error("claude_token_write_failed", { err: errorClass(error) });
         throw new PapError("internal");
       }

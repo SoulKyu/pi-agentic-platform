@@ -9,6 +9,8 @@ import type { Lifecycle } from "./agent-lifecycle.ts";
 import { LifecycleChip } from "./LifecycleChip.tsx";
 import { AgentAvatar } from "./AgentAvatar.tsx";
 
+export type AgentTab = "thread" | "files" | "settings";
+
 export interface AgentHeaderProps {
   readonly agent: AgentSummary;
   /** The agent in full (`agents.get`): the role and the model. Null until it is read. */
@@ -30,8 +32,8 @@ export interface AgentHeaderProps {
   readonly confirm: ReactNode;
   /** The status panel's toggle (M11R125): it is there whatever the setting says. */
   readonly statusToggle?: { readonly open: boolean; onToggle(): void };
-  /** Thread / Settings (M11R126): the agent's own settings sit beside its thread. */
-  readonly tab?: { readonly value: "thread" | "settings"; onChange(tab: "thread" | "settings"): void };
+  /** Thread / Files / Settings (M11R126): the agent's own settings sit beside its thread; Files only in VM mode. */
+  readonly tab?: { readonly value: AgentTab; readonly files?: boolean; onChange(tab: AgentTab): void };
   /** Opens the Queue task dialog (Task 23); without it the button waits, disabled. */
   onQueueTask?(): void;
   onTogglePause(): void;
@@ -107,6 +109,9 @@ export function AgentHeader(props: AgentHeaderProps) {
               value={props.tab.value}
               options={[
                 { value: "thread", label: t("agentSafety.tab.thread") },
+                ...(props.tab.files === true
+                  ? [{ value: "files" as const, label: t("agentFiles.tab") }]
+                  : []),
                 { value: "settings", label: t("agentSafety.tab.settings") },
               ]}
               onChange={props.tab.onChange}

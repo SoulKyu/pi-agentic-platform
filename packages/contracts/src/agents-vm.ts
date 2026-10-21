@@ -194,3 +194,29 @@ export const FilePutResult = z
     code: z.enum(["exists", "too_large", "order", "write_failed"]).optional(),
   })
   .strict();
+/**
+ * Daemon to worker (sub-project 2, spec 7): one chunk of an imported file for the agent's home. `path` is checked again by the
+ * worker (`AgentFilePath`), never trusted from the wire. Chunks of one `id` come in order, `last` ends it.
+ */
+export const HomePut = z
+  .object({
+    type: z.literal("home_put"),
+    id: FileId,
+    path: z.string().max(512),
+    offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+    data: z.string().max(FILE_CHUNK_B64).regex(Base64),
+    last: z.boolean(),
+  })
+  .strict();
+/** Daemon to worker: the owner removed the file; a path that is not there is already removed. */
+export const HomeRemove = z
+  .object({ type: z.literal("home_remove"), id: FileId, path: z.string().max(512) })
+  .strict();
+export const HomeResult = z
+  .object({
+    type: z.literal("home_result"),
+    id: FileId,
+    ok: z.boolean(),
+    code: z.enum(["too_large", "order", "write_failed"]).optional(),
+  })
+  .strict();

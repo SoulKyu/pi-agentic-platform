@@ -158,7 +158,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
     const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
-    const core = { db, clock, logger, config, readOnly, hub, env, claudeToken: vmRpc.claudeToken };
+    closers.push({ name: "agent_files_sweep", close: vmRpc.stopSweep });
+    const core = { db, clock, logger, config, readOnly, hub, env, ...vmRpc.shared };
     const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
     vmRpc.bindStatus(agentsVm?.status.view);
     // The outbox is recovered before any module is built (M10R11).
@@ -273,6 +274,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         vm: agentsVm,
       },
     );
+    vmRpc.bindAgents(m11.agents);
     agentsVm?.bindLate({ sessions, pi, ...m11.vmLate, runs: m10.runs, automation: m10Late.automation });
     const agents = { port: m11.agents };
     const push = composePush(
@@ -323,6 +325,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
         m10Late.mount(hono);
         fonts.mount(hono);
+        vmRpc.mount(hono, auth.authenticateCookieHeader);
       },
       wsProbe,
     });

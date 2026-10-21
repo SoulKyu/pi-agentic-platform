@@ -6,6 +6,7 @@ import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import { pinBareRepositoryExplicit } from "./git-env.ts";
+import { createHomeFiles } from "./home-files.ts";
 import { createInbox } from "./inbox-put.ts";
 import type { Ipc } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";
@@ -250,6 +251,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     ...(mirror ? { mirror } : {}),
     ...(vm ? { vm: true } : {}),
     ...(vm ? { inbox: createInbox(vm.layout.inbox), inboxDir: vm.layout.inbox } : {}),
+    ...(vm ? { home: createHomeFiles(vm.layout.home) } : {}),
     ipc,
     ui,
     approvals,

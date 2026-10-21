@@ -47,6 +47,8 @@ export interface AgentRuntime {
     packages: PackagePicks,
   ): Promise<{ handle: WorkerHandle & VmWorkerHandle; layout: VmLayout; relayKey: string; slot: string }>;
   phase(agentId: string): VmPhase;
+  /** A live worker of the agent's running thread VM, or undefined: where a live change of the agent's files goes. */
+  threadWorker(agentId: string): WorkerHandle | undefined;
   /** Stops every VM of the agent (its own and its isolated tasks'). */
   stop(agentId: string): Promise<void>;
   /** Boot (spec §8, decision 109 Q4): stop every VM the backend lists, before any spawn runs (RT-42). */
@@ -74,6 +76,10 @@ export interface AgentRuntimeDeps {
   /** 3 crashes in 10 minutes (RT-40): the agent's existing pause with the reason `crashed` and an Inbox item (AVM-P21). */
   onCrashPause(agentId: string): void;
   notifyCapacity(running: string[]): void;
+  /** Sub-project 2: the owner's files go into the VM's home once per VM start, as soon as its first worker exists. */
+  deliverFiles?(spec: VmSpec, handle: WorkerHandle): Promise<void>;
+  /** Every later worker of a VM whose start delivery is settled: it sends what a change missed while no worker was there. */
+  deliverAgain?(spec: VmSpec, handle: WorkerHandle): Promise<void>;
 }
 
 interface Entry {
@@ -88,6 +94,8 @@ interface Entry {
   link: GuestLink | undefined;
   ready: Promise<GuestLink>;
   teardown: Promise<void> | undefined;
+  /** The delivery of the owner's files into this VM's home; cleared when it failed, so the next worker retries. */
+  files: Promise<void> | undefined;
 }
 
 /** A function, so a check after an await is not narrowed by the checks before it. */
@@ -186,6 +194,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       link: undefined,
       ready: new Promise<GuestLink>(() => {}), // replaced below, once the entry exists
       teardown: undefined,
+      files: undefined,
     };
     entries.set(key, entry);
     images.set(entry.launchId, spec.image);
@@ -251,7 +260,26 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         // A stopping entry has its idle timer cancelled for good: a worker leaving it must not arm one.
         if (!isStopping(entry)) entry.idle.workerEnded();
       });
+      if (deps.deliverFiles) {
+        const deliver = deps.deliverFiles;
+        if (entry.files === undefined)
+          entry.files = deliver(entry.spec, handle).catch((error: unknown) => {
+            entry.files = undefined;
+            logger.warn("agent_files_delivery_failed", { agentId: spec.agentId, err: error });
+          });
+        else
+          void deps.deliverAgain?.(entry.spec, handle).catch((error: unknown) => {
+            logger.warn("agent_files_delivery_failed", { agentId: spec.agentId, err: error });
+          });
+        // Not awaited: the worker answers only after its `init`, which the launcher sends once this returns (it queues the
+        // frames until its session is open). Waiting here would wait for an answer that cannot come.
+      }
       return { handle, layout: entry.layout, relayKey: entry.relayKey, slot: handle.slot };
+    },
+    threadWorker(agentId) {
+      const entry = entries.get(agentId);
+      if (entry?.phase !== "running") return undefined;
+      return entry.workers.values().next().value;
     },
     phase(agentId) {
       if (paused.has(agentId)) return "paused";

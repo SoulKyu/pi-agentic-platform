@@ -109,6 +109,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   agents.setLinks({
     vault: secrets,
     onceValues: { drop: (_ownerId, agentId) => void once.dropAgent(agentId) },
+    files: core.agentFilesLink,
   });
   const { automation } = modules.sessions;
   const threadLink = createThreadLink({

@@ -7,6 +7,9 @@ import {
   GuestCommand,
   GuestReport,
   Hello,
+  HomePut,
+  HomeRemove,
+  HomeResult,
   SESSION_CHUNK_B64,
   SessionAppend,
   SessionResync,
@@ -192,6 +195,28 @@ describe("worker and guest records", () => {
     for (const name of names) expect(FilePut.safeParse({ ...put, name }).success, name).toBe(false);
     expect(FilePut.safeParse({ ...put, data: "A".repeat(FILE_CHUNK_B64 + 4) }).success).toBe(false);
     expect(FilePut.safeParse({ ...put, data: "aG*=" }).success).toBe(false);
+  });
+
+  it("checks the home records, and the daemon-to-worker and worker-to-daemon unions carry them", () => {
+    const put = { type: "home_put", id: hex(32), path: ".kube/config", offset: 0, data: "aGk=", last: true };
+    expect(HomePut.safeParse(put).success).toBe(true);
+    expect(HomePut.safeParse({ ...put, data: "aG*=" }).success).toBe(false);
+    expect(HomePut.safeParse({ ...put, path: "a".repeat(513) }).success).toBe(false);
+    expect(HomePut.safeParse({ ...put, extra: 1 }).success).toBe(false);
+    const remove = { type: "home_remove", id: hex(32), path: ".kube/config" };
+    expect(HomeRemove.safeParse(remove).success).toBe(true);
+    expect(HomeRemove.safeParse({ ...remove, id: "x" }).success).toBe(false);
+    expect(HomeResult.safeParse({ type: "home_result", id: hex(32), ok: false, code: "order" }).success).toBe(
+      true,
+    );
+    expect(
+      HomeResult.safeParse({ type: "home_result", id: hex(32), ok: false, code: "exists" }).success,
+    ).toBe(false);
+    expect(DaemonToWorker.safeParse(put).success).toBe(true);
+    expect(DaemonToWorker.safeParse(remove).success).toBe(true);
+    expect(parseWorkerRecord({ type: "home_result", id: hex(32), ok: true })).toMatchObject({
+      type: "home_result",
+    });
   });
 
   it("refuses a relative sessionFile in spawn and a relative layout path in VmInit", () => {

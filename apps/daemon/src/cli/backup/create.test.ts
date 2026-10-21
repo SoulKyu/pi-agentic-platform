@@ -52,6 +52,7 @@ beforeEach(() => {
   put(home, "exports/e.json", "{}");
   put(home, "secrets/vault/key", "TOPSECRET");
   put(home, "secrets/push/vapid.json", "VAPID");
+  put(home, "secrets/agent-files/atlas-0000/.kube/config", "KUBECONFIG-CONTENT");
   put(home, "search.db", "cache");
   put(home, "worktrees/w/file", "w");
   put(home, "logs/trace.jsonl", "l");
@@ -123,6 +124,7 @@ describe("createBackup", () => {
       "secrets",
       "vault",
       "vapid",
+      "agent-files",
       "auth.json",
       "models.json",
       "search.db",
@@ -131,6 +133,7 @@ describe("createBackup", () => {
     ])
       expect(text).not.toContain(banned);
     expect(readFileSync(result.path).includes("TOPSECRET")).toBe(false);
+    expect(readFileSync(result.path).includes("KUBECONFIG-CONTENT")).toBe(false);
   });
 
   it("writes a manifest whose hash and schema match the extracted state.db", async () => {
@@ -347,6 +350,7 @@ describe("createBackup", () => {
       expect(result.secretsIncluded).toBe(true);
       expect(members(result.path)).toContain("secrets/vault/key");
       expect(members(result.path)).toContain("secrets/push/vapid.json");
+      expect(members(result.path)).toContain("secrets/agent-files/atlas-0000/.kube/config");
       expect(result.tops).toEqual(["attachments", "agents", "exports", "secrets", "pi-agent"]);
     });
 

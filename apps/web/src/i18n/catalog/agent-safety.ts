@@ -142,6 +142,7 @@ export const agentSafetyEn = {
   "agentSafety.q.step.thread": "close its thread and its open requests, and drop its one-use secret values",
   "agentSafety.q.step.rotate": "rotate its webhook secrets and show you the new ones once",
   "agentSafety.q.step.vault": "list its vault entries, which you rotate where they were issued",
+  "agentSafety.q.step.files": "list the files you imported into its home, which you revoke at their source",
   "agentSafety.q.second":
     "{name} stops now and stays stopped until you resume it with your password. Nothing it already did is undone.",
   "agentSafety.q.continue": "Continue",
@@ -156,6 +157,7 @@ export const agentSafetyEn = {
   "agentSafety.q.copied": "Copied.",
   "agentSafety.q.copyFailed": "The clipboard refused; select the value and copy it by hand.",
   "agentSafety.q.vault": "Rotate these where they were issued: {names}.",
+  "agentSafety.q.files": "Revoke these at their source: {paths}",
   "agentSafety.q.tasks": "Tasks cancelled: {n}",
   "agentSafety.q.errors": "These steps did not finish. The other steps ran:",
   "agentSafety.q.error": "{step}: {reason}",
@@ -166,6 +168,7 @@ export const agentSafetyEn = {
   "agentSafety.q.errorStep.once_values": "Dropping one-use values",
   "agentSafety.q.errorStep.triggers": "Rotating webhook secrets",
   "agentSafety.q.errorStep.vault": "Listing vault names",
+  "agentSafety.q.errorStep.files": "Listing imported files",
   "agentSafety.q.errorStep.memory": "Setting staged memories aside",
   "agentSafety.q.errorStep.vm": "Stopping the agent's VM",
   "agentSafety.q.reason.timeout": "did not finish in time",
@@ -341,6 +344,8 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
     "renouveler ses secrets de webhook et vous montrer les nouveaux une seule fois",
   "agentSafety.q.step.vault":
     "lister les entrées de son coffre, que vous renouvelez là où elles ont été émises",
+  "agentSafety.q.step.files":
+    "lister les fichiers que vous avez importés dans son home, que vous révoquez à leur source",
   "agentSafety.q.second":
     "{name} s'arrête maintenant et reste arrêté jusqu'à ce que vous le repreniez avec votre mot de passe. Rien de ce qu'il a déjà fait n'est annulé.",
   "agentSafety.q.continue": "Continuer",
@@ -356,6 +361,7 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
   "agentSafety.q.copied": "Copié.",
   "agentSafety.q.copyFailed": "Le presse-papiers a refusé ; sélectionnez la valeur et copiez-la à la main.",
   "agentSafety.q.vault": "À renouveler là où ils ont été émis : {names}.",
+  "agentSafety.q.files": "À révoquer à leur source : {paths}",
   "agentSafety.q.tasks": "Tâches annulées : {n}",
   "agentSafety.q.errors": "Ces étapes ne se sont pas terminées. Les autres étapes ont tourné :",
   "agentSafety.q.error": "{step} : {reason}",
@@ -366,6 +372,7 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
   "agentSafety.q.errorStep.once_values": "Abandon des valeurs à usage unique",
   "agentSafety.q.errorStep.triggers": "Renouvellement des secrets de webhook",
   "agentSafety.q.errorStep.vault": "Liste des noms du coffre",
+  "agentSafety.q.errorStep.files": "Liste des fichiers importés",
   "agentSafety.q.errorStep.memory": "Mise de côté des souvenirs en attente",
   "agentSafety.q.errorStep.vm": "Arrêt de la VM de l'agent",
   "agentSafety.q.reason.timeout": "ne s'est pas terminée à temps",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AGENT_FILE_LIMITS, AgentFilePath } from "./agents-files.ts";
 import { AGENT_LIMITS } from "./agents.ts";
 import { AUTOMATION_LIMITS } from "./automation.ts";
 import { AgentHostEntry } from "./host-entry.ts";
@@ -18,6 +19,7 @@ export const QUARANTINE_STEPS = [
   "once_values",
   "triggers",
   "vault",
+  "files",
   "memory",
 ] as const;
 
@@ -36,6 +38,8 @@ export const QuarantineResult = z
       )
       .max(AUTOMATION_LIMITS.triggersPerOwner),
     vaultNames: z.array(VaultName).max(50),
+    /** The paths of the agent's imported files (credentials to revoke at the source); absent from an answer of an older daemon. */
+    filePaths: z.array(AgentFilePath).max(AGENT_FILE_LIMITS.maxFiles).optional(),
     tasksCancelled: z.number().int().min(0),
     errors: z
       .array(z.object({ step: z.enum(QUARANTINE_STEPS), code: z.string().min(1).max(64) }).strict())

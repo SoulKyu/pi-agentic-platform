@@ -191,7 +191,7 @@ export function createAgents(deps: AgentsDeps) {
         links.threads?.archive(ownerId, record.threadSessionId);
         links.threads?.releaseIdle(ownerId, record.threadSessionId);
       }
-      await deleteVmStep(links.vm, id, clock.now());
+      await deleteVmStep(links.vm, id, clock.now(), links.files);
       links.vault?.drop(ownerId, id);
       trashedAs = trashHomeOrFind(papHome, id, clock.now());
     } catch (error) {

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { FilePut, SessionResync, VmInit } from "./agents-vm.ts";
+import { FilePut, HomePut, HomeRemove, SessionResync, VmInit } from "./agents-vm.ts";
 import { EgressOpened, EgressReport } from "./egress.ts";
 import { ImageMime } from "./files.ts";
 import { InitChild, InitMemory } from "./pi-host-init.ts";
@@ -185,6 +185,8 @@ export const DaemonToWorker = z.discriminatedUnion("type", [
   EgressReport,
   SessionResync,
   FilePut,
+  HomePut,
+  HomeRemove,
 ]);
 export type DaemonToWorker = z.input<typeof DaemonToWorker>;
 type CommandRecord =

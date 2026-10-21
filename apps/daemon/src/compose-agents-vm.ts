@@ -1,7 +1,7 @@
 import { AGENT_NET, PapError, type VmLayout } from "@pap/contracts";
+import { scriptCopier } from "./compose-agents-vm-script.ts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
 import { composeVmProxy } from "./compose-agents-vm-proxy.ts";
-import { scriptCopier } from "./compose-agents-vm-script.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { awaitBridge, composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
@@ -15,6 +15,8 @@ import type { Logger } from "./kernel/logger.ts";
 import {
   type AgentRuntime,
   type AgentRuntimeBackend,
+  type AgentFilesPort,
+  createFilesDelivery,
   type ClaudeTokenStore,
   createImageEntries,
   createAgentRuntime,
@@ -61,6 +63,8 @@ export interface AgentsVmCore {
   readonly readOnly: boolean;
   /** The owner's Claude token (host and vm modes keep it; only vm mode has a relay to push it to). */
   readonly claudeToken: ClaudeTokenStore;
+  /** The agent file store: its trash is purged and swept with the agent's disk. */
+  readonly agentFiles?: AgentFilesPort | undefined;
 }
 
 /** What a test, or a later task, supplies to the composition; nothing is needed in host mode. */
@@ -245,6 +249,7 @@ export async function composeAgentsVm(
     const layoutBackend = kata ? "kata" : "process";
     let crashPause: (agentId: string) => void = (agentId) =>
       agentsLogger.error("agent_vm_crash_pause_unwired", { agentId });
+    const delivery = createFilesDelivery({ files: core.agentFiles, clock, logger: agentsLogger });
     const runtime = createAgentRuntime({
       backend,
       gateway,
@@ -269,7 +274,10 @@ export async function composeAgentsVm(
         ]),
       onCrashPause: (agentId) => crashPause(agentId),
       notifyCapacity: () => {},
+      deliverFiles: delivery.start,
+      deliverAgain: delivery.again,
     });
+    delivery.live(runtime);
     imageOf = runtime.imageOf;
     const vmStatus = composeVmStatus(core, kata?.client ?? null, runtime);
     await runtime.stopAll();
@@ -315,6 +323,7 @@ export async function composeAgentsVm(
       clock,
       logger: agentsLogger,
       forget: (agentId) => (kata ? kata.images.forget(agentId) : imageEntries.forget(agentId)),
+      files: core.agentFiles,
     });
     closers.push({ name: "agent_trash_sweep", close: agentLink.stopSweep });
     if (kata) closers.push({ name: "agent_image_upgrades", close: kata.startUpgrades() });

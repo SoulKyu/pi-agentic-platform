@@ -14,6 +14,7 @@ import { errorClass, logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, queuePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
+import type { HomeResult } from "./home-files.ts";
 import type { FilePutResult } from "./inbox-put.ts";
 import { readPromptImages } from "./prompt-images.ts";
 import { createPromptQueue } from "./prompt-queue.ts";
@@ -58,6 +59,11 @@ export interface DispatchDeps {
   /** The transcript mirror of a worker in a VM (T9a): flushed after every response, resent on `session_resync`. */
   /** A worker in a VM takes attachments into its inbox (T10a, R33); absent: `file_put` is ignored. */
   readonly inbox?: { put(chunk: Extract<DaemonToWorker, { type: "file_put" }>): FilePutResult | null };
+  /** A worker in a VM takes the owner's imported files into its home (sub-project 2); absent: `home_put` / `home_remove` are ignored. */
+  readonly home?: {
+    put(chunk: Extract<DaemonToWorker, { type: "home_put" }>): Promise<HomeResult>;
+    remove(request: Extract<DaemonToWorker, { type: "home_remove" }>): Promise<HomeResult>;
+  };
   /** The real inbox folder of a worker in a VM: where its prompt images are read from (RT-06). */
   readonly inboxDir?: string;
   readonly mirror?: {
@@ -204,6 +210,12 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
           const answer = deps.inbox?.put(record);
           if (answer) send(answer);
         }
+        return;
+      case "home_put":
+        void deps.home?.put(record).then(send);
+        return;
+      case "home_remove":
+        void deps.home?.remove(record).then(send);
         return;
       default: {
         // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.

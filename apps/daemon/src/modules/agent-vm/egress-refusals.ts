@@ -65,27 +65,41 @@ export function createRefusalSink(deps: RefusalSinkDeps): (refusal: VmRefusal) =
     }
   };
 
-  const logged = new Map<string, { at: number; skipped: number }>();
+  const logged = new Map<string, { at: number; skipped: number; timer: TimerHandle | null }>();
+  /** One line per window; the lines it hid are counted on the line after it, or, when none comes, by the timer at the window's end. */
   const logOnce = (event: string, agentId: string, now: number): void => {
     const key = `${event}|${agentId}`;
     const before = logged.get(key);
     if (before && now - before.at < LOG_EVERY_MS) {
       before.skipped++;
+      before.timer ??= deps.clock.setTimeout(
+        () => {
+          if (logged.get(key) === before) logged.delete(key);
+          deps.logger.warn(event, { agentId, suppressed: before.skipped });
+        },
+        before.at + LOG_EVERY_MS - now,
+      );
       return;
     }
+    if (before?.timer) deps.clock.clearTimeout(before.timer);
     if (logged.size >= MAX_LOG_KEYS)
-      for (const [each, entry] of logged) if (now - entry.at >= LOG_EVERY_MS) logged.delete(each);
-    logged.set(key, { at: now, skipped: 0 });
+      for (const [each, entry] of logged)
+        if (now - entry.at >= LOG_EVERY_MS && entry.timer === null) logged.delete(each);
+    logged.set(key, { at: now, skipped: 0, timer: null });
     deps.logger.warn(event, before?.skipped ? { agentId, suppressed: before.skipped } : { agentId });
   };
 
-  /** The one database write of a card: its count so far. A card the database no longer holds is forgotten. */
+  /** The one database write of a card: its count so far. A card the database no longer holds is forgotten; a write that throws keeps the count for the next one. */
   const flush = (key: string, entry: Open): void => {
     if (entry.timer !== null) deps.clock.clearTimeout(entry.timer);
     entry.timer = null;
     entry.writtenAt = deps.clock.now();
-    if (!deps.events.update(entry.ownerId, entry.eventId, entry.data) && open.get(key) === entry)
-      open.delete(key);
+    try {
+      if (!deps.events.update(entry.ownerId, entry.eventId, entry.data) && open.get(key) === entry)
+        open.delete(key);
+    } catch {
+      logOnce("egress_refusal_flush_failed", key.split("|")[0] ?? key, entry.writtenAt);
+    }
   };
 
   return (refusal) => {

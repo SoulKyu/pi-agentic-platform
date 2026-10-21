@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { AGENT_NET } from "@pap/contracts";
+import { httpRequest } from "../../testing/http-client.ts";
 import { type KataBed, LONG_MS, skipKata, startKataBed } from "../../testing/kata-bed.ts";
 
 /*
@@ -10,6 +11,9 @@ import { type KataBed, LONG_MS, skipKata, startKataBed } from "../../testing/kat
  *  - `--unshare-net` back in `bwrapVmArgv`: killed by "sets the proxy variables" and every dial.
  *  - a DNS failure answered 403 again: killed by "answers 502 resolve for a listed name that does not resolve".
  *  - the address policy skipped for IP entries: killed by "answers 403 blocked_address".
+ * Lane B (agent files; the bed's agents have `sandbox.network: false`, the files need no network):
+ *  - delivery dropped from the VM's start: killed by "has the imported file in its home at 0600 after a restart".
+ *  - the pending removal not kept for a stopped VM: killed by the same test's "FILE gone" check (stop, remove, reopen, look).
  */
 const skip = skipKata();
 let bed: KataBed | undefined;
@@ -243,6 +247,50 @@ describe.skipIf(skip)("a VM agent's network through the egress proxy (real Kata)
       }
       expect(relayKey).toMatch(/^[0-9a-f]{64}$/);
       expect(out).not.toContain(relayKey);
+    },
+    LONG_MS,
+  );
+
+  it(
+    "has the imported file in its home at 0600 after a restart, and none after a removal and a restart",
+    async () => {
+      const b = (bed = await startKataBed());
+      const agentId = await b.createAgent({ name: "Filer" });
+      const content = "apiVersion: v1\nkind: Config\n";
+      const sent = await httpRequest(
+        `${b.t.base}/agent-files?agentId=${agentId}&path=${encodeURIComponent(".kube/config")}`,
+        {
+          method: "PUT",
+          headers: {
+            origin: b.t.origin,
+            cookie: b.owner.cookie,
+            "content-length": String(Buffer.byteLength(content)),
+          },
+          body: content,
+        },
+      );
+      expect(sent.status, sent.body).toBe(200);
+      const sessionId = await b.openThread(agentId);
+      const look = (): Promise<string> =>
+        b.shell(
+          agentId,
+          sessionId,
+          'if [ -e "$HOME/.kube/config" ]; then echo "FILE mode=$(stat -c %a "$HOME/.kube/config") dir=$(stat -c %a "$HOME/.kube") size=$(stat -c %s "$HOME/.kube/config")"; head -n 1 "$HOME/.kube/config"; else echo FILE gone; fi',
+        );
+      const restart = async (): Promise<void> => {
+        await b.vm.runtime.stop(agentId);
+        await b.call("sessions.reopen", { sessionId });
+      };
+      expect(await look()).toContain("FILE mode=600");
+      await restart();
+      const present = await look();
+      expect(present).toContain(`FILE mode=600 dir=700 size=${Buffer.byteLength(content)}`);
+      expect(present).toContain("apiVersion: v1");
+      // Stopped first: the removal must wait as a pending one (no live worker to confirm it) and reach the home at the start.
+      await b.vm.runtime.stop(agentId);
+      await b.call("agents.files.remove", { agentId, path: ".kube/config" });
+      await b.call("sessions.reopen", { sessionId });
+      expect(await look()).toContain("FILE gone");
     },
     LONG_MS,
   );

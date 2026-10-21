@@ -13,7 +13,7 @@ export interface QuarantineDialogProps {
   onClose(): void;
 }
 
-const STEPS = ["pause", "tasks", "thread", "rotate", "vault"] as const;
+const STEPS = ["pause", "tasks", "thread", "rotate", "vault", "files"] as const;
 const refusal = (failure: unknown): MessageKey =>
   failure instanceof RpcError && failure.code === "conflict"
     ? "agentSafety.q.replay"
@@ -131,6 +131,9 @@ function Outcome({ result }: { readonly result: QuarantineResult }) {
       )}
       {result.vaultNames.length === 0 ? null : (
         <p className="text-ui text-fg">{t("agentSafety.q.vault", { names: result.vaultNames.join(", ") })}</p>
+      )}
+      {result.filePaths === undefined || result.filePaths.length === 0 ? null : (
+        <p className="text-ui text-fg">{t("agentSafety.q.files", { paths: result.filePaths.join(", ") })}</p>
       )}
       <p className="text-ui text-muted">{t("agentSafety.q.tasks", { n: result.tasksCancelled })}</p>
       {result.errors.length === 0 ? null : (
