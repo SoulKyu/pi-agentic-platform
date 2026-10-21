@@ -88,4 +88,5 @@ Numbers marked "not used" were skipped and stay empty.
 | 0076 | [the v1 flip amends ADR 0066](0076-the-v1-flip-amends-adr-0066.md) | accepted | 2026-10-18 |
 | 0077 | [the licence](0077-the-licence.md) | accepted | 2026-10-18 |
 | 0078 | [agents run in microVMs](0078-agents-run-in-microvms.md) | accepted, sub-project 1 | 2026-10-19 |
+| 0079 | [agents in microVMs: a simple egress proxy and the agent's own credentials](0079-agents-vm-egress-and-files.md) | accepted, sub-project 2 | 2026-10-21 |
 | 0080 | [pap sets IS_SANDBOX=1 and CLAUDE_CONFIG_DIR for claude-bridge agents](0080-claude-code-env-for-claude-bridge-agents.md) | accepted | 2026-10-21 |
