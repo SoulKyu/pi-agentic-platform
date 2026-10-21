@@ -35,10 +35,16 @@ export const isRemote = (source: string): boolean => REMOTE.test(source);
 
 const URL_FORM = /^[a-z][a-z0-9+.-]*:\/\//i;
 const USERINFO = /[^/@:\s]+:[^/@\s]+@/g;
+/** `npm:<name>@<version>`: the scheme's colon and the version's `@` are not a `user:secret@` (an npm spec has no other colon). */
+const NPM_SPEC = /^npm:[^:\s]+$/;
 
 /** A source as it is shown: a URL through `maskUrl`, `npm:` and `git:` forms (which are not URLs) with any `user:secret@` hidden. */
 export const maskSource = (source: string): string =>
-  URL_FORM.test(source) ? maskUrl(source) : source.replace(USERINFO, `${MASK}@`);
+  URL_FORM.test(source)
+    ? maskUrl(source)
+    : NPM_SPEC.test(source)
+      ? source
+      : source.replace(USERINFO, `${MASK}@`);
 
 /**
  * A configured source Pi may be handed to install, remove or update (M7R115): a remote one only if it passes the same
