@@ -29,3 +29,15 @@ describe("SessionScreen: beforeComposer (M9R64)", () => {
     expect(container.querySelector("[data-before]")).toBeNull();
   });
 });
+
+describe("SessionScreen: an agent thread's header", () => {
+  it("leaves the session's own state word to the agent's lifecycle chip", async () => {
+    const plain = await screen.remount(<SessionScreen sessionId="sess-1" />);
+    expect(plain.querySelector("[data-slot='chip']")).not.toBeNull();
+    const agent = await screen.remount(
+      <SessionScreen sessionId="sess-1" header={<div data-agent-header />} />,
+    );
+    expect(agent.querySelector("[data-agent-header]")).not.toBeNull();
+    expect(agent.querySelector("header [data-slot='chip']")).toBeNull();
+  });
+});

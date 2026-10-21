@@ -138,14 +138,17 @@ export function SessionScreen({
             </span>
           ) : null}
         </div>
-        <RunStatusChip
-          status={runStatusOf(view)}
-          label={t(
-            runStatusOf(view) === "needs-input"
-              ? "session.status.needsInput"
-              : `session.status.${view.status}`,
-          )}
-        />
+        {/* An agent's thread has its own header: the agent's lifecycle speaks there, not the session's word. */}
+        {header === undefined ? (
+          <RunStatusChip
+            status={runStatusOf(view)}
+            label={t(
+              runStatusOf(view) === "needs-input"
+                ? "session.status.needsInput"
+                : `session.status.${view.status}`,
+            )}
+          />
+        ) : null}
         <LimitChip sessionId={sessionId} />
         <SessionPolicy
           key={`policy:${sessionId}`}

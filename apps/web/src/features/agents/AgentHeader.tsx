@@ -5,7 +5,8 @@ import type { MenuItem } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
-import { STATE_CHIP } from "./agent-state.ts";
+import type { Lifecycle } from "./agent-lifecycle.ts";
+import { LifecycleChip } from "./LifecycleChip.tsx";
 import { AgentAvatar } from "./AgentAvatar.tsx";
 
 export interface AgentHeaderProps {
@@ -13,6 +14,8 @@ export interface AgentHeaderProps {
   /** The agent in full (`agents.get`): the role and the model. Null until it is read. */
   readonly view: AgentView | null;
   readonly avatarStyle: AvatarStyle;
+  /** The agent's lifecycle (`useAgentLifecycle`); null is ready, which shows no pill. */
+  readonly lifecycle: Lifecycle | null;
   /** The thread's current taint (W5-R38). */
   readonly tainted: boolean;
   /** What the agent spent today in dollars (`agents.status`); null until it is read, or when it cannot be. */
@@ -81,7 +84,7 @@ export function AgentHeader(props: AgentHeaderProps) {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex min-w-0 flex-wrap items-center gap-s2">
             <h2 className="min-w-0 truncate text-h2 text-fg">{agent.name}</h2>
-            <Chip tone={STATE_CHIP[agent.state]} label={t(`shell.agent.state.${agent.state}`)} />
+            {props.lifecycle === null ? null : <LifecycleChip lifecycle={props.lifecycle} />}
             {props.tainted ? <Chip tone="ext" label={t("agentSpace.header.external")} /> : null}
           </div>
           {input === null ? null : (

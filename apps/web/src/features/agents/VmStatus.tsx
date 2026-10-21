@@ -1,6 +1,7 @@
 import "./register-agent-catalog.ts";
 import type { VmStatusView } from "@pap/contracts";
 import { Button } from "@pap/ui";
+import { vmPhaseLifecycle, type Lifecycle } from "./agent-lifecycle.ts";
 import { useT } from "../../i18n/index.ts";
 import { stripHidden } from "../../lib/untrusted-text.ts";
 
@@ -11,7 +12,16 @@ import { stripHidden } from "../../lib/untrusted-text.ts";
  */
 export function VmStatus({ status, reload }: { readonly status: VmStatusView; reload(): void }) {
   const t = useT();
-  const running = status.agents.filter((agent) => agent.phase === "running").length;
+  const count = (word: Lifecycle | "running") =>
+    status.agents.filter(
+      (agent) => (agent.phase === "running" ? "running" : vmPhaseLifecycle(agent.phase)) === word,
+    ).length;
+  const words = [
+    t("agentVm.status.running", { n: count("running") }),
+    ...(["waking", "parked", "paused"] as const).flatMap((word) =>
+      count(word) === 0 ? [] : [`${count(word)} ${t(`shell.agent.state.${word}`)}`],
+    ),
+  ];
   return (
     <section data-slot="agents-vm" aria-labelledby="agents-vm-title" className="flex flex-col gap-s3">
       <h3 id="agents-vm-title" className="label-hud text-fg">
@@ -30,7 +40,7 @@ export function VmStatus({ status, reload }: { readonly status: VmStatusView; re
             ...(status.vmdVersion === null
               ? []
               : [t("agentVm.status.version", { version: status.vmdVersion })]),
-            t("agentVm.status.running", { n: running }),
+            ...words,
           ].join(" · ")}
         </p>
       ) : status.reason === null ? null : (

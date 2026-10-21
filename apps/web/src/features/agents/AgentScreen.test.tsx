@@ -173,7 +173,7 @@ describe("the agent header (decision 85: every action visible or in the menu)", 
     expect(words).toContain("Keeps the repository tidy.");
     expect(words).not.toContain("Second line of the role.");
     expect(words).toContain("anthropic / sonnet");
-    expect(words).toContain("idle");
+    expect(words).not.toMatch(/idle|ready/i); // a ready agent is the default: no badge
   });
 
   it("has Queue task, Pause and a menu with Reset thread, Settings, Quarantine and Delete", async () => {

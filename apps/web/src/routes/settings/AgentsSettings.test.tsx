@@ -92,9 +92,9 @@ describe("Settings › Agents: the list", () => {
       summary("rex-3c3c", "rex", { state: "quarantined", quarantined: true }),
     ]);
     expect(body()).toContain("atlas");
-    expect(body()).toContain("Running");
-    expect(body()).toContain("Needs you");
-    expect(body()).toContain("Quarantined");
+    expect(body()).toContain("working");
+    expect(body()).toContain("needs input");
+    expect(body()).toContain("quarantined");
     expect(hasButton(document.body, "Open atlas")).toBe(true);
     expect(hasButton(document.body, "Open scout")).toBe(true);
     expect(hasButton(document.body, "New agent")).toBe(true);
@@ -285,9 +285,9 @@ describe("Settings › Agents: one agent", () => {
 
   it("speaks French", async () => {
     setLocale("fr");
-    await open([atlas]);
+    await open([{ ...atlas, state: "paused", paused: true }]);
     expect(hasButton(document.body, "Nouvel agent")).toBe(true);
-    expect(body()).toContain("Au repos");
+    expect(body()).toContain("en pause");
   });
 });
 

@@ -27,9 +27,29 @@ describe("VmStatus", () => {
     expect(body).toContain("Agent VMs");
     expect(body).toContain("Ready.");
     expect(body).toContain("pap-vmd 1.2.3");
-    expect(body).toContain("1 running");
+    expect(body).toContain("1 running · 1 parked");
     expect(body).not.toContain("sudo pap vm setup");
     expect(document.querySelector("[data-vm]")?.getAttribute("data-vm")).toBe("usable");
+  });
+
+  it("counts the VMs in the agent's own words: parked, not stopped; waking, not starting", async () => {
+    await mount(
+      <VmStatus
+        status={status({
+          agents: [
+            { id: "atlas-1a2b", phase: "running" },
+            { id: "bolt-0001", phase: "stopped" },
+            { id: "cato-0002", phase: "stopping" },
+            { id: "dino-0003", phase: "starting" },
+            { id: "eve-0004", phase: "paused" },
+          ],
+        })}
+        reload={vi.fn()}
+      />,
+    );
+    const body = text(document.body);
+    expect(body).toContain("1 running · 1 waking · 2 parked · 1 paused");
+    expect(body).not.toMatch(/stopped|starting/i);
   });
 
   it("says what to run, and the daemon's reason, when it is not usable", async () => {

@@ -24,6 +24,7 @@ const show = (extra: Partial<AgentHeaderProps> = {}) =>
       view={null}
       avatarStyle="outlined"
       tainted={false}
+      lifecycle={null}
       pausing={null}
       canReset
       problem={null}
@@ -95,5 +96,41 @@ describe("the header's cost today (board 12, decision 32)", () => {
     } as unknown as AgentHeaderProps["view"];
     expect(line(await show({ view, costToday: null }))).not.toContain("today");
     expect(line(await show({ view }))).not.toContain("today");
+  });
+});
+
+describe("the header's state pill (one lifecycle for every surface)", () => {
+  const pill = (page: { container: HTMLElement }) => page.container.querySelector("[data-lifecycle]");
+
+  it("shows no pill while the agent is ready: that is the default, not a badge", async () => {
+    const page = await show({ lifecycle: null });
+    expect(pill(page)).toBeNull();
+    expect(page.container.textContent).not.toMatch(/idle|ready/i);
+  });
+
+  it.each([
+    ["working", "run", "working"],
+    ["needs_input", "att", "needs input"],
+    ["waking", "mut", "waking"],
+    ["paused", "mut", "paused"],
+    ["parked", "mut", "parked"],
+    ["failed", "err", "failed"],
+    ["quarantined", "err", "quarantined"],
+  ] as const)("says %s with the %s tone", async (lifecycle, tone, word) => {
+    const page = await show({ lifecycle });
+    expect(pill(page)?.getAttribute("data-lifecycle")).toBe(lifecycle);
+    const chip = page.container.querySelector("[data-slot='chip']");
+    expect(chip?.getAttribute("data-tone")).toBe(tone);
+    expect(chip?.textContent).toBe(word);
+  });
+
+  it("says it in French", async () => {
+    setLocale("fr");
+    try {
+      const page = await show({ lifecycle: "parked" });
+      expect(page.container.querySelector("[data-slot='chip']")?.textContent).toBe("en veille");
+    } finally {
+      setLocale("en");
+    }
   });
 });

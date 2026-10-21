@@ -14,6 +14,7 @@ import { setPaused } from "./agent-actions.ts";
 import { AgentHeader } from "./AgentHeader.tsx";
 import { OpenStatus, PanelSlot } from "./AgentScreenParts.tsx";
 import { PendingStrip } from "./PendingStrip.tsx";
+import { ComposerLifecycle } from "./LifecycleChip.tsx";
 import { PromptChips } from "./PromptChips.tsx";
 import { QueueTaskDialog } from "./QueueTaskDialog.tsx";
 import { AgentSettingsTab } from "./AgentSettingsTab.tsx";
@@ -24,6 +25,7 @@ import { panelLayout, WIDE_QUERY } from "./status.vm.ts";
 import { threadInterleave } from "./thread-plan.tsx";
 import { useAgentCards, useMarkRead, useNow, useOpenThread } from "./use-agent-space.ts";
 import { useHandOff } from "./use-hand-off.ts";
+import { useAgentLifecycle } from "./use-agent-lifecycle.ts";
 import { useAgentView } from "./use-agent-view.ts";
 import { useCostToday } from "./use-cost-today.ts";
 
@@ -115,6 +117,7 @@ function AgentSpace({
   const tainted = useSessionStore((state) =>
     sessionId === null ? false : (state.views[sessionId]?.policy.tainted ?? false),
   );
+  const lifecycle = useAgentLifecycle(agent, sessionId);
   const now = useNow(REQUEST_CLOCK_MS);
   useMarkRead(agentId, agent.unread, sessionId !== null);
   useHandOff(
@@ -177,6 +180,7 @@ function AgentSpace({
       agent={agent}
       view={detail.load.kind === "ready" ? detail.load.agent : null}
       avatarStyle={avatarStyle}
+      lifecycle={lifecycle}
       costToday={costToday}
       tainted={tainted}
       pausing={pause.since}
@@ -295,6 +299,7 @@ function AgentSpace({
             onProvide={(request) => useSecretDialog.getState().open(request.id)}
           />
           <PendingStrip agentId={agentId} />
+          <ComposerLifecycle lifecycle={lifecycle} />
           <PromptChips agentId={agentId} sessionId={sessionId} refreshKey={String(agent.lastActivityAt)} />
         </>
       ),

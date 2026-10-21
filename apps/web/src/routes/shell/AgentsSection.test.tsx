@@ -82,8 +82,8 @@ describe("the phone's Agents tab (M11R109, board 12)", () => {
     const rows = [...page.container.querySelectorAll("main li button")].map((one) =>
       one.getAttribute("aria-label"),
     );
-    expect(rows).toEqual(["Atlas, needs input, 3 unread", "Bolt, idle"]);
-    await click(button(page.container, "Bolt, idle"));
+    expect(rows).toEqual(["Atlas, needs input, 3 unread", "Bolt"]);
+    await click(button(page.container, "Bolt"));
     await settle();
     expect(page.router.state.location.pathname).toBe("/agents/bolt-0001");
     expect(button(nav(page.container), "Work").getAttribute("aria-current")).toBe("page");

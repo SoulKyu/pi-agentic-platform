@@ -1,5 +1,6 @@
 import type { AgentRailState, AgentSummary } from "@pap/contracts";
 import type { Translate } from "../../i18n/index.ts";
+import { agentLifecycle } from "./agent-lifecycle.ts";
 
 /** Where an agent's avatar leads. Structural, so the shell's `ItemRef` accepts it without this feature importing it. */
 export type AgentTarget =
@@ -23,12 +24,18 @@ export const railPresence = (state: AgentRailState) => PRESENCE[state];
 export const unreadLabel = (agent: AgentSummary, t: Translate): string =>
   t("shell.agent.unread", { count: badgeText(agent.unread) });
 
+/**
+ * The state word of the shared vocabulary, from the summary alone (the rail knows no session or VM phase): none for an
+ * agent that is ready, which is the default and not a badge.
+ */
+const stateWord = (agent: AgentSummary, t: Translate): readonly string[] => {
+  const lifecycle = agentLifecycle(agent, null, null);
+  return lifecycle === null ? [] : [t(`shell.agent.state.${lifecycle}`)];
+};
+
 /** "paused · profile unreadable": the state word, and the profile problem when there is one (phone list). */
 export const stateWords = (agent: AgentSummary, t: Translate): string =>
-  [
-    t(`shell.agent.state.${agent.state}`),
-    ...(agent.unreadable ? [t("shell.agent.profileUnreadable")] : []),
-  ].join(" · ");
+  [...stateWord(agent, t), ...(agent.unreadable ? [t("shell.agent.profileUnreadable")] : [])].join(" · ");
 
 /** "needs input · 3 unread": the state words and, when there is one, the unread count. */
 export const railDetail = (agent: AgentSummary, t: Translate): string =>
@@ -38,7 +45,7 @@ export const railDetail = (agent: AgentSummary, t: Translate): string =>
 export function railName(agent: AgentSummary, t: Translate): string {
   return [
     agent.name,
-    t(`shell.agent.state.${agent.state}`),
+    ...stateWord(agent, t),
     ...(agent.unread > 0 ? [unreadLabel(agent, t)] : []),
     ...(agent.unreadable ? [t("shell.agent.unreadable")] : []),
   ].join(", ");

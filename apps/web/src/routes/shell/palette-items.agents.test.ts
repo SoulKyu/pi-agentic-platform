@@ -48,7 +48,7 @@ describe("the Agents group of the palette (M11R109)", () => {
     const rows = items.filter((i) => i.group === "agents" && i.id.startsWith("agent:"));
     expect(rows.map((i) => [i.title, i.detail])).toEqual([
       ["Open agent Atlas", "needs input · 2 unread"],
-      ["Open agent Bolt", "idle"],
+      ["Open agent Bolt", ""],
     ]);
     rows[0]?.run();
     expect(navigate).toHaveBeenCalledWith({ kind: "agent", id: "atlas-1a2b" });

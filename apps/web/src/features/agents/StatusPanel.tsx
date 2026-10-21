@@ -1,4 +1,5 @@
 import "./register-space-catalog.ts";
+import type { AgentSummary } from "@pap/contracts";
 import { Button, Chip, formatCost, Meter } from "@pap/ui";
 import type { ReactNode } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -14,8 +15,12 @@ import {
 } from "./status.vm.ts";
 import { papText } from "../../i18n/pap-text.ts";
 import { RecentMemory } from "./RecentMemory.tsx";
+import { LifecycleChip } from "./LifecycleChip.tsx";
+import { useAgentLifecycle } from "./use-agent-lifecycle.ts";
 import { useAgentStatus } from "./use-agent-status.ts";
 import { useNow } from "./use-agent-space.ts";
+import { agentById } from "../../stores/agents-reducer.ts";
+import { useAgents } from "../../stores/agents-store.ts";
 
 /** How often "5 minutes ago" is written again: a local clock, nothing is asked of the daemon. */
 const RECENCY_TICK_MS = 60_000;
@@ -49,7 +54,8 @@ export function StatusPanel(props: StatusPanelProps) {
       className="flex min-h-0 min-w-0 flex-1 flex-col gap-s4 overflow-y-auto p-s3"
     >
       <header className="flex items-center justify-between gap-s2">
-        <h2 className="text-h2 text-fg">{t("agentStatus.title")}</h2>
+        <h2 className="min-w-0 flex-1 text-h2 text-fg">{t("agentStatus.title")}</h2>
+        <PanelLifecycle agentId={props.agentId} />
         {props.onClose === undefined || props.closeLabel === undefined ? null : (
           <Button size="sm" variant="ghost" onClick={props.onClose}>
             {props.closeLabel}
@@ -82,6 +88,18 @@ export function StatusPanel(props: StatusPanelProps) {
       {load.kind === "ready" ? <Body {...props} status={load.status} /> : null}
     </section>
   );
+}
+
+/** The same chip as the header's, so the panel never words the agent's state its own way. */
+function PanelLifecycle({ agentId }: { readonly agentId: string }) {
+  const agent = useAgents((view) => agentById(view, agentId));
+  if (agent === undefined) return null;
+  return <PanelChip agent={agent} />;
+}
+
+function PanelChip({ agent }: { readonly agent: AgentSummary }) {
+  const lifecycle = useAgentLifecycle(agent, agent.threadSessionId);
+  return lifecycle === null ? null : <LifecycleChip lifecycle={lifecycle} />;
 }
 
 type Status = Extract<ReturnType<typeof useAgentStatus>["load"], { kind: "ready" }>["status"];

@@ -30,22 +30,22 @@ describe("the rail's accessible name (M11R108: the state is a word, never a colo
   });
 
   it("leaves the unread part out when nothing is unread, and says 99+ past 99", () => {
-    expect(railName(agent("atlas-1a2b", { name: "Atlas", state: "running" }), t)).toBe("Atlas, running");
+    expect(railName(agent("atlas-1a2b", { name: "Atlas", state: "running" }), t)).toBe("Atlas, working");
     expect(railName(agent("atlas-1a2b", { name: "Atlas", state: "idle", unread: 250 }), t)).toBe(
-      "Atlas, idle, 99+ unread",
+      "Atlas, 99+ unread",
     );
   });
 
-  it("says each of the six states with its own word", () => {
+  it("says each state with its lifecycle word, and nothing for a ready agent", () => {
     const words = (["needs_input", "running", "failed", "paused", "idle", "quarantined"] as const).map(
       (state) => railName(agent("atlas-1a2b", { name: "Atlas", state }), t),
     );
     expect(words).toEqual([
       "Atlas, needs input",
-      "Atlas, running",
+      "Atlas, working",
       "Atlas, failed",
       "Atlas, paused",
-      "Atlas, idle",
+      "Atlas",
       "Atlas, quarantined",
     ]);
   });

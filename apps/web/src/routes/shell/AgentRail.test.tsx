@@ -93,7 +93,7 @@ describe("the agent rail (M11R108, board 05 option 2)", () => {
     const names = [...rail().querySelectorAll("button[aria-label]")].map((one) =>
       one.getAttribute("aria-label"),
     );
-    expect(names.slice(0, 3)).toEqual(["Atlas, needs input, 3 unread", "Bolt, idle", "Cato, idle, 1 unread"]);
+    expect(names.slice(0, 3)).toEqual(["Atlas, needs input, 3 unread", "Bolt", "Cato, 1 unread"]);
     expect(rail().querySelector('[data-slot="badge"] [aria-hidden]')?.textContent).toBe("3");
     expect(rail().querySelectorAll('[data-slot="badge"]')).toHaveLength(2);
     await page.unmount();
@@ -137,12 +137,12 @@ describe("the agent rail (M11R108, board 05 option 2)", () => {
   it("opens the agent's tab on a click, and marks it as the current one", async () => {
     const page = await renderShell("/");
     await withAgents(AGENTS);
-    await click(button(rail(), "Bolt, idle"));
+    await click(button(rail(), "Bolt"));
     await settle();
     expect(pathname(page)).toBe("/agents/bolt-0001");
     expect(useWorkspaceStore.getState().ws.active).toBe("agent:bolt-0001");
-    expect(button(rail(), "Bolt, idle").getAttribute("aria-current")).toBe("page");
-    expect(button(rail(), "Cato, idle, 1 unread").getAttribute("aria-current")).toBeNull();
+    expect(button(rail(), "Bolt").getAttribute("aria-current")).toBe("page");
+    expect(button(rail(), "Cato, 1 unread").getAttribute("aria-current")).toBeNull();
     await page.unmount();
   });
 

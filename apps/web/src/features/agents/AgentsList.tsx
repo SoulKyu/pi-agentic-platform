@@ -1,8 +1,9 @@
 import "./register-agent-catalog.ts";
-import { Avatar, type AvatarStyle, Button, Chip } from "@pap/ui";
+import { Avatar, type AvatarStyle, Button } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import type { AgentsView } from "../../stores/agents-reducer.ts";
-import { STATE_CHIP } from "./agent-state.ts";
+import { agentLifecycle } from "./agent-lifecycle.ts";
+import { LifecycleChip } from "./LifecycleChip.tsx";
 
 interface Props {
   /** The `agents` stream's view (Task 9's store): the list never opens a subscription of its own. */
@@ -37,20 +38,23 @@ export function AgentsList({ view, avatarStyle, onOpen, onNew }: Props) {
         <p className="text-ui text-muted">{t("settings.agents.empty")}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
-          {view.agents.map((agent) => (
-            <li key={agent.id} className="flex items-center gap-s3 p-s2">
-              <Avatar initials={agent.initials} name={agent.name} avatarStyle={avatarStyle} />
-              <span className="min-w-0 flex-1 truncate text-ui text-fg">{agent.name}</span>
-              <Chip tone={STATE_CHIP[agent.state]} label={t(`settings.agents.state.${agent.state}`)} />
-              <Button
-                size="sm"
-                aria-label={t("settings.agents.openNamed", { name: agent.name })}
-                onClick={() => onOpen(agent.id)}
-              >
-                {t("settings.agents.open")}
-              </Button>
-            </li>
-          ))}
+          {view.agents.map((agent) => {
+            const lifecycle = agentLifecycle(agent, null, null);
+            return (
+              <li key={agent.id} className="flex items-center gap-s3 p-s2">
+                <Avatar initials={agent.initials} name={agent.name} avatarStyle={avatarStyle} />
+                <span className="min-w-0 flex-1 truncate text-ui text-fg">{agent.name}</span>
+                {lifecycle === null ? null : <LifecycleChip lifecycle={lifecycle} />}
+                <Button
+                  size="sm"
+                  aria-label={t("settings.agents.openNamed", { name: agent.name })}
+                  onClick={() => onOpen(agent.id)}
+                >
+                  {t("settings.agents.open")}
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
