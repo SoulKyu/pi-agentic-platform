@@ -1,3 +1,4 @@
+import { DEFAULT_ENTRY_PORTS, entryAllows, type HostEntry, tryParseHostEntry } from "@pap/contracts";
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { CODING_TOOLS } from "../tool-presets.ts";
 import { sandboxVerdict } from "./sandbox-rule.ts";
@@ -88,13 +89,40 @@ export function judgeUrl(
   if (!NETWORK_PROTOCOLS.has(url.protocol)) return { ok: false, why: `${url.protocol.slice(0, 16)} URL` };
   if (url.username !== "" || url.password !== "") return { ok: false, why: "credentials in URL" };
   const host = url.hostname.replace(/\.$/, "");
-  if (host.startsWith("[") || /^(?:\d+\.){3}\d+$/.test(host)) return { ok: false, why: "IP address" };
+  const ipv6 = host.startsWith("[");
+  const ipv4 = /^(?:\d+\.){3}\d+$/.test(host);
   // The alphabet of a `HostPattern`: a host built from `$H`, `${H}`, a quote or an empty label never matches a `*.` entry.
-  if (!HOST_ALPHABET.test(host)) return { ok: false, why: "unreadable URL" };
-  const allowed = allow.some((entry) =>
-    entry.startsWith("*.") ? host.endsWith(entry.slice(1)) && host.length > entry.length - 1 : host === entry,
-  );
-  return allowed ? { ok: true, host } : { ok: false, why: `web host not allowed: ${host}` };
+  if (!ipv6 && !ipv4 && !HOST_ALPHABET.test(host)) return { ok: false, why: "unreadable URL" };
+  const port = Number(url.port || (url.protocol === "http:" || url.protocol === "ws:" ? 80 : 443));
+  const bare = ipv6 ? host.slice(1, -1) : host;
+  const allowed = allow.some((raw) => {
+    const entry = tryParseHostEntry(raw);
+    return entry !== null && urlMatches(entry, bare, port, ipv4 || ipv6);
+  });
+  if (allowed) return { ok: true, host };
+  return { ok: false, why: ipv4 || ipv6 ? "IP address" : `web host not allowed: ${host}` };
+}
+
+/** Both spellings of an IP literal reduced to the URL parser's canonical form (`fd00:0::5` is `fd00::5`). */
+function canonicalIp(host: string): string | null {
+  try {
+    return new URL(`http://${host.includes(":") ? `[${host}]` : host}/`).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A name entry without a port keeps the legacy reading here (any URL port: the egress proxy is the judge of ports, and host
+ * mode lists hold names only); an entry with a port, and every IP entry, is matched on port and address (decision 119).
+ */
+function urlMatches(entry: HostEntry, host: string, port: number, ip: boolean): boolean {
+  if (ip !== entry.ip) return false;
+  if (ip) {
+    const wanted = canonicalIp(entry.host);
+    return wanted !== null && wanted === canonicalIp(host) && entry.ports.includes(port);
+  }
+  return entryAllows(entry.ports === DEFAULT_ENTRY_PORTS ? { ...entry, ports: [port] } : entry, host, port);
 }
 
 function push(out: string[], url: string): void {

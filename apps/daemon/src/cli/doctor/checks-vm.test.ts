@@ -36,6 +36,7 @@ function probes(over: Partial<VmProbes> = {}): VmProbes {
     reserved: () => ({ agentDisksMb: 8192, keptMirrorsMb: 100 }),
     listeners: () => ({
       gateway: { listening: true, pid: 10 },
+      proxy: { listening: true, pid: 10 },
       relay: { listening: true, pid: 11, parent: 10 },
     }),
     firewalls: () => [],
@@ -80,7 +81,11 @@ describe("the agent VM checks", () => {
       firewalls: () => (asked++, []),
       listeners: () => (
         asked++,
-        { gateway: { listening: false, pid: null }, relay: { listening: false, pid: null, parent: null } }
+        {
+          gateway: { listening: false, pid: null },
+          proxy: { listening: false, pid: null },
+          relay: { listening: false, pid: null, parent: null },
+        }
       ),
     });
     for (const check of makeVmChecks(counting)) {
@@ -119,6 +124,7 @@ describe("the agent VM checks", () => {
         {
           listeners: () => ({
             gateway: { listening: true, pid: 10 },
+            proxy: { listening: true, pid: 10 },
             relay: { listening: true, pid: 99, parent: 5 },
           }),
         },
@@ -215,7 +221,9 @@ describe("the agent VM checks", () => {
   it("vm.firewall warns for ufw and for firewalld, naming the ports (M-firewall)", async () => {
     const ufw = await run("vm.firewall", { firewalls: () => ["ufw"] });
     expect(ufw.status).toBe("warn");
-    expect(ufw.detail).toBe("ufw is active: it can drop the agents' VMs on ports 7841 and 7842 of pap0");
+    expect(ufw.detail).toBe(
+      "ufw is active: it can drop the agents' VMs on ports 7841, 7842 and 7843 of pap0",
+    );
     expect(ufw.fix).toContain("sudo ufw allow in on pap0");
     const both = await run("vm.firewall", { firewalls: () => ["ufw", "firewalld"] });
     expect(both.detail).toContain("ufw and firewalld are active");
@@ -236,8 +244,9 @@ describe("the agent VM checks", () => {
     const only = (
       gateway: typeof gw | typeof none,
       relay: { listening: boolean; pid: number | null; parent: number | null },
+      proxy: { listening: boolean; pid: number | null } = gateway.listening ? gw : none,
     ) => ({
-      listeners: () => ({ gateway, relay }),
+      listeners: () => ({ gateway, relay, proxy }),
     });
     it("is ok when the relay is a child of the process that holds the gateway", async () => {
       const result = await run("vm.listeners", only(gw, { listening: true, pid: 11, parent: 10 }));
@@ -271,6 +280,31 @@ describe("the agent VM checks", () => {
       expect((await run("vm.listeners", idle, vmCtx({ lockHeld: true }))).status).toBe("warn");
     });
     // T20b M7. Mutant "warn whatever sets the mode": the shell-forced case warns (a daemon in host mode is not at fault).
+    it("fails when the proxy port is held by a process that is not the gateway holder (M-proxy-owner)", async () => {
+      const result = await run(
+        "vm.listeners",
+        only(gw, { listening: true, pid: 11, parent: 10 }, { listening: true, pid: 99 }),
+      );
+      expect(result.status).toBe("fail");
+      expect(result.detail).toContain("7843");
+      expect(result.fix).toContain("7843");
+      expect(
+        (
+          await run(
+            "vm.listeners",
+            only(gw, { listening: true, pid: 11, parent: 10 }, { listening: true, pid: null }),
+          )
+        ).status,
+      ).toBe("fail");
+    });
+    it("warns when the gateway and the relay listen and the proxy does not (M-proxy-missing)", async () => {
+      const result = await run(
+        "vm.listeners",
+        only(gw, { listening: true, pid: 11, parent: 10 }, { listening: false, pid: null }),
+      );
+      expect(result.status).toBe("warn");
+      expect(result.detail).toContain("7843");
+    });
     it("is info, with a hint, when the lock is held and only this shell (no unit) says vm", async () => {
       const idle = only(none, { listening: false, pid: null, parent: null });
       const shellOnly = ctx({

@@ -58,7 +58,11 @@ describe("a host list of the agent's own against the owner's list (W5-R36)", () 
     expect(outcome(await create(plain, "Wide", { allowHosts: ["a.example", "evil.example"] }))).toBe(
       "step_up_required",
     );
-    const narrow = await create(plain, "Narrow", { allowHosts: ["a.example", "db.corp.example"] });
+    // AVM2-E12: an exact name under the owner's wildcard widens (it reaches private ranges the wildcard cannot); a narrower wildcard does not.
+    expect(outcome(await create(plain, "Exact", { allowHosts: ["a.example", "db.corp.example"] }))).toBe(
+      "step_up_required",
+    );
+    const narrow = await create(plain, "Narrow", { allowHosts: ["a.example", "*.db.corp.example"] });
     expect(outcome(narrow)).toBe("ok");
     const nothing = await create(plain, "Nothing", { allowHosts: [] });
     expect(outcome(nothing)).toBe("ok");

@@ -1,16 +1,9 @@
-import type { spawn } from "node:child_process";
-import type { Clock } from "./kernel/clock.ts";
-import type { Config } from "./kernel/config.ts";
-import type { Db } from "./kernel/db/database.ts";
 import type { MigrationSource } from "./kernel/db/migrate.ts";
-import type { GitRunner } from "./kernel/git/runner.ts";
-import type { Logger } from "./kernel/logger.ts";
-import type { StreamHub } from "./kernel/ws/stream-hub.ts";
+import type { M11, M11Core, M11Modules } from "./compose-m11-types.ts";
 import { bootAgentEgress, bootSandboxProbe } from "./compose-m11-probe.ts";
-import { type AgentsVm, bindVmCrash, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
+import { bindVmCrash, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
 import {
   AGENTS_MIGRATIONS,
-  type AgentsRpc,
   agentsRpc,
   createAgentEvents,
   createAgentGuard,
@@ -32,16 +25,12 @@ import {
   createThreadLink,
   createThreads,
   createUnread,
-  type AgentsPort,
 } from "./modules/agents/index.ts";
-import type { AuditPort } from "./modules/audit/index.ts";
 import type { EgressPort } from "./modules/egress/index.ts";
-import { composeSubagents, type M11RunsPort } from "./compose-subagents.ts";
+import { composeSubagents } from "./compose-subagents.ts";
 import { requireStepUp } from "./modules/auth/index.ts";
-import type { AutomationModule } from "./modules/automation/index.ts";
-import { createMemoryModule, type MemoryRpc } from "./modules/memory/index.ts";
-import type { Inbox } from "./modules/inbox/index.ts";
-import { createPlatformPort, type PlatformHandler, type PlatformPort } from "./modules/platform/index.ts";
+import { createMemoryModule } from "./modules/memory/index.ts";
+import { createPlatformPort } from "./modules/platform/index.ts";
 import { createAgentSpend } from "./modules/runs/index.ts";
 import {
   createOnceStore,
@@ -49,91 +38,16 @@ import {
   createSecrets,
   createVaultStore,
   loadRefSalt,
-  type SecretRequestsRpc,
   secretRequestsRpc,
-  type SecretsRpc,
   secretsRpc,
   vaultRootOf,
 } from "./modules/secrets/index.ts";
-import type { SessionsModule } from "./modules/sessions/index.ts";
-import { SUBAGENTS_MIGRATIONS, type SubagentsPorts, type SubagentsRpc } from "./modules/subagents/index.ts";
-import type { SettingsModule } from "./modules/settings/index.ts";
+import { SUBAGENTS_MIGRATIONS } from "./modules/subagents/index.ts";
 
 /** The migration sources of M11's new modules. The session kinds migration is the sessions module's own. */
 export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [AGENTS_MIGRATIONS, SUBAGENTS_MIGRATIONS];
 
-/** What `composeM11` reads of the daemon's core. */
-export interface M11Core {
-  readonly db: Db;
-  readonly config: Pick<Config, "home" | "bwrapOverride" | "piAgentDir"> & Partial<Pick<Config, "userHome">>;
-  /** The daemon's environment: the egress proxy's sockets live under `$XDG_RUNTIME_DIR` when it is private (W5-R42). */
-  readonly env?: Readonly<Record<string, string | undefined>>;
-  readonly clock: Clock;
-  readonly logger: Logger;
-  readonly readOnly: boolean;
-  readonly hub: Pick<StreamHub, "publish" | "registerSnapshot">;
-  /** Tests only: the process spawn of the sandbox probe. */
-  readonly probeSpawn?: typeof spawn | undefined;
-}
-
-/** The modules `composeM11` is given once they exist; later tasks add the ones they need. */
-export interface M11Modules {
-  readonly sessions: Pick<
-    SessionsModule,
-    | "kindOf"
-    | "approvedCalls"
-    | "setAgentPorts"
-    | "releaseIdle"
-    | "automation"
-    | "agentSessions"
-    | "hostGrants"
-    | "child"
-  >;
-  /** The owner's settings: their host list is what an agent's own list is judged against (W5-R36). */
-  readonly policy?: {
-    readonly port: {
-      settings(ownerId: string): {
-        readonly allowHosts: readonly string[] | null;
-        readonly denylist: readonly unknown[];
-      };
-    };
-  };
-  /** The kernel git runner: the only way pap runs git, here to make an agent's home (M11R46). */
-  readonly git: GitRunner;
-  readonly audit: { readonly port: Pick<AuditPort, "append" | "reserve"> };
-  /** The run registry's port: a thread's run start and end move the rail and the unread count. */
-  readonly runs: M11RunsPort;
-  /** The lanes module's folder paths: whose lane worktree a folder is in. */
-  readonly lanes: {
-    readonly paths: { laneOf(cwd: string): { readonly ownerId: string } | null };
-    readonly note: PlatformHandler<"lane.note">;
-  };
-  /** M10's automation module, built before this entry: an agent's triggers and tasks (Task 10). */
-  readonly automationModule: Pick<AutomationModule, "agentLink" | "bindAgents" | "agentTasks">;
-  /** M10's Inbox: the delegation result's reply item, the reply a reset closes, the items a delete drops (M11R79, M11R91). */
-  readonly inbox: {
-    readonly agentItems: Pick<
-      Inbox["agentItems"],
-      "upsertAgentItem" | "resolveRef" | "removeAgentItems" | "openRefs"
-    >;
-  };
-  readonly subagents: SubagentsPorts;
-  readonly vm?: AgentsVm | undefined;
-  /** Tests only: replaces the egress proxy. The daemon never passes one: production builds the real proxy (M11R244). */
-  readonly egress?: EgressPort;
-  /** The owner's automation time zone: the day an agent's budget and figures count in (M11R74, M11R76). */
-  readonly settings: { readonly port: Pick<SettingsModule["port"], "automation" | "agents"> };
-}
-
-export interface M11 {
-  readonly platform: PlatformPort;
-  /** The agents registry other M11 modules read (M11R43). */
-  readonly agents: AgentsPort;
-  /** M11's RPC methods; each task adds its table here, never in `daemon.ts`. */
-  readonly rpc: AgentsRpc & SecretsRpc & SecretRequestsRpc & SubagentsRpc & MemoryRpc;
-  /** First in the daemon's stop: the dispatcher answers `unavailable` before the sessions' workers are stopped. */
-  stop(): void;
-}
+export type { M11, M11Core, M11Modules } from "./compose-m11-types.ts";
 
 /** The daemon's only M11 entry (M11R42): builds the platform dispatcher and hands it to the sessions module, before the server listens. */
 export function composeM11(core: M11Core, modules: M11Modules): M11 {
@@ -260,7 +174,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   });
   const spend = createAgentSpend({ db: core.db, clock: core.clock });
   const items = modules.inbox.agentItems;
-  bindVmCrash(modules.vm, agentsLogger, { agents, events, items });
+  bindVmCrash(modules.vm, agentsLogger, { agents, events, items, clock: core.clock });
   const delegations = createDelegationBack({
     agents: agents.port,
     events,
@@ -342,6 +256,10 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   return {
     platform,
     agents: agents.port,
+    vmLate: {
+      agents: agents.port,
+      ownerHosts: (ownerId: string) => modules.policy?.port.settings(ownerId).allowHosts ?? null,
+    },
     rpc: {
       ...agentsRpc(
         agents,

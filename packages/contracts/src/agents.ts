@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { LINE_HIDDEN } from "./text-rules.ts";
 import { AgentResources, DEFAULT_AGENT_RESOURCES, PluginPicks, SystemPackages } from "./agents-resources.ts";
-import { ApprovalMode, DenyPattern, HostPattern, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
+import { AgentHostEntry } from "./host-entry.ts";
+import { covers } from "./host-covers.ts";
+import { ApprovalMode, DenyPattern, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
 import { AgentId, AgentName } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 
@@ -87,7 +89,7 @@ export const AgentInput = z
     preset: ToolPreset.default("default"),
     sandbox: AgentSandbox.default({ required: true, network: false }),
     /** null: the owner's own list (Settings › Approvals); a list, even empty: only these hosts for this agent's URL tools. */
-    allowHosts: z.array(HostPattern).max(AGENT_LIMITS.hosts).nullable().default(null),
+    allowHosts: z.array(AgentHostEntry).max(AGENT_LIMITS.hosts).nullable().default(null),
     /** Added to the owner's blocked commands, never instead of them. */
     denylist: z.array(DenyPattern).max(AGENT_LIMITS.denyPatterns).default([]),
     budget: AgentBudget.default({ usdPerDay: null, tokensPerDay: null }),
@@ -131,10 +133,6 @@ const PRESET_RANK: Readonly<Record<ToolPreset, number>> = {
  * M11R44). A change that only narrows (sandbox back on, network off, a lower mode or preset, fewer hosts, a pattern
  * added) does not; neither does a budget (money, not reach: owner m14).
  */
-/** Whether `list` reaches every host `entry` names (an exact host, or `*.` and its subdomains). */
-const covers = (list: readonly string[], entry: string): boolean =>
-  list.includes(entry) ||
-  list.some((own) => own.startsWith("*.") && entry.replace(/^\*\./, "").endsWith(own.slice(1)));
 const autonomyHosts = (input: AgentInput): readonly string[] =>
   input.trustedAutonomy ? (input.allowHosts ?? []) : [];
 
@@ -303,6 +301,25 @@ export const NotifyCardData = z
   .strict();
 export type NotifyCardData = z.infer<typeof NotifyCardData>;
 
+/**
+ * `egress_refused` (sub-project 2): the VM egress proxy refused a host. pap's own facts, no agent text: `host` is the target as
+ * the proxy judged it, `address` the private address it resolved to (null otherwise), `source` "thread" or the task key of the
+ * task VM, `count` the attempts since `firstAt` (one card per agent and host:port per hour).
+ */
+export const EgressRefusedCardData = z
+  .object({
+    host: z.string().min(1).max(260),
+    port: z.number().int().min(1).max(65_535),
+    reason: z.enum(["not_listed", "private_wildcard", "blocked_address"]),
+    address: z.string().min(1).max(64).nullable(),
+    source: z.string().min(1).max(128),
+    count: z.number().int().min(1),
+    firstAt: z.number().int(),
+    lastAt: z.number().int(),
+  })
+  .strict();
+export type EgressRefusedCardData = z.infer<typeof EgressRefusedCardData>;
+
 const card = <K extends string, D extends z.ZodType>(kind: K, data: D) =>
   z
     .object({
@@ -322,6 +339,7 @@ export const AgentEventView = z.discriminatedUnion("kind", [
   card("delegation", DelegationCardData),
   card("reminder", ReminderCardData),
   card("notify", NotifyCardData),
+  card("egress_refused", EgressRefusedCardData),
 ]);
 export type AgentEventView = z.infer<typeof AgentEventView>;
 export type AgentEventKind = AgentEventView["kind"];
@@ -333,6 +351,7 @@ export const AGENT_EVENT_DATA = {
   delegation: DelegationCardData,
   reminder: ReminderCardData,
   notify: NotifyCardData,
+  egress_refused: EgressRefusedCardData,
 } as const;
 
 /** What `agents.status` says (M11R76): the day's spend against the agent's budget, then its newest work. */

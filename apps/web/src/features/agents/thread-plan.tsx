@@ -9,6 +9,8 @@ export interface ThreadPlanInput {
   readonly mode: "cards" | "compact";
   /** Puts text in the thread's composer; never sends. */
   onInject(text: string): void;
+  /** Whose thread: the refused-host card names it and edits its list. */
+  readonly agent?: { readonly id: string; readonly name: string };
   dayLabel(at: number): string;
   /** An IANA zone for the day separators; the browser's own when absent. */
   readonly zone?: string;
@@ -26,6 +28,7 @@ export function threadInterleave(input: ThreadPlanInput): Interleave {
         folded={placed.folded}
         mode={input.mode}
         onInject={input.onInject}
+        {...(input.agent === undefined ? {} : { agent: input.agent })}
       />
     );
   return {

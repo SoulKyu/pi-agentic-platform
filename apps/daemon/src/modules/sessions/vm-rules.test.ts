@@ -13,11 +13,15 @@ const host = {
 };
 
 describe("vmRuleParts (R15)", () => {
-  it("forces the VM shell whatever the profile says: sandbox off and network on both give required, no network", () => {
-    expect(vmRuleParts(host, layout, false).sandbox).toEqual({ required: true, network: false });
+  it("forces the VM shell whatever the profile says, and keeps the agent's network switch (AVM2-E11)", () => {
+    expect(vmRuleParts(host, layout, false).sandbox).toEqual({ required: true, network: true });
     expect(
-      vmRuleParts({ ...host, sandbox: { required: true, network: true } }, layout, false).sandbox,
+      vmRuleParts({ ...host, sandbox: { required: true, network: false } }, layout, false).sandbox,
     ).toEqual({
+      required: true,
+      network: false,
+    });
+    expect(vmRuleParts({ ...host, sandbox: undefined }, layout, false).sandbox).toEqual({
       required: true,
       network: false,
     });

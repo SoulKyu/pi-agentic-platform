@@ -59,7 +59,7 @@ beforeAll(() => {
     },
     slot: "0123456789abcdef0123456789abcdef",
     rootView: "read-only",
-    egressSocket: null,
+    network: false,
   };
 });
 afterAll(() => rmSync(root, { recursive: true, force: true }));

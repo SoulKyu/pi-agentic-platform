@@ -126,10 +126,19 @@ describe("agent form: VM resources", () => {
 
   it("says the VM notes: no vault, no prechecks, a shell that is always isolated", async () => {
     await open(vmStatus());
-    expect(body()).toContain("Does not apply to VM agents: their shell is always isolated, with no network.");
+    expect(body()).toContain("their shell is always isolated. With the network on it reaches only the hosts");
     expect(body()).toContain("The vault for VM agents arrives with sub-project 2.");
     expect(body()).toContain("Trigger prechecks for a VM agent arrive with sub-project 3.");
     expect(body()).not.toContain("Off is still yours to choose.");
+  });
+
+  it("shows the network switch in VM mode and sends sandbox.network: true when it is toggled (AVM2-E13)", async () => {
+    const bed = await open(vmStatus());
+    expect(body()).toContain("In a VM the network goes through pap's proxy");
+    await click(document.body.querySelector('[role="switch"]') as HTMLElement);
+    await click(button(document.body, "Save"));
+    await settle();
+    expect(sentInput(bed)?.sandbox).toEqual({ required: true, network: true });
   });
 
   it("keeps the host form as it is outside VM mode, or when the status cannot be read", async () => {
@@ -154,9 +163,8 @@ describe("the French catalog", () => {
   });
 
   it("carries the owner's sentences word for word", () => {
-    expect(agentVmFr["agentVm.sandboxNote"]).toBe(
-      "Ne s'applique pas aux agents en VM : leur shell est toujours isolé, sans réseau.",
-    );
+    // Sub-project 2 replaced sub-project 1's "sans réseau" sentence.
+    expect(agentVmFr["agentVm.sandboxNote"]).toContain("Avec le réseau activé, il ne joint que les hôtes");
     expect(agentVmFr["agentVm.vault"]).toBe("Le coffre des agents en VM arrive avec le sous-projet 2.");
     expect(agentVmFr["agentVm.prechecks"]).toBe(
       "Les pré-checks d'un agent en VM arrivent avec le sous-projet 3.",

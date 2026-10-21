@@ -140,9 +140,11 @@ export function realProcReader(): ProcReader {
   };
 }
 
-/** The bridge's two endpoints: the gateway (the daemon's) and the relay (its child's). */
+/** The bridge's endpoints: the gateway and the proxy (the daemon's) and the relay (its child's). */
 export const GATEWAY_ENDPOINT: Endpoint = { host: AGENT_NET.host, port: AGENT_NET.gatewayPort };
 export const RELAY_ENDPOINT: Endpoint = { host: AGENT_NET.host, port: AGENT_NET.relayPort };
+/** The egress proxy for the VMs (the daemon's, like the gateway). */
+export const PROXY_ENDPOINT: Endpoint = { host: AGENT_NET.host, port: AGENT_NET.proxyPort };
 
 /** Null when both sockets are pap's own (the gateway the daemon's, the relay its child's), else what is wrong. */
 export function bridgeListenerFault(

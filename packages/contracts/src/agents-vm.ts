@@ -3,7 +3,7 @@ import { PackagePicks } from "./agents-resources.ts";
 import { AgentId } from "./platform.ts";
 import { AbsolutePath, LINE_HIDDEN } from "./text-rules.ts";
 
-/** Spec §4, decision 107. Fixed in v1; `pap vm setup` writes the same values. Sub-project 2 adds a proxy port (seam). */
+/** Spec §4, decision 107. Fixed in v1; `pap vm setup` writes the same values. */
 export const AGENT_NET = Object.freeze({
   network: "pap-agents",
   bridge: "pap0",
@@ -11,6 +11,7 @@ export const AGENT_NET = Object.freeze({
   host: "10.213.0.1",
   gatewayPort: 7841,
   relayPort: 7842,
+  proxyPort: 7843,
 });
 /** Where host-local keeps its reservations (the conflist's `dataDir`, under /run: no VM outlives a reboot); one folder per network below it. */
 export const CNI_IPAM_DIR = "/run/pap-vm/cni-ipam";

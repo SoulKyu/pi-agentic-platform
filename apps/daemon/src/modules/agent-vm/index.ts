@@ -4,7 +4,13 @@ export { removeMirrorFiles, unverifiedIds } from "./mirror-facts.ts";
 export { createMirrorInputs, type MirrorHooks } from "./mirror-inputs.ts";
 export { mirrorFileOf } from "./mirror-paths.ts";
 export { createProcessBackend } from "./process-backend.ts";
-export { type AgentRuntime, type AgentRuntimeBackend, createAgentRuntime, type VmSpec } from "./runtime.ts";
+export {
+  type AgentRuntime,
+  type AgentRuntimeBackend,
+  createAgentRuntime,
+  type LaunchGrant,
+  type VmSpec,
+} from "./runtime.ts";
 export { vmInitOf } from "./vm-init.ts";
 export type { GuestLink } from "./guest-link.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
@@ -39,6 +45,7 @@ export {
 } from "./owner-secrets.ts";
 export { readPiAuth } from "./pi-auth-values.ts";
 export { createStderrRedactor } from "./stderr-redactor.ts";
+export { createLaunchAddresses } from "./launch-addresses.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
 export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";
 export {
@@ -53,6 +60,8 @@ export {
   bridgeListenerFault,
   GATEWAY_ENDPOINT,
   ownerOf,
+  PROXY_ENDPOINT,
   realProcReader,
   RELAY_ENDPOINT,
 } from "./listener-owner.ts";
+export { createRefusalSink } from "./egress-refusals.ts";

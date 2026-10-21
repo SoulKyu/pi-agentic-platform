@@ -267,6 +267,26 @@ export function createAgentEvents(deps: AgentEventsDeps) {
       return true;
     },
 
+    /**
+     * Replaces a card's `data` (the count of a refused host moves up); the kind keeps its place and its time. The data is
+     * validated by the kind's schema. False when the card is gone, is not the owner's or the data does not fit. No unread bump.
+     */
+    update(ownerId: string, eventId: number, data: unknown): boolean {
+      const row = db.get<EventRow & { agent_id: string }>(
+        "SELECT id, agent_id, kind, task_id, data, at FROM agent_events WHERE id = $id AND owner_id = $ownerId",
+        { id: eventId, ownerId },
+      );
+      const schema = row ? AGENT_EVENT_DATA[row.kind as AgentEventKind] : undefined;
+      const parsed = schema?.safeParse(data);
+      if (!row || !parsed?.success) return false;
+      db.run("UPDATE agent_events SET data = $data WHERE id = $id", {
+        id: row.id,
+        data: JSON.stringify(parsed.data),
+      });
+      told(ownerId, row.agent_id, row.id, false);
+      return true;
+    },
+
     /** One page, newest first, older than `before` (`at`, then `id`); `more` says an older card exists. */
     list(
       ownerId: string,

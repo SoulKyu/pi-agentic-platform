@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { AgentHostEntry } from "./host-entry.ts";
+import { HostPattern } from "./host-pattern.ts";
 
 export const TOOL_CATEGORIES = ["read", "edit", "exec", "network", "external-write", "unknown"] as const;
 export type ToolCategory = (typeof TOOL_CATEGORIES)[number];
@@ -74,23 +76,7 @@ export const BUILTIN_DENY_IDS = [
 /** The largest settings document `policy.setSettings` accepts, in UTF-8 bytes of its JSON. */
 export const MAX_SETTINGS_BYTES = 65_536;
 
-/**
- * A host the egress stage lets through (Task 5a): lower-case labels of letters, digits and inner hyphens, at least two
- * labels, or `*.` and such a host (subdomains only). No IP literal, port, path or bare TLD: an IP or `localhost` is
- * refused here because a host list is a list of names; Task 5a refuses IP-literal URLs that no entry names.
- */
-const LABEL = "(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)";
-/**
- * A last label that starts with a digit: no top-level domain does, so the host is an IP literal in some spelling
- * (`127.1`, `127.0x1`, `2130706433`). The egress proxy refuses it as `ip_literal`; a host list refuses it too.
- */
-export const lastLabelStartsWithDigit = (host: string): boolean =>
-  /\d/.test(host.split(".").at(-1)?.[0] ?? "");
-export const HostPattern = z
-  .string()
-  .max(253)
-  .regex(new RegExp(`^(?:\\*\\.)?${LABEL}(?:\\.${LABEL})+$`))
-  .refine((host) => !lastLabelStartsWithDigit(host), "an IP address is not a host name");
+export { HostPattern, lastLabelStartsWithDigit } from "./host-pattern.ts";
 export const MAX_ALLOW_HOSTS = 256;
 /** A host named exactly (owner a1, a2): a host list's entry without the `*.` form. */
 export const TrustedHost = HostPattern.refine((host) => !host.startsWith("*."), "an exact host, no wildcard");
@@ -270,7 +256,7 @@ export const PolicyRules = z
       .max(MAX_DENY_PATTERNS * 2)
       .default([]),
     /** null: no egress list, the stage is skipped. A list (even empty): only these hosts (Task 5a). */
-    allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
+    allowHosts: z.array(AgentHostEntry).max(MAX_ALLOW_HOSTS).nullable().default(null),
     /** The owner's local tools (A2): extension tools whose results never taint. */
     localTools: LocalTools,
     guard: GuardLimits.default(DEFAULT_GUARD),
@@ -290,7 +276,7 @@ export const PolicyRules = z
     unattended: z.boolean().default(false),
     /** Owner a6: an agent thread's trusted autonomy, null when off; `hosts`: the agent's own list ([] when it has none). */
     autonomy: z
-      .object({ hosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS) })
+      .object({ hosts: z.array(AgentHostEntry).max(MAX_ALLOW_HOSTS) })
       .strict()
       .nullable()
       .default(null),

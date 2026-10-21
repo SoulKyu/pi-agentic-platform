@@ -5,6 +5,7 @@ import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
 import type { agentsPhoneEn } from "./catalog/agents-phone.ts";
+import type { agentEgressEn } from "./catalog/agent-egress.ts";
 import type { agentSafetyEn } from "./catalog/agent-safety.ts";
 import type { agentSpaceEn } from "./catalog/agent-space.ts";
 import type { agentStatusEn } from "./catalog/agent-status.ts";
@@ -106,6 +107,7 @@ export type MessageKey =
   | keyof typeof agentVmEn
   | keyof typeof agentSpaceEn
   | keyof typeof agentSafetyEn
+  | keyof typeof agentEgressEn
   | keyof typeof memoryEn
   | keyof typeof agentStatusEn
   | keyof typeof agentComposeEn

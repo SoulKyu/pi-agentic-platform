@@ -45,13 +45,13 @@ function rulesFor(vm: boolean, input: object = {}, valid = true) {
 }
 
 describe("the rules of a VM session (R15)", () => {
-  it("composes the VM parts at the first compose, whatever the profile's sandbox says", () => {
+  it("composes the VM parts at the first compose: the shell is required, the network is the profile's (AVM2-E11)", () => {
     const rules = rulesFor(true, { sandbox: { required: false, network: true }, mode: "full-access" })(
       row(),
       OWNER,
     );
     expect(rules).toMatchObject({
-      sandbox: { required: true, network: false },
+      sandbox: { required: true, network: true },
       agentHome: layout.home,
       agentScratch: null,
       approvalMode: "full-access",
@@ -66,7 +66,7 @@ describe("the rules of a VM session (R15)", () => {
       session: { mode: "supervised", explicit: true },
     });
     expect(again).toMatchObject({
-      sandbox: { required: true, network: false },
+      sandbox: { required: true, network: true },
       agentHome: layout.home,
       approvalMode: "supervised",
       denylist: ["rm*"],

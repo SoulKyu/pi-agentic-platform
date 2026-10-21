@@ -1,10 +1,12 @@
-import { copyFileSync, mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { AGENT_NET, PapError, type VmLayout } from "@pap/contracts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
+import { composeVmProxy } from "./compose-agents-vm-proxy.ts";
+import { scriptCopier } from "./compose-agents-vm-script.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { awaitBridge, composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { eachOwnTry } from "./compose-agents-vm-hooks.ts";
+import { composeMirrors } from "./compose-agents-vm-mirrors.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import { composeVmStatus, guardedLaunch, resourceHostOf } from "./compose-agents-vm-status.ts";
 import type { Clock } from "./kernel/clock.ts";
@@ -21,7 +23,6 @@ import {
   createProcessBackend,
   layoutOf,
   type MirrorHooks,
-  createMirrorInputs,
   relayListenOf,
   type RelayChild,
   type RelayLink,
@@ -82,6 +83,8 @@ export interface AgentsVmSeams {
   readonly observe?: {
     started?(spec: VmSpec): void;
     stopped?(agentId: string, taskKey: string | null): void;
+    /** Every launch's grant (the Kata bed looks for its relay key inside the VM). */
+    granted?(grant: { launchId: string; agentId: string; relayKey: string }): void;
   };
   /** Tests only: handed the composition once it is built (the int beds stop a VM or wait for the relay through it). */
   readonly expose?: (vm: AgentsVm) => void;
@@ -124,21 +127,13 @@ export interface AgentsVm {
   readonly agentLink: AgentVmLink;
   /** Where the runtime's crash pause goes (RT-40): the agents' registry and Inbox, which are built after this. Until then it is logged. */
   bindCrashPause(handler: (agentId: string) => void): void;
+  bindRefusals: ReturnType<typeof composeVmProxy>["bindRefusals"];
 }
 
 const TEST_IMAGE_TAG = `pap-agent-agent-${"0".repeat(64)}`;
 
 const notBound = (): never => {
   throw new PapError("internal");
-};
-
-/** The scripted provider copied into the VM's folder at each worker start (a test may rewrite it between starts). */
-const scriptCopier = (source: string) => (layout: VmLayout) => {
-  const run = join(layout.root, "run");
-  mkdirSync(run, { recursive: true, mode: 0o700 });
-  const target = join(run, "provider-script.json");
-  copyFileSync(source, target);
-  return target;
 };
 
 /**
@@ -194,6 +189,7 @@ export async function composeAgentsVm(
     );
   });
   const address = () => ({ host: bind.host, port });
+  let proxyPort = 0; // set once the proxy listens (process mode: loopback)
   try {
     const guest = seams.process;
     const real =
@@ -206,6 +202,7 @@ export async function composeAgentsVm(
         execArgv: guest?.execArgv ?? [],
         imageAgentSource: guest?.imageAgentSource ?? "",
         gatewayAddress: address,
+        proxyAddress: () => ({ host: "127.0.0.1", port: proxyPort }),
         providerScript: config.testProviderScript ?? "",
         clock,
         logger: agentsLogger,
@@ -221,6 +218,13 @@ export async function composeAgentsVm(
               real.stop(agentId, taskKey)
             ),
           };
+    const proxy = composeVmProxy({
+      clock,
+      logger: agentsLogger,
+      bind: kata?.proxyBind,
+      hostsOf: (agentId) => lateHolder.late?.hostsOf(agentId) ?? null,
+      closers,
+    });
     const relay = composeRelay({
       clock,
       logger: agentsLogger,
@@ -251,45 +255,32 @@ export async function composeAgentsVm(
       idleMs: config.workerIdleMs,
       layout: (spec) => layoutOf(layoutBackend, config.home, spec),
       // The capacity notice is T18's (the agents screen).
-      onLaunch: (grant) => relay?.grant(grant),
-      onLaunchEnd: (launchId) => relay?.revoke(launchId),
+      // Each in its own try (M3): a throw of the relay must not leave the proxy with a stale address.
+      onLaunch: (grant) =>
+        eachOwnTry(agentsLogger, "agent_vm_launch_hook_failed", grant.launchId, [
+          () => relay?.grant(grant),
+          () => proxy.launched(grant),
+          () => seams.observe?.granted?.(grant),
+        ]),
+      onLaunchEnd: (launchId) =>
+        eachOwnTry(agentsLogger, "agent_vm_launch_end_hook_failed", launchId, [
+          () => relay?.revoke(launchId),
+          () => proxy.ended(launchId),
+        ]),
       onCrashPause: (agentId) => crashPause(agentId),
       notifyCapacity: () => {},
     });
     imageOf = runtime.imageOf;
     const vmStatus = composeVmStatus(core, kata?.client ?? null, runtime);
     await runtime.stopAll();
-    let hooks: MirrorHooks = {
-      notice: (sessionId) => agentsLogger.warn("agent_mirror_notice_unbound", { sessionId }),
-      taint: (sessionId) => agentsLogger.error("agent_mirror_taint_unbound", { sessionId }),
-      canWrite: () => true,
-    };
-    const own =
-      seams.mirrors === undefined
-        ? createMirrorInputs({
-            papHome: config.home,
-            clock,
-            logger: agentsLogger,
-            minFreeDiskMb: config.minFreeDiskMb,
-            notice: (sessionId, text, now) => hooks.notice(sessionId, text, now),
-            taint: (sessionId) => hooks.taint(sessionId),
-            canWrite: () => hooks.canWrite(),
-          })
-        : null;
-    // AVM-E21: until the hooks are bound a notice or a taint could go nowhere, so no VM session starts (a seam's mirrors are the test's).
-    let bound = false;
-    const bindHooks = (next: MirrorHooks): void => {
-      hooks = next;
-      bound = true;
-    };
-    const mirrors: MirrorInputs =
-      seams.mirrors ??
-      ({
-        inputFor(row, resources) {
-          if (!bound) throw new PapError("internal");
-          return (own as NonNullable<typeof own>).inputFor(row, resources);
-        },
-      } satisfies MirrorInputs);
+    proxyPort = await proxy.start();
+    const { own, mirrors, bindHooks } = composeMirrors({
+      mirrors: seams.mirrors,
+      home: config.home,
+      minFreeDiskMb: config.minFreeDiskMb,
+      clock,
+      logger: agentsLogger,
+    });
     own?.start();
     if (own) closers.push({ name: "agent_mirrors", close: () => own.close() });
     if (relay) {
@@ -386,6 +377,7 @@ export async function composeAgentsVm(
       gatewayPort: port,
       agentLink: agentLink.link,
       bindCrashPause: (handler) => void (crashPause = handler),
+      bindRefusals: proxy.bindRefusals,
     };
     seams.expose?.(composed);
     return composed;

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { EgressHost } from "@pap/contracts";
+import { type EgressHost, tryParseHostEntry } from "@pap/contracts";
 
 /** What one command reached (M11R237): hosts and counts, never a path, header, body or byte of content. */
 export interface CommandReport {
@@ -55,9 +55,22 @@ export function loggedHosts(
   max: number,
 ): string[] {
   const written = new Set([...(scope.hosts ?? []), ...scope.trustedSources, ...scope.grants()]);
-  const label = (host: string): string =>
-    `h:${createHash("sha256").update(host).digest("hex").slice(0, 12)} (len ${host.length})`;
   return [...new Set(report.hosts.map((entry) => entry.host))]
     .slice(0, max)
-    .map((host) => (written.has(host) ? host : label(host)));
+    .map((host) => hostLabel(host, written));
 }
+
+/** A host as it may be logged: as written when the owner wrote it, else a hash and its length (W5-R54). */
+export const hostLabel = (host: string, written: ReadonlySet<string>): string =>
+  written.has(host)
+    ? host
+    : `h:${createHash("sha256").update(host).digest("hex").slice(0, 12)} (len ${host.length})`;
+
+/** What the owner wrote in an agent VM's host list: each entry as written, and the host part of an exact `host:port` or IP entry. */
+export const writtenEntries = (entries: readonly string[]): Set<string> =>
+  new Set(
+    entries.flatMap((raw) => {
+      const parsed = tryParseHostEntry(raw);
+      return parsed && !parsed.wildcard ? [raw, parsed.host] : [raw];
+    }),
+  );

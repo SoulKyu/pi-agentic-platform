@@ -23,7 +23,7 @@ const argv = (over: Partial<typeof layout>): string[] =>
       layout: { ...layout, ...over },
       slot: SLOT,
       rootView: "read-only",
-      egressSocket: null,
+      network: false,
     } as VmShellSpec,
     "true",
     3,

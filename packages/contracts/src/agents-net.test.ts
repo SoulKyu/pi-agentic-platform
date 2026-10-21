@@ -6,8 +6,8 @@ delete table inet pap_agents
 table inet pap_agents {
   chain input {
     type filter hook input priority filter; policy accept;
-    ip daddr 10.213.0.1 tcp dport { 7841, 7842 } iifname != "pap0" counter drop
-    iifname "pap0" ip saddr 10.213.0.0/24 ip daddr 10.213.0.1 tcp dport { 7841, 7842 } accept
+    ip daddr 10.213.0.1 tcp dport { 7841, 7842, 7843 } iifname != "pap0" counter drop
+    iifname "pap0" ip saddr 10.213.0.0/24 ip daddr 10.213.0.1 tcp dport { 7841, 7842, 7843 } accept
     iifname "pap0" counter drop
   }
   chain forward {
@@ -46,7 +46,7 @@ describe("agentNetRuleset", () => {
   // ports to nobody but the bridge (not lo, not Docker, not a LAN host routing to 10.213.0.1).
   it("keeps the line that drops the two ports for anything but the bridge", () => {
     expect(agentNetRuleset()).toContain(
-      'ip daddr 10.213.0.1 tcp dport { 7841, 7842 } iifname != "pap0" counter drop',
+      'ip daddr 10.213.0.1 tcp dport { 7841, 7842, 7843 } iifname != "pap0" counter drop',
     );
   });
 

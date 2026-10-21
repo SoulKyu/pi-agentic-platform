@@ -26,12 +26,20 @@ export const refusalBody = (reason: EgressReason, host: string): string =>
 export const refusalStatus = (reason: EgressReason): 400 | 403 | 503 =>
   reason === "bad_request" ? 400 : reason === "limit" ? 503 : 403;
 
-const TEXT = { 400: "Bad Request", 403: "Forbidden", 503: "Service Unavailable" } as const;
+const TEXT = {
+  400: "Bad Request",
+  403: "Forbidden",
+  502: "Bad Gateway",
+  503: "Service Unavailable",
+} as const;
 
-/** A refusal written straight on a socket: a CONNECT answer, or a connection refused before its head is read. */
-export const rawRefusal = (reason: EgressReason): string => {
-  const status = refusalStatus(reason);
-  return `HTTP/1.1 ${status} ${TEXT[status]}\r\nx-pap-deny: ${reason}\r\nconnection: close\r\n\r\n`;
+/** A refusal written straight on a socket: a CONNECT answer, or a connection refused before its head is read. A `message` becomes its one-line body. */
+export const rawRefusal = (reason: EgressReason, message?: string, override?: 502): string => {
+  const status = override ?? refusalStatus(reason);
+  const head = `HTTP/1.1 ${status} ${TEXT[status]}\r\nx-pap-deny: ${reason}\r\nconnection: close\r\n`;
+  if (message === undefined) return `${head}\r\n`;
+  const body = `${message}\n`;
+  return `${head}content-type: text/plain; charset=utf-8\r\ncontent-length: ${Buffer.byteLength(body)}\r\n\r\n${body}`;
 };
 
 export const BAD_GATEWAY = "HTTP/1.1 502 Bad Gateway\r\nconnection: close\r\n\r\n";

@@ -43,6 +43,8 @@ export interface KataParts {
   readonly entries: ImageEntries;
   readonly backend: AgentRuntimeBackend;
   readonly gatewayBind: { readonly host: string; readonly port: number };
+  /** Where the VMs' egress proxy listens: the bridge's host address and the proxy port; loopback, any port, when a test moves the gateway. */
+  readonly proxyBind: { readonly host: string; readonly port: number };
   /** Resolves when pap0 is up and pap's firewall table is loaded; rejects when pap-vmd is not there or either never comes. */
   bridgeReady(): Promise<void>;
   /** The image tag an agent's VM starts with, built first when it must be. */
@@ -111,6 +113,9 @@ export function composeKata(
       notice,
     }),
     gatewayBind: seams.gatewayBind ?? { host: AGENT_NET.host, port: AGENT_NET.gatewayPort },
+    proxyBind: seams.gatewayBind
+      ? { host: seams.gatewayBind.host, port: 0 }
+      : { host: AGENT_NET.host, port: AGENT_NET.proxyPort },
     bridgeReady() {
       ready ??= waitForBridge().catch((error: unknown) => {
         ready = null;

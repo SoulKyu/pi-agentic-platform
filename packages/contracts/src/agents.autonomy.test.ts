@@ -51,9 +51,10 @@ describe("widensReach from no host list to the agent's own (W5-R36)", () => {
     expect(widens({}, { allowHosts: [] }, undefined)).toBe(false);
     expect(widens({}, { allowHosts: [] }, ["a.example"])).toBe(false);
   });
-  it("keeps the existing rules: own list to null widens, a subdomain of a wildcard narrows", () => {
+  it("keeps the existing rules: own list to null widens, a narrower wildcard narrows, an exact name under a wildcard widens (AVM2-E12)", () => {
     expect(widens({ allowHosts: ["a.example"] }, { allowHosts: null }, null)).toBe(true);
-    expect(widens({ allowHosts: ["*.x.example"] }, { allowHosts: ["a.x.example"] })).toBe(false);
+    expect(widens({ allowHosts: ["*.x.example"] }, { allowHosts: ["*.a.x.example"] })).toBe(false);
+    expect(widens({ allowHosts: ["*.x.example"] }, { allowHosts: ["a.x.example"] })).toBe(true);
     expect(widens({ allowHosts: ["a.x.example"] }, { allowHosts: ["*.x.example"] })).toBe(true);
   });
   it("never widens for a budget change", () => {

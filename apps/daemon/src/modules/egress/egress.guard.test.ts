@@ -108,6 +108,19 @@ describe("the test override stays in tests", () => {
     expect(outside).toEqual([]);
   });
 
+  it("only the composition passes the VM address policy to the VM listener", () => {
+    const users = production(SRC)
+      .filter((path) => /\bvmAddressRefused\b/.test(readFileSync(path, "utf8")))
+      .map((path) => relative(SRC, path))
+      .sort();
+    expect(users).toEqual([
+      "compose-agents-vm-proxy.ts",
+      "modules/egress/index.ts",
+      "modules/egress/vm-address.ts",
+      "modules/egress/vm-judge.ts",
+    ]);
+  });
+
   it("the module (outside testing/) reads no environment variable", () => {
     const files = production(HERE);
     expect(files.length).toBeGreaterThan(5);

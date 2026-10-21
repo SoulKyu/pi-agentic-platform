@@ -13,6 +13,7 @@ import {
   type VmLayout,
 } from "@pap/contracts";
 import { errorClass, logLineOf } from "../bounded.ts";
+import { proxyEnv } from "../vm-shell/proxy-env.ts";
 
 /** Mirrors the daemon's kill-ladder grace (AVM-P6): pi-host cannot import the daemon. */
 export const GUEST_SHUTDOWN_GRACE_MS = 1500;
@@ -21,6 +22,9 @@ const DIAL_ATTEMPT_MS = 5000;
 /** How long an exited worker's pipes get to drain before its report goes out anyway. */
 const PIPE_DRAIN_MS = 250;
 const TAIL_BYTES = 8192;
+/** The host part of `PAP_GATEWAY` (`host:port`): the proxy never carries the gateway's own traffic. */
+const gatewayHostOf = (address: string | undefined): string | undefined =>
+  address === undefined ? undefined : address.slice(0, address.lastIndexOf(":"));
 const PONG = encodeSocketFrame({ type: "pong" });
 
 export interface GuestClock {
@@ -176,6 +180,10 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
       GIT_CEILING_DIRECTORIES: layout.root,
     };
     Reflect.deleteProperty(env, "PAP_GATEWAY_TOKEN");
+    Reflect.deleteProperty(env, "PAP_GUEST_PROXY");
+    // Spec §3: everything that runs in the VM reaches the network only through pap's egress proxy.
+    const proxy = deps.env.PAP_GUEST_PROXY;
+    if (proxy) Object.assign(env, proxyEnv(`http://${proxy}`, gatewayHostOf(deps.env.PAP_GATEWAY)));
     if (command.sessionFile === null) Reflect.deleteProperty(env, "PAP_SESSION_FILE");
     else env.PAP_SESSION_FILE = command.sessionFile;
     let child: ChildProcess;

@@ -168,6 +168,7 @@ export function createVmOps(deps: OpsDeps) {
     const volume = volumePath(deps.volumeRoot, name);
     const env = {
       PAP_GATEWAY: `${AGENT_NET.host}:${AGENT_NET.gatewayPort}`,
+      PAP_GUEST_PROXY: `${AGENT_NET.host}:${AGENT_NET.proxyPort}`,
       PAP_GATEWAY_TOKEN: request.token,
       PAP_LAUNCH_ID: request.launchId,
       PAP_AGENT_ID: request.agentId,

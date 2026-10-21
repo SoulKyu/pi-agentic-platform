@@ -287,10 +287,10 @@ describe("pap vm setup: install", () => {
     expect(b.stdout()).toContain("nothing to change");
   });
 
-  it("prints the firewall rule for 7841 and 7842 only when ufw is active", async () => {
+  it("prints the firewall rule for 7841, 7842 and 7843 only when ufw is active", async () => {
     const active = bed({ ufw: "Status: active\n" });
     await runSetup(opts(), active.deps, active.io);
-    expect(active.stdout()).toContain("ufw allow in on pap0 to any port 7841,7842 proto tcp");
+    expect(active.stdout()).toContain("ufw allow in on pap0 to any port 7841,7842,7843 proto tcp");
     const quiet = bed({ ufw: "Status: inactive\n" });
     await runSetup(opts(), quiet.deps, quiet.io);
     expect(quiet.stdout()).not.toContain("ufw allow");

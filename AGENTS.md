@@ -40,7 +40,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 - Agents, platform ops, the vault, the sandbox, the egress proxy, subagents and their known limits: `docs/agents/agents.md`; memory (pi-mem0's files, the review queue, the trust entry): `docs/agents/memory.md`; ADRs 0047 to 0053; rulings `docs/research/m11-rulings.md`.
 - bubblewrap (root-owned in `/usr/bin`, `/usr/local/bin` or `/bin`, or `PAP_BWRAP`) is needed by every agent that requires its sandbox (`sandbox_unavailable` without it); a networked agent also needs a root-owned `python3`. Their int tests skip locally with one warning and throw under `CI=1`.
-- An agent's shell has no network but the egress proxy (hosts on ports 80 and 443): it guarantees hosts, not content. Docs and copy never claim more. Tests never name a public host or address.
+- An agent's shell has no network but the egress proxy (host mode: hosts on ports 80 and 443; a VM with `sandbox.network` on: the `host[:port]` and IP entries of its list): it guarantees hosts, not content. Docs and copy never claim more. Tests never name a public host or address.
 - The vault key sits beside the vault in `$PAP_HOME/secrets/vault`: a backup of the whole `$PAP_HOME` holds it. Through pap's own paths a value never reaches a log, an audit row, a response or a receipt; the exceptions are in ADR 0049 (a command the agent runs can print it, the redactor misses values under 8 characters and encoded ones, same-user processes read `/proc/<pid>/environ`, a whole-`$PAP_HOME` backup holds the key).
 - A new platform op declares its callers, `whenTainted` and deadline in `PLATFORM_OPS`; the session type is read from the daemon's row, never from the worker.
 - The daemon logs a host an agent chose as `h:<12 hex> (len N)`, unless the owner wrote it.
@@ -55,12 +55,12 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - pap does not replace pi-web (ADR 0075): both share `~/.pi/agent`. Never resume one session in both apps; pap warns when a live session's file changes outside it (ADR 0074) and never reads pi-web's files.
 - Licence: AGPL-3.0-or-later (ADR 0077); the two derived vercel/ai-elements files (`Message.tsx`, `Reasoning.tsx`) stay Apache-2.0 (`LICENSES/`).
 
-## Agents in microVMs (sub-project 1)
+## Agents in microVMs (sub-projects 1 and 2)
 
-- Each agent can run in its own Kata/Cloud Hypervisor microVM with bwrap inside it and no credential in the VM: `docs/agents/agents-vm.md` (runtime, gateway, mirror, relay, pap-vmd, network, setup, tests, known limits); ADR 0078; install: `docs/agents/install.md` ("Agent VMs"); checks: `docs/agents/doctor.md` ("Agent VM checks"); measurements: `docs/research/agents-vm-risk-checks.md`.
+- Each agent can run in its own Kata/Cloud Hypervisor microVM with bwrap inside it and no provider key in the VM (an agent's own scoped credentials may be imported by the owner, ADR 0079): `docs/agents/agents-vm.md` (runtime, gateway, mirror, relay, pap-vmd, network, setup, tests, known limits); ADRs 0078 and 0079 (spec of sub-project 2: `docs/specs/2026-10-21-agents-vm-egress-design.md`); install: `docs/agents/install.md` ("Agent VMs"); checks: `docs/agents/doctor.md` ("Agent VM checks"); measurements: `docs/research/agents-vm-risk-checks.md`.
 - Env: `PAP_AGENTS_RUNTIME` (`host` default | `vm`), `PAP_AGENTS_MEMORY_MAX_MB` (cap on all running VMs together, each counts `memoryMb` + 512; default max(1024, half the RAM), at least 1024), `PAP_TEST_AGENT_RUNTIME=process` (tests only; needs `PAP_TEST_PROVIDER_SCRIPT`, stops the boot without it; never set it elsewhere).
 - Needs KVM (`/dev/kvm`, x86_64) and a root service: `sudo pap vm setup --user <name>` (pinned artefacts), `sudo pap vm uninstall [--purge]`. A host without KVM keeps `host`. After `pap update`, run `sudo pap vm setup` again: pap-vmd does not follow the update.
-- No migration: agents made in host mode are deleted and created again in VM mode. In a VM the shell has no network, and the vault, one-use values, pi-mem0, prechecks and `export_html` are unavailable (sub-projects 2 to 5).
+- No migration: agents made in host mode are deleted and created again in VM mode. In a VM the shell has network only through the egress proxy (`10.213.0.1:7843`, filtered by the agent's `allowHosts` as `host[:port]` or IP entries, when `sandbox.network` is on); the vault, one-use values, pi-mem0, prechecks and `export_html` are still unavailable (sub-projects 3 to 5).
 - Kata tests (`*.kata.int.test.ts`, project `kata`) run locally only, on a KVM host with `pap vm setup` done: `CI=1 pnpm vitest run --project kata`. Without `CI=1` they skip with one warning when `/dev/kvm` or `/run/pap-vm/vmd.sock` is missing; no CI job runs them.
 
 ## Rules (CI-enforced)

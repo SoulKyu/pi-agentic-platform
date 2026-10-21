@@ -126,14 +126,14 @@ function requireAgentDirEnv(agentDir: string): void {
   }
 }
 
-/** The prompt's facts (M11R55): the home is the VM's (RT-06), else the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
-function agentFactsOf(init: InitRecord, scratch: string | null) {
+/** The prompt's facts (M11R55): the home is the VM's (RT-06), its network the agent's switch (AVM2-E11), else the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
+function agentFactsOf(init: InitRecord, scratch: string | null, vmNetwork: boolean) {
   const { agent, sandbox, papHome, vm } = init;
   return {
     name: agent?.name ?? "",
     home: vm?.layout.home ?? sandbox?.home ?? join(papHome, "agents", agent?.id ?? ""),
     role: agent?.role ?? "",
-    network: vm ? false : (sandbox?.network ?? null),
+    network: vm ? vmNetwork : (sandbox?.network ?? null),
     scratch,
   };
 }
@@ -153,6 +153,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     throw new Error("a test provider script needs PAP_TEST_PROVIDER=1 in the worker environment");
   }
   // A VM session's file roots, real folders checked once: a root that is a link stops the worker (R26).
+  const vmNetwork = init.vm !== undefined && deps.rules()?.sandbox?.network === true;
   const vm = init.vm ? { layout: init.vm.layout, roots: await realVmRoots(init.vm.layout) } : undefined;
   const scripted = init.testProviderScript ? await loadScriptedProvider(init.testProviderScript) : null;
   let modelRuntime: ModelRuntime | undefined;
@@ -178,9 +179,10 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     taint: deps.taint,
     audit: deps.audit,
     secrets: deps.secrets,
-    // R15: pap's shell is the only shell of a VM session, with no network, whatever `init.sandbox` says.
+    // R15: pap's shell is the only shell of a VM session, whatever `init.sandbox` says; its network is the agent's switch,
+    // fixed at open (AVM2-E11): the shell, the taint of its results and the prompt all read the same `vmNetwork`.
     ...(vm
-      ? { vm, sandbox: { network: false } }
+      ? { vm, sandbox: { network: vmNetwork } }
       : init.sandbox
         ? { sandbox: { network: init.sandbox.network } }
         : {}),
@@ -221,7 +223,10 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         // M11R22: pap's `bash` in bwrap; without a sandbox in the init record, Pi's own.
         ...(init.vm && vm
           ? [
-              createVmShellTool(init.vm, { redact: () => deps.secrets.current() }),
+              createVmShellTool(init.vm, {
+                redact: () => deps.secrets.current(),
+                network: vmNetwork,
+              }),
               createVmFileTools(vm.roots, cwd),
             ]
           : []),
@@ -255,7 +260,9 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
       appendSystemPromptOverride: (base) => [
         ...base,
         UNTRUSTED_RULE,
-        ...(init.agent ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null))] : []),
+        ...(init.agent
+          ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null, vmNetwork))]
+          : []),
         ...(init.child ? [init.child.prompt] : []),
       ],
     },

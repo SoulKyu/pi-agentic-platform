@@ -34,21 +34,24 @@ export function agentOwnOf(rules: PolicyRules): string | null {
 export const vmOwnFolder = (rules: PolicyRules, vm: NonNullable<PipelineDeps["vm"]>): boolean =>
   agentOwnOf(rules) === vm.layout.home;
 
-/** Without a `sandbox` in the rules a sandboxed shell is judged as if it had network: the stricter reading. */
-function factsOf(call: CallFacts): AgentCallFacts {
+/**
+ * Without a `sandbox` in the rules a sandboxed shell is judged as if it had network: the stricter reading. In a VM
+ * (`inVm`) the egress proxy keeps a networked shell to the agent's host list, so it is judged as without network.
+ */
+function factsOf(call: CallFacts, inVm: boolean): AgentCallFacts {
   return {
     category: call.kind.category,
     external: call.kind.external,
     sandboxedShell: call.kind.sandboxed === true,
-    sandboxNetwork: call.rules.sandbox?.network !== false,
+    sandboxNetwork: !inVm && call.rules.sandbox?.network !== false,
   };
 }
 
 /** What stage 03 judges: the call's category, but a sandboxed shell without network is an edit of its own folder (M11R30). */
-export function judgedAs(call: CallFacts): { category: ToolCategory; external: boolean } {
+export function judgedAs(call: CallFacts, inVm = false): { category: ToolCategory; external: boolean } {
   if (call.rules.profile === "interactive")
     return { category: call.kind.category, external: call.kind.external };
-  return agentCategory(factsOf(call));
+  return agentCategory(factsOf(call, inVm));
 }
 
 const pathOf = (input: unknown): unknown =>
@@ -167,7 +170,7 @@ export async function isolatedPlan(
 ): Promise<ApprovalPlan> {
   const { rules } = call;
   const mode = rules.approvalMode;
-  const { category } = judgedAs(call);
+  const { category } = judgedAs(call, deps.vm !== undefined);
   const refused = (reason: string): ApprovalPlan => ({
     outcome: "block",
     reason,
@@ -175,7 +178,7 @@ export async function isolatedPlan(
   });
   if (mode === "full-access") return refused("full access is never an isolated task's mode");
   const verdict = decideIsolated({
-    ...factsOf(call),
+    ...factsOf(call, deps.vm !== undefined),
     mode,
     tainted: call.tainted,
     insideReach: await insideReach(call, category, ctx, deps),

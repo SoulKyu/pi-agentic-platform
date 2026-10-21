@@ -4,6 +4,7 @@ import type { NamedInlineExtension } from "../policy/extension.ts";
 import type { Redactor } from "../policy/redact.ts";
 import type { ShellTimers } from "../shell-process.ts";
 import { vmShell } from "./ops.ts";
+import { pickProxyEnv } from "./proxy-env.ts";
 import type { spawn as nodeSpawn } from "node:child_process";
 
 /**
@@ -16,13 +17,20 @@ export function createVmShellTool(
   vm: VmInit,
   deps: {
     readonly redact?: () => Redactor;
+    /** `rules.sandbox?.network === true`: the shell reaches the egress proxy. */
+    readonly network?: boolean;
+    readonly env?: NodeJS.ProcessEnv;
     readonly timers?: ShellTimers;
     readonly spawn?: typeof nodeSpawn;
   } = {},
 ): NamedInlineExtension {
+  const network = deps.network === true;
   const operations = vmShell(
-    { bwrap: vm.bwrap, layout: vm.layout, slot: vm.slot, rootView: vm.rootView, egressSocket: null },
-    deps,
+    { bwrap: vm.bwrap, layout: vm.layout, slot: vm.slot, rootView: vm.rootView, network },
+    {
+      ...deps,
+      ...(network ? { proxyEnv: pickProxyEnv(deps.env ?? process.env) } : {}),
+    },
   );
   return {
     name: "pap-sandbox",

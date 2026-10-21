@@ -24,6 +24,8 @@ export interface LaunchGrant {
   readonly relayKey: string;
   /** The VM's bridge address from `vm.start` (127.0.0.1 under the process backend). */
   readonly address: string;
+  /** The isolated task's key; null (or absent) for the agent's thread VM. The egress proxy names the source by it. */
+  readonly taskKey?: string | null;
 }
 
 export interface AgentRuntimeBackend {
@@ -200,6 +202,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           agentId: spec.agentId,
           relayKey: issued.relayKey,
           address,
+          taskKey: taskKeyOf(spec),
         });
         const link = await gateway.awaitGuest(entry.launchId);
         if (isStopping(entry)) {

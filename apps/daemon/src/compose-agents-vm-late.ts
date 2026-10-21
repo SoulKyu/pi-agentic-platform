@@ -38,6 +38,8 @@ export interface AgentsVmLate {
     readonly plugins: PluginPicks;
   };
   readonly agents: Pick<AgentsPort, "get" | "list" | "ownerOf" | "onChange">;
+  /** The owner's egress host list (what an agent without a list of its own gets); absent: none. */
+  ownerHosts?(ownerId: string): readonly string[] | null;
   readonly runs: { readonly port: Pick<RunsPort, "onLiveCost" | "onRunEnd"> };
   /** The automation module: the agent's own daily budget (M11R74) is `agentTasks.overBudget`. */
   readonly automation: { readonly agentTasks: { overBudget(ownerId: string, agentId: string): boolean } };
@@ -56,6 +58,8 @@ export interface AgentsVmDerived {
   windowEnded(): void;
   /** S1: `agent_paused` for an agent quarantined since the launch passed its gate, `not_found` for one deleted. */
   agentOpen(ownerId: string, agentId: string): void;
+  /** The agent's host list now: its own, else the owner's, else none. Null: the agent is unknown. */
+  hostsOf(agentId: string): readonly string[] | null;
   /** Posts a notice into the agent's thread (the image being rebuilt, a disk that grows later); logged when it has none yet. */
   notify(agentId: string, text: string): void;
 }
@@ -164,6 +168,12 @@ export function bindAgentsVmLate(
             ? "budget"
             : null,
       };
+    },
+    hostsOf(agentId) {
+      const ownerId = late.agents.ownerOf(agentId);
+      const record = ownerId === null ? null : late.agents.get(ownerId, agentId);
+      if (ownerId === null || record?.input == null) return null;
+      return record.input.allowHosts ?? late.ownerHosts?.(ownerId) ?? [];
     },
     agentOpen(ownerId, agentId) {
       const record = late.agents.get(ownerId, agentId);

@@ -130,7 +130,7 @@ describe("agent form: the daily budget (owner m14)", () => {
 
 describe("agent form: the other fields speak the schema", () => {
   it("an invalid host shows the host field's error", () => {
-    expect(toInput(fresh({ ownHosts: false, hosts: "api.example.com\n10.0.0.1" }))).toEqual({
+    expect(toInput(fresh({ ownHosts: false, hosts: "api.example.com\nk8s.lan:0" }))).toEqual({
       ok: false,
       errors: { allowHosts: "agentForm.error.allowHosts" },
     });
@@ -162,5 +162,27 @@ describe("agent form: the other fields speak the schema", () => {
       save: "staged",
       recallLimit: 4,
     });
+  });
+});
+
+describe("agent form: host entries in host mode (A1 carried)", () => {
+  const withHosts = (hosts: string) => fresh({ ownHosts: false, hosts });
+
+  it.each(["k8s.lan:6443", "192.168.1.40", "[fd00::1]:6443", "api.example.com:443"])(
+    "refuses %s with the VM-mode field error in host mode",
+    (entry) => {
+      const result = toInput(withHosts(`api.example.com\n${entry}`), true);
+      expect(result.ok).toBe(false);
+      expect(!result.ok && result.errors["allowHosts"]).toBe("agentForm.error.allowHosts.vmOnly");
+    },
+  );
+
+  it("accepts the same entries in VM mode, and plain names and wildcards in host mode", () => {
+    expect(toInput(withHosts("k8s.lan:6443\n192.168.1.40"), false).ok).toBe(true);
+    expect(toInput(withHosts("api.example.com\n*.docs.example.com"), true).ok).toBe(true);
+  });
+
+  it("does not judge the owner's list, which the agent form does not hold", () => {
+    expect(toInput(fresh({ ownHosts: true, hosts: "k8s.lan:6443" }), true).ok).toBe(true);
   });
 });

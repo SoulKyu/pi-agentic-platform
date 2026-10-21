@@ -1,0 +1,26 @@
+# ADR 0079: a VM agent's network and files
+
+Status: accepted, sub-project 2 · Date: 2026-10-21 · Spec: `docs/specs/2026-10-21-agents-vm-egress-design.md` · Amends ADR 0078 and decision 106 ("no credential in the VM") for the agent's own credentials. Decision 119. Topic note: `docs/agents/agents-vm.md` ("Network"). Mockups: `docs/architecture/agents-vm/06-egress-files-mockups.html`.
+
+## Context
+
+Sub-project 1 left the VM shell without network (ADR 0078). The earlier plan for sub-project 2 was a proxy that injected vault values into requests bound to hosts, with grants. The owner rescoped it (2026-10-21): "je veux juste un proxy simple qui filtre en entrée et en sortie genre comme tinyproxy". The target use cases are an agent that diagnoses a Kubernetes cluster through MCP, reads mail through the Google API, answers an Alertmanager webhook, and a coding agent that clones, installs, builds, tests and pushes on its own. They need the agent to hold credentials for the remote systems it works with, scoped at the source, not credentials that pap adds on the way out.
+
+## Decision
+
+- **A simple filtering proxy.** pap's existing egress proxy (ADR 0047) gets one TCP listener on `10.213.0.1:7843` for the VMs. It speaks HTTP `CONNECT` and plain HTTP forward requests, filters by host and port, reads no content, does no TLS inspection and injects nothing. No new dependency and no second proxy implementation. pap-vmd's firewall gains the port beside 7841 and 7842.
+- **The VM is identified by its source address**, mapped to its running launch (the per-VM anti-spoofing of ADR 0078 pins the address). No credential rides in the proxy URL; an address with no running launch is refused.
+- **The rule is the agent's `allowHosts`**, whose entries become `host[:port]` (a name with an optional `*.`, or an IP literal; no port means 80 and 443; stored entries keep their meaning). Always refused, whatever the list says: loopback, link-local (the metadata address included), the `pap0` subnet, every address of the host, multicast and unspecified addresses. Private ranges pass only for an exact name or an IP entry, never for a wildcard. The address checked is the address connected to. Host mode keeps its own proxy and rules, and refuses an entry with a port or an IP.
+- **No approval card for network in a VM.** A shell command there is judged like an edit of the agent's own folder. The host list is the only barrier at the exit; taint is still recorded and shown.
+- **A refused host is a card in the agent's thread**, with one Inbox item and one push per agent and host:port per hour. Its dialog adds the host to the agent's list in one step-up action. An agent on the owner's list gets its own copy of it plus the entry.
+- **The agent holds its own credentials in its VM.** The owner imports them as files into the agent's home (a Files tab: 1 MiB per file, 32 per agent; kept 0600 under `$PAP_HOME/secrets/` on the host; written to the VM at every start, task VMs included; changes and removals reach a running VM). This amends decision 106 and ADR 0078's "no credential in the VM" for the agent's own credentials. Provider keys and the Claude token stay with the relay and never enter the VM. Files are Part B of the sub-project; their guide comes with Part B.
+- Dropped: vault values bound to hosts, credential injection, grants, an approval card for network in a VM.
+
+## Consequences
+
+- **The owner scopes at the source.** pap does not re-implement the remote system's permissions: a read-only Kubernetes service account, an OAuth `gmail.readonly` scope, a token limited to one repository. A listed host receives whatever the agent sends, and pap does not filter methods or content. The proxy guarantees hosts and ports, not content.
+- **A credential in a VM is readable by whatever runs in it.** A prompt-injected or compromised agent can send its files to any listed host and use them there. The mitigation is the narrow list and the narrow scope, not pap. Quarantine lists a file's path so the owner can revoke at the source.
+- **With the network on, the shell shares the VM's loopback and abstract sockets** with the worker, Pi and MCP servers. Any local listener in the VM becomes reachable from the shell; pap has none today, but an MCP server with an HTTP transport would be one. The relay port is reachable too, and its per-launch key is then the only barrier (the shell cannot read it).
+- **The VM's file credentials leave with a backup only when asked**: a plain backup excludes `secrets/`; an encrypted backup with `--secrets include` keeps them.
+- Limits: HTTP and HTTPS only (no `git` over ssh, no database ports, no `apt` at run time); host-mode connection limits apply to tunnels (32 connections per agent, 120 s idle, 30 min life); the proxy sees the VM, not the worker, so counts and cards say "thread" or the task's name; the dedupe state is in memory; a daemon restart can raise one more card per host:port; the shell's network follows `sandbox.network` as read when its session opens; after `pap update`, `sudo pap vm setup` must run again for the firewall to open 7843.
+- Cost if wrong: a listed host that is too broad (a wildcard on a shared domain, say) is an exfiltration path for anything the VM holds. The step-up on every widening, the always-refused addresses and the per-agent list bound it.

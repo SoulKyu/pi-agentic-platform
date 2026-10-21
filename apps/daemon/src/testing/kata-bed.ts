@@ -83,6 +83,8 @@ export interface KataBed {
   readonly vmd: VmdClient;
   /** Every `vm.start` the daemon sent: the launch token is in the request, so a test can look for it inside the VM. */
   readonly starts: Array<Extract<VmdRequest, { op: "vm.start" }>>;
+  /** Every launch's relay key, in order: a test looks for it inside the VM (spec §3). */
+  readonly grants: Array<{ launchId: string; agentId: string; relayKey: string }>;
   createAgent(input?: Record<string, unknown>): Promise<string>;
   /** Saves the agent's profile with `patch` merged over the bed's defaults (a resize, say). */
   update(agentId: string, patch: Record<string, unknown>): Promise<void>;
@@ -153,6 +155,7 @@ export async function startKataBed(
     ...options.modelFiles,
   };
   const starts: KataBed["starts"] = [];
+  const grants: KataBed["grants"] = [];
   const real = createVmdClient(VMD_SOCKET, createSystemClock());
   const recording: VmdClient = {
     request(request) {
@@ -181,6 +184,7 @@ export async function startKataBed(
             kata: { client: recording },
             relayExecArgv: VM_EXEC_ARGV,
             expose: (vm) => void (exposed = vm),
+            observe: { granted: (grant) => void grants.push(grant) },
           },
         },
       },
@@ -206,7 +210,7 @@ export async function startKataBed(
       name: "CyberLooker",
       mode: "full-access",
       preset: "full",
-      sandbox: { required: true, network: true },
+      sandbox: { required: true, network: false },
       model: { provider: "scripted", modelId: "m-1" },
       ...extra,
     });
@@ -250,6 +254,7 @@ export async function startKataBed(
     llm,
     vmd: recording,
     starts,
+    grants,
     problems: () => captured.lines.slice(-60).map((line) => JSON.stringify(line).slice(0, 500)),
     async createAgent(input = {}) {
       const created = await call<{ id: string }>("agents.create", { input: inputOf(input) });

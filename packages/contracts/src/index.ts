@@ -48,6 +48,7 @@ export * from "./models-extensions.ts";
 export * from "./models-usage.ts";
 export * from "./permissions.ts";
 export * from "./platform.ts";
+export * from "./host-entry.ts";
 export * from "./policy.ts";
 export * from "./taint-cause.ts";
 export * from "./policy-methods.ts";

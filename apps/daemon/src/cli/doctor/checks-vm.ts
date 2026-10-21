@@ -7,6 +7,7 @@ import {
   createVmdClient,
   GATEWAY_ENDPOINT,
   ownerOf,
+  PROXY_ENDPOINT,
   realProcReader,
   RELAY_ENDPOINT,
   STACK_REASONS,
@@ -28,7 +29,7 @@ export interface VmProbes {
   images(ctx: DoctorContext): Promise<readonly string[] | null>;
   /** The worst case the agents' disks can take, and what the kept mirrors take now. */
   reserved(ctx: DoctorContext): { agentDisksMb: number; keptMirrorsMb: number };
-  /** Who holds the gateway's and the relay's sockets on the bridge address (AVM-E49 M9b): the pid that holds each, and the relay's parent. */
+  /** Who holds the gateway's, the relay's and the VM proxy's sockets on the bridge address (AVM-E49 M9b): the pid that holds each, and the relay's parent. */
   listeners(): ListenerFacts;
   /** The host firewalls that are active: `ufw`, `firewalld`. */
   firewalls(): readonly string[];
@@ -36,6 +37,8 @@ export interface VmProbes {
 
 export interface ListenerFacts {
   readonly gateway: { readonly listening: boolean; readonly pid: number | null };
+  /** The egress proxy for the VMs: the daemon's own socket, like the gateway's. */
+  readonly proxy: { readonly listening: boolean; readonly pid: number | null };
   readonly relay: {
     readonly listening: boolean;
     readonly pid: number | null;
@@ -129,7 +132,12 @@ export function defaultVmProbes(): VmProbes {
       const proc = realProcReader();
       const gateway = ownerOf(proc, GATEWAY_ENDPOINT);
       const relay = ownerOf(proc, RELAY_ENDPOINT);
-      return { gateway, relay: { ...relay, parent: relay.pid === null ? null : proc.parentOf(relay.pid) } };
+      const proxy = ownerOf(proc, PROXY_ENDPOINT);
+      return {
+        gateway,
+        proxy,
+        relay: { ...relay, parent: relay.pid === null ? null : proc.parentOf(relay.pid) },
+      };
     },
     firewalls: () => {
       const active: string[] = [];
@@ -260,9 +268,9 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
       title: "The sockets on the bridge address",
       async run(ctx) {
         if (!asVm(ctx)) return NOT_VM;
-        const { gateway, relay } = probes.listeners();
-        const where = `${AGENT_NET.host}:${AGENT_NET.gatewayPort} and :${AGENT_NET.relayPort}`;
-        if (!gateway.listening && !relay.listening) {
+        const { gateway, relay, proxy } = probes.listeners();
+        const where = `${AGENT_NET.host}:${AGENT_NET.gatewayPort}, :${AGENT_NET.relayPort} and :${AGENT_NET.proxyPort}`;
+        if (!gateway.listening && !relay.listening && !proxy.listening) {
           if (!ctx.lockHeld)
             return { status: "info", detail: `pap is not running: nothing listens on ${where}` };
           // T20b M7: with no unit, the mode is only this shell's; the daemon that holds the lock may run in host mode.
@@ -280,19 +288,27 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
         const foreign = (what: string): CheckResult => ({
           status: "fail",
           detail: `${what} is held by a process that is not pap's: the agents' VMs would reach it, never pap`,
-          fix: `stop pap, find the holder (ss -ltnp 'sport = :${AGENT_NET.gatewayPort} or sport = :${AGENT_NET.relayPort}') and stop it`,
+          fix: `stop pap, find the holder (ss -ltnp 'sport = :${AGENT_NET.gatewayPort} or sport = :${AGENT_NET.relayPort} or sport = :${AGENT_NET.proxyPort}') and stop it`,
         });
         if (gateway.listening && gateway.pid === null)
           return foreign(`the gateway port ${AGENT_NET.gatewayPort}`);
         if (relay.listening && (relay.pid === null || relay.parent !== gateway.pid))
           return foreign(`the relay port ${AGENT_NET.relayPort}`);
+        if (proxy.listening && (proxy.pid === null || proxy.pid !== gateway.pid))
+          return foreign(`the proxy port ${AGENT_NET.proxyPort}`);
         if (!relay.listening)
           return {
             status: "warn",
             detail: `the gateway listens but nothing listens on the relay port ${AGENT_NET.relayPort}: the agents' VMs cannot start`,
             fix: "journalctl --user -u pap -n 50 (relay_restart, relay_listener_foreign)",
           };
-        return { status: "ok", detail: `${where} are held by pap's gateway and its relay` };
+        if (!proxy.listening)
+          return {
+            status: "warn",
+            detail: `the gateway and the relay listen but nothing listens on the proxy port ${AGENT_NET.proxyPort}: the agents' VMs reach no host`,
+            fix: "journalctl --user -u pap -n 50 (the VMs' proxy cannot listen)",
+          };
+        return { status: "ok", detail: `${where} are held by pap's gateway, its relay and its proxy` };
       },
     },
     {
@@ -304,12 +320,12 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
         if (active.length === 0) return { status: "ok", detail: "neither ufw nor firewalld is active" };
         const fixes = active.map((name) =>
           name === "ufw"
-            ? `sudo ufw allow in on ${AGENT_NET.bridge} to any port ${AGENT_NET.gatewayPort},${AGENT_NET.relayPort} proto tcp`
+            ? `sudo ufw allow in on ${AGENT_NET.bridge} to any port ${AGENT_NET.gatewayPort},${AGENT_NET.relayPort},${AGENT_NET.proxyPort} proto tcp`
             : `sudo firewall-cmd --permanent --zone=trusted --add-interface=${AGENT_NET.bridge} && sudo firewall-cmd --reload`,
         );
         return {
           status: "warn",
-          detail: `${active.join(" and ")} ${active.length === 1 ? "is" : "are"} active: it can drop the agents' VMs on ports ${AGENT_NET.gatewayPort} and ${AGENT_NET.relayPort} of ${AGENT_NET.bridge}`,
+          detail: `${active.join(" and ")} ${active.length === 1 ? "is" : "are"} active: it can drop the agents' VMs on ports ${AGENT_NET.gatewayPort}, ${AGENT_NET.relayPort} and ${AGENT_NET.proxyPort} of ${AGENT_NET.bridge}`,
           fix: fixes.join("; "),
         };
       },

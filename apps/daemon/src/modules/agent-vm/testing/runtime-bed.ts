@@ -114,6 +114,7 @@ export async function startRuntimeBed(
     execArgv: VM_EXEC_ARGV,
     imageAgentSource: image,
     gatewayAddress: () => ({ host: "127.0.0.1", port }),
+    proxyAddress: () => ({ host: "127.0.0.1", port: 1 }),
     providerScript: scriptPath,
     clock,
     logger: silentLogger,

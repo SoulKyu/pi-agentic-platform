@@ -12,15 +12,16 @@ export const VM_REFUSALS = {
 } as const;
 
 /**
- * R15: a VM session is judged like a sandboxed shell without network, whatever the profile's host-sandbox switch says,
- * and its folders are the VM's (no host path reaches its rules). Pure: it holds before the VM starts and at every compose.
+ * R15 (AVM2-E11 supersedes "no network until sub-project 2"): a VM session is judged like a sandboxed shell, whatever the
+ * profile's host-sandbox switch says; the shell's network is the agent's own `sandbox.network` and goes through the egress
+ * proxy. Its folders are the VM's (no host path reaches its rules). Pure: it holds before the VM starts and at every compose.
  */
 export function vmRuleParts(parts: AgentRuleParts, layout: VmLayout, isTask: boolean): AgentRuleParts {
   return {
     ...parts,
     agentHome: layout.home,
     agentScratch: isTask ? layout.home : null,
-    sandbox: { required: true, network: false },
+    sandbox: { required: true, network: parts.sandbox?.network === true },
     // AVM-E18: the owner's "always" grants were made for host calls and never cross into the box.
     alwaysAllow: [],
     alwaysPrefixes: [],

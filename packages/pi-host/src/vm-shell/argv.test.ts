@@ -18,7 +18,7 @@ const spec = (over: Partial<VmShellSpec> = {}): VmShellSpec => ({
   layout,
   slot: SLOT,
   rootView: "read-only",
-  egressSocket: null,
+  network: false,
   ...over,
 });
 const argv = (over: Partial<VmShellSpec> = {}, command = "echo hi", fd = 3) =>
@@ -157,8 +157,15 @@ describe("bwrapVmArgv", () => {
     expect(() => argv({ slot: `${SLOT}\n` })).toThrow(RangeError);
   });
 
-  it("refuses an egress socket: sub-project 1 has no network", () => {
-    expect(() => argv({ egressSocket: "/run/egress.sock" })).toThrow(RangeError);
+  it("network: false keeps --unshare-net; network: true drops only that flag", () => {
+    const closed = argv({ network: false });
+    const open = argv({ network: true });
+    expect(closed).toContain("--unshare-net");
+    expect(open).not.toContain("--unshare-net");
+    expect(open).toEqual(closed.filter((flag) => flag !== "--unshare-net"));
+    for (const flag of ["--unshare-pid", "--unshare-ipc", "--unshare-uts", "--unshare-cgroup", "--seccomp"])
+      expect(open).toContain(flag);
+    expect(after(open, "--cap-drop")[0]).toBe("ALL");
   });
 
   it("refuses a bind source that is the layout root or is, or lies under, .pi", () => {

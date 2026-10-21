@@ -21,7 +21,7 @@ export const VM_IPV4 = /^10\.213\.0\.(?:[2-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/;
  * empties `ports`: pap-vmd re-adds the elements of the VMs that run (T16a).
  */
 export function agentNetRuleset(net: AgentNet = AGENT_NET): string {
-  const ports = `{ ${net.gatewayPort}, ${net.relayPort} }`;
+  const ports = `{ ${net.gatewayPort}, ${net.relayPort}, ${net.proxyPort} }`;
   return `${[
     "table inet pap_agents",
     "delete table inet pap_agents",

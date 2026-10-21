@@ -49,7 +49,31 @@ const delegation = (summary: string, isolatedRun: boolean): AgentEventView => ({
     isolated: isolatedRun,
   },
 });
-const show = (event: AgentEventView, extra: { folded?: string | null; mode?: "cards" | "compact" } = {}) => {
+const refused = (
+  reason: "not_listed" | "private_wildcard" | "blocked_address",
+  count = 1,
+): AgentEventView => ({
+  ...base,
+  kind: "egress_refused",
+  data: {
+    host: "prometheus.lan",
+    port: 9090,
+    reason,
+    address: reason === "not_listed" ? null : "192.168.1.40",
+    source: "thread",
+    count,
+    firstAt: base.at,
+    lastAt: base.at,
+  },
+});
+const show = (
+  event: AgentEventView,
+  extra: {
+    folded?: string | null;
+    mode?: "cards" | "compact";
+    agent?: { id: string; name: string } | null;
+  } = {},
+) => {
   const onInject = vi.fn();
   return mount(
     <EventCard
@@ -57,6 +81,7 @@ const show = (event: AgentEventView, extra: { folded?: string | null; mode?: "ca
       folded={extra.folded ?? null}
       mode={extra.mode ?? "cards"}
       onInject={onInject}
+      {...(extra.agent === null ? {} : { agent: extra.agent ?? { id: "kubedoc-1a2b", name: "KubeDoc" } })}
     />,
   ).then((page) => ({ page, onInject }));
 };
@@ -214,5 +239,53 @@ describe("EventCard text pap wrote itself (T12)", () => {
     expect(text((await show(run("task", { title: "Nightly checks" }))).page.container)).toContain(
       "Nightly checks",
     );
+  });
+});
+
+describe("EventCard refused host (spec §6)", () => {
+  it("draws a solid frame with a BLOCKED chip and pap's own sentence naming the agent, host and port", async () => {
+    const { page } = await show(refused("not_listed"));
+    expect(frame(page.container)).toBe("solid");
+    const words = text(page.container);
+    expect(words).toContain("Blocked");
+    expect(words).toContain(
+      "@KubeDoc could not reach prometheus.lan:9090: it is not in its host list. Nothing left the VM.",
+    );
+  });
+
+  it.each(["not_listed", "private_wildcard"] as const)("%s offers Add…", async (reason) => {
+    const { page } = await show(refused(reason));
+    expect(hasButton(page.container, "Add…")).toBe(true);
+  });
+
+  it("blocked_address has no button and says the address is always refused", async () => {
+    const { page } = await show(refused("blocked_address"));
+    expect(hasButton(page.container, "Add…")).toBe(false);
+    expect(text(page.container)).toContain("always refuses this address");
+  });
+
+  it("shows the attempt count once there are several, and none for a single one", async () => {
+    expect(text((await show(refused("not_listed", 200))).page.container)).toContain("200 attempts");
+    expect(text((await show(refused("not_listed", 1))).page.container)).not.toContain("attempts");
+  });
+
+  it("offers no button when the card does not know whose thread it is in", async () => {
+    const { page } = await show(refused("not_listed"), { agent: null });
+    expect(hasButton(page.container, "Add…")).toBe(false);
+  });
+
+  it("is one line with the host in compact mode", async () => {
+    const { page } = await show(refused("not_listed"), { mode: "compact" });
+    expect(page.container.querySelector("[data-event-line=egress_refused]")?.textContent).toContain(
+      "prometheus.lan:9090",
+    );
+  });
+
+  it("speaks French", async () => {
+    setLocale("fr");
+    const { page } = await show(refused("not_listed"));
+    expect(text(page.container)).toContain("n'a pas pu joindre prometheus.lan:9090");
+    expect(hasButton(page.container, "Ajouter…")).toBe(true);
+    setLocale("en");
   });
 });

@@ -46,6 +46,12 @@ describe("spawn", () => {
     ]);
   });
 
+  it("tells the launch hook which task a VM is for (null for the thread VM)", async () => {
+    await b.runtime.spawn(specOf("a1"), workerInput(), null);
+    await b.runtime.spawn(specOf("a1", { kind: "isolated", taskKey: "t1" }), workerInput(), null);
+    expect(b.grants.map((grant) => grant.taskKey)).toEqual([null, "t1"]);
+  });
+
   it("hands the worker the VM's sessions folder and returns the layout, relay key and slot", async () => {
     const out = await b.runtime.spawn(specOf("a1"), workerInput(), null);
     const guest = b.guestAt(0);
@@ -65,6 +71,7 @@ describe("spawn", () => {
         agentId: "a1",
         relayKey: b.grantAt(0).relayKey,
         address: "10.213.0.9",
+        taskKey: null,
       },
     ]);
     expect(b.tokens.check("a1", b.launchAt(0).launchId, b.launchAt(0).token)).toBe(true);

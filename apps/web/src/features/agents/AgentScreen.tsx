@@ -1,7 +1,6 @@
 import "./register-space-catalog.ts";
 import { type AgentRequestView, type AgentSummary, type ToolPreset } from "@pap/contracts";
 import { Button, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
-import { Dialog } from "@pap/ui/overlays";
 import { type ReactNode, useState } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -13,6 +12,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { setPaused } from "./agent-actions.ts";
 import { AgentHeader } from "./AgentHeader.tsx";
+import { OpenStatus, PanelSlot } from "./AgentScreenParts.tsx";
 import { PendingStrip } from "./PendingStrip.tsx";
 import { PromptChips } from "./PromptChips.tsx";
 import { QueueTaskDialog } from "./QueueTaskDialog.tsx";
@@ -20,8 +20,7 @@ import { AgentSettingsTab } from "./AgentSettingsTab.tsx";
 import { DeleteAgentDialog } from "./DeleteAgentDialog.tsx";
 import { QuarantineDialog } from "./QuarantineDialog.tsx";
 import { RequestCards } from "./RequestCards.tsx";
-import { StatusPanel } from "./StatusPanel.tsx";
-import { panelLayout, WIDE_QUERY, type PanelLayout } from "./status.vm.ts";
+import { panelLayout, WIDE_QUERY } from "./status.vm.ts";
 import { threadInterleave } from "./thread-plan.tsx";
 import { useAgentCards, useMarkRead, useNow, useOpenThread } from "./use-agent-space.ts";
 import { useHandOff } from "./use-hand-off.ts";
@@ -274,7 +273,13 @@ function AgentSpace({
   const inject = (text: string) => useComposerPrefill.getState().push(sessionId, text);
   const dayLabel = (at: number) =>
     new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short" }).format(at);
-  const interleave = threadInterleave({ events, mode: eventCards, onInject: inject, dayLabel });
+  const interleave = threadInterleave({
+    events,
+    mode: eventCards,
+    onInject: inject,
+    agent: { id: agentId, name: agent.name },
+    dayLabel,
+  });
   return frame(
     thread({
       sessionId,
@@ -295,96 +300,5 @@ function AgentSpace({
       ),
     }),
     "flex min-h-0 min-w-0 flex-1 flex-col",
-  );
-}
-
-interface PanelSlotProps {
-  readonly agentId: string;
-  readonly layout: PanelLayout;
-  readonly open: boolean;
-  onClose(): void;
-  onOpenSettings(): void;
-  onOpenSession(sessionId: string): void;
-  onOpenTrigger(triggerId: string): void;
-}
-
-/** The status panel where its layout puts it; nothing is mounted (so nothing is read) while it is closed. */
-function PanelSlot({ agentId, layout, open, onClose, onOpenTrigger, ...rest }: PanelSlotProps) {
-  const t = useT();
-  if (!open) return null;
-  const panel = (
-    <StatusPanel
-      {...rest}
-      agentId={agentId}
-      layout={layout}
-      onOpenTrigger={onOpenTrigger}
-      onNewTrigger={() => onOpenTrigger(`new:agent:${agentId}`)}
-      {...(layout === "sheet"
-        ? {}
-        : {
-            closeLabel: t(layout === "pane" ? "agentStatus.close.pane" : "agentStatus.close.side"),
-            onClose,
-          })}
-    />
-  );
-  if (layout === "side")
-    return <aside className="flex w-status-panel shrink-0 flex-col border-l border-border">{panel}</aside>;
-  if (layout === "pane") return panel;
-  return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      title={t("agentStatus.title")}
-      hideTitle
-      variant="sheet"
-      closeLabel={t("ui.close")}
-    >
-      {panel}
-    </Dialog>
-  );
-}
-
-function OpenStatus({
-  unusable,
-  state,
-  onRetry,
-  onOpenSettings,
-}: {
-  readonly unusable: "quarantined" | "unreadable" | null;
-  readonly state: ReturnType<typeof useOpenThread>["state"];
-  onRetry(): void;
-  onOpenSettings(): void;
-}) {
-  const t = useT();
-  const settings = <Button onClick={onOpenSettings}>{t("agentSpace.openSettings")}</Button>;
-  if (unusable !== null)
-    return (
-      <div className="flex flex-col items-start gap-s2">
-        <p role="status" className="text-ui text-muted">
-          {t(unusable === "quarantined" ? "agentSpace.quarantined" : "agentSpace.unreadable")}
-        </p>
-        {settings}
-      </div>
-    );
-  if (state.kind === "failed")
-    return (
-      <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {t(errorKey(state.code))}
-        </p>
-        <div className="flex flex-wrap gap-s2">
-          {state.code === "sandbox_unavailable" ? settings : null}
-          <Button variant="primary" onClick={onRetry}>
-            {t("agentSpace.retry")}
-          </Button>
-        </div>
-      </div>
-    );
-  return (
-    <p role="status" className="text-ui text-muted">
-      {t("agentSpace.opening")}
-    </p>
   );
 }

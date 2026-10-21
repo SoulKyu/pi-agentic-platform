@@ -32,10 +32,10 @@ const forwarded = (headers: OutgoingHttpHeaders, set: OutgoingHttpHeaders): Outg
 
 /** One absolute-URI http request to port 80, any method (M11R235); the answer always closes the connection. */
 export async function relayHttp(ctx: RelayContext, req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const refuse = (reason: EgressReason, host: string, port: number): void => {
+  const refuse = (reason: EgressReason, host: string, port: number, message?: string, status?: 502): void => {
     ctx.record("http", port, { reason, host });
-    const body = refusalBody(reason, host);
-    res.writeHead(refusalStatus(reason), {
+    const body = message === undefined ? refusalBody(reason, host) : `${message}\n`;
+    res.writeHead(status ?? refusalStatus(reason), {
       "x-pap-deny": reason,
       "content-type": "text/plain; charset=utf-8",
       "content-length": Buffer.byteLength(body),
@@ -65,7 +65,8 @@ export async function relayHttp(ctx: RelayContext, req: IncomingMessage, res: Se
     req.socket.destroy();
     return;
   }
-  if ("reason" in decision) return refuse(decision.reason, decision.host, port);
+  if ("reason" in decision)
+    return refuse(decision.reason, decision.host, port, decision.message, decision.status);
   if (ctx.upstreamFull()) return refuse("limit", decision.host, port);
   ctx.record("http", port, decision);
   let upstream: Socket;

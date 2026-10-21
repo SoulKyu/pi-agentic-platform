@@ -30,12 +30,20 @@ export function vmShell(
     readonly timers?: ShellTimers;
     readonly spawn?: typeof nodeSpawn;
     readonly redact?: () => Redactor;
+    /** The proxy variables the shell gets when `spec.network` is on (the worker's own, see `pickProxyEnv`). */
+    readonly proxyEnv?: Readonly<Record<string, string>>;
   } = {},
 ): ShellOperations {
   const timers = deps.timers ?? SYSTEM_TIMERS;
   const spawn = deps.spawn ?? nodeSpawn;
   const filter = encodeSeccomp(shellSeccompProgram());
-  const env = { PATH: SHELL_PATH, HOME: spec.layout.home, LANG: "C.UTF-8", TERM: "dumb" };
+  const env = {
+    PATH: SHELL_PATH,
+    HOME: spec.layout.home,
+    LANG: "C.UTF-8",
+    TERM: "dumb",
+    ...(spec.network ? deps.proxyEnv : {}),
+  };
   const overlay = `${spec.layout.shellOverlay}/${spec.slot}`;
   let overlayMade = false;
   let tail: Promise<unknown> = Promise.resolve();

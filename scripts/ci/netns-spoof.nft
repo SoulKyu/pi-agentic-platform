@@ -3,8 +3,8 @@ delete table inet pap_agents
 table inet pap_agents {
   chain input {
     type filter hook input priority filter; policy accept;
-    ip daddr 10.213.0.1 tcp dport { 7841, 7842 } iifname != "pap0" counter drop
-    iifname "pap0" ip saddr 10.213.0.0/24 ip daddr 10.213.0.1 tcp dport { 7841, 7842 } accept
+    ip daddr 10.213.0.1 tcp dport { 7841, 7842, 7843 } iifname != "pap0" counter drop
+    iifname "pap0" ip saddr 10.213.0.0/24 ip daddr 10.213.0.1 tcp dport { 7841, 7842, 7843 } accept
     iifname "pap0" counter drop
   }
   chain forward {

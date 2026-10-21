@@ -40,6 +40,38 @@ describe("runGuest commands", () => {
     expect(run.logs.join("\n")).not.toContain(TOKEN);
   });
 
+  it("exports the egress proxy to the worker, and no proxy keys without PAP_GUEST_PROXY", async () => {
+    const run = await start({ env: { ...IDENTITY, PAP_GUEST_PROXY: "10.213.0.1:7843" } });
+    await run.hello();
+    run.gateway.send(spawnCommand());
+    await vi.waitFor(() => expect(run.children).toHaveLength(1));
+    const env = run.spawnEnvs[0] as NodeJS.ProcessEnv;
+    for (const key of ["HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"])
+      expect(env[key]).toBe("http://10.213.0.1:7843");
+    expect(env.NODE_USE_ENV_PROXY).toBe("1");
+    for (const key of ["NO_PROXY", "no_proxy"])
+      expect((env[key] ?? "").split(",")).toEqual(
+        expect.arrayContaining(["llm.internal", "claude.internal", "10.213.0.1", "localhost", "127.0.0.1"]),
+      );
+    expect("PAP_GUEST_PROXY" in env).toBe(false);
+
+    const bare = await start();
+    await bare.hello();
+    bare.gateway.send(spawnCommand());
+    await vi.waitFor(() => expect(bare.children).toHaveLength(1));
+    const plain = bare.spawnEnvs[0] as NodeJS.ProcessEnv;
+    for (const key of [
+      "HTTP_PROXY",
+      "HTTPS_PROXY",
+      "http_proxy",
+      "https_proxy",
+      "NO_PROXY",
+      "no_proxy",
+      "NODE_USE_ENV_PROXY",
+    ])
+      expect(key in plain).toBe(false);
+  });
+
   it("gives a worker without a session file none, and strips a token the guest still held", async () => {
     const run = await start({
       env: { ...IDENTITY, PAP_SESSION_FILE: "/stale.jsonl", PAP_GATEWAY_TOKEN: TOKEN },

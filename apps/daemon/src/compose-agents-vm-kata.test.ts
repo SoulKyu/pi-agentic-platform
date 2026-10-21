@@ -180,6 +180,7 @@ describe("the Kata backend through pap-vmd", () => {
       () => {},
     );
     expect(parts.gatewayBind).toEqual({ host: AGENT_NET.host, port: AGENT_NET.gatewayPort });
+    expect(parts.proxyBind).toEqual({ host: AGENT_NET.host, port: AGENT_NET.proxyPort });
   });
 
   it("waits while pap0 is being made, and gives up with a message that names pap-vmd", async () => {
@@ -362,13 +363,14 @@ describe("what the agents module is given (T15)", () => {
   it("sweeps the daemon's trash daily and rebuilds the base weekly, and stops both with the daemon", async () => {
     await kata();
     expect(closers.map((closer) => closer.name)).toEqual([
+      "agent_vm_proxy",
       "agent_mirrors",
       "agent_vm",
       "agent_trash_sweep",
       "agent_image_upgrades",
     ]);
-    // The mirrors' sweeper, the trash sweep and the weekly base check: one timer each.
-    expect(clock.pending()).toBe(3);
+    // The VM proxy's usage report, the mirrors' sweeper, the trash sweep and the weekly base check: one timer each.
+    expect(clock.pending()).toBe(4);
     for (const closer of closers.splice(0).reverse()) await closer.close();
     expect(clock.pending()).toBe(0);
   });

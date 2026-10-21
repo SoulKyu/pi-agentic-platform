@@ -187,12 +187,12 @@ async function firewallHint(deps: VmDeps, io: CliIo): Promise<void> {
   const ufw = await deps.exec("ufw", ["status"]);
   if (ufw.code === 0 && /^Status: active/m.test(ufw.stdout))
     io.stdout.write(
-      `ufw is active: allow the agent ports on the bridge with\n  ufw allow in on ${AGENT_NET.bridge} to any port ${AGENT_NET.gatewayPort},${AGENT_NET.relayPort} proto tcp\n`,
+      `ufw is active: allow the agent ports on the bridge with\n  ufw allow in on ${AGENT_NET.bridge} to any port ${AGENT_NET.gatewayPort},${AGENT_NET.relayPort},${AGENT_NET.proxyPort} proto tcp\n`,
     );
   const firewalld = await deps.exec("firewall-cmd", ["--state"]);
   if (firewalld.code === 0 && firewalld.stdout.trim() === "running")
     io.stdout.write(
-      `firewalld is running: allow the agent ports on the bridge with\n  firewall-cmd --permanent --zone=trusted --add-interface=${AGENT_NET.bridge} && firewall-cmd --reload\n  (ports ${AGENT_NET.gatewayPort} and ${AGENT_NET.relayPort} on ${AGENT_NET.bridge})\n`,
+      `firewalld is running: allow the agent ports on the bridge with\n  firewall-cmd --permanent --zone=trusted --add-interface=${AGENT_NET.bridge} && firewall-cmd --reload\n  (ports ${AGENT_NET.gatewayPort}, ${AGENT_NET.relayPort} and ${AGENT_NET.proxyPort} on ${AGENT_NET.bridge})\n`,
     );
 }
 

@@ -58,7 +58,10 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
   const t = useT();
   const stepUp = useStepUpRunner();
   const pending = usePendingAction();
-  const vm = useVmStatus().status?.runtime === "vm";
+  const runtime = useVmStatus().status?.runtime;
+  const vm = runtime === "vm";
+  // Known to be host mode: an unreadable status leaves the daemon to judge the list.
+  const hostMode = runtime === "host";
   const reloading = usePendingAction();
   const before = agent?.input ?? null;
   const [draft, setDraft] = useState(() => ({
@@ -71,7 +74,7 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
   const [problem, setProblem] = useState<MessageKey | null>(null);
   const [roleHelp, setRoleHelp] = useState(false);
 
-  const built = toInput(draft);
+  const built = toInput(draft, hostMode);
   const errors = attempted && !built.ok ? built.errors : {};
   const fail = (key: string) => {
     const error = errors[key];
@@ -181,7 +184,15 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
       <fieldset data-slot="agent-sandbox" className="flex min-w-0 flex-col gap-s2">
         <legend className="label-hud text-muted">{t("agentForm.sandbox")}</legend>
         {vm ? (
-          <p className="text-ui text-muted">{t("agentVm.sandboxNote")}</p>
+          <>
+            <p className="text-ui text-muted">{t("agentVm.sandboxNote")}</p>
+            <Switch
+              label={t("agentForm.network")}
+              hint={t("agentVm.network.hint")}
+              checked={draft.network}
+              onChange={(network) => set({ network })}
+            />
+          </>
         ) : (
           <>
             <SandboxLine probe={probe} />

@@ -13,6 +13,7 @@ const CLASS_OF: Readonly<Record<string, PushClass>> = {
   task_failed: "failed",
   task_interrupted: "failed",
   agent_notify: "notify",
+  agent_egress: "notify",
   task_done: "done",
   task_limited: "done",
   agent_reply: "reply",

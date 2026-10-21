@@ -20,6 +20,8 @@ export interface ProcessBackendOptions {
   readonly imageAgentSource: string;
   /** Where the daemon's gateway listens (known once it is listening). */
   gatewayAddress(): { host: string; port: number };
+  /** Where the daemon's VM egress proxy listens (known once it is listening): the guest's `PAP_GUEST_PROXY` (`host:port`, as `PAP_GATEWAY`). */
+  proxyAddress(): { host: string; port: number };
   /** `PAP_TEST_PROVIDER_SCRIPT`, passed on to the workers the guest starts. */
   readonly providerScript: string;
   readonly clock: Clock;
@@ -87,6 +89,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
       setMode(layout.imageAgentDir, false);
       chmodSync(layout.imageAgentDir, 0o555);
       const gateway = options.gatewayAddress();
+      const proxy = options.proxyAddress();
       const key = keyOf(spec.agentId, spec.taskKey);
       const child = spawn(process.execPath, [...options.execArgv, options.guestEntry], {
         cwd: layout.home,
@@ -96,6 +99,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           PATH: process.env.PATH ?? "",
           HOME: layout.home,
           PAP_GATEWAY: `${gateway.host}:${gateway.port}`,
+          PAP_GUEST_PROXY: `${proxy.host}:${proxy.port}`,
           PAP_GATEWAY_TOKEN: launch.token,
           PAP_LAUNCH_ID: launch.launchId,
           PAP_AGENT_ID: spec.agentId,

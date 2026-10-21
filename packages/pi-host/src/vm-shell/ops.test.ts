@@ -80,7 +80,7 @@ beforeEach(() => {
     },
     slot: SLOT,
     rootView: "read-only",
-    egressSocket: null,
+    network: false,
   };
   spawned = [];
   fired = [];
@@ -241,8 +241,39 @@ describe("vmShell", () => {
     await pending;
   });
 
+  it("adds the proxy keys only when network is on, and still no PAP_ key", async () => {
+    const proxyEnv = {
+      HTTP_PROXY: "http://10.213.0.1:7843",
+      NO_PROXY: "llm.internal",
+      NODE_USE_ENV_PROXY: "1",
+    };
+    const off = vmShell({ ...spec, network: false }, { timers, spawn: fakeSpawn, proxyEnv });
+    const first = run(off);
+    await settled();
+    expect(Object.keys(spawned[0]?.options.env ?? {}).sort()).toEqual(["HOME", "LANG", "PATH", "TERM"]);
+    spawned[0]?.child.emit("close", 0, null);
+    await first;
+    const on = vmShell({ ...spec, network: true }, { timers, spawn: fakeSpawn, proxyEnv });
+    const second = run(on);
+    await settled();
+    const env = spawned[1]?.options.env ?? {};
+    expect(Object.keys(env).sort()).toEqual([
+      "HOME",
+      "HTTP_PROXY",
+      "LANG",
+      "NODE_USE_ENV_PROXY",
+      "NO_PROXY",
+      "PATH",
+      "TERM",
+    ]);
+    expect(Object.keys(env).some((key) => key.startsWith("PAP_"))).toBe(false);
+    expect(spawned[1]?.argv).not.toContain("--unshare-net");
+    spawned[1]?.child.emit("close", 0, null);
+    await second;
+  });
+
   it("a bad spec fails the command and starts nothing", async () => {
-    const bad = vmShell({ ...spec, egressSocket: "/run/x.sock" }, { timers, spawn: fakeSpawn });
+    const bad = vmShell({ ...spec, slot: "bad" }, { timers, spawn: fakeSpawn });
     await expect(run(bad)).rejects.toThrow(RangeError);
     expect(spawned).toHaveLength(0);
   });

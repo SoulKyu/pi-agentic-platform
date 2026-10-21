@@ -53,7 +53,8 @@ export const agentSettingsEn = {
   "agentForm.hosts.own": "Your list",
   "agentForm.hosts.only": "Only these",
   "agentForm.hosts.field": "Hosts, one per line",
-  "agentForm.hosts.hint": "Its URL tools reach only these. *.example.com covers subdomains.",
+  "agentForm.hosts.hint":
+    "Its URL tools reach only these. *.example.com covers subdomains. VM mode: host:port (default 80 and 443) and IPs, e.g. k8s.lan:6443.",
   "agentForm.hosts.risk":
     "A listed host can receive whatever this agent sends it, its files and secrets included. List only hosts you trust with them.",
   "agentForm.sources": "Trusted sources",
@@ -110,6 +111,8 @@ export const agentSettingsEn = {
   "agentForm.error.budget.usdPerDay": "A number between 0 and 1000.",
   "agentForm.error.budget.tokensPerDay": "A whole number between 0 and 1000000000.",
   "agentForm.error.allowHosts": "Host names only (api.example.com or *.example.com), 100 at most.",
+  "agentForm.error.allowHosts.vmOnly":
+    "A port or an IP address in this list needs VM mode: pap runs agents on the host here, which matches host names only. Nothing was saved.",
   "agentForm.error.denylist": "One visible pattern per line, 50 at most.",
   "agentForm.error.memory.hint": "Visible text, 500 characters at most.",
   "agentForm.error.memory.recallLimit": "A whole number between 0 and 20.",
@@ -183,7 +186,8 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.hosts.own": "Votre liste",
   "agentForm.hosts.only": "Seulement ceux-ci",
   "agentForm.hosts.field": "Hôtes, un par ligne",
-  "agentForm.hosts.hint": "Ses outils d'URL ne joignent que ceux-ci. *.exemple.com couvre les sous-domaines.",
+  "agentForm.hosts.hint":
+    "Ses outils d'URL ne joignent que ceux-ci. *.exemple.com couvre les sous-domaines. Mode VM : host:port (80 et 443 par défaut) et IP, ex. k8s.lan:6443.",
   "agentForm.hosts.risk":
     "Un hôte de la liste peut recevoir tout ce que cet agent lui envoie, fichiers et secrets compris. Ne listez que des hôtes à qui vous les confieriez.",
   "agentForm.sources": "Sources de confiance",
@@ -240,6 +244,8 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.error.budget.usdPerDay": "Un nombre entre 0 et 1000.",
   "agentForm.error.budget.tokensPerDay": "Un nombre entier entre 0 et 1000000000.",
   "agentForm.error.allowHosts": "Des noms d'hôte seulement (api.exemple.com ou *.exemple.com), 100 au plus.",
+  "agentForm.error.allowHosts.vmOnly":
+    "Un port ou une adresse IP dans cette liste demande le mode VM : ici pap lance les agents sur l'hôte, qui ne reconnaît que des noms d'hôte. Rien n'a été enregistré.",
   "agentForm.error.denylist": "Un motif visible par ligne, 50 au plus.",
   "agentForm.error.memory.hint": "Texte visible, 500 caractères au plus.",
   "agentForm.error.memory.recallLimit": "Un nombre entier entre 0 et 20.",

@@ -159,7 +159,7 @@ describe("vm.start", () => {
     seedDisk(fx);
     await fx.ops.handle(startRequest());
     expect(seen).toBe(
-      `PAP_GATEWAY=10.213.0.1:7841\nPAP_GATEWAY_TOKEN=${TOKEN}\nPAP_LAUNCH_ID=${LAUNCH}\nPAP_AGENT_ID=${AGENT}\nPAP_IMAGE_TAG=${IMAGE}\n`,
+      `PAP_GATEWAY=10.213.0.1:7841\nPAP_GUEST_PROXY=10.213.0.1:7843\nPAP_GATEWAY_TOKEN=${TOKEN}\nPAP_LAUNCH_ID=${LAUNCH}\nPAP_AGENT_ID=${AGENT}\nPAP_IMAGE_TAG=${IMAGE}\n`,
     );
     expect(mode).toBe(0o600);
     expect(existsSync(file)).toBe(false);

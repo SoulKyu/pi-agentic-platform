@@ -40,6 +40,7 @@ setInterval(() => {}, 1000);`,
     execArgv: [],
     imageAgentSource: image,
     gatewayAddress: () => ({ host: "127.0.0.1", port: 4321 }),
+    proxyAddress: () => ({ host: "127.0.0.1", port: 4322 }),
     providerScript: "/script.json",
     clock: createSystemClock(),
     logger: silentLogger,
@@ -83,6 +84,7 @@ describe("process backend", () => {
     };
     expect(env).toMatchObject({
       PAP_GATEWAY: "127.0.0.1:4321",
+      PAP_GUEST_PROXY: "127.0.0.1:4322",
       PAP_GATEWAY_TOKEN: launch.token,
       PAP_LAUNCH_ID: launch.launchId,
       PAP_AGENT_ID: "a1",

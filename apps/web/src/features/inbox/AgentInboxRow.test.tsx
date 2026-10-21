@@ -67,6 +67,7 @@ describe("the sentence per kind (pap's words, never the agent's text)", () => {
     ["agent_reply", "Atlas replied", "Atlas a répondu"],
     ["delegation_done", "Atlas finished a delegated task", "Atlas a terminé une tâche déléguée"],
     ["agent_notify", "Atlas sent a notification", "Atlas a envoyé une notification"],
+    ["agent_egress", "Atlas could not reach a host", "Atlas n'a pas pu joindre un hôte"],
     ["memory_review", "Atlas has memories to review", "Atlas a des souvenirs à relire"],
     ["future_kind", "Atlas · update", "Atlas · mise à jour"],
   ];

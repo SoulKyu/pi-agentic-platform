@@ -1,4 +1,5 @@
 import type { AgentsVm } from "./compose-agents-vm.ts";
+import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
   type AgentEvents,
@@ -6,6 +7,7 @@ import {
   createCrashPause,
   type RequestItems,
 } from "./modules/agents/index.ts";
+import { createRefusalSink } from "./modules/agent-vm/index.ts";
 
 export type { AgentsVm };
 
@@ -52,11 +54,22 @@ export function bindVmCrash(
   logger: Logger,
   parts: {
     agents: Parameters<typeof createCrashPause>[0]["agents"];
-    events: Pick<AgentEvents, "notify">;
+    events: Pick<AgentEvents, "notify" | "write" | "update">;
     items: Pick<RequestItems, "upsertAgentItem">;
+    clock: Pick<Clock, "now" | "setTimeout" | "clearTimeout">;
   },
 ): void {
   vm?.bindCrashPause(createCrashPause({ ...parts, logger }));
+  // Sub-project 2: a host the VM proxy refused is a card in the agent's thread and an Inbox item (and its push).
+  vm?.bindRefusals(
+    createRefusalSink({
+      clock: parts.clock,
+      logger,
+      ownerOf: (agentId) => parts.agents.port.ownerOf(agentId),
+      events: parts.events,
+      items: parts.items,
+    }),
+  );
 }
 
 /** The sessions' view of the agents registry: the profile of an owner's agent, null when there is none or it does not parse. */

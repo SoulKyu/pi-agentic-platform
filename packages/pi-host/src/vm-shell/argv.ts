@@ -19,8 +19,8 @@ export interface VmShellSpec {
   readonly slot: string;
   /** T0a: `overlay` when bwrap can overlay `/` as guest root, else `read-only` (the image root bound read-only in SP1). */
   readonly rootView: "overlay" | "read-only";
-  /** Sub-project 2's seam: a per-command proxy socket bound into the shell. Always null in sub-project 1 (no network). */
-  readonly egressSocket: string | null;
+  /** The agent's `sandbox.network`: the shell keeps the VM's network namespace (only the egress proxy answers there). */
+  readonly network: boolean;
 }
 const SLOT = /^[0-9a-f]{32}$/;
 
@@ -30,7 +30,7 @@ const normal = (dir: string): string => posix.normalize(dir).replace(/(?<=.)\/+$
 /** The shell of an agent in its VM (spec §5, R2). `.pi`, the worker, the guest and `/dev/vsock` are never in its view. */
 export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: number): string[] {
   const layout = { ...spec.layout, root: normal(spec.layout.root), pi: normal(spec.layout.pi) };
-  if (!SLOT.test(spec.slot) || spec.egressSocket !== null) throw new RangeError("vm shell spec");
+  if (!SLOT.test(spec.slot)) throw new RangeError("vm shell spec");
   const binds = [spec.layout.home, spec.layout.knowledge, spec.layout.inbox].map(normal);
   const [home = ""] = binds;
   // `.pi` itself, below it, or an ancestor of it (`/`, the root): none is a bind source.
@@ -50,7 +50,7 @@ export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: numbe
     spec.bwrap,
     "--unshare-ipc",
     "--unshare-pid",
-    "--unshare-net",
+    ...(spec.network ? [] : ["--unshare-net"]),
     "--unshare-uts",
     "--unshare-cgroup",
     "--die-with-parent",

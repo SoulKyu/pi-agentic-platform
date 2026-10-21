@@ -123,8 +123,12 @@ describe("vmInitOf (R11, R17, RT-06)", () => {
     expect(vmInitOf({ ...host, policy: task }, vm, null).policy).toMatchObject({ agentScratch: layout.home });
   });
   // Mutant: the `sandbox.required` / `network` check removed from vmRulesOf. Killed by the next two cases.
-  it("refuses rules without the VM's fixed sandbox (T8a): none, not required, or with a network", () => {
-    for (const sandbox of [null, { required: false, network: false }, { required: true, network: true }])
+  it("refuses rules without the VM's fixed sandbox (T8a): none or not required; the network is the agent's (AVM2-E11)", () => {
+    const vmRules = rulesOf({ agentHome: layout.home, sandbox: { required: true, network: true } });
+    expect(vmInitOf({ ...host, policy: vmRules }, vm, null).policy).toMatchObject({
+      sandbox: { required: true, network: true },
+    });
+    for (const sandbox of [null, { required: false, network: false }, { required: false, network: true }])
       expect(() =>
         vmInitOf({ ...host, policy: rulesOf({ agentHome: layout.home, sandbox }) }, vm, null),
       ).toThrow(expect.objectContaining({ code: "internal" }));

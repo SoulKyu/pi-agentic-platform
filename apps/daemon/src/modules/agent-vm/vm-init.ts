@@ -21,7 +21,8 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
   )
     throw new PapError("bad_request");
   // R15 (T8a): `vmRuleParts` always sets this; rules without it were not composed for a VM, whatever their folders say.
-  if (rules.data.sandbox?.required !== true || rules.data.sandbox.network) throw new PapError("internal");
+  // The network switch is the agent's (AVM2-E11): either value is a VM's.
+  if (rules.data.sandbox?.required !== true) throw new PapError("internal");
   return rules.data;
 }
 

@@ -273,7 +273,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         vm: agentsVm,
       },
     );
-    agentsVm?.bindLate({ sessions, pi, agents: m11.agents, runs: m10.runs, automation: m10Late.automation });
+    agentsVm?.bindLate({ sessions, pi, ...m11.vmLate, runs: m10.runs, automation: m10Late.automation });
     const agents = { port: m11.agents };
     const push = composePush(
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },

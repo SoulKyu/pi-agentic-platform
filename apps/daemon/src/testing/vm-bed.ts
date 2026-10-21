@@ -98,7 +98,7 @@ export async function startVmBed(
           name: "CyberLooker",
           mode: "full-access",
           preset: "full",
-          // A host sandbox profile with network: in a VM the shell is pap's own, without network, whatever this says (R15).
+          // The shell is pap's own in a VM, and its network is this switch (AVM2-E11): the proxy filters it.
           sandbox: { required: true, network: true },
           ...input,
         }),

@@ -54,10 +54,9 @@ describe("AgentInput defaults and shape", () => {
       expect(AgentInput.safeParse({ name: "A", budget }).success, JSON.stringify(budget)).toBe(false);
   });
 
-  it("accepts a hosts list, even an empty one, and refuses an IP literal or a path", () => {
+  it("accepts a hosts list, even an empty one, and refuses a path (an IP is an entry now)", () => {
     expect(base({ allowHosts: [] }).allowHosts).toEqual([]);
     expect(base({ allowHosts: ["api.example.com", "*.example.org"] }).allowHosts).toHaveLength(2);
-    expect(AgentInput.safeParse({ name: "A", allowHosts: ["10.0.0.1"] }).success).toBe(false);
     expect(AgentInput.safeParse({ name: "A", allowHosts: ["a.com/x"] }).success).toBe(false);
   });
 
@@ -201,5 +200,32 @@ describe("widensReach (M11R44)", () => {
   it("an unreadable agent (null before) is compared with the defaults", () => {
     expect(widens(null, { mode: "supervised" })).toBe(false);
     expect(widens(null, { sandbox: { network: true } })).toBe(true);
+  });
+});
+
+describe("host entries (decision 119)", () => {
+  const hosts = (allowHosts: string[]) => AgentInput.safeParse({ name: "Atlas", allowHosts }).success;
+  it("accepts names, wildcards, ports and IPs", () => {
+    for (const entry of [
+      "k8s.lan:6443",
+      "192.168.1.40",
+      "192.168.1.40:6443",
+      "[fd00::1]:6443",
+      "*.example.com",
+      "api.example.com",
+    ])
+      expect(hosts([entry]), entry).toBe(true);
+  });
+  it("refuses a bad port, a missing host, a wildcard IP and an unbracketed IPv6 port", () => {
+    for (const entry of ["k8s.lan:0", "k8s.lan:65536", ":443", "*.192.168.1.40", "[::::]:80", "999.1.1.1"])
+      expect(hosts([entry]), entry).toBe(false);
+  });
+  it("widens when a port is added or dropped, or an exact entry is added under a wildcard (AVM2-E12)", () => {
+    expect(widens({ allowHosts: ["a.example.com"] }, { allowHosts: ["a.example.com:6443"] })).toBe(true);
+    expect(widens({ allowHosts: ["a.example.com:6443"] }, { allowHosts: ["a.example.com"] })).toBe(true);
+    expect(widens({ allowHosts: ["*.example.com"] }, { allowHosts: ["a.example.com"] })).toBe(true);
+    expect(widens({ allowHosts: ["*.example.com"] }, { allowHosts: ["*.a.example.com"] })).toBe(false);
+    expect(widens({ allowHosts: ["*.home.lan"] }, { allowHosts: ["*.home.lan", "nas.home.lan"] })).toBe(true);
+    expect(widens({ allowHosts: ["a.example.com"] }, { allowHosts: ["a.example.com"] })).toBe(false);
   });
 });

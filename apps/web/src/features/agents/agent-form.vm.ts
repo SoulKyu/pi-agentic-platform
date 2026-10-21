@@ -2,6 +2,7 @@ import {
   AgentInput,
   type ApprovalMode,
   type ThinkingLevel,
+  entryNeedsVm,
   type ToolPreset,
   widensReach,
 } from "@pap/contracts";
@@ -140,8 +141,12 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   "resources.diskMb": "agentVm.error.number",
 };
 
-/** The profile the draft describes, judged by `AgentInput` itself: no second copy of its rules lives here. */
-export function toInput(draft: Draft): Built {
+/**
+ * The profile the draft describes, judged by `AgentInput` itself: no second copy of its rules lives here. `hostMode`: pap runs
+ * agents on the host, which matches names only, so a host entry with a port or an IP is a field error (the daemon refuses it
+ * with a bare `bad_request`).
+ */
+export function toInput(draft: Draft, hostMode = false): Built {
   const initials = draft.initials.trim().toUpperCase();
   const hint = draft.memoryHint.trim();
   const parsed = AgentInput.safeParse({
@@ -176,15 +181,19 @@ export function toInput(draft: Draft): Built {
     systemPackages: draft.systemPackages,
     packages: draft.packages,
   });
+  const vmOnly = hostMode && !draft.ownHosts && lines(draft.hosts).some(entryNeedsVm);
   if (parsed.success && parsed.data.resources.diskMb < draft.savedDiskMb) {
     return { ok: false, errors: { "resources.diskMb": "agentVm.error.diskShrink" } };
   }
-  if (parsed.success) return { ok: true, input: parsed.data };
+  if (parsed.success && !vmOnly) return { ok: true, input: parsed.data };
   const errors: Partial<Record<string, MessageKey>> = {};
-  for (const issue of parsed.error.issues) {
-    const field = fieldOf(issue.path);
-    errors[field] ??= ERROR_KEYS[field] ?? "agentForm.error.field";
+  if (!parsed.success) {
+    for (const issue of parsed.error.issues) {
+      const field = fieldOf(issue.path);
+      errors[field] ??= ERROR_KEYS[field] ?? "agentForm.error.field";
+    }
   }
+  if (vmOnly) errors["allowHosts"] = "agentForm.error.allowHosts.vmOnly";
   return { ok: false, errors };
 }
 

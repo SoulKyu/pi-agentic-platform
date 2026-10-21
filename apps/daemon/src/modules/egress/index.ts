@@ -24,7 +24,9 @@ import {
 export { writeForwarder } from "./forwarder.ts";
 export { createProxy, type CommandListener, type Limits, type ProxyDeps } from "./proxy.ts";
 export type { EgressScope } from "./allow.ts";
-export type { CommandReport } from "./report.ts";
+export { hostLabel, writtenEntries, type CommandReport } from "./report.ts";
+export { createVmEgress, type VmEgressDeps, type VmRefusal, type VmScope } from "./vm-listener.ts";
+export { hostAddressesNow, vmAddressRefused } from "./vm-address.ts";
 
 export interface EgressDeps {
   readonly clock: Clock;

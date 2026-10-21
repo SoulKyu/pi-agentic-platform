@@ -163,7 +163,7 @@ export async function approvalStage(
   }
   // An isolated task is unattended: its own table, nothing a grant or a person's habit can loosen (M11R32).
   if (profile === "isolated-task") return isolatedPlan(call, ctx, deps);
-  const { category, external } = judgedAs(call);
+  const { category, external } = judgedAs(call, deps.vm !== undefined);
   // A shell whose one writable folder the rules do not name (or name wrongly) never runs (M3).
   if (profile !== "interactive" && call.kind.sandboxed === true && !(await hasOwnFolder(call, ctx, deps)))
     return {

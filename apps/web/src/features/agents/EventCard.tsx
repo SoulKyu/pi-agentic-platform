@@ -2,6 +2,7 @@ import "./register-space-catalog.ts";
 import { fenceText, type AgentEventView } from "@pap/contracts";
 import { Button, Chip, type ChipTone, formatCost, formatDuration } from "@pap/ui";
 import { type ReactNode, useState } from "react";
+import { EgressRefusalDialog } from "./EgressRefusalDialog.tsx";
 import { type MessageKey, type Translate, useLocale, useT } from "../../i18n/index.ts";
 import { papText } from "../../i18n/pap-text.ts";
 import { UntrustedText } from "./UntrustedText.tsx";
@@ -25,6 +26,8 @@ export interface EventCardProps {
   readonly mode: "cards" | "compact";
   /** Puts text in the composer; it never sends. */
   onInject(text: string): void;
+  /** Whose thread this is: the refused-host card names it and edits its list. Without it the card has no button. */
+  readonly agent?: { readonly id: string; readonly name: string };
 }
 
 function stateOf(event: AgentEventView): CardState | null {
@@ -52,11 +55,14 @@ function headlineOf(event: AgentEventView, t: Translate): string {
       return stripHidden(event.data.note.split("\n")[0] ?? "");
     case "notify":
       return stripHidden(event.data.text.split("\n")[0] ?? "");
+    case "egress_refused":
+      return `${event.data.host}:${event.data.port}`;
   }
 }
 
 function useKindLabel(event: AgentEventView): string {
   const t = useT();
+  if (event.kind === "egress_refused") return t("agentEgress.card.title");
   return event.kind === "delegation"
     ? t("agentSpace.event.delegation", { name: stripHidden(event.data.fromName) })
     : t(`agentSpace.event.${event.kind}` as MessageKey);
@@ -88,9 +94,50 @@ function Untrusted({ source, children }: { readonly source: string; readonly chi
   );
 }
 
-function Body({ event, onInject }: Pick<EventCardProps, "event" | "onInject">) {
+/** The refused host (spec §6): pap's own sentence, then "Add…" unless the address is one pap never reaches. */
+function EgressBody({
+  data,
+  agent,
+}: {
+  readonly data: Extract<AgentEventView, { kind: "egress_refused" }>["data"];
+  readonly agent: EventCardProps["agent"];
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const addable = data.reason !== "blocked_address" && agent !== undefined;
+  const name = agent === undefined ? t("agentEgress.someone") : stripHidden(agent.name);
+  return (
+    <>
+      <p className="min-w-0 break-words text-ui text-fg">
+        {t(`agentEgress.card.${data.reason}`, { name, host: data.host, port: data.port })}
+      </p>
+      {data.count > 1 ? (
+        <p className="font-mono text-label text-muted">
+          {t("agentEgress.card.count", { count: data.count })}
+        </p>
+      ) : null}
+      {data.reason === "blocked_address" ? (
+        <p className="text-label text-muted">{t("agentEgress.card.always")}</p>
+      ) : null}
+      {addable ? (
+        <div>
+          <Button size="sm" onClick={() => setOpen(true)}>
+            {t("agentEgress.add")}
+          </Button>
+        </div>
+      ) : null}
+      {open && agent !== undefined ? (
+        <EgressRefusalDialog agent={agent} data={data} onClose={() => setOpen(false)} />
+      ) : null}
+    </>
+  );
+}
+
+function Body({ event, onInject, agent }: Pick<EventCardProps, "event" | "onInject" | "agent">) {
   const t = useT();
   switch (event.kind) {
+    case "egress_refused":
+      return <EgressBody data={event.data} agent={agent} />;
     case "schedule":
     case "task":
       return (
@@ -141,7 +188,7 @@ function Body({ event, onInject }: Pick<EventCardProps, "event" | "onInject">) {
  * with `UNTRUSTED · <source>` is text from outside (an isolated run, a delegation). The card is display only: nothing
  * in it is sent to a model, and Inject only fills the composer.
  */
-export function EventCard({ event, folded, mode, onInject }: EventCardProps) {
+export function EventCard({ event, folded, mode, onInject, agent }: EventCardProps) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -164,6 +211,7 @@ export function EventCard({ event, folded, mode, onInject }: EventCardProps) {
           <span className="label-hud text-muted">{label}</span>
           <span className="min-w-0 flex-1 truncate text-fg">{headlineOf(event, t)}</span>
           {stateChip}
+          {event.kind === "egress_refused" ? <Chip tone="att" label={t("agentEgress.chip")} /> : null}
         </button>
       </div>
     );
@@ -178,6 +226,7 @@ export function EventCard({ event, folded, mode, onInject }: EventCardProps) {
       <header className="flex flex-wrap items-center gap-s2">
         <h3 className="label-hud text-muted">{label}</h3>
         {stateChip}
+        {event.kind === "egress_refused" ? <Chip tone="att" label={t("agentEgress.chip")} /> : null}
         {event.kind === "isolated" && event.data.tainted ? (
           <Chip tone="ext" label={t("agentSpace.header.external")} />
         ) : null}
@@ -193,7 +242,7 @@ export function EventCard({ event, folded, mode, onInject }: EventCardProps) {
           </Button>
         ) : null}
       </header>
-      <Body event={event} onInject={onInject} />
+      <Body event={event} onInject={onInject} agent={agent} />
       <Figures event={event} />
       {folded !== null ? (
         <details>

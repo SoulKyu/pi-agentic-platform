@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AGENT_LIMITS } from "./agents.ts";
 import { AUTOMATION_LIMITS } from "./automation.ts";
-import { HostPattern, TrustedHost } from "./policy.ts";
+import { AgentHostEntry } from "./host-entry.ts";
+import { TrustedHost } from "./policy.ts";
 import { VaultName } from "./platform.ts";
 import { ToolPreset } from "./session-loadout.ts";
 
@@ -76,7 +77,7 @@ export const PermissionsView = z
       })
       .strict(),
     hosts: z.union([
-      z.array(HostPattern).max(AGENT_LIMITS.hosts),
+      z.array(AgentHostEntry).max(AGENT_LIMITS.hosts),
       z.literal("owner's list"),
       z.literal("any"),
     ]),
