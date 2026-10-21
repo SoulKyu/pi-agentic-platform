@@ -25,7 +25,7 @@ describe("renderDockerfile (R7)", () => {
         `RUN apt-get update && ${INSTALL}`,
         "RUN ln -s /usr/bin/fdfind /usr/local/bin/fd",
         "COPY . /opt/pap/pi-host/",
-        "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
+        "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 IS_SANDBOX=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
         'ENTRYPOINT ["/usr/local/bin/node", "/opt/pap/pi-host/dist/guest/main.js"]',
         "LABEL org.pap.layer=base",
         "",

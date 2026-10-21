@@ -33,8 +33,9 @@ export function renderDockerfile(request: ImageBuildRequest): string {
     // Debian names fd `fdfind`; Pi looks for `fd` and, offline, never downloads one.
     lines.push("RUN ln -s /usr/bin/fdfind /usr/local/bin/fd");
     lines.push(`COPY . ${BASE_BUNDLE_DIR}/`);
+    // IS_SANDBOX=1: pi-claude-bridge's Claude Code runs as guest root inside the VM, and the VM is the sandbox.
     lines.push(
-      "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
+      "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 IS_SANDBOX=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
     );
     lines.push(`ENTRYPOINT ["/usr/local/bin/node", "${BASE_BUNDLE_DIR}/dist/guest/main.js"]`);
   } else if (request.layer === "profile") {
