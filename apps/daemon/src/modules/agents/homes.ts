@@ -369,7 +369,7 @@ export async function initHome(
   const name = AgentName.parse(agent.name);
   mkdirSync(join(home, "prompts"), { mode: 0o700 });
   writeFileSync(join(home, "MEMORY.md"), memoryHeader(name), { flag: "wx", mode: 0o600 });
-  writeFileSync(join(home, ".gitignore"), ".pi/\n", { flag: "wx", mode: 0o600 });
+  writeFileSync(join(home, ".gitignore"), ".pi/\n.claude/\n", { flag: "wx", mode: 0o600 });
   await git.run(home, ["init", "--initial-branch=main", "--template="]);
   const gitDir = join(home, ".git");
   appendFileSync(join(gitDir, "config"), `[user]\n\tname = ${name}\n\temail = ${id}@pap.local\n`);

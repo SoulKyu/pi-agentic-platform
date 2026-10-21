@@ -27,5 +27,5 @@ pi-claude-bridge starts the Claude Code CLI with `{ ...process.env, ...CC_CHILD_
 ## Consequences
 
 - The base image key changes (the `ENV` line lost `IS_SANDBOX=1`): the next launch rebuilds the base layer, then each agent image.
-- An agent's `.claude/` folder lives in its home. In host mode the home is a git repository whose `.gitignore` holds `.pi/` only: `.claude/` shows as untracked there, and an agent that runs `git add -A` would commit it. pap runs git in a home only at its creation (ADR 0050) and reads no status or file count of it.
+- An agent's `.claude/` folder lives in its home. In host mode the home is a git repository whose `.gitignore` lists `.pi/` and `.claude/` (a home made before this was fixed lists `.pi/` only, and is left as it is), so an agent's `git add -A` does not commit Claude Code's auth data. A VM agent's `/agent/home` is not seeded as a git repository (its disk is an empty `mkfs.ext4` file and the guest runs no git init), so it has no `.gitignore` to fix. pap runs git in a home only at its creation (ADR 0050) and reads no status or file count of it.
 - Cost if wrong: a bridge agent without the variables fails at its first Claude Code call (root refusal in a VM, an unwritable `/root/.claude`); the error is visible in the thread, nothing runs unsandboxed.

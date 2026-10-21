@@ -23,7 +23,7 @@ describe("create (M11R46)", () => {
     expect(modeOf(home)).toBe(0o700);
     expect(modeOf(join(home, "MEMORY.md"))).toBe(0o600);
     expect(modeOf(join(home, "prompts"))).toBe(0o700);
-    expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n");
+    expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n.claude/\n");
     expect(bed.calls.map((call) => call.args[0])).toEqual(["init", "add", "commit"]);
     expect(bed.calls[0]?.args).toEqual(["init", "--initial-branch=main", "--template="]);
     expect(bed.calls[2]?.args).toContain("--no-gpg-sign");

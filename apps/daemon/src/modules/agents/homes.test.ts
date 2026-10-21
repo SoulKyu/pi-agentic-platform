@@ -203,7 +203,7 @@ describe("initHome (M11R46)", () => {
     expect(modeOf(join(home, "MEMORY.md"))).toBe(0o600);
     expect(modeOf(join(home, "prompts"))).toBe(0o700);
     expect(readFileSync(join(home, "MEMORY.md"), "utf8")).toBe(memoryHeader("Atlas"));
-    expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n");
+    expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n.claude/\n");
     expect(run(home, "log", "--format=%an <%ae>|%cn <%ce>|%s")).toBe(
       "Atlas <atlas-1a2b@pap.local>|Atlas <atlas-1a2b@pap.local>|chore: init Atlas home",
     );
@@ -211,6 +211,14 @@ describe("initHome (M11R46)", () => {
     expect(run(home, "branch", "--show-current")).toBe("main");
     expect(run(home, "ls-files").split("\n").sort()).toEqual([".gitignore", "MEMORY.md"]);
     expect(run(home, "config", "--local", "user.email")).toBe("atlas-1a2b@pap.local");
+  });
+
+  it("keeps .claude/ out of the home's git status", async () => {
+    const home = makeHome(papHome, "atlas-1a2b");
+    await initHome(git, home, { id: "atlas-1a2b", name: "Atlas" });
+    mkdirSync(join(home, ".claude"));
+    writeFileSync(join(home, ".claude", ".credentials.json"), "{}\n");
+    expect(run(home, "status", "--porcelain")).toBe("");
   });
 
   it("copies no hook template and runs none", async () => {
