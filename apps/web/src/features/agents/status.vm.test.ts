@@ -104,7 +104,19 @@ describe("task and trigger rows", () => {
       enabled: true,
       source: { type: "manual" },
     } as unknown as TriggerView;
-    expect(triggerRows([trigger])).toEqual([{ id: "g1", name: "Nightly", glyph: "▸", enabled: true }]);
+    expect(triggerRows([trigger])).toEqual([
+      { id: "g1", name: "Nightly", glyph: "▸", enabled: true, canFire: true },
+    ]);
+  });
+
+  it("can fire an enabled trigger of any source type and no disabled one", () => {
+    const types = ["manual", "schedule", "webhook", "feed"];
+    const rows = (enabled: boolean) =>
+      triggerRows(
+        types.map((type) => ({ id: type, name: type, enabled, source: { type } }) as unknown as TriggerView),
+      );
+    expect(rows(true).map((row) => row.canFire)).toEqual([true, true, true, true]);
+    expect(rows(false).map((row) => row.canFire)).toEqual([false, false, false, false]);
   });
 });
 

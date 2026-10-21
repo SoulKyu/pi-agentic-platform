@@ -99,6 +99,8 @@ export interface TriggerRowVm {
   readonly name: string;
   readonly glyph: string;
   readonly enabled: boolean;
+  /** The owner's Run button: any source type; the daemon would also fire a disabled one, the row just hides it. */
+  readonly canFire: boolean;
 }
 
 export const triggerRows = (triggers: readonly TriggerView[]): readonly TriggerRowVm[] =>
@@ -107,6 +109,7 @@ export const triggerRows = (triggers: readonly TriggerView[]): readonly TriggerR
     name: stripHidden(trigger.name),
     glyph: trigger.source === null ? "?" : GLYPH[trigger.source.type],
     enabled: trigger.enabled,
+    canFire: trigger.enabled,
   }));
 
 /** "5 min ago", "yesterday": the panel's times are about recency. */

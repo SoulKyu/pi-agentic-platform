@@ -1,8 +1,9 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary } from "@pap/contracts";
-import { Button, Chip, formatCost, Meter } from "@pap/ui";
-import type { ReactNode } from "react";
-import { useLocale, useT } from "../../i18n/index.ts";
+import { Button, Chip, formatCost, Meter, usePendingAction } from "@pap/ui";
+import { useState, type ReactNode } from "react";
+import { errorKey, useLocale, useT } from "../../i18n/index.ts";
+import { getRuntime, RpcError } from "../../runtime/index.ts";
 import {
   ago,
   budgetVm,
@@ -258,23 +259,66 @@ function TaskRow({
   );
 }
 
+type FireNote = { readonly tone: "ok" | "err" | "info"; readonly text: string };
+
+/** The note under a row clears only when the same row is run again (or the panel closes): no timer. */
 function TriggerRow({ row, onEdit }: { readonly row: TriggerRowVm; onEdit(triggerId: string): void }) {
   const t = useT();
+  const pending = usePendingAction();
+  const [note, setNote] = useState<FireNote | null>(null);
+  const fire = () =>
+    void pending.run(async () => {
+      setNote(null);
+      try {
+        const answer = await getRuntime().rpc.call(
+          "automation.fire",
+          { triggerId: row.id },
+          { commandId: getRuntime().rpc.newCommandId() },
+        );
+        if (answer.verdict === "fired") setNote({ tone: "ok", text: t("agentStatus.triggers.fired") });
+        else if (answer.verdict === "precheck")
+          setNote({ tone: "info", text: t("agentStatus.triggers.fireSkipped", { detail: answer.detail }) });
+        else setNote({ tone: "err", text: t("agentStatus.triggers.fireFailed") });
+      } catch (cause) {
+        setNote({ tone: "err", text: t(errorKey(cause instanceof RpcError ? cause.code : "internal")) });
+      }
+    });
   return (
-    <li className="flex items-center gap-s2">
-      <span aria-hidden className="text-ui text-muted">
-        {row.glyph}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-ui text-fg">{row.name}</span>
-      {row.enabled ? null : <Chip tone="mut" label={t("agentStatus.triggers.off")} />}
-      <Button
-        size="sm"
-        variant="ghost"
-        aria-label={t("agentStatus.triggers.edit.label", { name: row.name })}
-        onClick={() => onEdit(row.id)}
-      >
-        {t("agentStatus.triggers.edit")}
-      </Button>
+    <li className="flex flex-col gap-s1">
+      <div className="flex items-center gap-s2">
+        <span aria-hidden className="text-ui text-muted">
+          {row.glyph}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-ui text-fg">{row.name}</span>
+        {row.enabled ? null : <Chip tone="mut" label={t("agentStatus.triggers.off")} />}
+        {row.canFire ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={pending.since !== null}
+            aria-label={t("agentStatus.triggers.fire.label", { name: row.name })}
+            onClick={fire}
+          >
+            {t("agentStatus.triggers.fire")}
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={t("agentStatus.triggers.edit.label", { name: row.name })}
+          onClick={() => onEdit(row.id)}
+        >
+          {t("agentStatus.triggers.edit")}
+        </Button>
+      </div>
+      {note === null ? null : (
+        <p
+          role={note.tone === "err" ? "alert" : "status"}
+          className={`text-label ${note.tone === "err" ? "text-err" : note.tone === "ok" ? "text-ok" : "text-muted"}`}
+        >
+          {note.text}
+        </p>
+      )}
     </li>
   );
 }

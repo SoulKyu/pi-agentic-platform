@@ -38,6 +38,11 @@ export const agentStatusEn = {
   "agentStatus.triggers.edit": "Edit",
   "agentStatus.triggers.edit.label": "Edit {name}",
   "agentStatus.triggers.new": "New trigger",
+  "agentStatus.triggers.fire": "Run",
+  "agentStatus.triggers.fire.label": "Run {name}",
+  "agentStatus.triggers.fired": "Trigger fired.",
+  "agentStatus.triggers.fireSkipped": "Skipped: {detail}",
+  "agentStatus.triggers.fireFailed": "Fire failed.",
   "agentStatus.truncated": "The list is cut; the Tasks board has the rest.",
 };
 
@@ -80,5 +85,10 @@ export const agentStatusFr: { readonly [K in keyof typeof agentStatusEn]: string
   "agentStatus.triggers.edit": "Modifier",
   "agentStatus.triggers.edit.label": "Modifier {name}",
   "agentStatus.triggers.new": "Nouveau déclencheur",
+  "agentStatus.triggers.fire": "Lancer",
+  "agentStatus.triggers.fire.label": "Lancer {name}",
+  "agentStatus.triggers.fired": "Déclencheur lancé.",
+  "agentStatus.triggers.fireSkipped": "Ignoré : {detail}",
+  "agentStatus.triggers.fireFailed": "Échec du lancement.",
   "agentStatus.truncated": "La liste est coupée ; le tableau des tâches a le reste.",
 };
