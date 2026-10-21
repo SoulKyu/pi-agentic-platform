@@ -35,7 +35,7 @@ describe("what a new session's worker says before it is ready", () => {
     bed = build({ start: () => ({ kind: "ready", before: [extensionError(1)] }) });
     await bed.service.create(bed.work, testCaller({ permissions: new Set() }));
     const frames = await bed.subscribe("p1", { epoch: bed.hub.epoch, seq: 0 });
-    expect(noticeTexts(frames)).toEqual(["An extension failed during session_start."]);
+    expect(noticeTexts(frames)).toEqual(["An extension (1.ts) failed during session_start."]);
     // The status at ready is not replayed: a snapshot carries it.
     expect(frames).toHaveLength(1);
   });
@@ -96,7 +96,7 @@ describe("what a new session's worker says before it is ready", () => {
     const frames = await bed.subscribe("p1");
     expect(frames).toHaveLength(1);
     await bed.service.prompt({ sessionId: "p1", text: "hi" }, testCaller({ permissions: new Set() }));
-    expect(noticeTexts(frames)).toEqual(["An extension failed during session_start."]);
+    expect(noticeTexts(frames)).toEqual(["An extension (2.ts) failed during session_start."]);
   });
 });
 
@@ -109,9 +109,9 @@ describe("recent notices in the snapshot", () => {
       notices: [
         {
           level: "error",
-          text: "An extension failed during session_start.",
-          code: "extension_failed_during",
-          params: { event: "session_start" },
+          text: "An extension (1.ts) failed during session_start.",
+          code: "extension_failed_named",
+          params: { event: "session_start", extension: "1.ts" },
         },
       ],
     });

@@ -157,9 +157,9 @@ describe("extension errors", () => {
     expect(published.at(-1)).toEqual({
       kind: "notice",
       level: "error",
-      text: "An extension failed during tool_call.",
-      code: "extension_failed_during",
-      params: { event: "tool_call" },
+      text: "An extension (ext.ts) failed during tool_call.",
+      code: "extension_failed_named",
+      params: { event: "tool_call", extension: "ext.ts" },
     });
     expect(String(lines.find((line) => line.msg === "extension_error")?.error).length).toBeLessThanOrEqual(
       2001,
@@ -170,7 +170,7 @@ describe("extension errors", () => {
     const { worker, published } = setup();
     worker.emit(error);
     worker.emit({ ...error, event: "see /etc/passwd now" });
-    expect(JSON.stringify(published)).not.toMatch(/abc123|ext\.ts|passwd/);
+    expect(JSON.stringify(published)).not.toMatch(/abc123|passwd|\/home\/u/);
     expect(published.at(-1)).toEqual({
       kind: "notice",
       level: "error",

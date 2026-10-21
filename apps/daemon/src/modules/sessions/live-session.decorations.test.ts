@@ -103,19 +103,72 @@ describe("decorations in the live session", () => {
       {
         kind: "notice",
         level: "error",
-        text: "An extension failed during session_start.",
-        code: "extension_failed_during",
-        params: { event: "session_start" },
+        text: "An extension (x.js) failed during session_start.",
+        code: "extension_failed_named",
+        params: { event: "session_start", extension: "x.js" },
       },
     ]);
     expect(live.notices()).toEqual([
       {
         level: "error",
-        text: "An extension failed during session_start.",
-        code: "extension_failed_during",
-        params: { event: "session_start" },
+        text: "An extension (x.js) failed during session_start.",
+        code: "extension_failed_named",
+        params: { event: "session_start", extension: "x.js" },
       },
     ]);
+  });
+
+  it("names the extension by its package, not by the whole path", async () => {
+    const { worker, published } = setup();
+    const extensionPath = "/agent/.pi/agent/npm/node_modules/pi-extensible-workflows/dist/src/index.js";
+    worker.emit({ type: "extension_error", extensionPath, event: "session_start", error: "boom" });
+    worker.emit({
+      type: "extension_error",
+      extensionPath: "/a/node_modules/@scope/pkg/index.js",
+      event: "tool_call",
+      error: "boom",
+    });
+    expect(published.filter((event) => event.kind === "notice")).toMatchObject([
+      {
+        text: "An extension (pi-extensible-workflows) failed during session_start.",
+        params: { extension: "pi-extensible-workflows" },
+      },
+      { text: "An extension (@scope/pkg) failed during tool_call.", params: { extension: "@scope/pkg" } },
+    ]);
+  });
+
+  it("falls back to the fixed sentence when the path gives no safe name", async () => {
+    const { worker, published } = setup();
+    worker.emit({
+      type: "extension_error",
+      extensionPath: "/x/some thing; rm.js",
+      event: "session_start",
+      error: "b",
+    });
+    expect(published.at(-1)).toMatchObject({
+      text: "An extension failed during session_start.",
+      code: "extension_failed_during",
+    });
+  });
+
+  it("reports a tool name collision as one neutral info notice per session, never as an error", async () => {
+    const { worker, clock, published, live } = setup();
+    for (const name of ["read", "write", "edit"]) {
+      worker.emit({
+        type: "extension_error",
+        extensionPath: "<inline:pap-vm-files>",
+        event: "tool_name_collision",
+        error: `another extension registered ${name}`,
+      });
+    }
+    await clock.advance(0);
+    const expected = {
+      level: "info",
+      text: "An extension registered a tool that pap provides itself; pap's tool is the one in use.",
+      code: "extension_override",
+    };
+    expect(published.filter((event) => event.kind === "notice")).toEqual([{ kind: "notice", ...expected }]);
+    expect(live.notices()).toEqual([expected]);
   });
 
   it("counts extension errors and extension notices in the same window of 10", async () => {

@@ -7,6 +7,9 @@ export const serverEn = {
   "server.notice.approvalUnshown": "A question about a tool call could not be shown. The call was blocked.",
   "server.notice.extensionFailed": "An extension failed.",
   "server.notice.extensionFailedDuring": "An extension failed during {event}.",
+  "server.notice.extensionFailedNamed": "The extension {extension} failed during {event}.",
+  "server.notice.extensionOverride":
+    "An extension registered a tool that pap provides itself; pap's tool is the one in use.",
   "server.notice.panelsLimit": "An extension opened too many panels. The extra one was cancelled.",
   "server.notice.heldOne": "1 more notice from extensions was not shown.",
   "server.notice.heldMany": "{count} more notices from extensions were not shown.",
@@ -42,6 +45,9 @@ export const serverFr: { readonly [K in keyof typeof serverEn]: string } = {
     "Une question sur l'appel d'un outil n'a pas pu être affichée. L'appel a été bloqué.",
   "server.notice.extensionFailed": "Une extension a échoué.",
   "server.notice.extensionFailedDuring": "Une extension a échoué pendant {event}.",
+  "server.notice.extensionFailedNamed": "L'extension {extension} a échoué pendant {event}.",
+  "server.notice.extensionOverride":
+    "Une extension a enregistré un outil que pap fournit lui-même : l'outil de pap est celui utilisé.",
   "server.notice.panelsLimit": "Une extension a ouvert trop de panneaux. Le panneau en trop a été annulé.",
   "server.notice.heldOne": "1 autre notification d'extension n'a pas été affichée.",
   "server.notice.heldMany": "{count} autres notifications d'extensions n'ont pas été affichées.",

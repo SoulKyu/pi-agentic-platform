@@ -117,6 +117,10 @@ export const SERVER_CODES = {
   approvalUnshown: "approval_unshown",
   extensionFailed: "extension_failed",
   extensionFailedDuring: "extension_failed_during",
+  /** The same, with the extension's short name (a package name or a file name) beside the event. */
+  extensionFailedNamed: "extension_failed_named",
+  /** An extension registered a tool name pap provides itself; pap's tool is the one in use. Not a failure. */
+  extensionOverride: "extension_override",
   panelsLimit: "panels_limit",
   noticesHeldOne: "notices_held_one",
   noticesHeldMany: "notices_held_many",

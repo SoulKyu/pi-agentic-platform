@@ -78,7 +78,16 @@ describe("server texts by code (R128)", () => {
       const probe = {
         text: "UNTRANSLATED",
         code,
-        params: { code: "1", signal: "SIGX", event: "e", count: "2", max: "3", model: "p/m", running: "q/n" },
+        params: {
+          code: "1",
+          signal: "SIGX",
+          event: "e",
+          count: "2",
+          max: "3",
+          model: "p/m",
+          running: "q/n",
+          extension: "x",
+        },
       };
       const en = codedServerText(probe, "en");
       const fr = codedServerText(probe, "fr");
@@ -123,6 +132,24 @@ describe("server texts by code (R128)", () => {
     expect(
       codedServerText({ text: "x", code: "agent_model_refused_default", params: { model: "p/m" } }, "en"),
     ).toContain("runs on Pi's default model instead");
+  });
+
+  it("names the extension in both languages, and says an override is not a failure", () => {
+    const named = {
+      text: "x",
+      code: "extension_failed_named",
+      params: { event: "session_start", extension: "pi-x" },
+    };
+    expect(codedServerText(named, "en")).toBe("The extension pi-x failed during session_start.");
+    expect(codedServerText(named, "fr")).toBe("L'extension pi-x a échoué pendant session_start.");
+    expect(serverText("An extension (pi-x) failed during tool_call.", "fr")).toBe(
+      "L'extension pi-x a échoué pendant tool_call.",
+    );
+    const override = { text: "x", code: "extension_override" };
+    expect(codedServerText(override, "en")).not.toMatch(/fail/i);
+    expect(codedServerText(override, "fr")).toBe(
+      "Une extension a enregistré un outil que pap fournit lui-même : l'outil de pap est celui utilisé.",
+    );
   });
 
   it("puts params in as plain text, markup included", () => {

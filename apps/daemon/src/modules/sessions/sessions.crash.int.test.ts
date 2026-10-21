@@ -29,9 +29,9 @@ describe("crash containment: extensions that throw, workers that die or hang (sp
     expect(snapshot?.kind === "snapshot" && snapshot.notices).toEqual([
       {
         level: "error",
-        text: "An extension failed during session_start.",
-        code: "extension_failed_during",
-        params: { event: "session_start" },
+        text: "An extension (thrower.js) failed during session_start.",
+        code: "extension_failed_named",
+        params: { event: "session_start", extension: "thrower.js" },
       },
     ]);
     await promptAndSettle(bed, sub, sessionId, "read it");

@@ -16,6 +16,7 @@ import {
 } from "./status.vm.ts";
 import { papText } from "../../i18n/pap-text.ts";
 import { RecentMemory } from "./RecentMemory.tsx";
+import { ExtensionOverrideNote } from "./ExtensionOverrideNote.tsx";
 import { LifecycleChip } from "./LifecycleChip.tsx";
 import { useAgentLifecycle } from "./use-agent-lifecycle.ts";
 import { useAgentStatus } from "./use-agent-status.ts";
@@ -63,6 +64,7 @@ export function StatusPanel(props: StatusPanelProps) {
           </Button>
         )}
       </header>
+      <PanelExtensionOverride agentId={props.agentId} />
       {load.kind === "loading" ? (
         <p role="status" className="text-ui text-muted">
           {t("agentStatus.loading")}
@@ -96,6 +98,11 @@ function PanelLifecycle({ agentId }: { readonly agentId: string }) {
   const agent = useAgents((view) => agentById(view, agentId));
   if (agent === undefined) return null;
   return <PanelChip agent={agent} />;
+}
+
+function PanelExtensionOverride({ agentId }: { readonly agentId: string }) {
+  const agent = useAgents((view) => agentById(view, agentId));
+  return <ExtensionOverrideNote sessionId={agent?.threadSessionId ?? null} />;
 }
 
 function PanelChip({ agent }: { readonly agent: AgentSummary }) {

@@ -25,7 +25,7 @@ import { type ApprovedAnswer, type CancelReason, createDialogRegistry } from "./
 import { createKeyedThrottle } from "./keyed-throttle.ts";
 import { createNoticeLimiter } from "./notices.ts";
 import { createPanels } from "./panels.ts";
-import { clip, SAFE_EVENT_NAME } from "./worker-text.ts";
+import { clip, extensionLabelOf, SAFE_EVENT_NAME } from "./worker-text.ts";
 
 type FixedNotice = Pick<Notice, "text" | "code">;
 const CANCEL_NOTICES: Partial<Record<CancelReason, FixedNotice>> = {
@@ -127,6 +127,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
   const decorations = createDecorations();
   const throttle = createKeyedThrottle({ clock: deps.clock, publish: deps.publish });
   const extensionNotices = createNoticeLimiter({ clock: deps.clock, publish: deps.publish });
+  let overrideSaid = false;
   const panels = createPanels({
     clock: deps.clock,
     publish: deps.publish,
@@ -236,16 +237,35 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         event: clip(record.event),
         error: clip(record.error),
       });
+      // A tool name collision is pap's intended override (R26): one neutral line per session, never an error.
+      if (record.event === "tool_name_collision") {
+        if (overrideSaid) return;
+        overrideSaid = true;
+        extensionNotices.add({
+          level: "info",
+          text: "An extension registered a tool that pap provides itself; pap's tool is the one in use.",
+          code: SERVER_CODES.extensionOverride,
+        });
+        return;
+      }
       // pap's own sentence about an extension, not text the extension wrote: no `source` (only an extension's own text has one).
+      const extension = extensionLabelOf(record.extensionPath);
       extensionNotices.add(
-        SAFE_EVENT_NAME.test(record.event)
-          ? {
-              level: "error",
-              text: `An extension failed during ${record.event}.`,
-              code: SERVER_CODES.extensionFailedDuring,
-              params: { event: record.event },
-            }
-          : { level: "error", text: "An extension failed.", code: SERVER_CODES.extensionFailed },
+        !SAFE_EVENT_NAME.test(record.event)
+          ? { level: "error", text: "An extension failed.", code: SERVER_CODES.extensionFailed }
+          : extension === undefined
+            ? {
+                level: "error",
+                text: `An extension failed during ${record.event}.`,
+                code: SERVER_CODES.extensionFailedDuring,
+                params: { event: record.event },
+              }
+            : {
+                level: "error",
+                text: `An extension (${extension}) failed during ${record.event}.`,
+                code: SERVER_CODES.extensionFailedNamed,
+                params: { event: record.event, extension },
+              },
       );
     },
     answer(dialogId, response) {

@@ -41,6 +41,17 @@ const SENTENCES: readonly Sentence[] = [
     vars: ["event"],
   },
   {
+    code: "extension_failed_named",
+    key: "server.notice.extensionFailedNamed",
+    re: /^An extension \(([\w@./-]{1,64})\) failed during ([\w:.-]{1,64})\.$/,
+    vars: ["extension", "event"],
+  },
+  {
+    code: "extension_override",
+    key: "server.notice.extensionOverride",
+    re: /^An extension registered a tool that pap provides itself; pap's tool is the one in use\.$/,
+  },
+  {
     code: "panels_limit",
     key: "server.notice.panelsLimit",
     re: /^An extension opened too many panels\. The extra one was cancelled\.$/,

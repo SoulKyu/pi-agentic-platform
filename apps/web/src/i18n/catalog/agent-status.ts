@@ -44,6 +44,8 @@ export const agentStatusEn = {
   "agentStatus.triggers.fireSkipped": "Skipped: {detail}",
   "agentStatus.triggers.fireFailed": "Fire failed.",
   "agentStatus.truncated": "The list is cut; the Tasks board has the rest.",
+  "agentStatus.extensionOverride":
+    "An extension registered a tool that pap provides itself; pap's tool is the one in use.",
 };
 
 export const agentStatusFr: { readonly [K in keyof typeof agentStatusEn]: string } = {
@@ -91,4 +93,6 @@ export const agentStatusFr: { readonly [K in keyof typeof agentStatusEn]: string
   "agentStatus.triggers.fireSkipped": "Ignoré : {detail}",
   "agentStatus.triggers.fireFailed": "Échec du lancement.",
   "agentStatus.truncated": "La liste est coupée ; le tableau des tâches a le reste.",
+  "agentStatus.extensionOverride":
+    "Une extension a enregistré un outil que pap fournit lui-même : l'outil de pap est celui utilisé.",
 };
