@@ -105,7 +105,11 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       const who = whoOf(row);
       const image = await deps.imageTagOf(row.agentId, launch.input, who.kind);
       const spec: VmSpec = { ...who, image, resources: launch.input.resources };
-      const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
+      const worker = {
+        ...deps.mirrors.inputFor(row, launch.input.resources),
+        sessionsDir: layout.sessions,
+        ...(launch.claudeEnv ? { env: launch.claudeEnv } : {}),
+      };
       const packages = deps.toImageEntries(
         row.agentId,
         image,

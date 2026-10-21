@@ -14,6 +14,7 @@ import {
 } from "@pap/contracts";
 import { errorClass, logLineOf } from "../bounded.ts";
 import { proxyEnv } from "../vm-shell/proxy-env.ts";
+import { allowedExtraEnv } from "./extra-env.ts";
 
 /** Mirrors the daemon's kill-ladder grace (AVM-P6): pi-host cannot import the daemon. */
 export const GUEST_SHUTDOWN_GRACE_MS = 1500;
@@ -181,6 +182,7 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     };
     Reflect.deleteProperty(env, "PAP_GATEWAY_TOKEN");
     Reflect.deleteProperty(env, "PAP_GUEST_PROXY");
+    Object.assign(env, allowedExtraEnv(command.env, layout.home, log));
     // Spec §3: everything that runs in the VM reaches the network only through pap's egress proxy.
     const proxy = deps.env.PAP_GUEST_PROXY;
     if (proxy) Object.assign(env, proxyEnv(`http://${proxy}`, gatewayHostOf(deps.env.PAP_GATEWAY)));

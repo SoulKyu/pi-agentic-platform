@@ -5,6 +5,7 @@ import type { Db } from "./kernel/db/database.ts";
 import type { GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
+import type { ClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import type { AgentsVm } from "./compose-m11-vm.ts";
 import type { AgentLinks, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
@@ -77,6 +78,8 @@ export interface M11Modules {
     >;
   };
   readonly subagents: SubagentsPorts;
+  /** ADR 0080: the Claude Code environment of a claude-bridge agent's worker, host or VM. Absent: none is set. */
+  readonly claudeEnvOf?: ClaudeEnvOf | undefined;
   readonly vm?: AgentsVm | undefined;
   /** Tests only: replaces the egress proxy. The daemon never passes one: production builds the real proxy (M11R244). */
   readonly egress?: EgressPort;

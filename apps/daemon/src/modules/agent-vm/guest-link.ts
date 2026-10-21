@@ -112,7 +112,13 @@ export function createGuestLink(deps: {
         slots.set(slot, entry);
         const sessionFile =
           input.sessionFile === null ? null : `${input.sessionsDir.replace(/\/+$/, "")}/${input.sessionFile}`;
-        const command: GuestCommand = { type: "spawn", slot, sessionFile, packages };
+        const command: GuestCommand = {
+          type: "spawn",
+          slot,
+          sessionFile,
+          packages,
+          ...(input.env ? { env: { ...input.env } } : {}),
+        };
         if (!wire.send(command)) giveUp(entry, new PapError("worker_failed"));
       });
     },

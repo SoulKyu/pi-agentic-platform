@@ -103,6 +103,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       egress,
       ownerHosts: (ownerId) => modules.policy?.port.settings(ownerId).allowHosts ?? null,
       ...(core.config.userHome === undefined ? {} : { homeDir: () => core.config.userHome as string }),
+      ...(modules.claudeEnvOf ? { claudeEnvOf: modules.claudeEnvOf } : {}),
       ...vm.sessions,
     },
   });

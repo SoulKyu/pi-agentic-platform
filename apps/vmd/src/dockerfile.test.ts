@@ -17,6 +17,10 @@ const INSTALL =
   "apt-get install -y --no-install-recommends bubblewrap git curl jq python3 ripgrep fd-find ca-certificates e2fsprogs && rm -rf /var/lib/apt/lists/*";
 
 describe("renderDockerfile (R7)", () => {
+  it("leaves IS_SANDBOX out of the base environment: pap sets it per agent (ADR 0080)", () => {
+    expect(renderDockerfile(base())).not.toContain("IS_SANDBOX");
+  });
+
   it("renders the base layer: packages with e2fsprogs, the fd link, the bundle, the environment, the entrypoint", () => {
     expect(renderDockerfile(base())).toBe(
       [
@@ -25,7 +29,7 @@ describe("renderDockerfile (R7)", () => {
         `RUN apt-get update && ${INSTALL}`,
         "RUN ln -s /usr/bin/fdfind /usr/local/bin/fd",
         "COPY . /opt/pap/pi-host/",
-        "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 IS_SANDBOX=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
+        "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
         'ENTRYPOINT ["/usr/local/bin/node", "/opt/pap/pi-host/dist/guest/main.js"]',
         "LABEL org.pap.layer=base",
         "",

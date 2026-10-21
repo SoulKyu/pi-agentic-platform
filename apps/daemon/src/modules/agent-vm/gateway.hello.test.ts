@@ -248,6 +248,14 @@ describe("workers", () => {
     expect((await spawning).pid).toBeUndefined();
   });
 
+  it("hands the worker's extra environment to the guest in the spawn command, and none when there is none", async () => {
+    const guest = await guestOf(h, h.launch());
+    void guest.link.spawnWorker(spawnInput({ env: { IS_SANDBOX: "1" } }), null).catch(() => undefined);
+    expect(guest.socket.frames().at(-1)).toMatchObject({ type: "spawn", env: { IS_SANDBOX: "1" } });
+    void guest.link.spawnWorker(spawnInput(), null).catch(() => undefined);
+    expect(guest.socket.frames().at(-1)).not.toHaveProperty("env");
+  });
+
   it("refuses a reopen whose hello names another file than the one asked", async () => {
     const launch = h.launch();
     const guest = await guestOf(h, launch);

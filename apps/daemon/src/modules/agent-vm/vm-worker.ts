@@ -32,6 +32,8 @@ export interface WorkerSpawnInput {
   readonly sessionFile: string | null;
   /** The VM's sessions folder: the spawn command names the file by its absolute path. */
   readonly sessionsDir: string;
+  /** ADR 0080: the extra environment the guest may add to the worker (it applies a closed allowlist); absent for most agents. */
+  readonly env?: Readonly<Record<string, string>>;
   /** The mirror of `file`, opened at the hello (a reopen) or at the first `session_append` (a new session, R28). */
   mirrorFor(file: string): MirrorPort | "refused";
   /** Every prompt, steer and follow-up text sent to this worker (R32). */

@@ -349,6 +349,14 @@ describe("createVmLaunch (T8a)", () => {
     );
     expect(stop).toHaveBeenCalledTimes(1);
   });
+  it("hands the claude-bridge environment to the runtime in the worker input, and none otherwise", async () => {
+    const bed = setup();
+    const r = bed.use(row());
+    await bed.vmLaunch.spawn(r, launch({ claudeEnv: { IS_SANDBOX: "1" } }), hostInit(r));
+    await bed.vmLaunch.spawn(r, launch(), hostInit(r));
+    expect(bed.inputs[0]).toMatchObject({ env: { IS_SANDBOX: "1" } });
+    expect(bed.inputs[1]).not.toHaveProperty("env");
+  });
   it("names the session file of a row whose Pi file is its mirror, none for a new session", async () => {
     const bed = setup();
     const mirror = join(home, "agents", ".mirrors", ID, "s.jsonl");

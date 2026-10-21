@@ -21,6 +21,51 @@ export function isClaudeBridgeSource(source: string): boolean {
   const last = source.replace(/\/+$/, "").split(/[/:]/).at(-1) ?? "";
   return last.replace(/@[^@]*$/, "").replace(/\.git$/, "") === CLAUDE_BRIDGE_NAME;
 }
+
+/** Where a claude-bridge agent's worker runs, and the folder it calls home (the VM layout's home, or the agent's host home). */
+export interface ClaudeEnvWhere {
+  readonly vm: boolean;
+  readonly home: string;
+}
+/** An agent's Claude Code extra environment: `{}` for an agent that does not use the bridge. */
+export type ClaudeEnvOf = (
+  input: {
+    readonly model: { readonly provider: string } | null;
+    readonly packages: readonly string[] | null;
+  },
+  where: ClaudeEnvWhere,
+) => Promise<Readonly<Record<string, string>>>;
+
+/**
+ * ADR 0080: the environment pi-claude-bridge's Claude Code CLI needs, for the agents that use the bridge only (its provider, or
+ * its package among the picks; the decision of `declaresBridge`).
+ * - VM: `IS_SANDBOX=1` (the CLI refuses `--dangerously-skip-permissions` as root; the VM is the sandbox) and
+ *   `CLAUDE_CONFIG_DIR` in the agent's home (`HOME` is `/root`, on a read-only root).
+ * - Host: `CLAUDE_CONFIG_DIR` in the agent's home only. The CLI is not sandboxed there and does not run as root, so it never
+ *   gets `IS_SANDBOX`; without it, it would write the owner's real `~/.claude`.
+ * Host precedence: the daemon's own `CLAUDE_CONFIG_DIR`, which reaches the worker, wins, so none is derived then. In a VM the
+ * daemon's environment never reaches the worker, so that rule does not apply there.
+ */
+export function createClaudeEnvOf(deps: {
+  readonly sourcesOf: PluginPicks["sourcesOf"];
+  readonly logger: Pick<Logger, "warn">;
+  readonly daemonEnv: Readonly<Record<string, string | undefined>>;
+}): ClaudeEnvOf {
+  return async (input, where) => {
+    if (!where.vm && deps.daemonEnv.CLAUDE_CONFIG_DIR !== undefined) return {};
+    if (input.model?.provider !== CLAUDE_BRIDGE_PROVIDER) {
+      try {
+        const sources = (await deps.sourcesOf(input.packages)) ?? [];
+        if (!sources.some(isClaudeBridgeSource)) return {};
+      } catch (error) {
+        deps.logger.warn("claude_env_packages_unread", { err: error });
+        return {};
+      }
+    }
+    const config = { CLAUDE_CONFIG_DIR: `${where.home.replace(/\/+$/, "")}/.claude` };
+    return where.vm ? { IS_SANDBOX: "1", ...config } : config;
+  };
+}
 /** The relay holds at most 512 model pairs per agent (`RelayCommand`). */
 export const POLICY_MAX_MODELS = 512;
 /** Budgets reset at local midnight and a run in flight spends before it ends: every live agent is looked at again this often. */

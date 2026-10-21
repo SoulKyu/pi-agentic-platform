@@ -55,6 +55,14 @@ export interface SessionsAgentDeps {
   readonly homeDir?: () => string;
   /** The VM layout of a session row that runs in a VM, else null (R15, R37). */
   vmLayoutOf?(row: SessionRow): VmLayout | null;
+  /**
+   * ADR 0080: the Claude Code environment of an agent that uses pi-claude-bridge (`{}` for any other): `home` is the VM layout's
+   * home or the agent's host home. Never logged.
+   */
+  claudeEnvOf?(
+    input: AgentInput,
+    where: { readonly vm: boolean; readonly home: string },
+  ): Promise<Readonly<Record<string, string>>>;
   /** The agent runs in a VM: no precheck, no chips (R16). By agent, not session: `runsInVm` of the agent port is by session. */
   agentRunsInVm?(ownerId: string, agentId: string): boolean;
 }
@@ -79,6 +87,8 @@ export interface AgentLaunch {
   readonly once?: OnceEntry[];
   /** The session runs in a VM (`vmGate`): none of the above exists for it (T8a). */
   readonly vm?: true;
+  /** ADR 0080: the extra environment of the worker, present only for an agent that uses pi-claude-bridge. */
+  readonly claudeEnv?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -177,10 +187,16 @@ export async function agentPrecheckSandbox(
   });
 }
 
+const withClaudeEnv = <T extends object>(
+  launch: T,
+  claudeEnv: Readonly<Record<string, string>> | undefined,
+): T & Pick<AgentLaunch, "claudeEnv"> =>
+  claudeEnv !== undefined && Object.keys(claudeEnv).length > 0 ? { ...launch, claudeEnv } : launch;
+
 /**
  * The gate of every launch of a session with an agent (M11R53, RT-06): new or reopened, after an idle release, a crash, an
  * unarchive or a prompt on a cold thread. Fails closed, with no unsandboxed fallback; the launch facts come back so
- * nothing is read twice. Two awaits only: the sandbox probe and, for a networked profile, the proxy's boot. Nothing else
+ * nothing is read twice. Three awaits only: the Claude Code environment (a package read, bridge agents only), the sandbox probe and, for a networked profile, the proxy's boot. Nothing else
  * awaits between this and the spawn.
  */
 export async function agentGate(row: SessionRow, deps: AgentGateDeps): Promise<AgentLaunch> {
@@ -188,7 +204,11 @@ export async function agentGate(row: SessionRow, deps: AgentGateDeps): Promise<A
   const role = row.agentRole;
   if (agentId === undefined || role === undefined) throw new PapError("bad_request");
   // T8a: a VM row never reaches the host home, the sandbox probe, the vault or the egress proxy below.
-  if (deps.vmLayoutOf?.(row)) return vmGate(row, deps);
+  const layout = deps.vmLayoutOf?.(row);
+  if (layout) {
+    const launch = await vmGate(row, deps);
+    return withClaudeEnv(launch, await deps.claudeEnvOf?.(launch.input, { vm: true, home: layout.home }));
+  }
   const profile = deps.profileOf(row.ownerId, agentId);
   if (profile === null) throw new PapError("not_found");
   if (profile.quarantined) throw new PapError("agent_paused");
@@ -198,11 +218,10 @@ export async function agentGate(row: SessionRow, deps: AgentGateDeps): Promise<A
   const writable = role === "task" ? agentScratchOf(deps.papHome, agentId, row.cwd) : home;
   if (role !== "task" && row.cwd !== home) throw new PapError("invalid_cwd");
   const { input } = profile;
-  const base = {
-    agent: { id: agentId, name: profile.name, role: input.role },
-    role,
-    input,
-  };
+  const base = withClaudeEnv(
+    { agent: { id: agentId, name: profile.name, role: input.role }, role, input },
+    await deps.claudeEnvOf?.(input, { vm: false, home }),
+  );
   if (!input.sandbox.required) return base;
   const probe = await deps.probe.ensure();
   if (!probe.usable) {

@@ -198,7 +198,7 @@ export function createLaunch(ctx: LaunchContext) {
       });
       handle = started.handle;
     } else {
-      const { env } = composed.trust;
+      const env = { ...agentLaunch?.claudeEnv, ...composed.trust.env };
       handle = Object.keys(env).length > 0 ? deps.spawn(row.cwd, env) : deps.spawn(row.cwd);
     }
     const { scope, rules, init } = composed;

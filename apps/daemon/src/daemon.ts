@@ -1,6 +1,7 @@
 import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
+import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
 import { type AgentsVmSeams, composeAgentsVm } from "./compose-agents-vm.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
@@ -271,6 +272,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         inbox: m10Late.inbox,
         settings,
         subagents: { pi, sessions },
+        claudeEnvOf: createClaudeEnvOf({ sourcesOf: pi.plugins.sourcesOf, logger, daemonEnv: env }),
         vm: agentsVm,
       },
     );

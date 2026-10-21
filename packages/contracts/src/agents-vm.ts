@@ -120,7 +120,18 @@ export type Hello = z.infer<typeof Hello>;
 export const TransportPing = z.object({ type: z.literal("ping") }).strict();
 export const TransportPong = z.object({ type: z.literal("pong") }).strict();
 
-/** Daemon to guest. `packages`: the agent's picks, written into the worker's Pi settings before the spawn (RT-29). */
+/**
+ * Environment the daemon asks the guest to add to a worker. The guest applies it through a closed allowlist (ADR 0080:
+ * `IS_SANDBOX=1`, `CLAUDE_CONFIG_DIR` under the layout's home) and drops and logs anything else, so the schema only bounds it.
+ */
+export const WorkerExtraEnv = z
+  .record(z.string().max(64), z.string().max(4096))
+  .refine((env) => Object.keys(env).length <= 16);
+
+/**
+ * Daemon to guest. `packages`: the agent's picks, written into the worker's Pi settings before the spawn (RT-29). `env`:
+ * the extra environment of a claude-bridge agent's worker (ADR 0080), absent for every other agent.
+ */
 export const GuestCommand = z.discriminatedUnion("type", [
   z
     .object({
@@ -128,6 +139,7 @@ export const GuestCommand = z.discriminatedUnion("type", [
       slot: SlotId,
       sessionFile: AbsolutePath.nullable(),
       packages: PackagePicks,
+      env: WorkerExtraEnv.optional(),
     })
     .strict(),
   z.object({ type: z.literal("signal"), slot: SlotId, signal: z.enum(["SIGTERM", "SIGKILL"]) }).strict(),
