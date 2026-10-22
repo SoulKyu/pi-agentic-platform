@@ -110,7 +110,8 @@ export const agentSettingsEn = {
   "agentForm.error.role": "Visible text only, 8000 characters at most.",
   "agentForm.error.budget.usdPerDay": "A number between 0 and 1000.",
   "agentForm.error.budget.tokensPerDay": "A whole number between 0 and 1000000000.",
-  "agentForm.error.allowHosts": "Host names only (api.example.com or *.example.com), 100 at most.",
+  "agentForm.error.allowHosts":
+    "Host names (api.example.com or *.example.com), or host:port and IPs in VM mode, 256 at most.",
   "agentForm.error.allowHosts.vmOnly":
     "A port or an IP address in this list needs VM mode: pap runs agents on the host here, which matches host names only. Nothing was saved.",
   "agentForm.error.denylist": "One visible pattern per line, 50 at most.",
@@ -243,7 +244,8 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.error.role": "Texte visible seulement, 8000 caractères au plus.",
   "agentForm.error.budget.usdPerDay": "Un nombre entre 0 et 1000.",
   "agentForm.error.budget.tokensPerDay": "Un nombre entier entre 0 et 1000000000.",
-  "agentForm.error.allowHosts": "Des noms d'hôte seulement (api.exemple.com ou *.exemple.com), 100 au plus.",
+  "agentForm.error.allowHosts":
+    "Des noms d'hôte (api.exemple.com ou *.exemple.com), ou host:port et IP en mode VM, 256 au plus.",
   "agentForm.error.allowHosts.vmOnly":
     "Un port ou une adresse IP dans cette liste demande le mode VM : ici pap lance les agents sur l'hôte, qui ne reconnaît que des noms d'hôte. Rien n'a été enregistré.",
   "agentForm.error.denylist": "Un motif visible par ligne, 50 au plus.",

@@ -3,7 +3,7 @@ import { LINE_HIDDEN } from "./text-rules.ts";
 import { AgentResources, DEFAULT_AGENT_RESOURCES, PluginPicks, SystemPackages } from "./agents-resources.ts";
 import { AgentHostEntry } from "./host-entry.ts";
 import { covers } from "./host-covers.ts";
-import { ApprovalMode, DenyPattern, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
+import { ApprovalMode, DenyPattern, MAX_ALLOW_HOSTS, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
 import { AgentId, AgentName } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 
@@ -11,7 +11,7 @@ export const AGENT_LIMITS = {
   perOwner: 32,
   nameChars: 32,
   roleChars: 8000,
-  hosts: 100,
+  hosts: MAX_ALLOW_HOSTS,
   denyPatterns: 50,
   memoryHintChars: 500,
   trustedSources: MAX_TRUSTED_SOURCES,
