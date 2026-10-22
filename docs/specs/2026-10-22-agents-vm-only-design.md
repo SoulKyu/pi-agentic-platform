@@ -18,7 +18,9 @@ From the owner:
 - **No confinement of MCP stdio servers and extension subprocesses inside the VM.** Once the exits trust nothing the VM says (§4), what they could read inside the VM (the gateway token file, the Pi profile, which holds no provider key) gives them nothing the agent does not already have; and pap does not control how a third-party extension starts its children, so confining them would mean nesting bwrap around the whole worker. The VM is the boundary. This stays a documented limit.
 - KISS, DESIGN.md for the UI.
 
-Non-goals: confinement inside the VM (above); an fd-relative path judge (the existence oracle by a race reveals that a path exists, never its content); the vault and one-use values in a VM (sub-project 2's imported files cover an agent's own credentials); `export_html`; pi-mem0 (sub-project 5); disk backups (sub-project 4); boxes for sessions, lanes and trigger tasks (decision 115, its own spec after this one).
+- **The vault comes into the VM** (owner, 2026-10-22, after the recon showed the vault, one-use values and `secret.request` worked only with the host sandbox): see §4b.
+
+Non-goals: confinement inside the VM (above); an fd-relative path judge (the existence oracle by a race reveals that a path exists, never its content); `export_html`; pi-mem0 (sub-project 5); disk backups (sub-project 4); boxes for sessions, lanes and trigger tasks (decision 115, its own spec after this one).
 
 Anti-goals: a new approval card; a root step (`sudo pap vm setup`) needed after a change that does not touch the code that runs in the VM.
 
@@ -40,10 +42,16 @@ Anti-goals: a new approval card; a root step (`sudo pap vm setup`) needed after 
 ## 4. Taint the daemon sees
 
 - **Today** a VM worker reports its own taint and the daemon records it; platform ops (`whenTainted`), delegation isolation and trusted autonomy read the daemon's record (`modules/platform/dispatch.ts`, `PlatformKind.tainted`). A compromised VM can simply not report.
-- **New**: the VM proxy (`modules/egress/vm-listener.ts`) tells the sessions module each time it opens a tunnel or forwards a request for a VM to a host that does not keep content clean. The rule is host mode's: a host keeps content clean only when it is one of the agent's trusted sources reached over `CONNECT` 443. The mark belongs to the **VM launch** *(controller's call: the proxy sees only the VM, and what came in stays in the VM's memory and disk)*: every session that runs in that launch is tainted, the ones live at that moment and the ones that start later in it (for the thread's VM: the thread, its children and its thread tasks; for a task VM: its task). The record is the sessions module's own (the one `PlatformKind.tainted` is read from); the launch's mark is applied to it, and a session started in a marked launch starts tainted. The mark is sticky, as today; a new launch starts clean, which is no weaker than host mode, where a new session reading a file fetched earlier was not tainted either.
+- **New**: the VM proxy (`modules/egress/vm-listener.ts`) tells the sessions module each time it opens a tunnel or forwards a request for a VM to a host that does not keep content clean. The rule is host mode's: a host keeps content clean only when it is one of the agent's trusted sources reached over `CONNECT` 443. The mark belongs to the **VM launch** *(controller's call: the proxy sees only the VM, and what came in stays in the VM's memory and disk)*: every session that runs in that launch is tainted, the ones live at that moment and the ones that start later in it (for the thread's VM: the thread, its children and its thread tasks; for a task VM: its task). The record is the policy module's (`session_policy`, the one `PlatformKind.tainted` is read from), reached through the existing daemon-side hook `sessions.mirror.taint(sessionId)` (no epoch, so a worker's clear cannot race it); the launch's mark is applied to it once per session, and a session started in a marked launch starts tainted. The "trusted source over `CONNECT` 443" predicate moves to `@pap/contracts` so the worker and the daemon share one rule. The mark is sticky, as today; a new launch starts clean, which is no weaker than host mode, where a new session reading a file fetched earlier was not tainted either.
 - A refused request does not taint: nothing came in.
 - The worker's own reports still add taint and can never clear it. The mirror-resync taint stays.
 - What this leaves inside the VM, documented: the approval mode, the blocked commands and the tool rules run in the worker, so in a compromised VM they are the agent's own choice. At the exits the daemon enforces the host list (proxy), the models and budget (relay), and the platform ops' callers and taint rule (gateway).
+
+## 4b. The vault in the VM
+
+- The vault's values the agent may use, and its one-use values, reach a VM session the way they reached a host-sandboxed one: in the worker's init record and its live vault updates. The VM shell gets them in its environment; a one-use value goes to the first command that names it, then `secret_used` tells the daemon. `secret.request` (the card where the agent asks the owner for a value) works from a VM session.
+- Redaction is unchanged: the worker redacts the vault's values from everything it sends, from the first byte.
+- This extends ADR 0079 (an agent's own credentials may live in its VM) to the vault's values; provider keys and the Claude token stay with the relay. ADR 0081 records it, and ADR 0049's known limits apply inside the VM (a command can print a value; the redactor misses values under 8 characters and encoded ones).
 
 ## 5. Prompt chips
 
@@ -51,13 +59,13 @@ For a VM agent, `agents.prompts` and `agents.prompt` read the owner's imported f
 
 ## 6. Code skew between the daemon and the VMs
 
-- The build writes a **bundle id**: a hash of the built files that run inside the VM (pi-host's `dist` and `@pap/contracts`'s `dist`), so a change to the web app or the daemon alone does not change it *(controller's call)*. `pap vm setup` copies it with the bundle into `/opt/pap-vm/agent-bundle`.
-- The guest's hello carries the id. When it differs from the daemon's, when it is missing (a guest older than this sub-project), or when the hello's protocol differs, the daemon starts no worker and shows in the thread: "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost." It logs `vm_bundle_stale` once per launch.
-- A worker that refuses its init record writes the reason (the schema path, never a value) to its output before it exits, so `worker_exited` is never silent.
+- **The bundle digest** *(controller's call, after the recon; simpler than an id carried in the hello)*: the code that runs in a VM is the agent bundle (`packages/pi-host/dist-agent`, built by `scripts/build-agent-bundle.ts`), which `pap vm setup` installs as `/opt/pap-vm/agent-bundle`; the Kata base image's tag is already a digest of that installed folder (`kata-images.ts`, `treeDigest`). At boot the daemon takes the same digest of the bundle built with it (its own tree's `dist-agent`, once, cached for the process's life: that is the code it runs with). Before a VM start, when the installed digest differs, the daemon starts no VM and the thread shows: "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost." It logs `vm_bundle_stale` once per agent and boot. A change to the web app or the daemon alone does not change the bundle, so it asks for no root step. When the daemon has no bundle of its own to compare (an install without the tree), the check is skipped with one info log.
+- **A silent `worker_exited`** *(found by the recon)*: the worker already writes the failing schema paths (never a value) to stderr and exits 70; the VM path loses that tail in a race (the socket closes first, and the guest's later `exited` frame is dropped, `agent-vm/vm-worker.ts`). The fix: when the wire closes, wait a short grace on the kernel `Clock` for the guest's `exited` frame before reporting the exit, so `worker_exited.output` carries the tail. The policy-rules refusal also names its failing paths.
 
 ## 7. Doctor
 
-- `vm.bundle`: the installed bundle id equals the daemon's; otherwise "run `sudo pap vm setup`".
+- The `vm.*` checks run whatever the environment says (today they skip unless `PAP_AGENTS_RUNTIME=vm`).
+- `vm.bundle`: the installed bundle's digest equals the tree's; otherwise "run `sudo pap vm setup`".
 - `agents.hostMade`: agents with a recorded thread and no mirror are listed by name, "made in host mode: delete it and create it again".
 - `PAP_AGENTS_RUNTIME` set: a warning that it is ignored.
 
@@ -70,7 +78,8 @@ DESIGN.md applies (tokens, listed primitives, mono uppercase buttons, English an
 - Unit and integration on the process backend, with the egress test seams (loopback only, no public host or address):
   - a tunnel to an untrusted host taints every live session of that VM; a trusted source over 443 does not; a refused request does not; a worker report cannot clear the mark;
   - platform ops read that mark (`whenTainted`);
-  - a bundle id mismatch starts no worker and posts the message; the init refusal is in `worker_exited.output`;
+  - a bundle digest mismatch starts no VM and shows the message; the init refusal is in `worker_exited.output`;
+  - a vault value reaches the VM shell's environment and is redacted from everything the worker sends; a one-use value goes to one command; `secret.request` works from a VM session;
   - no KVM: agents unavailable, the rest of pap boots;
   - prompts from imported files;
   - the doctor checks.
