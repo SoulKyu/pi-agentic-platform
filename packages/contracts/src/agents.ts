@@ -10,7 +10,7 @@ import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 export const AGENT_LIMITS = {
   perOwner: 32,
   nameChars: 32,
-  roleChars: 8000,
+  roleChars: 20_000,
   hosts: MAX_ALLOW_HOSTS,
   denyPatterns: 50,
   memoryHintChars: 500,

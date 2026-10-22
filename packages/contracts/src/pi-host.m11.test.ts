@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DaemonToWorker, InitRecord, parseWorkerRecord } from "./index.ts";
+import { AGENT_LIMITS, DaemonToWorker, InitRecord, parseWorkerRecord } from "./index.ts";
 
 const init = { type: "init", cwd: "/w", agentDir: "/a", papHome: "/p", umask: 0o22, policy: {} };
 
@@ -28,7 +28,7 @@ describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
       },
       vault: { GITHUB_TOKEN: "x".repeat(4096) },
       once: [{ id: "i1", name: "NPM_TOKEN", value: "v", expiresAt: 1 }],
-      agent: { id: "atlas-1a2b", name: "Atlas", role: "r".repeat(8000) },
+      agent: { id: "atlas-1a2b", name: "Atlas", role: "r".repeat(AGENT_LIMITS.roleChars) },
     };
     expect(InitRecord.safeParse(record).success).toBe(true);
     expect(DaemonToWorker.safeParse(record).success).toBe(true);
@@ -82,7 +82,9 @@ describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
     const agent = (value: unknown) => InitRecord.safeParse({ ...init, agent: value }).success;
     expect(agent({ id: "not an id", name: "Atlas", role: "r" })).toBe(false);
     expect(agent({ id: "atlas-1a2b", name: "At las", role: "r" })).toBe(false);
-    expect(agent({ id: "atlas-1a2b", name: "Atlas", role: "r".repeat(8001) })).toBe(false);
+    expect(agent({ id: "atlas-1a2b", name: "Atlas", role: "r".repeat(AGENT_LIMITS.roleChars + 1) })).toBe(
+      false,
+    );
   });
 
   it("refuses a sandbox that is not a SandboxSpec", () => {

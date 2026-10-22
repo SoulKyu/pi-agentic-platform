@@ -107,7 +107,7 @@ export const agentSettingsEn = {
   "agentForm.fix": "Fix the marked fields first.",
   "agentForm.error.name": "One word: a letter, then letters, digits, - or _, 32 at most.",
   "agentForm.error.initials": "One or two capital letters or digits.",
-  "agentForm.error.role": "Visible text only, 8000 characters at most.",
+  "agentForm.error.role": "Visible text only, 20000 characters at most.",
   "agentForm.error.budget.usdPerDay": "A number between 0 and 1000.",
   "agentForm.error.budget.tokensPerDay": "A whole number between 0 and 1000000000.",
   "agentForm.error.allowHosts":
@@ -241,7 +241,7 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.fix": "Corrigez d'abord les champs signalés.",
   "agentForm.error.name": "Un seul mot : une lettre, puis lettres, chiffres, - ou _, 32 au plus.",
   "agentForm.error.initials": "Une ou deux majuscules ou chiffres.",
-  "agentForm.error.role": "Texte visible seulement, 8000 caractères au plus.",
+  "agentForm.error.role": "Texte visible seulement, 20000 caractères au plus.",
   "agentForm.error.budget.usdPerDay": "Un nombre entre 0 et 1000.",
   "agentForm.error.budget.tokensPerDay": "Un nombre entier entre 0 et 1000000000.",
   "agentForm.error.allowHosts":
