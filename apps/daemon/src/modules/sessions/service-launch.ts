@@ -1,4 +1,6 @@
+import { join } from "node:path";
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
+import { hasKnowledge } from "../../kernel/fs/knowledge.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { initTools, storeNewSession } from "./automation-port.ts";
 import { storeChildPolicy } from "./child-port.ts";
@@ -8,7 +10,6 @@ import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
 import { bridgePlatform } from "./platform-bridge.ts";
-import { type MemoryRelease, memoryTrustOf } from "./memory-trust.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
@@ -28,7 +29,6 @@ export interface LaunchContext {
   /** Who a session is, which platform tools its worker starts with, and where its platform calls go (M11). */
   readonly agent: AgentSurface;
   /** Which workers started untainted: a taint releases them once their run settles (M11R143). */
-  readonly memory: MemoryRelease;
   /** `vm`: a VM worker, whose memory the VM cap counts: the free-memory floor does not apply (R29). */
   checkCapacity(vm?: boolean): void;
   /** Sessions whose VM worker is being spawned: they count against `PAP_MAX_WORKERS` (R29). */
@@ -68,6 +68,13 @@ export interface LaunchContext {
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
 export function createLaunch(ctx: LaunchContext) {
   const { deps, live, reopening, starting, grants, policyLink } = ctx;
+  // Detection never fails a launch: an unreadable `knowledge/` reads as absent, said once (the code only, no path).
+  let knowledgeWarned = false;
+  const onKnowledgeError = (code: string): void => {
+    if (knowledgeWarned) return;
+    knowledgeWarned = true;
+    deps.logger.warn("knowledge_unreadable", { code });
+  };
   const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
     store: deps.store,
     clock: deps.clock,
@@ -113,7 +120,6 @@ export function createLaunch(ctx: LaunchContext) {
     } catch (error) {
       // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).
       ctx.agent.ended(row.id);
-      ctx.memory.ended(row.id);
       throw error;
     }
   }
@@ -144,11 +150,11 @@ export function createLaunch(ctx: LaunchContext) {
       const scope = grants.scopeOf(row.cwd);
       const rules = policyLink.compose(row, scope);
       const childPrompt = ctx.childPrompt?.(row);
-      // Read in the same step as the rules: the taint the worker starts with is the taint this decision is made on.
-      const kind = ctx.agent.kindOfRow(row);
-      const trust = memoryTrustOf(kind, agentLaunch);
-      // A VM worker has no pi-mem0: no trusted memory decision is recorded for it (T8a).
-      if (!vmLaunch) ctx.memory.started(row.id, trust);
+      // An agent's knowledge is its own (task B2); a plain session sees its lane's worktree or its project's folder.
+      const knowledgeRoot =
+        agentLaunch === null && row.agentId === undefined
+          ? deps.projects.knowledgeRootOf?.({ ownerId: row.ownerId, cwd: row.cwd }, scope)
+          : undefined;
       const init: InitRecord = {
         type: "init",
         cwd: row.cwd,
@@ -161,12 +167,14 @@ export function createLaunch(ctx: LaunchContext) {
         platform: { ops: ctx.agent.platformOps(row) },
         ...(agentLaunch ? initFieldsOf(agentLaunch) : {}),
         ...(childPrompt ? { child: { prompt: childPrompt } } : {}),
-        ...(trust.memory ? { memory: trust.memory } : {}),
+        ...(typeof knowledgeRoot === "string" && hasKnowledge(knowledgeRoot, onKnowledgeError)
+          ? { knowledge: { path: join(knowledgeRoot, "knowledge") } }
+          : {}),
         // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
         ...(row.piPath ? { sessionFile: row.piPath } : {}),
         ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
       };
-      return { scope, rules, trust, init };
+      return { scope, rules, init };
     };
     let composed = compose();
     const logger = deps.logger.child({ component: "session", sessionId: row.id });
@@ -196,7 +204,7 @@ export function createLaunch(ctx: LaunchContext) {
       });
       handle = started.handle;
     } else {
-      const env = { ...agentLaunch?.claudeEnv, ...composed.trust.env };
+      const env = { ...agentLaunch?.claudeEnv };
       handle = Object.keys(env).length > 0 ? deps.spawn(row.cwd, env) : deps.spawn(row.cwd);
     }
     const { scope, init } = composed;
@@ -231,7 +239,6 @@ export function createLaunch(ctx: LaunchContext) {
           if (live.get(row.id) === session) {
             live.delete(row.id);
             ctx.agent.ended(row.id);
-            ctx.memory.ended(row.id);
           }
           ctx.onWorkerEnd?.(row.id);
         },

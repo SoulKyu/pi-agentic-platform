@@ -265,7 +265,7 @@ describe("pi-host wiring", () => {
     expect(DaemonToWorker.safeParse({ ...init, vm: { ...vmInit, rootView: "bind" } }).success).toBe(false);
   });
 
-  it("refuses memory on the init of a VM worker (R17) and takes the vault and one-use values (ADR 0081)", () => {
+  it("takes the vault and one-use values (ADR 0081)", () => {
     const init = {
       type: "init",
       cwd: "/a",
@@ -277,9 +277,6 @@ describe("pi-host wiring", () => {
     };
     for (const extra of [{ vault: { ABC: "x" } }, { once: [] }])
       expect(DaemonToWorker.safeParse({ ...init, ...extra }).success, JSON.stringify(extra)).toBe(true);
-    expect(DaemonToWorker.safeParse({ ...init, memory: { profile: "p", trust: "trusted" } }).success).toBe(
-      false,
-    );
     const host: Record<string, unknown> = { ...init };
     delete host.vm;
     expect(DaemonToWorker.safeParse({ ...host, vault: { ABC: "x" } }).success).toBe(true);

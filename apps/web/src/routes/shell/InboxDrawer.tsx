@@ -46,7 +46,6 @@ export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
             useFocusEntry.getState().ask({ sessionId: thread, entryId });
           show({ kind: "agent", id: agentId });
         }}
-        onOpenMemory={() => show({ kind: "settings", section: "memory" })}
         onOpenSession={(id) => show({ kind: "session", id })}
       />
     </Dialog>

@@ -11,7 +11,6 @@ import { AgentResources } from "./AgentResources.tsx";
 import { AutonomyFields } from "./AutonomyFields.tsx";
 import { BudgetFields } from "./BudgetFields.tsx";
 import { derivedInitials, draftFromInput, type Draft, needsStepUp, toInput } from "./agent-form.vm.ts";
-import { MemoryFields } from "./MemoryFields.tsx";
 import { levelsFor } from "./model-fields.vm.ts";
 import { ModelFields } from "./ModelFields.tsx";
 import type { NewAgentStart } from "./use-new-agent-defaults.ts";
@@ -226,7 +225,6 @@ export function AgentForm({ agent, presetField, start, onSaved, onCancel, onRelo
         checked={draft.acceptsDelegation}
         onChange={(acceptsDelegation) => set({ acceptsDelegation })}
       />
-      <MemoryFields draft={draft} errors={errors} set={set} />
       <AgentResources draft={draft} errors={errors} set={set} />
       <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
       {widens ? (

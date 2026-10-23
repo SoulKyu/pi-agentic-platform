@@ -10,7 +10,6 @@ const GENERIC: Record<Exclude<WireClass, "digest">, Record<Locale, string>> = {
   notify: { en: "An agent has a message for you.", fr: "Un agent a un message pour vous." },
   done: { en: "A task is done.", fr: "Une tâche est terminée." },
   reply: { en: "An agent has replied.", fr: "Un agent a répondu." },
-  review: { en: "A memory item needs your review.", fr: "Un élément de mémoire attend votre relecture." },
   test: { en: "Test notification.", fr: "Notification de test." },
 };
 

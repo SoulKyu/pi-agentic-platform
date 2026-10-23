@@ -19,10 +19,10 @@ describe("copyFor", () => {
     expect(copyFor("test", "fr").body).toBe("Notification de test.");
   });
 
-  it("has its own sentence for done, reply and review", () => {
+  it("has its own sentence for done and reply", () => {
     for (const locale of ["en", "fr"] as const) {
-      const bodies = (["done", "reply", "review"] as const).map((c) => copyFor(c, locale).body);
-      expect(new Set(bodies).size).toBe(3);
+      const bodies = (["done", "reply"] as const).map((c) => copyFor(c, locale).body);
+      expect(new Set(bodies).size).toBe(2);
       for (const body of bodies) expect(body.length).toBeGreaterThan(5);
     }
   });

@@ -152,6 +152,24 @@ export const shellMethods = {
     // Another owner's project is `not_found` too (M4R25); `bad_request`: a name that is empty once cleaned.
     errors: ["not_found", "bad_request"],
   }),
+  "projects.knowledge": defineMethod({
+    name: "projects.knowledge",
+    permission: "files:read",
+    idempotent: true,
+    // `sessionId`: a lane session reads its worktree's `knowledge/`, any other the project's folder.
+    params: z.object({ projectId: Id, sessionId: Id.optional() }),
+    result: z.object({ enabled: z.boolean(), concepts: z.number().int().nonnegative() }),
+    errors: ["not_found"],
+  }),
+  "projects.enableKnowledge": defineMethod({
+    name: "projects.enableKnowledge",
+    permission: "files:operate", // the same as writing a project file
+    idempotent: true, // an existing bundle is left as it is
+    params: z.object({ projectId: Id, sessionId: Id.optional() }),
+    result: z.object({ enabled: z.literal(true) }),
+    // `conflict`: `knowledge` is a link or a file, or its `index.md` is not an OKF index; nothing was written.
+    errors: ["not_found", "conflict"],
+  }),
   "sessions.mark": defineMethod({
     name: "sessions.mark",
     permission: "sessions:operate",

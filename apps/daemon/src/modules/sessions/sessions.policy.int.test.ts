@@ -142,7 +142,7 @@ it("a taint the worker reports is stored by the daemon and survives the worker: 
       kind: "policy",
       policy: { mode: "auto-accept-edits", explicit: false, tainted: true, defaultMode: "auto-accept-edits" },
     });
-    // The worker is released once the tainted run settles (M11R143): no kill needed, the session goes cold by itself.
+    bed.killWorker(sessionId);
     await vi.waitFor(
       () => expect(sub.events().filter((e) => e.kind === "status" && e.status === "cold")).toHaveLength(1),
       { timeout: 20_000 },

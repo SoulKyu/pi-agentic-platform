@@ -3,7 +3,7 @@ import { Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 
 type ClassName = keyof NotificationsSettings["classes"];
-const KINDS: readonly ClassName[] = ["approval", "failed", "budget", "notify", "done", "reply", "review"];
+const KINDS: readonly ClassName[] = ["approval", "failed", "budget", "notify", "done", "reply"];
 
 /** One switch per class (M12R2) and the names option (M12R7). Each change writes the whole document. */
 export function ClassToggles({

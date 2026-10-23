@@ -106,7 +106,7 @@ describe("buildPaletteItems", () => {
       "Skills",
       "Automation",
       "Agents",
-      "Memory",
+
       "Notifications",
       "Account",
     ]);

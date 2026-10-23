@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { FilePut, HomePut, HomeRemove, SessionResync, VmInit } from "./agents-vm.ts";
 import { ImageMime } from "./files.ts";
-import { InitChild, InitMemory } from "./pi-host-init.ts";
+import { InitChild, InitKnowledge } from "./pi-host-init.ts";
 import { AlwaysScope, ApprovalAnswer, ToolName } from "./policy.ts";
 import { INIT_PLATFORM_FIELDS, PlatformResultRecord, VaultUpdateRecord } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
@@ -10,55 +10,50 @@ import { AbsolutePath } from "./text-rules.ts";
 
 // daemon → worker
 
-export const InitRecord = z
-  .object({
-    type: z.literal("init"),
-    cwd: AbsolutePath,
-    agentDir: AbsolutePath,
-    /** The pap data directory ($PAP_HOME): the policy protects it like the Pi agent directory. */
-    papHome: AbsolutePath,
-    /**
-     * The umask the daemon was started with, not the 077 it runs under itself: the worker applies it before it opens
-     * the Pi session, so the files its tools create in a project get the user's usual modes (R114).
-     */
-    umask: z.number().int().min(0).max(0o777),
-    sessionFile: AbsolutePath.optional(),
-    /**
-     * pap's id of the session, the name of its folder under `attachments/` (never Pi's own id, which differs). The
-     * policy lets the agent read that folder unasked and asks for every other. Missing: every attachment asks.
-     */
-    papSessionId: z
-      .string()
-      .regex(/^[A-Za-z0-9_-]{1,128}$/)
-      .optional(),
-    /**
-     * The session's tool preset (M7R76). Missing means `configured`: Pi's own default tools. A value the worker does not
-     * know refuses the init, so an unreadable preset never starts a session with more tools than the daemon meant.
-     */
-    tools: z
-      .object({
-        preset: ToolPreset,
-        /** An unattended run's closed tool list (M10R28): the worker blocks any other tool by name. */
-        allowlist: z.array(ToolName).min(1).max(32).optional(),
-      })
-      .optional(),
-    ...INIT_PLATFORM_FIELDS,
-    /** Gone with the host sandbox: a stale daemon sending it refuses the init (the path is named, never the value). */
-    sandbox: z.undefined({ error: "the host sandbox is gone: a session's shell is its VM's" }).optional(),
-    /** A subagent's child: the profile's prompt, appended to the system prompt once like the agent's (M11R136). */
-    child: InitChild.optional(),
-    /** Missing: pi-mem0 gets no entry and runs its ordinary session (M11R142). */
-    memory: InitMemory.optional(),
-    policy: z.unknown(),
-    /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
-    testProviderScript: AbsolutePath.optional(),
-    /** A worker in an agent's VM (R2, R25, R28): where things are, its relay key and its slot. Never logged. */
-    vm: VmInit.optional(),
-  })
-  .refine((init) => init.vm === undefined || init.memory === undefined, {
-    // ADR 0081: the vault and the one-use values do travel; pi-mem0 stays out of a VM (sub-project 5).
-    message: "a VM session carries no memory (R17)",
-  });
+export const InitRecord = z.object({
+  type: z.literal("init"),
+  cwd: AbsolutePath,
+  agentDir: AbsolutePath,
+  /** The pap data directory ($PAP_HOME): the policy protects it like the Pi agent directory. */
+  papHome: AbsolutePath,
+  /**
+   * The umask the daemon was started with, not the 077 it runs under itself: the worker applies it before it opens
+   * the Pi session, so the files its tools create in a project get the user's usual modes (R114).
+   */
+  umask: z.number().int().min(0).max(0o777),
+  sessionFile: AbsolutePath.optional(),
+  /**
+   * pap's id of the session, the name of its folder under `attachments/` (never Pi's own id, which differs). The
+   * policy lets the agent read that folder unasked and asks for every other. Missing: every attachment asks.
+   */
+  papSessionId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,128}$/)
+    .optional(),
+  /**
+   * The session's tool preset (M7R76). Missing means `configured`: Pi's own default tools. A value the worker does not
+   * know refuses the init, so an unreadable preset never starts a session with more tools than the daemon meant.
+   */
+  tools: z
+    .object({
+      preset: ToolPreset,
+      /** An unattended run's closed tool list (M10R28): the worker blocks any other tool by name. */
+      allowlist: z.array(ToolName).min(1).max(32).optional(),
+    })
+    .optional(),
+  ...INIT_PLATFORM_FIELDS,
+  /** Gone with the host sandbox: a stale daemon sending it refuses the init (the path is named, never the value). */
+  sandbox: z.undefined({ error: "the host sandbox is gone: a session's shell is its VM's" }).optional(),
+  /** A subagent's child: the profile's prompt, appended to the system prompt once like the agent's (M11R136). */
+  child: InitChild.optional(),
+  /** The session's OKF bundle (sub-project 5). Missing: no OKF. */
+  knowledge: InitKnowledge.optional(),
+  policy: z.unknown(),
+  /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
+  testProviderScript: AbsolutePath.optional(),
+  /** A worker in an agent's VM (R2, R25, R28): where things are, its relay key and its slot. Never logged. */
+  vm: VmInit.optional(),
+});
 /** What the daemon builds: `platform` may be left out (parsed, it is `{ ops: [] }`: see `ParsedInitRecord`). */
 export type InitRecord = z.input<typeof InitRecord>;
 export type ParsedInitRecord = z.output<typeof InitRecord>;

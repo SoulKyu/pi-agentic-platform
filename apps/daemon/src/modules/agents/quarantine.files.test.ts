@@ -16,7 +16,6 @@ async function run(files: NonNullable<AgentLinks["files"]>, log: string[] = []) 
       drop: () => undefined,
       list: () => (log.push("vault"), { entries: [], state: "ok" as const }),
     },
-    memory: { moveStaged: () => (log.push("memory"), 0) },
   });
   const quarantine = createQuarantine({
     store: bed.agents.store,
@@ -33,18 +32,18 @@ async function run(files: NonNullable<AgentLinks["files"]>, log: string[] = []) 
 }
 
 describe("quarantine and the agent's files", () => {
-  it("lists their paths after the vault names and before the memory, so the owner can revoke at the source", async () => {
+  it("lists their paths after the vault names, so the owner can revoke at the source", async () => {
     const log: string[] = [];
     const answer = await run(
       { paths: () => (log.push("files"), [".kube/config", "a/token.json"]), dispose: () => undefined },
       log,
     );
     expect(answer.filePaths).toEqual([".kube/config", "a/token.json"]);
-    expect(log).toEqual(["vault", "files", "memory"]);
+    expect(log).toEqual(["vault", "files"]);
     expect(answer.errors).toEqual([]);
   });
 
-  it("reports a failing files step in errors and still runs the memory step", async () => {
+  it("reports a failing files step in errors and still ends cleanly", async () => {
     const log: string[] = [];
     const answer = await run(
       {
@@ -57,7 +56,7 @@ describe("quarantine and the agent's files", () => {
     );
     expect(answer.errors).toEqual([{ step: "files", code: "failed" }]);
     expect(answer.filePaths).toBeUndefined();
-    expect(log.at(-1)).toBe("memory");
+    expect(log.at(-1)).toBe("vault");
   });
 
   it("leaves the answer without file paths when no store is linked", async () => {

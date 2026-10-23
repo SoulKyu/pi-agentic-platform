@@ -70,7 +70,6 @@ describe("SettingsScreen", () => {
       "Skills",
       "Automation",
       "Agents",
-      "Memory",
       "Notifications",
       "Account & devices",
     ]);
@@ -78,7 +77,6 @@ describe("SettingsScreen", () => {
       null,
       null,
       "page",
-      null,
       null,
       null,
       null,

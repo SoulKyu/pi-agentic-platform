@@ -118,7 +118,6 @@ describe("api tokens", () => {
       "secrets:read",
       "secrets:operate",
       "secrets:admin",
-      "memory:admin",
     ]);
     const params = methods["auth.tokens.create"].params;
     for (const permission of forbidden) {
@@ -270,5 +269,17 @@ describe("api tokens", () => {
     await clock.advance(7 * DAY);
     expect(tokens.list(confirmed())).toEqual([]);
     expect(db.all("SELECT id FROM api_tokens")).toEqual([]);
+  });
+
+  it("parses a stored token with a memory permission and keeps the others only", async () => {
+    const { tokens, db, confirmed } = bed();
+    const { token, value } = tokens.create(confirmed(), input);
+    db.run("UPDATE api_tokens SET permissions = $p WHERE id = $id", {
+      p: JSON.stringify(["memory:read", "memory:admin", "sessions:read"]),
+      id: token.id,
+    });
+    expect(tokens.list(confirmed())[0]?.permissions).toEqual(["sessions:read"]);
+    expect(tokens.authenticate(value, { slide: true })?.permissions).toEqual(new Set(["sessions:read"]));
+    expect(ALL_PERMISSIONS.some((p) => p.startsWith("memory:"))).toBe(false);
   });
 });

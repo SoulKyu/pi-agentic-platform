@@ -20,7 +20,6 @@ export const QUARANTINE_STEPS = [
   "triggers",
   "vault",
   "files",
-  "memory",
 ] as const;
 
 /** What `agents.quarantine` answers (M11R115): the new webhook secrets, shown once, and what is left for the owner to rotate. */

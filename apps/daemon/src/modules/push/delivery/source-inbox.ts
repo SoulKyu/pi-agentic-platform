@@ -18,7 +18,6 @@ const CLASS_OF: Readonly<Record<string, PushClass>> = {
   task_limited: "done",
   agent_reply: "reply",
   delegation_done: "reply",
-  memory_review: "review",
 };
 
 /**

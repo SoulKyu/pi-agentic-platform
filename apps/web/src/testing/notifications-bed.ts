@@ -17,7 +17,6 @@ export const DEFAULT_DOC = {
     notify: true,
     done: false,
     reply: false,
-    review: false,
   },
   muteUntil: null,
   titles: "generic",

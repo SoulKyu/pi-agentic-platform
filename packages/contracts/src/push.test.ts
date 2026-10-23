@@ -55,7 +55,6 @@ describe("NotificationsSettings (M12R18, M12-RT-14)", () => {
       notify: true,
       done: false,
       reply: false,
-      review: false,
     },
     muteUntil: null,
     titles: "generic",
@@ -71,6 +70,12 @@ describe("NotificationsSettings (M12R18, M12-RT-14)", () => {
       ...defaults,
       classes: { ...defaults.classes, done: true },
     });
+  });
+
+  it("parses stored prefs with the old review class and drops it", () => {
+    const parsed = NotificationsSettings.parse({ classes: { review: true, done: true } });
+    expect(parsed.classes).not.toHaveProperty("review");
+    expect(parsed.classes.done).toBe(true);
   });
 
   it("refuses an unknown class, a negative mute and an unknown titles mode", () => {

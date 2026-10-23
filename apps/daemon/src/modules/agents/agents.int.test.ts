@@ -80,7 +80,7 @@ describe("the agents registry through the socket", () => {
     const deleted = result<{ trashedAs: string }>(await owner.client.call("agents.delete", { agentId: id }));
     expect(deleted.trashedAs.startsWith(`${id}-`)).toBe(true);
     expect(existsSync(join(t.home, "agents", id))).toBe(false);
-    expect(existsSync(join(t.home, "agents", ".trash", deleted.trashedAs, "MEMORY.md"))).toBe(true);
+    expect(existsSync(join(t.home, "agents", ".trash", deleted.trashedAs, ".gitignore"))).toBe(true);
     expect(result(await owner.client.call("agents.list", {}))).toEqual({ agents: [], truncated: false });
     expect(outcome(await owner.client.call("agents.get", { agentId: id }))).toBe("not_found");
   });

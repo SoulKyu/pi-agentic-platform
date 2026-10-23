@@ -50,7 +50,6 @@ function fakeLinks(log: string[], fail: ReadonlySet<string> = new Set()): AgentL
     },
     onceValues: { drop: () => call("onceDrop", undefined) },
     requests: { cancelAllOf: () => call("requests", 2) },
-    memory: { moveStaged: () => call("memory", 1) },
   };
 }
 
@@ -116,7 +115,6 @@ describe("agents.quarantine (M11R115)", () => {
       "onceDrop",
       "rotate",
       "vaultList",
-      "memory",
     ]);
     expect(answer).toEqual({
       secrets: [{ triggerId: "t1", name: "Hook", secret: SECRET }],
@@ -150,7 +148,7 @@ describe("agents.quarantine (M11R115)", () => {
   it("a failing thread step still runs the requests, the one-use values, the secrets and the names", async () => {
     const { id, log, quarantine } = await setup(new Set(["archive"]));
     const answer = await quarantine.run(bed.owner(), id);
-    expect(log.slice(-5)).toEqual(["requests", "onceDrop", "rotate", "vaultList", "memory"]);
+    expect(log.slice(-4)).toEqual(["requests", "onceDrop", "rotate", "vaultList"]);
     expect(answer.errors).toEqual([{ step: "thread", code: "failed" }]);
     expect([answer.secrets.length, answer.vaultNames]).toEqual([1, ["API_TOKEN"]]);
     // The thread step went on to clear the link the failed archive left, so a reopen cannot find the old thread.
@@ -171,13 +169,12 @@ describe("agents.quarantine (M11R115)", () => {
       ["onceDrop", "once_values"],
       ["rotate", "triggers"],
       ["vaultList", "vault"],
-      ["memory", "memory"],
     ] as const) {
       close();
       const { id, log, quarantine } = await setup(new Set([failing]));
       const answer = await quarantine.run(bed.owner(), id);
       expect(answer.errors.map((each) => each.step)).toEqual([step]);
-      expect(log).toEqual(expect.arrayContaining(["vaultList", "archive", "memory"]));
+      expect(log).toEqual(expect.arrayContaining(["vaultList", "archive"]));
     }
   });
 
@@ -282,7 +279,7 @@ describe("a step that never answers (time is bounded)", () => {
     const answer = await running;
     expect(answer.errors).toEqual([{ step: "thread", code: "timeout" }]);
     expect(log).toContain("archive");
-    expect(log.at(-1)).toBe("memory");
+    expect(log.at(-1)).toBe("vaultList");
     expect(bed.clock.pending()).toBe(0);
   });
 

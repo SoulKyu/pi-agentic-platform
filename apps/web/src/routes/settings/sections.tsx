@@ -6,7 +6,6 @@ import { AccountSection } from "./AccountSection.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ApprovalsSection } from "./ApprovalsSection.tsx";
 import { LanguageSection } from "./LanguageSection.tsx";
-import { MemorySettings } from "./MemorySettings.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { ModelsSettings } from "./ModelsSettings.tsx";
 import { AutomationSettings } from "./AutomationSettings.tsx";
@@ -23,7 +22,6 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   skills: () => <SkillsSettings />,
   automation: () => <AutomationSettings />,
   agents: () => <AgentsSettings />,
-  memory: () => <MemorySettings />,
   notifications: () => <NotificationsSettings />,
   account: () => <AccountSection />,
 };

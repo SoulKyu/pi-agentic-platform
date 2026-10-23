@@ -148,7 +148,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P12-11 | Thread reset | `apps/daemon/src/modules/agents/threads.test.ts`, `packages/contracts/src/agents-thread.test.ts` | green |
 | P12-12 | Quarantine: pause, cancel, archive, rotate secrets | `apps/daemon/src/modules/agents/quarantine.test.ts`, `apps/daemon/src/modules/agents/quarantine.int.test.ts`, `apps/daemon/src/security/agent-quarantine.int.test.ts`, `apps/web/src/features/agents/QuarantineDialog.test.tsx` | green |
 | P12-13 | Prompt chips from the agent's prompts folder | `apps/daemon/src/modules/agents/prompts.test.ts`, `apps/web/src/features/agents/PromptChips.test.tsx` | green |
-| P12-14 | MEMORY.md in an agent home that is a git repository, recent memory in the status panel | `apps/daemon/src/modules/agents/homes.test.ts`, `apps/daemon/src/modules/agents/agents.int.test.ts`, `apps/web/src/features/agents/RecentMemory.test.tsx` | green |
+| P12-14 | MEMORY.md in an agent home that is a git repository | `apps/daemon/src/modules/agents/homes.test.ts`, `apps/daemon/src/modules/agents/agents.int.test.ts` | green |
 | P12-15 | Permissions sheet and lethal-trifecta check | `apps/daemon/src/modules/agents/permissions.test.ts`, `apps/web/src/features/agents/PermissionsSheet.test.tsx`, `packages/contracts/src/agents.safety.test.ts` | green |
 | P12-16 | Usage per agent | `apps/daemon/src/modules/runs/agent-spend.test.ts`, `apps/web/src/features/agents/StatusPanel.test.tsx`, `apps/web/src/features/agents/status.vm.test.ts` | green |
 | P12-17 | Pending requests strip | `apps/web/src/features/agents/PendingStrip.test.tsx`, `apps/daemon/src/modules/agents/requests.test.ts` | green |
@@ -183,9 +183,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 
 | Row | pi-web behaviour | Proof | Verdict |
 | --- | --- | --- | --- |
-| P14-1 | pi-mem0 scopes: user, project, agent snapshot | `apps/daemon/src/modules/memory/snapshots.test.ts`, `apps/daemon/src/modules/memory/service.test.ts`, `apps/daemon/src/modules/memory/mem0-files.test.ts` | green |
-| P14-2 | Staged-memory approval queue | `apps/daemon/src/modules/memory/review.test.ts`, `apps/web/src/features/memory/ReviewList.test.tsx`, `apps/daemon/src/security/memory-trust.int.test.ts`, `scripts/e2e/j09-memory.e2e.ts` | green |
-| P14-3 | Forget, promote and correct through save and forget requests | `apps/daemon/src/modules/memory/mem0-files.test.ts`, `apps/daemon/src/modules/memory/service.partial.test.ts`, `apps/web/src/features/memory/MemorySettings.test.tsx` | green |
+| P14-1 | pi-mem0 scopes, staged-memory approval queue, forget, promote and correct | `docs/agents/knowledge.md` | dropped (owner 2026-10-23, decision 123) |
 
 ### D15 Security
 

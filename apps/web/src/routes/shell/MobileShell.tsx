@@ -161,7 +161,6 @@ export function MobileShell() {
             load={loadInbox}
             open={section === "inbox"}
             props={{
-              onOpenMemory: () => showInWork({ kind: "settings", section: "memory" }),
               onOpenSession: (id: string) => showInWork({ kind: "session", id }),
             }}
             onFailed={() => setSection("work")}

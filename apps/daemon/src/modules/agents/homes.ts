@@ -342,21 +342,10 @@ export function trashedEntryOf(papHome: string, agentId: string): string {
   return stamps[0]?.name ?? "";
 }
 
-/** The first lines of `MEMORY.md`: six lines naming the agent, and the rule of the isolated tasks (M11R46). */
-export const memoryHeader = (name: string): string =>
-  [
-    `# Memory of ${name}`,
-    "",
-    `Notes ${name} keeps for itself, read at the start of each conversation.`,
-    "Isolated tasks cannot write this file: they report through their summary card.",
-    `${name} decides here what to keep.`,
-    "",
-  ].join("\n") + "\n";
-
-const SEEDED = ["MEMORY.md", ".gitignore"] as const;
+const SEEDED = [".gitignore"] as const;
 
 /**
- * Fills a home made by `makeHome` (M11R46): `MEMORY.md` (0600), `prompts/` (0700), `.gitignore`, then `git init -b main`
+ * Fills a home made by `makeHome` (M11R46): `prompts/` (0700), `.gitignore`, then `git init -b main`
  * and one commit through the kernel runner, which switches hooks and the owner's templates off; the identity is the
  * agent's own, in the new repository's config. pap runs git in a home only here (ADR 0050).
  */
@@ -368,7 +357,6 @@ export async function initHome(
   const id = AgentId.parse(agent.id);
   const name = AgentName.parse(agent.name);
   mkdirSync(join(home, "prompts"), { mode: 0o700 });
-  writeFileSync(join(home, "MEMORY.md"), memoryHeader(name), { flag: "wx", mode: 0o600 });
   writeFileSync(join(home, ".gitignore"), ".pi/\n.claude/\n", { flag: "wx", mode: 0o600 });
   await git.run(home, ["init", "--initial-branch=main", "--template="]);
   const gitDir = join(home, ".git");

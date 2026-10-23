@@ -3,8 +3,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { registerCommand, startKeybindings } from "../../features/commands/index.ts";
-import { itemOf } from "../../features/inbox/inbox-bed.tsx";
-import { activeTab, EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
+import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { click, press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
@@ -329,40 +328,5 @@ describe("inbox drawer", () => {
     expect(useFocusEntry.getState().target).toEqual({ sessionId: "s1", entryId: "e7" });
     await vi.waitFor(() => expect(dialog()).toBeNull());
     await page.unmount();
-  });
-  it("a memory review row ends on Settings › Memory, also when the page reloads right after (J09 flake)", async () => {
-    const page = await withMenu("/");
-    await settle();
-    await act(async () =>
-      bed.emitTo("subscribe.inbox", {
-        kind: "snapshot",
-        items: [
-          itemOf({
-            id: "m1",
-            kind: "memory_review",
-            agentId: "atlas-1a2b",
-            refId: "f1",
-            taskId: null,
-            sessionId: null,
-          }),
-        ],
-        unread: 1,
-        toHandle: 1,
-        truncated: false,
-      }),
-    );
-    await click(page.container.querySelector('[aria-label^="Inbox"]') as HTMLElement);
-    await opened("Inbox");
-    await vi.waitFor(() => expect(dialog()?.querySelector('[data-slot="inbox-row"]')).not.toBeNull());
-    await click(dialog()?.querySelector('[data-slot="inbox-row"]') as HTMLElement);
-    await vi.waitFor(() => expect(dialog()).toBeNull());
-    // The URL names the active item: a reload (the stale-chunk guard) mounts the shell again on this path.
-    await vi.waitFor(() => expect(page.router.state.location.pathname).toBe("/settings/memory"));
-    const landed = page.router.state.location.pathname;
-    await page.unmount();
-    const reloaded = await withMenu(landed);
-    await settle();
-    expect(activeTab(useWorkspaceStore.getState().ws)?.item).toEqual({ kind: "settings", section: "memory" });
-    await reloaded.unmount();
   });
 });

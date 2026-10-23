@@ -20,11 +20,13 @@ import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { Composer } from "./Composer.tsx";
 import { ChildApprovals } from "./ChildApprovals.tsx";
 import { CrashBanner } from "./CrashBanner.tsx";
+import { KnowledgeChip } from "../knowledge/KnowledgeChip.tsx";
 import { LimitChip } from "./LimitChip.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
@@ -64,6 +66,7 @@ export function SessionScreen({
   const locale = useLocale();
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
+  const projectId = useShellStore((state) => state.view.sessions.get(sessionId)?.projectId ?? null);
   const dismissedNotices = useDismissedNotices((state) => state.keys);
   const dismissNotice = useDismissedNotices((state) => state.dismiss);
   const [error, setError] = useState<string | null>(null);
@@ -150,6 +153,9 @@ export function SessionScreen({
           />
         ) : null}
         <LimitChip sessionId={sessionId} />
+        {projectId === null ? null : (
+          <KnowledgeChip projectId={projectId} sessionId={sessionId} status={view.status} cwd={view.cwd} />
+        )}
         <SessionPolicy
           key={`policy:${sessionId}`}
           sessionId={sessionId}

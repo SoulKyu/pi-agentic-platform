@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dropKey } from "./drop-key.ts";
 import { LINE_HIDDEN } from "./text-rules.ts";
 import { AgentResources, DEFAULT_AGENT_RESOURCES, PluginPicks, SystemPackages } from "./agents-resources.ts";
 import { AgentHostEntry } from "./host-entry.ts";
@@ -13,7 +14,6 @@ export const AGENT_LIMITS = {
   roleChars: 20_000,
   hosts: MAX_ALLOW_HOSTS,
   denyPatterns: 50,
-  memoryHintChars: 500,
   trustedSources: MAX_TRUSTED_SOURCES,
 } as const;
 
@@ -26,21 +26,6 @@ export const AgentRole = z
   .string()
   .max(AGENT_LIMITS.roleChars)
   .refine((text) => !TEXT_HIDDEN.test(text), "visible text, tabs and new lines only");
-
-/** pi-mem0's memory policy (its README), written into the session's profile entry; trust always wins over it. */
-export const AgentMemoryPolicy = z
-  .object({
-    capture: z.enum(["auto", "off"]).default("auto"),
-    save: z.enum(["direct", "staged"]).default("direct"),
-    hint: z
-      .string()
-      .max(AGENT_LIMITS.memoryHintChars)
-      .refine((text) => !TEXT_HIDDEN.test(text))
-      .optional(),
-    recallLimit: z.number().int().min(0).max(20).optional(),
-    recallThreshold: z.number().min(0).max(1).optional(),
-  })
-  .strict();
 
 /**
  * The agent's sandbox (ADR 0048). Owner m7: no folder of the owner's home is ever bound into it in M11; a thread's
@@ -67,7 +52,7 @@ export const AgentBudget = z
   })
   .strict();
 
-export const AgentInput = z
+const AgentInputFields = z
   .object({
     name: AgentName,
     /** Two letters or digits on the avatar; derived from the name when absent. */
@@ -95,7 +80,6 @@ export const AgentInput = z
     budget: AgentBudget.default({ usdPerDay: null, tokensPerDay: null }),
     /** Other agents may hand it work with `agent_delegate` (opt-in, C §5.4). */
     acceptsDelegation: z.boolean().default(false),
-    memory: AgentMemoryPolicy.nullable().default(null),
     /** Owner a6: after external content, its networked shell (behind the egress proxy) and agent_remind / agent_delegate are judged as if untainted (W5-R34). */
     trustedAutonomy: z.boolean().default(false),
     /** Owner a1: hosts the owner controls; reached only over https, they do not taint. Empty by default. */
@@ -109,7 +93,14 @@ export const AgentInput = z
     packages: PluginPicks.default(null),
   })
   .strict();
-export type AgentInput = z.output<typeof AgentInput>;
+export type AgentInput = z.output<typeof AgentInputFields>;
+export const AGENT_INPUT_KEYS = Object.keys(AgentInputFields.shape) as Array<keyof AgentInput>;
+
+/** A profile stored before decision 123 may still hold pi-mem0's `memory` policy: accepted, dropped, never written back. */
+export const AgentInput = z.preprocess(dropKey("memory"), AgentInputFields) as unknown as z.ZodType<
+  AgentInput,
+  z.input<typeof AgentInputFields>
+>;
 
 /** How far a mode lets the agent act unasked (M11R44): a higher rank is a widening. */
 const MODE_RANK: Readonly<Record<ApprovalMode, number>> = {

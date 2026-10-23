@@ -8,7 +8,7 @@ describe("the e2e English catalog (M13R37)", () => {
   });
 
   it("resolves a key that lives only in a lazy catalog", () => {
-    expect(t("memory.item.source", { source: "staged" })).toBe("Written by staged");
+    expect(t("inbox.agent.line.approve", { name: "Atlas" })).toBe("Atlas asks for your approval");
   });
 
   it("interpolates {name} and leaves an unknown placeholder untouched", () => {
@@ -40,6 +40,6 @@ describe("the e2e English catalog (M13R37)", () => {
 
   it("carries the French catalog too, merged the same way", () => {
     expect(catalogs().fr["setup.title"]).toBe("Créer le compte propriétaire");
-    expect(catalogs().fr["memory.item.source"]).toBe("Écrit par {source}");
+    expect(catalogs().fr["inbox.agent.line.approve"]).toBe("{name} demande votre accord");
   });
 });

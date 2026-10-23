@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { dropKey } from "./drop-key.ts";
 
 /** The classes of push the owner can switch on or off (M12R2); `digest` and `test` are wire-only. */
-export const PUSH_CLASSES = ["approval", "failed", "budget", "notify", "done", "reply", "review"] as const;
+export const PUSH_CLASSES = ["approval", "failed", "budget", "notify", "done", "reply"] as const;
 export type PushClass = (typeof PUSH_CLASSES)[number];
 export const WIRE_CLASSES = [...PUSH_CLASSES, "digest", "test"] as const;
 export type WireClass = (typeof WIRE_CLASSES)[number];
@@ -22,7 +23,7 @@ export const PushWire = z
   .strict();
 export type PushWire = z.infer<typeof PushWire>;
 
-const Classes = z
+const ClassesFields = z
   .object({
     approval: z.boolean().default(true),
     failed: z.boolean().default(true),
@@ -30,9 +31,13 @@ const Classes = z
     notify: z.boolean().default(true),
     done: z.boolean().default(false),
     reply: z.boolean().default(false),
-    review: z.boolean().default(false),
   })
   .strict();
+/** Stored preferences may still hold the `review` class pi-mem0 had: accepted, dropped (decision 123). */
+const Classes = z.preprocess(dropKey("review"), ClassesFields) as unknown as z.ZodType<
+  z.output<typeof ClassesFields>,
+  z.input<typeof ClassesFields>
+>;
 
 /**
  * The owner's `notifications` document (M12R18). `.prefault({})` feeds `{}` through the inner defaults: zod 4's

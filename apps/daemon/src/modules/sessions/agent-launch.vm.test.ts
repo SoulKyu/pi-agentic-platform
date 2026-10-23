@@ -8,7 +8,7 @@ import { layoutOf, type VmSpec } from "../agent-vm/index.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
-import { fakePolicyPort, initRecordOf } from "./testing/fake-policy.ts";
+import { initRecordOf } from "./testing/fake-policy.ts";
 import { codeOf } from "./testing/helpers.ts";
 import { type BedOptions, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -128,7 +128,7 @@ describe("agent sessions in vm mode (T8a)", () => {
     const layout = layoutOf("process", papHome, { agentId: ID, taskKey: null });
     expect(init).toMatchObject({ cwd: layout.home, agentDir: layout.piAgentDir, papSessionId: sessionId });
     expect(vmOf(0)).toMatchObject({ layout, bwrap: "/usr/bin/bwrap", rootView: "read-only" });
-    for (const key of ["sandbox", "memory", "testProviderScript"]) expect(init).not.toHaveProperty(key);
+    for (const key of ["sandbox", "testProviderScript"]) expect(init).not.toHaveProperty(key);
     // ADR 0081: the vault travels in the VM's init.
     expect(init).toMatchObject({ vault: { TOKEN: "s3cret" } });
     expect(JSON.stringify(init)).not.toContain(papHome + "/agents");
@@ -171,16 +171,6 @@ describe("agent sessions in vm mode (T8a)", () => {
     expect(world.specs).toEqual([]);
     expect(bed.spawned).toHaveLength(1);
     expect(initRecordOf(bed.spawned[0])).not.toHaveProperty("vm");
-  });
-  it("memory trust is not recorded for a VM thread: a taint does not release its worker", async () => {
-    const policy = fakePolicyPort();
-    setup({ policy });
-    const { sessionId } = await thread();
-    policy.markTainted("u1", sessionId);
-    let ended = false;
-    void bed.spawned[0]?.exited.then(() => (ended = true));
-    for (let turn = 0; turn < 5; turn++) await Promise.resolve();
-    expect(ended).toBe(false);
   });
 });
 

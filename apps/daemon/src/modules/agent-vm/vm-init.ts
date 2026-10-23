@@ -28,7 +28,7 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
 
 /**
  * What a worker in a VM is told at `init` (RT-06, R17): the host record translated to the VM's paths. Nothing of the
- * host stays (no `testProviderScript`, no `memory`); the vault and the one-use values do travel (ADR 0081).
+ * host stays (no `testProviderScript`; `knowledge` is the VM's own, for a thread only); the vault and the one-use values do travel (ADR 0081).
  * `papHome` is a folder no VM has, so every host rule keyed on pap's home matches nothing (T11b replaces the ones a VM needs).
  * The record carries the relay key: it is never logged.
  */
@@ -36,15 +36,19 @@ export function vmInitOf(init: InitRecord, vm: VmInit, mirrorFile: string | null
   const { layout } = vm;
   if (mirrorFile !== null && !SessionFileName.safeParse(mirrorFile).success)
     throw new PapError("bad_request");
+  const rules = vmRulesOf(init.policy, layout.root);
   const kept: InitRecord = {
     ...init,
     cwd: layout.home,
     agentDir: layout.piAgentDir,
     papHome: `${layout.pi}/pap`,
-    policy: vmRulesOf(init.policy, layout.root),
+    policy: rules,
     vm,
   };
-  delete kept.memory;
+  delete kept.knowledge;
+  // A thread's bundle is the VM's own folder; a task (isolated, scratch set) has none, whatever the host composed.
+  if (rules.profile !== "isolated-task" && rules.agentScratch === null)
+    kept.knowledge = { path: layout.knowledge };
   delete kept.testProviderScript;
   delete kept.sessionFile;
   if (mirrorFile !== null) kept.sessionFile = `${layout.sessions}/${mirrorFile}`;

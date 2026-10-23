@@ -12,7 +12,6 @@ import { inboxAgentsFr } from "./inbox-agents.ts";
 import { inboxFr } from "./inbox.ts";
 import { settingsAgentsFr } from "./settings-agents.ts";
 import { shellFr } from "./shell.ts";
-import { memoryFr } from "./memory.ts";
 import { landingFr } from "./landing.ts";
 import { notificationsFr } from "./notifications.ts";
 import { pushFr } from "./push.ts";
@@ -43,7 +42,6 @@ const m11Catalogs = {
   inboxAgentsFr,
   inboxFr,
   settingsAgentsFr,
-  memoryFr,
   subagentsFr,
   pwaFr,
   pushFr,

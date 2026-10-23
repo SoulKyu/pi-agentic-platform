@@ -22,7 +22,6 @@ import {
   HomeMovedRunsLeft,
   initHome,
   makeHome,
-  memoryHeader,
   trashedEntryOf,
   trashHome,
   trashHomeOrFind,
@@ -197,19 +196,18 @@ describe("initHome (M11R46)", () => {
       },
     }).trim();
 
-  it("seeds MEMORY.md (0600), prompts/ (0700), .gitignore and one commit by the agent", async () => {
+  it("seeds prompts/ (0700), .gitignore and one commit by the agent, and no MEMORY.md", async () => {
     const home = makeHome(papHome, "atlas-1a2b");
     await initHome(git, home, { id: "atlas-1a2b", name: "Atlas" });
-    expect(modeOf(join(home, "MEMORY.md"))).toBe(0o600);
+    expect(existsSync(join(home, "MEMORY.md"))).toBe(false);
     expect(modeOf(join(home, "prompts"))).toBe(0o700);
-    expect(readFileSync(join(home, "MEMORY.md"), "utf8")).toBe(memoryHeader("Atlas"));
     expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n.claude/\n");
     expect(run(home, "log", "--format=%an <%ae>|%cn <%ce>|%s")).toBe(
       "Atlas <atlas-1a2b@pap.local>|Atlas <atlas-1a2b@pap.local>|chore: init Atlas home",
     );
     expect(run(home, "rev-list", "--count", "HEAD")).toBe("1");
     expect(run(home, "branch", "--show-current")).toBe("main");
-    expect(run(home, "ls-files").split("\n").sort()).toEqual([".gitignore", "MEMORY.md"]);
+    expect(run(home, "ls-files").split("\n").sort()).toEqual([".gitignore"]);
     expect(run(home, "config", "--local", "user.email")).toBe("atlas-1a2b@pap.local");
   });
 
@@ -239,14 +237,5 @@ describe("initHome (M11R46)", () => {
     await initHome(withTemplate, home, { id: "atlas-1a2b", name: "Atlas" });
     expect(existsSync(join(home, ".git", "hooks", "post-commit"))).toBe(false);
     expect(existsSync(join(dir, "hook-ran"))).toBe(false);
-  });
-
-  it("starts with a six-line header that names the agent and says isolated tasks cannot write the file", () => {
-    const header = memoryHeader("Atlas");
-    expect(header.endsWith("\n")).toBe(true);
-    expect(header.slice(0, -1).split("\n")).toHaveLength(6);
-    expect(header).toContain("Atlas");
-    expect(header).toMatch(/isolated tasks cannot write this file/i);
-    expect(header).toMatch(/summary card/i);
   });
 });

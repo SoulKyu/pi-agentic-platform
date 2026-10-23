@@ -13,10 +13,10 @@ const REF_ID_MAX = 128;
 const ENTRY_ID_MAX = 128;
 const AGENT_ID_MIN = 6;
 const AGENT_ID_MAX = 48;
-/** The most refs `openRefs` returns: far past any queue a module keeps (the memory review's is 200). */
+/** The most refs `openRefs` returns: far past any queue a module keeps. */
 const OPEN_REFS_MAX = 1000;
 
-/** What an agent or a memory fact wrote, as kept: one line, hidden characters gone (the emoji joiner stays), clipped on a code point; null when nothing is left. */
+/** What an agent wrote, as kept: one line, hidden characters gone (the emoji joiner stays), clipped on a code point; null when nothing is left. */
 export const cleanDetail = (raw: string | null | undefined): string | null => {
   const line = cleanLabel(raw, DETAIL_UNITS);
   if (line === null) return null;

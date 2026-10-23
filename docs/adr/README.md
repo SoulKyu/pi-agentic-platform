@@ -2,7 +2,7 @@
 
 One file per decision, numbered. A decision that deviates from a spec or changes a rule gets an ADR; the first line after the title is `Status:` and starts with `accepted` or `superseded by NNNN`.
 
-Next free number: 0082
+Next free number: 0083
 
 Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
 
@@ -61,7 +61,7 @@ Numbers marked "not used" were skipped and stay empty.
 | 0049 | [the vault and secret requests](0049-the-vault-and-secret-requests.md) | accepted | 2026-10-16 |
 | 0050 | [agents](0050-agents.md) | accepted | 2026-10-16 |
 | 0051 | [agents in the Inbox](0051-agents-in-the-inbox.md) | accepted | 2026-10-16 |
-| 0052 | [memory through pi-mem0's file contract](0052-memory-through-pi-mem0-file-contract.md) | accepted | 2026-10-17 |
+| 0052 | [memory through pi-mem0's file contract](0052-memory-through-pi-mem0-file-contract.md) | superseded by 0082 | 2026-10-17 |
 | 0053 | [subagents as durable child sessions](0053-subagents-as-durable-child-sessions.md) | accepted | 2026-10-17 |
 | 0054 | not used | n/a | n/a |
 | 0055 | [two install methods, a git checkout and an offline archive](0055-two-install-methods.md) | accepted | 2026-10-15 |
@@ -91,3 +91,4 @@ Numbers marked "not used" were skipped and stay empty.
 | 0079 | [agents in microVMs: a simple egress proxy and the agent's own credentials](0079-agents-vm-egress-and-files.md) | accepted, sub-project 2 | 2026-10-21 |
 | 0080 | [pap sets IS_SANDBOX=1 and CLAUDE_CONFIG_DIR for claude-bridge agents](0080-claude-code-env-for-claude-bridge-agents.md) | accepted | 2026-10-21 |
 | 0081 | [agents run only in microVMs](0081-agents-run-only-in-microvms.md) | accepted, sub-project 3 | 2026-10-22 |
+| 0082 | [OKF knowledge replaces pi-mem0](0082-okf-knowledge-replaces-pi-mem0.md) | accepted, sub-project 5 | 2026-10-23 |

@@ -13,6 +13,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { isPiMem0 } from "@pap/contracts";
 import { z } from "zod";
 import { readJsonBounded } from "../../kernel/json-bounded.ts";
 import { within } from "../../kernel/fs/boundary.ts";
@@ -35,7 +36,6 @@ const JSON_MAX_BYTES = 1024 * 1024;
 const MAX_PACKAGES = 64;
 const MAX_NPM_PACKAGES = 2000;
 const BASE_TAG = /^pap-agent-base-[0-9a-f]{64}$/;
-const MEM0 = /pi-mem0/i;
 const MEM0_NOTE = "pi-mem0: R17, memory stays out of VM images";
 /** The bridge registers its own provider; it must keep its own route (`claude.internal`), not `llm.internal`. */
 const OWN_ROUTE_PROVIDERS: ReadonlySet<string> = new Set(["claude-bridge"]);
@@ -161,7 +161,7 @@ class Build {
       ];
       for (const [kind, group] of groups)
         for (const dependency of Object.keys(group ?? {})) {
-          if (MEM0.test(dependency)) this.note(MEM0_NOTE);
+          if (isPiMem0(dependency)) this.note(MEM0_NOTE);
           else if (!NPM_NAME.test(dependency)) continue;
           else if (kind === "dependency" || existsSync(join(this.agentDir, "npm/node_modules", dependency)))
             queue.push(dependency);
@@ -178,19 +178,19 @@ class Build {
     let name = "";
     if (ref.kind === "npm") {
       name = ref.name;
-      written = MEM0.test(name) ? null : this.npmEntry(ref.name, ref.version);
+      written = isPiMem0(name) ? null : this.npmEntry(ref.name, ref.version);
     } else if (ref.kind === "git") {
       name = ref.path.split("/").at(-1) ?? ref.path;
       const dst = `git/${ref.host}/${ref.path}`;
-      if (MEM0.test(name)) written = null;
+      if (isPiMem0(name)) written = null;
       else if (this.copy(join(this.agentDir, dst), dst, dst))
         written = `git:${ref.host}/${ref.path}${ref.ref === null ? "" : `@${ref.ref}`}`;
       else this.note(`git:${ref.host}/${ref.path}: not installed`);
     } else if (ref.kind === "local") {
       name = localName(this.agentDir, ref.path);
-      written = MEM0.test(name) ? null : this.localEntry(ref.path, name);
+      written = isPiMem0(name) ? null : this.localEntry(ref.path, name);
     } else this.note("settings.json: a package source was not understood");
-    if (MEM0.test(name) || MEM0.test(source)) {
+    if (isPiMem0(name) || isPiMem0(source)) {
       this.note(MEM0_NOTE);
       return null;
     }

@@ -211,17 +211,6 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
   },
   {
     title:
-      "keeps Settings › Memory, the review rows, the status panel's memory and their strings out of the initial assets (M11R150 to M11R152)",
-    markers: [
-      /data-memory-settings/,
-      /data-slot":\W*agent-memory-recent/,
-      /Earlier sessions keep what they already recalled/,
-      /Les sessions précédentes gardent ce qu'elles ont déjà rappelé/,
-      /UNTRUSTED · staged memory/,
-    ],
-  },
-  {
-    title:
       "keeps the model picker's extension models (the button, the store, their strings) out of the initial assets (ADR 0070 as amended)",
     markers: [
       /data-extension-controls/,
@@ -248,6 +237,4 @@ export const EAGER_FORBIDDEN: ReadonlyArray<{ readonly component: string; readon
   { component: "PermissionsSheet", marker: /data-agent-permissions/ },
   { component: "SecretsList", marker: /data-agent-secrets/ },
   { component: "QuarantineDialog", marker: /This is the incident button/ },
-  { component: "MemorySettings", marker: /data-memory-settings/ },
-  { component: "RecentMemory", marker: /data-slot":\W*agent-memory-recent/ },
 ];

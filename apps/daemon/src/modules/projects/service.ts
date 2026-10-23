@@ -4,6 +4,7 @@ import { type Caller, PapError, type ProjectChange, SHELL_LIMITS } from "@pap/co
 import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { within } from "../../kernel/fs/boundary.ts";
+import { enableKnowledge, knowledgeOf } from "../../kernel/fs/knowledge.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { cleanLabel } from "../../kernel/text.ts";
@@ -33,6 +34,16 @@ export interface ProjectFolders {
   scopeOf(real: string): string;
   /** pap's home (lane worktrees, secrets, the database) and Pi's agent folder: no project lives inside them. */
   readonly stateDirs: readonly string[];
+}
+
+/** Where a project's OKF bundle lives for a session (a lane's worktree, else the project's folder), given by the composition. */
+export interface ProjectKnowledge {
+  /** The root a session sees, given the project folder its folder files under (`scope`): its lane's worktree, else `scope`; null outside every project. */
+  rootOfRow(row: { ownerId: string; cwd: string }, scope: string): string | null;
+  /** The root of the owner's project as `sessionId` sees it (a lane session: its worktree); null for an unknown project. */
+  rootFor(ownerId: string, projectId: string, sessionId?: string): string | null;
+  /** The audit row of an enable. */
+  enabled(caller: Caller, projectId: string): void;
 }
 
 const viewOf = (row: ProjectRow): ProjectView => ({
@@ -69,6 +80,7 @@ export function createProjectsService(deps: {
   readonly logger: Logger;
   /** Absent: `add` refuses with `internal` (fail closed). The daemon always gives it. */
   readonly folders?: ProjectFolders;
+  readonly knowledge?: ProjectKnowledge;
   newId(): string;
 }) {
   const listeners = new Set<(ownerId: string, project: ProjectView) => void>();
@@ -174,9 +186,25 @@ export function createProjectsService(deps: {
     }
   }
 
+  function knowledgeRoot(caller: Caller, projectId: string, sessionId: string | undefined): string {
+    owned(caller.userId, projectId);
+    if (deps.knowledge === undefined) throw new PapError("internal");
+    const root = deps.knowledge.rootFor(caller.userId, projectId, sessionId);
+    if (root === null) throw new PapError("not_found");
+    return root;
+  }
+
   return {
     ensure,
     add,
+    knowledge: (caller: Caller, projectId: string, sessionId?: string) =>
+      knowledgeOf(knowledgeRoot(caller, projectId, sessionId)),
+    /** Makes the bundle (`conflict` when `knowledge` is a link or a file: nothing written) and audits it. */
+    enableKnowledge(caller: Caller, projectId: string, sessionId?: string): { enabled: true } {
+      enableKnowledge(knowledgeRoot(caller, projectId, sessionId), new Date(deps.clock.now()));
+      deps.knowledge?.enabled(caller, projectId);
+      return { enabled: true };
+    },
     /** True when `path` is one of the owner's project roots or lies inside one (what a session's folder is filed under). */
     covers(ownerId: string, path: string): boolean {
       if (!isCleanPath(path)) return false;

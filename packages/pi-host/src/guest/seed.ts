@@ -14,7 +14,7 @@ import {
   writeSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import type { VmLayout } from "@pap/contracts";
+import { OKF_INDEX_TEXT, okfLogText, type VmLayout } from "@pap/contracts";
 import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 
 const PUBLIC_FOLDER = 0o755;
@@ -107,17 +107,47 @@ function copyTree(source: string, destination: number, imageRoot: string, agentR
 }
 
 /**
+ * SP5. The agent's OKF bundle: `index.md` and `log.md` in `knowledge/`, each made only when absent (O_EXCL, no-follow),
+ * so a file the agent edited or deleted-and-kept, or a link planted there, is never touched or written through.
+ */
+function seedKnowledge(rootFd: number, layout: VmLayout, now: Date, skipped: (line: string) => void): void {
+  let folderFd = -1;
+  try {
+    folderFd = openChain(rootFd, layout.root, layout.knowledge, PUBLIC_FOLDER);
+    for (const [name, text] of [
+      ["index.md", OKF_INDEX_TEXT],
+      ["log.md", okfLogText(now)],
+    ] as const) {
+      try {
+        writeFileAt(folderFd, name, Buffer.from(text), 0o644, WRITE_NEW | constants.O_NOFOLLOW);
+      } catch (error) {
+        // EEXIST: ours to leave. ELOOP: a link sits there; the exclusive create refuses it before following.
+        if (!["EEXIST", "ELOOP"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      }
+    }
+  } catch (error) {
+    // The bundle is a convenience: no failure here (ENOSPC, EACCES, EIO) may stop a VM start. Code only, once.
+    skipped(
+      `the knowledge bundle could not be seeded (${(error as NodeJS.ErrnoException).code ?? "unknown"})`,
+    );
+  } finally {
+    if (folderFd >= 0) closeSync(folderFd);
+  }
+}
+
+/**
  * R28 (RT-07) and AVM-P5. Makes the layout folders a blank disk lacks (`home`, `knowledge`, `inbox` 0755; Pi's `.pi`,
  * `sessions` and agent folder 0700), then copies every file of the image's agent folder over Pi's: image-owned files are
  * replaced, files only Pi made are kept. Every component is opened from its parent's descriptor with O_NOFOLLOW, so a link
- * or a file where a folder belongs is refused and nothing is written through it. Throws on the first refusal.
+ * or a file where a folder belongs is refused and nothing is written through it. Throws on the first refusal, except for the knowledge bundle's files, whose failure is told to `skipped` and skipped.
  */
-export function seedAgentFolder(layout: VmLayout): void {
+export function seedAgentFolder(layout: VmLayout, skipped: (line: string) => void = () => {}): void {
   const rootFd = openRootDir(layout.root);
   try {
     for (const folder of [layout.home, layout.knowledge, layout.inbox]) {
       closeSync(openChain(rootFd, layout.root, folder, PUBLIC_FOLDER));
     }
+    seedKnowledge(rootFd, layout, new Date(), skipped);
     for (const folder of [layout.pi, layout.sessions]) {
       closeSync(openChain(rootFd, layout.root, folder, PRIVATE_FOLDER));
     }

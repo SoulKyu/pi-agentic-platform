@@ -34,7 +34,7 @@ const sets = () =>
   bed.called("settings.set").map((entry) => entry.params as { value: Record<string, unknown> });
 
 describe("NotificationsPanel: classes, mute, names", () => {
-  it("shows the defaults: approval, failed, budget, notify on; done, reply, review off", async () => {
+  it("shows the defaults: approval, failed, budget, notify on; done, reply off", async () => {
     const { page } = await open();
     const on = (label: string) => toggle(page.container, label).getAttribute("aria-checked");
     expect(on("Approvals and questions")).toBe("true");
@@ -43,7 +43,6 @@ describe("NotificationsPanel: classes, mute, names", () => {
     expect(on("Agent notices")).toBe("true");
     expect(on("Finished tasks")).toBe("false");
     expect(on("Replies")).toBe("false");
-    expect(on("Memory to review")).toBe("false");
     expect(on("Show the trigger or agent name")).toBe("false");
     expect(text(page.container)).toContain("Sent after 60 seconds if you have not answered.");
   });

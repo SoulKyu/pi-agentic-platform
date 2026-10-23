@@ -36,7 +36,6 @@ const KINDS: Readonly<Record<string, KindWords>> = {
   delegation_done: { line: "inbox.agent.line.delegation", chip: "inbox.agent.kind.delegation", tone: "ok" },
   agent_notify: { line: "inbox.agent.line.notify", chip: "inbox.agent.kind.notify", tone: "mut" },
   agent_egress: { line: "inbox.agent.line.egress", chip: "inbox.agent.kind.egress", tone: "att" },
-  memory_review: { line: "inbox.agent.line.memory", chip: "inbox.agent.kind.memory", tone: "att" },
 };
 const OTHER: KindWords = { line: "inbox.agent.line.other", chip: null, tone: "mut" };
 

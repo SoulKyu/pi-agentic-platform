@@ -74,18 +74,6 @@ async function open(agent: AgentView | null = null) {
 const body = () => text(document.body);
 const say = (label: string, value: string) => typeInto(field(document.body, label), value);
 
-describe("agent form: the memory capture", () => {
-  it("labels its off option 'Capture off', so no two buttons share the name 'Off'", async () => {
-    await open();
-    await click(document.querySelector('[data-slot="agent-memory"] [role="switch"]') as Element);
-    expect(hasButton(document.body, "Capture off")).toBe(true);
-  });
-
-  it("has the French label too", () => {
-    expect(agentSettingsFr["agentForm.memory.capture.off"]).toBe("Capture désactivée");
-  });
-});
-
 describe("agent form: the daily budget (owner m14)", () => {
   it("is empty by default, with No budget placeholders and a Clear for each half", async () => {
     await open();
@@ -223,13 +211,12 @@ describe("agent form: a pick the profile no longer holds (AVM-E42 M5)", () => {
 });
 
 describe("agent form: the fields", () => {
-  it("offers the preset through the picker it is given, the folded role help and the memory note", async () => {
+  it("offers the preset through the picker it is given, the folded role help", async () => {
     await open();
     expect(document.querySelector('[data-testid="preset"]')?.textContent).toBe("preset:default");
     expect(hasButton(document.body, "What the role is for")).toBe(true);
     await click(button(document.body, "What the role is for"));
     expect(body()).toContain("What the agent is for; added to its system prompt.");
-    expect(body()).toContain("Memory needs pi-mem0 to be installed.");
   });
 
   it("has no folder field", async () => {

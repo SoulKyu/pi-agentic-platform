@@ -26,7 +26,6 @@ import {
 } from "./modules/agents/index.ts";
 import { composeSubagents } from "./compose-subagents.ts";
 import { requireStepUp } from "./modules/auth/index.ts";
-import { createMemoryModule } from "./modules/memory/index.ts";
 import { createPlatformPort } from "./modules/platform/index.ts";
 import { createAgentSpend } from "./modules/runs/index.ts";
 import {
@@ -245,7 +244,6 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     subagents: { cancelAllOf: subagents.cancelAgent },
     inbox: createInboxLink(items, agentsLogger),
   });
-  const memory = createMemoryModule({ core, audit: modules.audit, inbox: modules.inbox, agents });
   return {
     platform,
     agents: agents.port,
@@ -287,12 +285,10 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       ...secretsRpc(secrets),
       ...secretRequestsRpc(secretRequests),
       ...subagents.rpc,
-      ...memory.rpc,
     },
     stop() {
       platform.stop();
       subagents.stop();
-      memory.stop();
       stopRegistry();
       stream.stop();
       unread.stop();

@@ -9,7 +9,7 @@ afterEach(() => bed.dispose());
 
 const { modeOf, refusalOf, homesOf, rowCount, insertRows } = bedHelpers(() => bed);
 describe("create (M11R46)", () => {
-  it("makes the home, MEMORY.md, prompts/, the git history, then the row", async () => {
+  it("makes the home, prompts/, the git history, then the row", async () => {
     bed = createAgentsBed();
     const view = await bed.agents.create(bed.unconfirmed(), agentInput({ role: "Help." }));
     expect(view).toMatchObject({
@@ -21,7 +21,7 @@ describe("create (M11R46)", () => {
     });
     const home = join(bed.papHome, "agents", "atlas-0000");
     expect(modeOf(home)).toBe(0o700);
-    expect(modeOf(join(home, "MEMORY.md"))).toBe(0o600);
+    expect(existsSync(join(home, "MEMORY.md"))).toBe(false);
     expect(modeOf(join(home, "prompts"))).toBe(0o700);
     expect(readFileSync(join(home, ".gitignore"), "utf8")).toBe(".pi/\n.claude/\n");
     expect(bed.calls.map((call) => call.args[0])).toEqual(["init", "add", "commit"]);

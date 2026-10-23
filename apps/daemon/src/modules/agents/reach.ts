@@ -1,4 +1,4 @@
-import { AgentInput, type Caller, widensReach } from "@pap/contracts";
+import { AGENT_INPUT_KEYS, AgentInput, type Caller, widensReach } from "@pap/contracts";
 
 /** What the step-up on a widening edit reads: the password check, and the owner's host list (W5-R36). */
 export interface ReachDeps {
@@ -19,7 +19,7 @@ export function stepUpIfWider(
   if (widensReach(before, after, deps.ownerHosts?.(caller.userId))) deps.requireStepUp(caller, now);
 }
 
-const FIELDS = Object.keys(AgentInput.shape) as Array<keyof AgentInput>;
+const FIELDS = AGENT_INPUT_KEYS;
 /** The names of the fields that differ from `before` (the defaults for a new agent, whose `name` always counts). */
 export function changedFields(before: AgentInput | null, after: AgentInput): string[] {
   const was = before ?? AgentInput.parse({ name: after.name });

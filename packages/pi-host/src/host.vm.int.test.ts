@@ -349,7 +349,7 @@ describe("a VM session in this process", () => {
 
   it("names the layout's home as the agent's home in the system prompt (RT-06)", async () => {
     await open();
-    expect(session?.systemPrompt).toContain(`Your home folder is ${world.layout.home};`);
+    expect(session?.systemPrompt).toContain(`Your home folder is ${world.layout.home}.`);
     expect(session?.systemPrompt).toContain("the network is off");
     expect(session?.systemPrompt).not.toContain(join(bed.papHome, "agents"));
   });

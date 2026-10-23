@@ -62,7 +62,7 @@ describe("delete (M11R48, M11R183)", () => {
       "atlas-0000-1700000000000",
       "atlas-0000-1700000000000.runs",
     ]);
-    expect(existsSync(join(bed.papHome, "agents", ".trash", "atlas-0000-1700000000000", "MEMORY.md"))).toBe(
+    expect(existsSync(join(bed.papHome, "agents", ".trash", "atlas-0000-1700000000000", ".gitignore"))).toBe(
       true,
     );
   });

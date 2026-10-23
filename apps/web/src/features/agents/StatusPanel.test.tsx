@@ -156,19 +156,6 @@ describe("what the panel shows (M11R125)", () => {
     expect(words).toContain("Nightly tidy");
   });
 
-  it("shows the agent's recent memory under its own heading, read from its scope (M11R152)", async () => {
-    bed.handlers["memory.list"] = () => ({
-      items: [{ id: "m1", text: "Prefers short answers", createdAt: null, source: "agent" }],
-      journal: [],
-    });
-    const page = await panel();
-    await settle();
-    const block = page.container.querySelector('[data-slot="agent-memory-recent"]');
-    expect(block?.textContent).toContain("Prefers short answers");
-    expect(text(page.container)).toContain("Recent memory");
-    expect(bed.called("memory.list")[0]?.params).toEqual({ scope: { kind: "agent", id: ID } });
-  });
-
   it("says there is no budget and links to the agent's settings, with no bars (the default)", async () => {
     const given = handlers();
     const page = await panel(given);

@@ -20,8 +20,7 @@ describe("token contract", () => {
       p === "lanes:admin" ||
       p === "automation:admin" ||
       p === "agents:admin" ||
-      p.startsWith("secrets:") ||
-      p === "memory:admin";
+      p.startsWith("secrets:");
     expect(TOKEN_PERMISSIONS).toEqual(ALL_PERMISSIONS.filter((p) => !neverForTokens(p)));
     for (const p of ["automation:read", "automation:operate", "usage:operate", "inbox:operate"])
       expect(TOKEN_PERMISSIONS).toContain(p);
@@ -34,15 +33,15 @@ describe("token contract", () => {
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("auth:"))).toBe(false);
   });
 
-  it("keeps agents, secrets and memory administration away from tokens, but lets them read and operate agents (M11R4)", () => {
-    expect(DOMAINS.slice(DOMAINS.indexOf("inbox"))).toEqual(["inbox", "agents", "secrets", "memory"]);
+  it("keeps agents and secrets administration away from tokens, but lets them read and operate agents (M11R4)", () => {
+    expect(DOMAINS.slice(DOMAINS.indexOf("inbox"))).toEqual(["inbox", "agents", "secrets"]);
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("secrets:"))).toBe(false);
-    for (const p of ["agents:admin", "memory:admin", "secrets:read", "secrets:operate", "secrets:admin"]) {
+    for (const p of ["agents:admin", "secrets:read", "secrets:operate", "secrets:admin"]) {
       expect(TOKEN_PERMISSIONS, p).not.toContain(p);
       expect(TokenPermission.safeParse(p).success, p).toBe(false);
       expect(ALL_PERMISSIONS, p).toContain(p);
     }
-    for (const p of ["agents:read", "agents:operate", "memory:read", "memory:operate"]) {
+    for (const p of ["agents:read", "agents:operate"]) {
       expect(TOKEN_PERMISSIONS, p).toContain(p);
     }
   });

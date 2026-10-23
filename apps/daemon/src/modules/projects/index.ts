@@ -4,10 +4,15 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { projectsRpc, type ProjectsRpc } from "./rpc.ts";
-import { createProjectsService, type ProjectFolders, type ProjectView } from "./service.ts";
+import {
+  createProjectsService,
+  type ProjectFolders,
+  type ProjectKnowledge,
+  type ProjectView,
+} from "./service.ts";
 import { createProjectsStore } from "./store.ts";
 
-export type { ProjectFolders, ProjectView } from "./service.ts";
+export type { ProjectFolders, ProjectKnowledge, ProjectView } from "./service.ts";
 
 export const PROJECTS_MIGRATIONS: MigrationSource = {
   module: "projects",
@@ -24,6 +29,8 @@ export interface ProjectsPort {
   roots(ownerId: string): readonly string[];
   /** True when `path` is a root of the owner's projects or inside one: the folders a caller may ask about (M7R50). */
   covers(ownerId: string, path: string): boolean;
+  /** The folder whose `knowledge/` a session sees: its lane's worktree, else `scope`, the project folder of its own folder. */
+  knowledgeRootOf?(row: { ownerId: string; cwd: string }, scope: string): string | null;
   onChange(listener: (ownerId: string, project: ProjectView) => void): () => void;
 }
 
@@ -38,6 +45,8 @@ export function createProjectsModule(deps: {
   readonly logger: Logger;
   /** `projects.add`'s folder rules (the daemon passes them; test beds that never add may leave them out). */
   readonly folders?: ProjectFolders;
+  /** Where a project's OKF bundle is and who is told when one is made; absent: the knowledge methods answer `internal`. */
+  readonly knowledge?: ProjectKnowledge;
   newId(): string;
 }): ProjectsModule {
   const service = createProjectsService({
@@ -46,6 +55,7 @@ export function createProjectsModule(deps: {
     logger: deps.logger.child({ module: "projects" }),
     newId: deps.newId,
     ...(deps.folders ? { folders: deps.folders } : {}),
+    ...(deps.knowledge ? { knowledge: deps.knowledge } : {}),
   });
   return {
     rpc: projectsRpc(service),
@@ -55,6 +65,7 @@ export function createProjectsModule(deps: {
       all: service.all,
       roots: service.roots,
       covers: service.covers,
+      ...(deps.knowledge ? { knowledgeRootOf: deps.knowledge.rootOfRow } : {}),
       onChange: service.onChange,
     },
   };

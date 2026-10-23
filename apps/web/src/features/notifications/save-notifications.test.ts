@@ -10,7 +10,6 @@ const DEFAULTS = {
     notify: true,
     done: false,
     reply: false,
-    review: false,
   },
   muteUntil: null,
   titles: "generic",

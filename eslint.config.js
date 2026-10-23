@@ -139,6 +139,21 @@ export default defineConfig(
               from: [["web-feature", { domain: "sessions" }]],
               allow: [["web-feature", { domain: "appearance" }]],
             },
+            // SP5: the session chip and the home body render the OKF chip and row (`features/knowledge`); the chip opens the home tab and the row shares the sessions' action hook.
+            {
+              from: [
+                ["web-feature", { domain: "sessions" }],
+                ["web-feature", { domain: "home" }],
+              ],
+              allow: [["web-feature", { domain: "knowledge" }]],
+            },
+            {
+              from: [["web-feature", { domain: "knowledge" }]],
+              allow: [
+                ["web-feature", { domain: "workspace" }],
+                ["web-feature", { domain: "sessions" }],
+              ],
+            },
             {
               from: "web-routes",
               allow: [

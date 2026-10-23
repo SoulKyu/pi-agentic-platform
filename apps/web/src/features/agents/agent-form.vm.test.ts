@@ -47,7 +47,6 @@ describe("agent form: defaults", () => {
       denylist: ["rm *"],
       budget: { usdPerDay: 2.5, tokensPerDay: 1000 },
       acceptsDelegation: true,
-      memory: { capture: "off", save: "staged", hint: "likes tea", recallLimit: 3, recallThreshold: 0.5 },
     });
     expect(built(draftFromInput(saved))).toEqual(saved);
   });
@@ -138,27 +137,10 @@ describe("agent form: the other fields speak the schema", () => {
     expect(built(fresh({ ownHosts: false, hosts: "" })).allowHosts).toEqual([]);
   });
 
-  it("refuses a name that is not one word, and an out-of-range recall limit", () => {
+  it("refuses a name that is not one word", () => {
     expect(toInput(fresh({ name: "two words" }))).toEqual({
       ok: false,
       errors: { name: "agentForm.error.name" },
-    });
-    expect(toInput(fresh({ memoryOn: true, recallLimit: "21", recallThreshold: "2" }))).toEqual({
-      ok: false,
-      errors: {
-        "memory.recallLimit": "agentForm.error.memory.recallLimit",
-        "memory.recallThreshold": "agentForm.error.memory.recallThreshold",
-      },
-    });
-  });
-
-  it("memory off is null; on keeps pi-mem0's terms and leaves empty numbers unset", () => {
-    expect(built(fresh()).memory).toBeNull();
-    expect(built(fresh({ memoryOn: true })).memory).toEqual({ capture: "auto", save: "direct" });
-    expect(built(fresh({ memoryOn: true, save: "staged", recallLimit: "4" })).memory).toEqual({
-      capture: "auto",
-      save: "staged",
-      recallLimit: 4,
     });
   });
 });

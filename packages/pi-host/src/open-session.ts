@@ -13,11 +13,13 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
+import { withoutPiMem0 } from "./without-mem0.ts";
 import { agentPrompt } from "./agent-prompt.ts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { piBuiltins, signInNotifier } from "./builtins.ts";
 import type { Outbound } from "./ipc.ts";
+import { knowledgePrompt } from "./knowledge-prompt.ts";
 import { createLoadoutWatcher, rememberProjectTrust } from "./loadout.ts";
 import { shellFactsOf } from "./shell-facts.ts";
 import { createPresetKeeper } from "./tool-preset-commands.ts";
@@ -31,7 +33,6 @@ import { createVmFileTools, vmFilesFirst } from "./vm-files/extension.ts";
 import { realVmRoots } from "./policy/vm-paths.ts";
 import type { ShellEnvironment } from "./shell-env.ts";
 import { createVmShellTool, vmShellFirst } from "./vm-shell/tool.ts";
-import { appendMemoryTrust } from "./memory-entry.ts";
 import { applyRelayKey } from "./relay-key.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -130,6 +131,7 @@ function agentFactsOf(init: InitRecord, scratch: string | null, vmNetwork: boole
     role: agent?.role ?? "",
     network: vm ? vmNetwork : null,
     scratch,
+    knowledge: init.knowledge?.path ?? null,
   };
 }
 
@@ -186,6 +188,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     ask: (request, signal) => deps.approvals.ask(request, signal),
   });
   const platformOrder = platformFirst(deps.onExtensionError);
+  const noMem0 = withoutPiMem0(deps.onExtensionError);
   const vmOrder = vm
     ? { files: vmFilesFirst(deps.onExtensionError), shell: vmShellFirst(deps.onExtensionError) }
     : undefined;
@@ -232,7 +235,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...(deps.extraExtensions ?? []),
       ],
       extensionsOverride: (base) => {
-        const ordered = platformOrder(base);
+        const ordered = platformOrder(noMem0(base));
         return movePolicyLast(vmOrder ? vmOrder.files(vmOrder.shell(ordered)) : ordered);
       },
       // Once, at session creation: Pi's session files do not store the system prompt (M5R42).
@@ -243,6 +246,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
           ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null, vmNetwork))]
           : []),
         ...(init.child ? [init.child.prompt] : []),
+        ...(init.knowledge ? [knowledgePrompt(init.knowledge.path)] : []),
       ],
     },
     resourceLoaderReloadOptions: {
@@ -270,8 +274,6 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   pinToolAllowlist(session, init.tools?.allowlist);
   applyPreset(session, preset);
   session.subscribe((event) => deps.onEvent(event));
-  // M11R142: pi-mem0 reads its profile entry at `session_start`, which `bindExtensions` emits.
-  if (init.memory) appendMemoryTrust(sessionManager, init.memory);
   await session.bindExtensions({
     uiContext: deps.ui.context,
     mode: "rpc",

@@ -49,9 +49,9 @@ afterEach(() => {
 });
 
 describe("Notifications section (M12)", () => {
-  it("is a settings section, after Memory and before Account", () => {
+  it("is a settings section, after Agents and before Account", () => {
     const at = SETTINGS_SECTIONS.indexOf("notifications");
-    expect(at).toBe(SETTINGS_SECTIONS.indexOf("memory") + 1);
+    expect(at).toBe(SETTINGS_SECTIONS.indexOf("agents") + 1);
     expect(SETTINGS_SECTIONS[at + 1]).toBe("account");
   });
 

@@ -16,7 +16,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { VmLayout } from "@pap/contracts";
+import { OKF_INDEX_TEXT, type VmLayout } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { pickPackages, seedAgentFolder } from "./seed.ts";
 
@@ -213,6 +213,75 @@ describe("seedAgentFolder", () => {
     symlinkSync("/etc/passwd", join(layout.imageAgentDir, "passwd"));
     expect(() => seedAgentFolder(layout)).toThrow(/leaves the image/);
     expect(existsSync(join(layout.piAgentDir, "passwd"))).toBe(false);
+  });
+});
+
+describe("seedAgentFolder knowledge bundle (SP5)", () => {
+  const index = (): string => join(layout.knowledge, "index.md");
+  const log = (): string => join(layout.knowledge, "log.md");
+
+  it("makes knowledge/index.md and knowledge/log.md on a blank disk", () => {
+    seedAgentFolder(layout);
+    expect(readFileSync(index(), "utf8")).toBe(OKF_INDEX_TEXT);
+    expect(readFileSync(index(), "utf8").split("\n").slice(0, 3)).toEqual([
+      "---",
+      'okf_version: "0.2"',
+      "---",
+    ]);
+    expect(readFileSync(log(), "utf8")).toMatch(/^## \d{4}-\d{2}-\d{2}\n- OKF enabled\n$/);
+  });
+
+  it("never overwrites existing files, at any later start", () => {
+    mkdirSync(layout.knowledge);
+    writeFileSync(index(), "mine");
+    writeFileSync(log(), "my log");
+    seedAgentFolder(layout);
+    seedAgentFolder(layout);
+    expect(readFileSync(index(), "utf8")).toBe("mine");
+    expect(readFileSync(log(), "utf8")).toBe("my log");
+  });
+
+  it("keeps an index.md the agent edited", () => {
+    seedAgentFolder(layout);
+    writeFileSync(index(), "edited");
+    seedAgentFolder(layout);
+    expect(readFileSync(index(), "utf8")).toBe("edited");
+  });
+
+  it("leaves an index.md that is a link alone and follows nothing", () => {
+    const outside = join(dir, "outside.md");
+    writeFileSync(outside, "outside");
+    mkdirSync(layout.knowledge);
+    symlinkSync(outside, index());
+    seedAgentFolder(layout);
+    expect(lstatSync(index()).isSymbolicLink()).toBe(true);
+    expect(readFileSync(outside, "utf8")).toBe("outside");
+  });
+
+  // As root a 0500 folder is still writable, so the failure cannot be injected that way.
+  it.skipIf(process.getuid?.() === 0)(
+    "skips the bundle, tells the code once and completes the seed when the files cannot be made",
+    () => {
+      mkdirSync(layout.knowledge);
+      chmodSync(layout.knowledge, 0o500);
+      const told: string[] = [];
+      try {
+        seedAgentFolder(layout, (line) => told.push(line));
+      } finally {
+        chmodSync(layout.knowledge, 0o700);
+      }
+      expect(told).toEqual(["the knowledge bundle could not be seeded (EACCES)"]);
+      expect(existsSync(layout.piAgentDir)).toBe(true);
+      expect(existsSync(index())).toBe(false);
+    },
+  );
+
+  it("leaves a dangling log.md link alone and writes nothing through it", () => {
+    const target = join(dir, "planted.md");
+    mkdirSync(layout.knowledge);
+    symlinkSync(target, log());
+    seedAgentFolder(layout);
+    expect(existsSync(target)).toBe(false);
   });
 });
 

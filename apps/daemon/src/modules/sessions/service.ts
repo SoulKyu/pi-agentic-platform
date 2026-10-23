@@ -18,7 +18,6 @@ import { createSessionCommands } from "./service-commands.ts";
 import { createSessionModels } from "./service-models.ts";
 import { createLaunch } from "./service-launch.ts";
 import { createSessionMarks } from "./service-marks.ts";
-import { createMemoryRelease } from "./memory-trust.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
@@ -125,14 +124,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     logger: deps.logger,
     waiting: promptWaiting,
   });
-  const memory = createMemoryRelease({
-    policy: deps.policy,
-    release: folderRestart.releaseIdle,
-    logger: deps.logger,
-  });
   const { launch, ensureLive } = createLaunch({
     deps,
-    memory,
     live,
     reopening,
     starting,
@@ -147,11 +140,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     onReopened: (sessionId) => {
       publisher.changed(sessionId);
       folderRestart.reopened(sessionId);
-      memory.reopened(sessionId);
     },
     onPublished: (sessionId, event) => {
       folderRestart.published(sessionId, event);
-      memory.published(sessionId, event);
       deps.laneHooks?.published(sessionId, event);
       child.published(sessionId, event);
       // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
@@ -167,7 +158,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     return row;
   };
 
-  const sendPrompt = createPromptFlow({ deps, memory, ensureLive, organiser, publisher, owned });
+  const sendPrompt = createPromptFlow({ deps, ensureLive, organiser, publisher, owned });
   // A fork would be a second thread, or a plain session in the agent's home (M11R179).
   const notAgent = (row: SessionRow): SessionRow => {
     if (row.agentId !== undefined) throw new PapError("bad_request");
@@ -371,7 +362,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       closing = true;
       organiser.stop();
       policyLink.stop();
-      memory.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
     restartFolder: folderRestart.restart,

@@ -28,8 +28,8 @@ import type { laneReviewEn } from "./catalog/lane-review.ts";
 import type { lanesEn } from "./catalog/lanes.ts";
 import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
+import type { knowledgeEn } from "./catalog/knowledge.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
-import type { memoryEn } from "./catalog/memory.ts";
 import type { modelPickerEn } from "./catalog/model-picker.ts";
 import type { landingEn } from "./catalog/landing.ts";
 import type { notificationsEn } from "./catalog/notifications.ts";
@@ -102,6 +102,7 @@ export type MessageKey =
   | keyof typeof inboxEn
   | keyof typeof inboxAgentsEn
   | keyof typeof homeEn
+  | keyof typeof knowledgeEn
   | keyof typeof usageEn
   | keyof typeof modelsUsageEn
   | keyof typeof agentSettingsEn
@@ -110,7 +111,6 @@ export type MessageKey =
   | keyof typeof agentSafetyEn
   | keyof typeof agentEgressEn
   | keyof typeof agentFilesEn
-  | keyof typeof memoryEn
   | keyof typeof agentStatusEn
   | keyof typeof agentComposeEn
   | keyof typeof agentsPhoneEn

@@ -29,12 +29,6 @@ export interface Draft {
   readonly usd: string;
   readonly tokens: string;
   readonly acceptsDelegation: boolean;
-  readonly memoryOn: boolean;
-  readonly capture: "auto" | "off";
-  readonly save: "direct" | "staged";
-  readonly memoryHint: string;
-  readonly recallLimit: string;
-  readonly recallThreshold: string;
   /** VM resources as typed; whole numbers, judged by `AgentInput` (memory and disk in MiB). */
   readonly memoryMb: string;
   readonly cpus: string;
@@ -69,11 +63,6 @@ const sourceOf = (line: string): string => {
   }
 };
 const numberOrNull = (text: string): number | null => (text.trim() === "" ? null : Number(text.trim()));
-/** A memory number the person left empty is left out, so pi-mem0's own default stays in force. */
-const optional = (key: string, text: string): Record<string, number> => {
-  const value = numberOrNull(text);
-  return value === null ? {} : { [key]: value };
-};
 const text = (value: number | null | undefined): string =>
   value === null || value === undefined ? "" : String(value);
 
@@ -98,12 +87,6 @@ export function draftFromInput(input: AgentInput | null): Draft {
     usd: text(base.budget.usdPerDay),
     tokens: text(base.budget.tokensPerDay),
     acceptsDelegation: base.acceptsDelegation,
-    memoryOn: base.memory !== null,
-    capture: base.memory?.capture ?? "auto",
-    save: base.memory?.save ?? "direct",
-    memoryHint: base.memory?.hint ?? "",
-    recallLimit: text(base.memory?.recallLimit),
-    recallThreshold: text(base.memory?.recallThreshold),
     memoryMb: String(base.resources.memoryMb),
     cpus: String(base.resources.cpus),
     diskMb: String(base.resources.diskMb),
@@ -116,10 +99,10 @@ export function draftFromInput(input: AgentInput | null): Draft {
 /** Clears one half of the budget (owner m14): the field goes back to "No budget". */
 export const clearBudget = (draft: Draft, which: "usd" | "tokens"): Draft => ({ ...draft, [which]: "" });
 
-/** The field a schema issue belongs to: its path, two levels deep inside `budget`, `memory` and `resources`. */
+/** The field a schema issue belongs to: its path, two levels deep inside `budget` and `resources`. */
 const fieldOf = (path: ReadonlyArray<PropertyKey>): string =>
   path
-    .slice(0, path[0] === "budget" || path[0] === "memory" || path[0] === "resources" ? 2 : 1)
+    .slice(0, path[0] === "budget" || path[0] === "resources" ? 2 : 1)
     .map(String)
     .join(".");
 
@@ -132,9 +115,6 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   allowHosts: "agentForm.error.allowHosts",
   trustedSources: "agentForm.error.trustedSources",
   denylist: "agentForm.error.denylist",
-  "memory.hint": "agentForm.error.memory.hint",
-  "memory.recallLimit": "agentForm.error.memory.recallLimit",
-  "memory.recallThreshold": "agentForm.error.memory.recallThreshold",
   "resources.memoryMb": "agentVm.error.number",
   "resources.cpus": "agentVm.error.number",
   "resources.diskMb": "agentVm.error.number",
@@ -145,7 +125,6 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
  */
 export function toInput(draft: Draft): Built {
   const initials = draft.initials.trim().toUpperCase();
-  const hint = draft.memoryHint.trim();
   const parsed = AgentInput.safeParse({
     name: draft.name.trim().replace(/^@/, ""),
     ...(initials === "" ? {} : { initials }),
@@ -161,15 +140,6 @@ export function toInput(draft: Draft): Built {
     denylist: lines(draft.denylist),
     budget: { usdPerDay: numberOrNull(draft.usd), tokensPerDay: numberOrNull(draft.tokens) },
     acceptsDelegation: draft.acceptsDelegation,
-    memory: draft.memoryOn
-      ? {
-          capture: draft.capture,
-          save: draft.save,
-          ...(hint === "" ? {} : { hint }),
-          ...optional("recallLimit", draft.recallLimit),
-          ...optional("recallThreshold", draft.recallThreshold),
-        }
-      : null,
     resources: {
       memoryMb: numberOrNull(draft.memoryMb),
       cpus: numberOrNull(draft.cpus),

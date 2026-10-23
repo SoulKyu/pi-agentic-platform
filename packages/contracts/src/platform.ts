@@ -153,7 +153,7 @@ export function platformVerdict(op: PlatformOp, caller: CallerFacts): PlatformEr
   return caller.autonomous === true && caller.type === "agent-thread" ? null : "tainted";
 }
 
-/** `<slug>-<4 hex>`, like a lane id: what the home folder, the vault file and pi-mem0's profile are named after. */
+/** `<slug>-<4 hex>`, like a lane id: what the home folder and the vault file are named after. */
 export const AgentId = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{4}$/);
 export type AgentId = z.infer<typeof AgentId>;
 /** One word the owner types after `@` (no space): letters first, then letters, digits, `_` or `-`. Unique per owner, any case. */

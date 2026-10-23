@@ -300,7 +300,7 @@ describe("createVmLaunch (T8a)", () => {
       agentDir: layout.piAgentDir,
       vm: { layout, bwrap: VM_BWRAP, relayKey: KEY, slot: SLOT, rootView: VM_ROOT_VIEW },
     });
-    for (const key of ["sandbox", "once", "memory"]) expect(out.init).not.toHaveProperty(key);
+    for (const key of ["sandbox", "once"]) expect(out.init).not.toHaveProperty(key);
     expect(out.init.vault).toEqual({ TOKEN: "s3cret" });
     expect(bed.worker.sent).toEqual([]);
   });

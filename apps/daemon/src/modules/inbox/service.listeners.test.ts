@@ -83,10 +83,10 @@ describe("Inbox.onItem (M12R22)", () => {
   it("does not call it a reopening when an open agent item is written again", () => {
     bed = createInboxBed();
     const heard = listen();
-    const input = { ownerId: "u1", kind: "memory_review", agentId: AGENT, refId: "m1", toHandle: true };
+    const input = { ownerId: "u1", kind: "agent_approve", agentId: AGENT, refId: "m1", toHandle: true };
     bed.inbox.agentItems.upsertAgentItem(input);
     bed.inbox.agentItems.upsertAgentItem(input);
-    expect(summary(heard)).toEqual(["memory_review:created"]);
+    expect(summary(heard)).toEqual(["agent_approve:created"]);
   });
 
   it("mark-read reports nothing, and the stream still announces", () => {

@@ -1,5 +1,6 @@
 import "../../i18n/register-home.ts";
 import type { HomeLayout, ProjectSummary } from "@pap/contracts";
+import { KnowledgeRow } from "../knowledge/KnowledgeRow.tsx";
 import { ActionRow } from "./ActionRow.tsx";
 import type { HomeActions, HomeShortcuts } from "./home-actions.ts";
 import { RecentWork } from "./RecentWork.tsx";
@@ -21,6 +22,7 @@ export default function HomeBody({ project, layout, actions, shortcuts }: HomeBo
     <div data-home-body="" className="flex flex-col gap-s4">
       <ActionRow project={project} layout={layout} actions={actions} shortcuts={shortcuts} />
       {layout.status ? <StatusLine project={project} actions={actions} /> : null}
+      {project === null ? null : <KnowledgeRow projectId={project.id} />}
       {layout.recent ? <RecentWork project={project} actions={actions} /> : null}
     </div>
   );

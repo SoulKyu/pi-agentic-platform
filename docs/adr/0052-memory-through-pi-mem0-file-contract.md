@@ -1,6 +1,6 @@
 # ADR 0052: memory through pi-mem0's file contract
 
-Status: accepted (M11b, Task 35)
+Status: superseded by 0082 (OKF knowledge replaces pi-mem0; pap no longer integrates it). Accepted in M11b, Task 35
 Date: 2026-10-17
 Spec: A D14 (pi-mem0 scopes, approval queue, forget, promote / correct); C §5.2, §5.3 (taint). Rulings: M11R142 to M11R152, M11R156, M11R171, W5-R61. Owner answer m11. Builds on ADR 0020 (sticky taint) and ADR 0047.
 

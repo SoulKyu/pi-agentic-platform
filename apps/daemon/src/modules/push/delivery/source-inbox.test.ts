@@ -114,7 +114,7 @@ const agentItem = (r: Rig, kind: string, refId: string, detail?: string) =>
     kind,
     agentId: AGENT,
     refId,
-    toHandle: ["agent_approve", "secret_request", "memory_review"].includes(kind),
+    toHandle: ["agent_approve", "secret_request"].includes(kind),
     detail,
   });
 const wire = (call = 0) => new TextDecoder().decode(t.transport.sent[call]?.plaintext);
@@ -147,7 +147,6 @@ describe("each Inbox kind becomes its class (M12R2, M12R22)", () => {
       "agent_egress",
       "agent_reply",
       "delegation_done",
-      "memory_review",
     ])
       agentItem(r, kind, `ref-${kind}`);
     const byKind = Object.fromEntries(
@@ -162,7 +161,6 @@ describe("each Inbox kind becomes its class (M12R2, M12R22)", () => {
         `notify:inbox:${byKind["agent_egress"]}`,
         `reply:inbox:${byKind["agent_reply"]}`,
         `reply:inbox:${byKind["delegation_done"]}`,
-        `review:inbox:${byKind["memory_review"]}`,
       ].sort(),
     );
   });

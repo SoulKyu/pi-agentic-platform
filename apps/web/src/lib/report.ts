@@ -26,7 +26,6 @@ export type ClientIssue =
   | "agent_cards_failed"
   | "agent_mark_read_failed"
   | "agent_status_failed"
-  | "memory_read_failed"
   | "update_check_failed"
   | "update_install_failed"
   | "push_bind_failed"

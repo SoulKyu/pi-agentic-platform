@@ -8,7 +8,7 @@
 
 ## What pap is
 
-pap runs the Pi coding agent on a machine you own and puts a web app in front of it. You get chat sessions with approvals, long-term agents with their own home, memory and limits, parallel work in git worktrees, and triggers that run unattended and report to an Inbox. It is a single Node daemon you reach from a browser, including a phone. pap reaches out only where you point it: your model provider, the hosts you allow an agent, your push service and your git remote.
+pap runs the Pi coding agent on a machine you own and puts a web app in front of it. You get chat sessions with approvals, long-term agents with their own home, knowledge and limits, parallel work in git worktrees, and triggers that run unattended and report to an Inbox. It is a single Node daemon you reach from a browser, including a phone. pap reaches out only where you point it: your model provider, the hosts you allow an agent, your push service and your git remote.
 
 Status: early development, on the way to v1.
 
@@ -24,20 +24,18 @@ Named agents that keep a thread, a home folder, a daily budget and a microVM of 
 
 ![An agent asks for approval; a finished subagent run sits under its parent](docs/screenshots/agents-thread.png)
 
-![Settings, Memory: facts an agent proposed wait for your approval; approved ones become the agent's memory](docs/screenshots/agents-memory.png)
-
 ![An agent with network on: only the hosts you list, behind pap's egress proxy](docs/screenshots/agents-egress.png)
 
 ![Settings, Agents: the agent list and the sandbox status, with what the sandbox does and does not cover](docs/screenshots/agents-sandbox.png)
 
-- Each agent has its own home (`$PAP_HOME/agents/<id>/`, a git repository with `MEMORY.md`) and one trusted thread. Its name, role, model, tool preset, mode and daily budget are set per agent.
+- Each agent has its own home (`$PAP_HOME/agents/<id>/`, a git repository) and one trusted thread. Its name, role, model, tool preset, mode and daily budget are set per agent.
 - Every agent runs in its own microVM (Kata Containers, Cloud Hypervisor), its shell in bubblewrap inside it, and it does not start without KVM and `sudo pap vm setup`: on a machine without them pap works and shows the agents screen as unavailable. Network is off by default; when on, it goes through pap's egress proxy, which guarantees hosts, not content.
 - It can ask you for an approval or a secret from its thread or the Inbox. A request expires after 25 minutes. Secrets come from a vault and reach commands as environment variables, never as text in the thread.
 - The `subagent` tool runs a task in a child session (up to 4 at once, 2 by default, one level deep) held to its parent's tools and mode. Agents can also hand work to other agents that opted in, and set reminders for themselves.
-- Memory is pi-mem0's. With `save: staged` (or after external content) an agent's `memory_save` goes to a review queue in Settings, Memory; nothing is remembered until you approve it, and approved facts show in the agent's status panel.
+- Knowledge is OKF (Open Knowledge Format): markdown files in a `knowledge/` folder that a project's sessions and each agent read and keep up to date with their file tools. A project turns it on with ENABLE OKF; an agent has its own bundle in its VM. pap's sessions never load pi-mem0 (they filter it out of the extensions they give Pi); pi-web may still load it (`docs/agents/knowledge.md`).
 - Budgets, pause and quarantine are the owner's switches.
 
-Details: [docs/agents/agents.md](docs/agents/agents.md), [docs/agents/memory.md](docs/agents/memory.md), [docs/agents/finops.md](docs/agents/finops.md).
+Details: [docs/agents/agents.md](docs/agents/agents.md), [docs/agents/knowledge.md](docs/agents/knowledge.md), [docs/agents/finops.md](docs/agents/finops.md).
 
 ## Lanes and fan-out
 
@@ -68,7 +66,7 @@ Triggers start tasks on a schedule, from a webhook, from a feed, or by hand. Tas
 
 - Webhook and feed triggers run supervised with a per-run cost cap by default; their text is treated as untrusted.
 - A daily automation budget, a slots limit and a pause switch are in Settings, Automation. Quiet hours hold notifications, not runs.
-- Web Push has classes (approvals, failures, budgets, agent notices, and off by default: finished tasks, replies, memory to review), a mute timer and a one-line summary after quiet hours. Push needs an HTTPS origin; on plain HTTP the page says so.
+- Web Push has classes (approvals, failures, budgets, agent notices, and off by default: finished tasks, replies), a mute timer and a one-line summary after quiet hours. Push needs an HTTPS origin; on plain HTTP the page says so.
 - The app installs as a PWA and works at phone width.
 
 Details: [docs/agents/automation.md](docs/agents/automation.md), [docs/agents/notifications.md](docs/agents/notifications.md).

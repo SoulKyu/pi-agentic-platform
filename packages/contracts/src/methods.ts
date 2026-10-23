@@ -16,7 +16,6 @@ import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
 import { pushMethods } from "./push-methods.ts";
-import { memoryMethods } from "./memory-methods.ts";
 import { secretsMethods } from "./secrets-methods.ts";
 import { ToolPreset } from "./session-loadout.ts";
 import { sessionModelMethods } from "./session-model-methods.ts";
@@ -79,7 +78,6 @@ export const methods = catalogue({
   ...agentsVmMethods,
   ...secretsMethods,
   ...subagentsMethods,
-  ...memoryMethods,
   ...pushMethods,
   ...fontsMethods,
   "system.ping": defineMethod({

@@ -234,7 +234,7 @@ export function createInbox(deps: InboxDeps) {
       const raw = deps.tasks.find(taskId)?.registeredName;
       return raw ? cleanName(raw) || null : null;
     },
-    /** The port M11's agents, delegations and memory write the Inbox through (M11R91). */
+    /** The port M11's agents and delegations write the Inbox through (M11R91). */
     agentItems,
     list(
       ownerId: string,

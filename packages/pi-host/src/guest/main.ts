@@ -87,7 +87,7 @@ await runGuest({
     clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   },
-  seed: () => seedAgentFolder(layout),
+  seed: () => seedAgentFolder(layout, (line) => void process.stderr.write(`pap-guest: ${line}\n`)),
   pick: (packages) => pickPackages(layout, packages),
   grow: async () => {
     await growFilesystem({

@@ -19,8 +19,7 @@ export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
     permission !== "lanes:admin" &&
     permission !== "automation:admin" &&
     permission !== "agents:admin" &&
-    !permission.startsWith("secrets:") &&
-    permission !== "memory:admin",
+    !permission.startsWith("secrets:"),
 );
 export const TokenPermission = z.enum(TOKEN_PERMISSIONS as [Permission, ...Permission[]]);
 export type TokenPermission = z.infer<typeof TokenPermission>;

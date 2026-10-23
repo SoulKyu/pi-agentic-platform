@@ -44,12 +44,6 @@
   {
     "note": "docs/agents/daemon.md",
     "rule": "method",
-    "token": "memory.events",
-    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
-  },
-  {
-    "note": "docs/agents/daemon.md",
-    "rule": "method",
     "token": "lanes.shutdown",
     "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
   },

@@ -61,9 +61,8 @@ describe("agents.files methods", () => {
 });
 
 describe("quarantine and the files", () => {
-  it("has a files step before memory, and an answer that can list the paths", () => {
+  it("has a files step, and an answer that can list the paths", () => {
     expect(QUARANTINE_STEPS).toContain("files");
-    expect(QUARANTINE_STEPS.indexOf("files")).toBeLessThan(QUARANTINE_STEPS.indexOf("memory"));
     const base = {
       secrets: [],
       vaultNames: [],

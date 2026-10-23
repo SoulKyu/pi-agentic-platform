@@ -18,7 +18,6 @@ import { setRawChannel } from "./raw-channel.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
 import { NO_REDACTOR } from "./policy/redact.ts";
-import { appendMidRunUntrusted } from "./memory-entry.ts";
 import { createTaint } from "./policy/taint.ts";
 import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
@@ -158,25 +157,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     if (!ipc.send({ type: "taint", epoch: taint.state().epoch }))
       process.stderr.write("pi-host: taint record not sent; the next agent_end repeats it\n");
   };
-  // M11R143: a worker that started untainted notes, once, that its session is untrusted from now on. No pi-mem0 reads
-  // this entry today: it is for a future one that checks it at capture time. The barrier is the daemon, which releases
-  // this worker (and restarts it before the next prompt). Raised before the session exists, the note is written at once
-  // when it does (`session = opened` below).
-  let midRunNoted = first.data.taint.tainted;
-  let noteWanted = false;
-  const noteMidRun = () => {
-    if (midRunNoted) return;
-    if (!session) {
-      noteWanted = true;
-      return;
-    }
-    midRunNoted = true;
-    appendMidRunUntrusted(session.sessionManager);
-  };
-  const taint = createTaint(first.data.taint, () => {
-    reportTaint();
-    noteMidRun();
-  });
+  const taint = createTaint(first.data.taint, reportTaint);
   const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
@@ -219,7 +200,6 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     sendLoadout: (record) => ipc.send(record),
   });
   session = opened;
-  if (noteWanted) noteMidRun();
   entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
   const vm = initial.vm;
   if (vm) {
@@ -257,10 +237,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
       rules = next;
       rulesVersion++;
     },
-    applyTaint: (update) => {
-      taint.apply(update);
-      if (taint.current()) noteMidRun();
-    },
+    applyTaint: (update) => taint.apply(update),
   });
   ipc.send({
     type: "ready",

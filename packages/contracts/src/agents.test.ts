@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_LIMITS, AgentId, AgentInput, AgentName, AgentRole, widensReach } from "./index.ts";
+import {
+  AGENT_INPUT_KEYS,
+  AGENT_LIMITS,
+  AgentId,
+  AgentInput,
+  AgentName,
+  AgentRole,
+  widensReach,
+} from "./index.ts";
 
 const base = (extra: object = {}) => AgentInput.parse({ name: "Atlas", ...extra });
 const widens = (before: object | null, after: object) =>
@@ -21,7 +29,6 @@ describe("AgentInput defaults and shape", () => {
       denylist: [],
       budget: { usdPerDay: null, tokensPerDay: null },
       acceptsDelegation: false,
-      memory: null,
       resources: { memoryMb: 1024, cpus: 1, diskMb: 4096 },
       systemPackages: [],
       packages: null,
@@ -31,7 +38,6 @@ describe("AgentInput defaults and shape", () => {
   it("refuses a read-only folder list in the sandbox (owner m7) and any unknown key", () => {
     expect(AgentInput.safeParse({ name: "A", sandbox: { readOnly: ["~/docs"] } }).success).toBe(false);
     expect(AgentInput.safeParse({ name: "A", folders: [] }).success).toBe(false);
-    expect(AgentInput.safeParse({ name: "A", memory: { capture: "auto", extra: 1 } }).success).toBe(false);
     expect(AgentInput.safeParse({ name: "A", budget: { usdPerDay: 1, per: 2 } }).success).toBe(false);
   });
 
@@ -67,10 +73,13 @@ describe("AgentInput defaults and shape", () => {
     expect(AgentInput.safeParse({ name: "A", denylist: patterns }).success).toBe(false);
   });
 
-  it("checks the memory policy and the initials", () => {
-    expect(base({ memory: {} }).memory).toEqual({ capture: "auto", save: "direct" });
-    expect(AgentInput.safeParse({ name: "A", memory: { recallLimit: 21 } }).success).toBe(false);
-    expect(AgentInput.safeParse({ name: "A", memory: { hint: "a\u202Eb" } }).success).toBe(false);
+  it("parses a stored profile with the old memory policy and drops it", () => {
+    const parsed = AgentInput.parse({ name: "Atlas", memory: { capture: "off" } });
+    expect(parsed).not.toHaveProperty("memory");
+    expect(AGENT_INPUT_KEYS).not.toContain("memory");
+  });
+
+  it("checks the initials", () => {
     expect(AgentInput.safeParse({ name: "A", initials: "abc" }).success).toBe(false);
     expect(base({ initials: "AT" }).initials).toBe("AT");
   });
@@ -185,12 +194,11 @@ describe("widensReach (M11R44)", () => {
     expect(widens({ denylist: ["rm *"] }, { denylist: ["rm *", "dd *"] })).toBe(false);
   });
 
-  it("a budget, delegation, memory, model, role and rename ask nothing", () => {
+  it("a budget, delegation, model, role and rename ask nothing", () => {
     expect(widens({}, { budget: { usdPerDay: 5 } })).toBe(false);
     expect(widens({ budget: { usdPerDay: 5 } }, { budget: { usdPerDay: 500 } })).toBe(false);
     expect(widens({ budget: { usdPerDay: 5 } }, { budget: { usdPerDay: null } })).toBe(false);
     expect(widens({}, { acceptsDelegation: true })).toBe(false);
-    expect(widens({}, { memory: { capture: "off" } })).toBe(false);
     expect(
       widens({}, { model: { provider: "p", modelId: "m" }, thinking: "high", role: "new", name: "Atlas2" }),
     ).toBe(false);

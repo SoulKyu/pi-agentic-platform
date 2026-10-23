@@ -33,7 +33,6 @@ describe("send.fans-out", () => {
     ["notify", "normal", 14_400],
     ["done", "normal", 3600],
     ["reply", "normal", 3600],
-    ["review", "normal", 3600],
   ] as const)("%s is %s with a %i s ttl", async (cls, urgency, ttlSeconds) => {
     t = openSendBed();
     t.state.settings = { ...t.state.settings, classes: { ...t.state.settings.classes, [cls]: true } };

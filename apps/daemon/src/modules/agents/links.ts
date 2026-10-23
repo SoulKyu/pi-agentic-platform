@@ -101,8 +101,6 @@ export interface AgentLinks {
   };
   /** The agent's pending requests, closed as cancelled when it is quarantined (Task 17). */
   readonly requests?: { cancelAllOf(ownerId: string, agentId: string): number };
-  /** The agent's staged memory facts, moved aside by quarantine's last step (Task 32); how many were moved. */
-  readonly memory?: { moveStaged(ownerId: string, agentId: string): number };
   /** The "use once" values still waiting for the agent (Task 18). */
   readonly onceValues?: { drop(ownerId: string, agentId: string): void };
   /** The VM runtime (T15): given to `createAgents` in `vm` mode. */

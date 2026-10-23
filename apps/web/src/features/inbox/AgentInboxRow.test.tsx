@@ -42,7 +42,7 @@ const agentItem = (kind: string, patch: Partial<ReturnType<typeof itemOf>> = {})
   itemOf({
     id: "i1",
     kind,
-    toHandle: kind === "agent_approve" || kind === "secret_request" || kind === "memory_review",
+    toHandle: kind === "agent_approve" || kind === "secret_request",
     agentId: "atlas-1a2b",
     refId: "req-1",
     taskId: null,
@@ -68,7 +68,6 @@ describe("the sentence per kind (pap's words, never the agent's text)", () => {
     ["delegation_done", "Atlas finished a delegated task", "Atlas a terminé une tâche déléguée"],
     ["agent_notify", "Atlas sent a notification", "Atlas a envoyé une notification"],
     ["agent_egress", "Atlas could not reach a host", "Atlas n'a pas pu joindre un hôte"],
-    ["memory_review", "Atlas has memories to review", "Atlas a des souvenirs à relire"],
     ["future_kind", "Atlas · update", "Atlas · mise à jour"],
   ];
   it.each(cases)("%s reads the same in English and French", async (kind, en, fr) => {

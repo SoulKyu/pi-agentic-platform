@@ -28,4 +28,17 @@ describe("projects rpc", () => {
     expect(await rpc["projects.add"]({ root: "/w/api/src" }, ctx)).toEqual({ project: view });
     expect(add).toHaveBeenCalledExactlyOnceWith(caller, "/w/api/src");
   });
+
+  it("answers the knowledge methods from the service, with the caller", async () => {
+    const knowledge = vi.fn(() => ({ enabled: false, concepts: 0 }));
+    const enableKnowledge = vi.fn(() => ({ enabled: true as const }));
+    const rpc = projectsRpc({ knowledge, enableKnowledge } as unknown as ProjectsService);
+    expect(await rpc["projects.knowledge"]({ projectId: "p1", sessionId: "s1" }, ctx)).toEqual({
+      enabled: false,
+      concepts: 0,
+    });
+    expect(knowledge).toHaveBeenCalledExactlyOnceWith(caller, "p1", "s1");
+    expect(await rpc["projects.enableKnowledge"]({ projectId: "p1" }, ctx)).toEqual({ enabled: true });
+    expect(enableKnowledge).toHaveBeenCalledExactlyOnceWith(caller, "p1", undefined);
+  });
 });

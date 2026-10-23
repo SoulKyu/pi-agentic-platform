@@ -25,7 +25,7 @@ export const INBOX_RESOLUTIONS = ["answered", "timed_out"] as const;
  * as a generic line. The groups are disjoint; the `inbox.list` filters read them (`all` is no group).
  */
 export const INBOX_KINDS = {
-  toHandle: ["task_needs_input", "agent_approve", "secret_request", "memory_review"],
+  toHandle: ["task_needs_input", "agent_approve", "secret_request"],
   replies: ["agent_reply", "delegation_done"],
   tasks: ["task_done", "task_failed", "task_interrupted", "task_limited"],
   info: ["agent_notify", "agent_egress"],
@@ -34,7 +34,7 @@ export const INBOX_KINDS = {
 export const INBOX_FILTERS = ["all", "to_handle", "replies", "tasks"] as const;
 export type InboxFilter = (typeof INBOX_FILTERS)[number];
 
-/** The longest `detail` of an item: one short line an agent or a memory fact wrote (M11R89). */
+/** The longest `detail` of an item: one short line an agent wrote (M11R89). */
 export const INBOX_DETAIL_CHARS = 500;
 
 /**

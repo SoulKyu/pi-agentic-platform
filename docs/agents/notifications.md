@@ -4,7 +4,7 @@ Web Push (`apps/daemon/src/modules/push/`) and the PWA shell (`apps/web/sw/`, `f
 
 ## Classes and defaults
 
-- On: `approval` (a waiting session; Inbox `agent_approve`, `secret_request`), `failed` (`task_failed`, `task_interrupted`), `budget` (daily owner-wide or per-agent budget reached, once per scope per zone day), `notify` (`agent_notify`). Off: `done`, `reply`, `review`. Each is a toggle in Settings > Notifications (document `notifications`; a token cannot write it). A suppressed push keeps its Inbox item: the Inbox is the record.
+- On: `approval` (a waiting session; Inbox `agent_approve`, `secret_request`), `failed` (`task_failed`, `task_interrupted`), `budget` (daily owner-wide or per-agent budget reached, once per scope per zone day), `notify` (`agent_notify`). Off: `done`, `reply`. Each is a toggle in Settings > Notifications (document `notifications`; a token cannot write it). A suppressed push keeps its Inbox item: the Inbox is the record.
 - One push per waiting session (`push:approval:session:<id>`), even when the attention feed and the Inbox's `task_needs_input` both report it. A child's dialog pushes the parent's card (M12R24 as amended).
 
 ## Delivery

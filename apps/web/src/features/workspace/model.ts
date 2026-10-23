@@ -8,7 +8,6 @@ export const SETTINGS_SECTIONS = [
   "skills",
   "automation",
   "agents",
-  "memory",
   "notifications",
   "account",
 ] as const;

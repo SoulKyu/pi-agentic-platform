@@ -287,13 +287,13 @@ describe("openRefs (M11 sweep, 32)", () => {
   it("lists the open items of a kind with owner, agent and ref: resolved, other kinds and info items are left out", () => {
     bed = createInboxBed();
     const items = bed.inbox.agentItems;
-    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f1" }));
-    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f2", ownerId: "u2", agentId: "agent-2" }));
-    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f3" }));
-    items.resolveRef("u1", "memory_review", "f3", null);
+    items.upsertAgentItem(ask({ kind: "secret_request", refId: "f1" }));
+    items.upsertAgentItem(ask({ kind: "secret_request", refId: "f2", ownerId: "u2", agentId: "agent-2" }));
+    items.upsertAgentItem(ask({ kind: "secret_request", refId: "f3" }));
+    items.resolveRef("u1", "secret_request", "f3", null);
     items.upsertAgentItem(ask({ kind: "agent_approve", refId: "f4" }));
-    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f5", toHandle: false }));
-    expect(items.openRefs("memory_review").sort((a, b) => a.refId.localeCompare(b.refId))).toEqual([
+    items.upsertAgentItem(ask({ kind: "secret_request", refId: "f5", toHandle: false }));
+    expect(items.openRefs("secret_request").sort((a, b) => a.refId.localeCompare(b.refId))).toEqual([
       { ownerId: "u1", agentId: AGENT, refId: "f1" },
       { ownerId: "u2", agentId: "agent-2", refId: "f2" },
     ]);
@@ -304,9 +304,9 @@ describe("openRefs (M11 sweep, 32)", () => {
     for (let i = 0; i < 1001; i++)
       bed.db.run(
         `INSERT INTO inbox_items (id, owner_id, kind, to_handle, title, created_at, agent_id, ref_id)
-         VALUES ($id, 'u1', 'memory_review', 1, 'agent', $i, 'agent-1', $id)`,
+         VALUES ($id, 'u1', 'agent_approve', 1, 'agent', $i, 'agent-1', $id)`,
         { id: `r${i}`, i },
       );
-    expect(bed.inbox.agentItems.openRefs("memory_review")).toHaveLength(1000);
+    expect(bed.inbox.agentItems.openRefs("agent_approve")).toHaveLength(1000);
   });
 });

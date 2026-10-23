@@ -68,7 +68,6 @@ const POLICY: Record<WireClass, { urgency: "normal" | "high"; ttlSeconds: number
   notify: { urgency: "normal", ttlSeconds: 14_400 },
   done: { urgency: "normal", ttlSeconds: 3600 },
   reply: { urgency: "normal", ttlSeconds: 3600 },
-  review: { urgency: "normal", ttlSeconds: 3600 },
   digest: { urgency: "normal", ttlSeconds: 14_400 },
   test: { urgency: "normal", ttlSeconds: 3600 },
 };

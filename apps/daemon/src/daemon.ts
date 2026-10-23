@@ -34,6 +34,7 @@ import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUDIT_MIGRATIONS, createAuditModule } from "./modules/audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
+import { composeKnowledge } from "./compose-knowledge.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
 import { createSearchModule } from "./modules/search/index.ts";
 import { createSessionsModule, resolveSessionCwd, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
@@ -207,6 +208,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         scopeOf: (real) => policy.port.scopeOf(real),
         stateDirs: [config.home, config.piAgentDir],
       },
+      knowledge: composeKnowledge(audit.port, () => ({ projects, lanes, sessions })),
     });
     const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];
     const wk = createWorkspaceModules(

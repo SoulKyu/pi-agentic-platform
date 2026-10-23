@@ -1,6 +1,6 @@
 # End-to-end journeys
 
-Fifteen browser journeys (J01 to J15, the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
+Fourteen browser journeys (J01 to J15 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
 
 ## What runs where
 
@@ -87,7 +87,7 @@ With `PAP_TEST_PUSH_LOOPBACK=1`, `daemon.ts` starts the **daemon process only** 
 
 ## Time budget
 
-Default test timeout 60 s. J09 declares 90 s (the memory review tick is 30 s of real time) and J13 declares 150 s (M13R43): an approval push is enqueued 60 s after the last heartbeat and suppressed while a device is present, a focused page keeps sending heartbeats, and the real clock of a built daemon cannot be advanced. So J13 closes its page, raises the approval from a node client and waits up to 100 s (`WAIT_MS`) for a push that arrives 60 to 70 s later. That is about 10 s over the worst case; a slower host raises `WAIT_MS` and the 150 s timeout together. No test-only delay variable exists for this.
+Default test timeout 60 s. J13 declares 150 s (M13R43): an approval push is enqueued 60 s after the last heartbeat and suppressed while a device is present, a focused page keeps sending heartbeats, and the real clock of a built daemon cannot be advanced. So J13 closes its page, raises the approval from a node client and waits up to 100 s (`WAIT_MS`) for a push that arrives 60 to 70 s later. That is about 10 s over the worst case; a slower host raises `WAIT_MS` and the 150 s timeout together. No test-only delay variable exists for this.
 
 The suite budget is 15 minutes in the container (M13R43). Measured on the development host, full suite, container mode, two workers: 36 passed and 2 skipped (J13 on WebKit) in 4.5 minutes by Playwright's clock; the longest tests were the two J13 tests at 1.0 to 1.1 minutes each. No test went over its own timeout in that run.
 

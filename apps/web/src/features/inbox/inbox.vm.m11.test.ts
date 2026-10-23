@@ -39,7 +39,6 @@ describe("the M11 filters", () => {
     const items = [
       agent("agent_approve", "a1"),
       agent("secret_request", "s1"),
-      agent("memory_review", "m1"),
       agent("secret_request", "s2", { resolvedAt: NOW, resolution: "answered" }),
       agent("agent_reply", "r1"),
     ];
@@ -47,7 +46,7 @@ describe("the M11 filters", () => {
       visible(items, "handle")
         .map((item) => item.id)
         .sort(),
-    ).toEqual(["a1", "m1", "s1"]);
+    ).toEqual(["a1", "s1"]);
   });
 
   it("keeps the task kinds for Tasks and no agent kind", () => {

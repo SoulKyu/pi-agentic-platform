@@ -54,8 +54,6 @@ export const notificationsEn = {
   "notifications.class.done.hint": "A task finished or reached a limit. Sent at once.",
   "notifications.class.reply": "Replies",
   "notifications.class.reply.hint": "An agent replied, or a delegated task came back. Sent at once.",
-  "notifications.class.review": "Memory to review",
-  "notifications.class.review.hint": "An agent proposed a memory for you to review. Sent at once.",
   "notifications.mute.label": "Mute notifications",
   "notifications.mute.off": "Off",
   "notifications.mute.1h": "1 h",
@@ -133,8 +131,6 @@ export const notificationsFr: Record<keyof typeof notificationsEn, string> = {
   "notifications.class.reply": "Réponses",
   "notifications.class.reply.hint":
     "Un agent a répondu, ou une tâche déléguée est revenue. Envoyée aussitôt.",
-  "notifications.class.review": "Mémoire à relire",
-  "notifications.class.review.hint": "Un agent a proposé un souvenir à relire. Envoyée aussitôt.",
   "notifications.mute.label": "Mettre les notifications en sourdine",
   "notifications.mute.off": "Désactivée",
   "notifications.mute.1h": "1 h",

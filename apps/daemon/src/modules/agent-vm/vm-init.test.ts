@@ -37,7 +37,6 @@ const host: InitRecord = {
   vault: { TOKEN: "s3cret" },
   once: [{ id: "o".repeat(8), name: "ONE", value: "v", expiresAt: 5 }],
   agent: { id: "atlas-1a2b", name: "Atlas", role: "r" },
-  memory: { profile: "atlas", trust: "trusted" },
   testProviderScript: `${PAP_HOME}/script.json`,
   policy: vmRules,
 };
@@ -57,11 +56,26 @@ describe("vmInitOf (R17, RT-06)", () => {
     expect(text).not.toContain(PI_DIR);
     expect(text).not.toContain("script.json");
   });
-  it("carries the vault, the one-use values and the secret.request op, but no memory (ADR 0081)", () => {
-    for (const key of ["memory", "testProviderScript"]) expect(out).not.toHaveProperty(key);
+  it("carries the vault, the one-use values and the secret.request op, (ADR 0081)", () => {
+    for (const key of ["testProviderScript"]) expect(out).not.toHaveProperty(key);
     expect(out.vault).toEqual({ TOKEN: "s3cret" });
     expect(out.once).toEqual(host.once);
     expect(out.platform?.ops).toEqual(["secret.request", "agent.approve"]);
+  });
+  it("a thread VM gets its knowledge bundle (SP5)", () => {
+    expect(out.knowledge).toEqual({ path: layout.knowledge });
+    expect(InitRecord.safeParse(out).success).toBe(true);
+  });
+  it("a task VM gets none, and a host-composed knowledge is dropped", () => {
+    const task = rulesOf({
+      agentHome: layout.home,
+      agentScratch: layout.home,
+      sandbox: { required: true, network: false },
+    });
+    const given = { ...host, policy: task, knowledge: { path: "/host/project/knowledge" } };
+    expect(vmInitOf(given, vm, null)).not.toHaveProperty("knowledge");
+    const isolated = rulesOf({ profile: "isolated-task", agentHome: layout.home, sandbox: vmRules.sandbox });
+    expect(vmInitOf({ ...given, policy: isolated }, vm, null)).not.toHaveProperty("knowledge");
   });
   it("names no sessionFile without a mirror (Pi creates it in layout.sessions)", () => {
     expect(vmInitOf(host, vm, null)).not.toHaveProperty("sessionFile");
