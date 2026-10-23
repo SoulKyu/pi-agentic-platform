@@ -11,7 +11,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/index.ts";
 import { useHealthStore } from "../../stores/health-store.ts";
-import { button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import { button, click, hasButton, mount, settle, text, typeInto, type Mounted } from "../../testing/dom.ts";
+import { DEFAULT_FILTERS } from "./health-filters.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { HealthSection } from "./HealthSection.tsx";
 
@@ -23,6 +24,7 @@ vi.mock("../../runtime/index.ts", async (original) => ({
 
 let bed: ReturnType<typeof fakeRuntime>;
 beforeEach(() => {
+  localStorage.clear();
   bed = fakeRuntime("open");
   current.runtime = bed.runtime;
   useHealthStore.getState().reset();
@@ -126,6 +128,44 @@ describe("HealthSection", () => {
     push({ kind: "collapse", seq: 9, ts: Date.now(), count: 5 });
     await settle();
     expect(rows(page.container)[0]?.textContent).toContain("×5");
+    expect(bed.called("ops.events.list")).toHaveLength(0);
+  });
+
+  it("the Segmented switches kinds, a severity toggle dims its rows, and the search filters", async () => {
+    const page = await show();
+    snap([
+      event(),
+      event({ seq: 8, kind: "outbox", severity: "mut", code: "outbox_unknown_kinds", sourceRef: null }),
+    ]);
+    await settle();
+    expect(rows(page.container)).toHaveLength(2);
+    await click(button(page.container, "Outbox"));
+    await settle();
+    expect(rows(page.container)).toHaveLength(1);
+    await click(button(page.container, "All"));
+    await click(button(page.container, "MUT"));
+    await settle();
+    const mut = page.container.querySelector(
+      'button[aria-pressed="false"] [data-slot="chip"][data-tone="mut"]',
+    );
+    expect(mut).not.toBeNull();
+    expect(rows(page.container)).toHaveLength(1);
+    await click(button(page.container, "MUT"));
+    const field = page.container.querySelector("input") as HTMLInputElement;
+    await typeInto(field, "k8s");
+    await settle();
+    expect(rows(page.container)).toHaveLength(1);
+    await typeInto(field, "zzz");
+    await settle();
+    expect(rows(page.container)).toHaveLength(0);
+  });
+
+  it("a stored pap.health.filters restores the filters without an RPC", async () => {
+    localStorage.setItem("pap.health.filters", JSON.stringify({ ...DEFAULT_FILTERS, kind: "sched" }));
+    const page = await show();
+    snap([event(), event({ seq: 8, kind: "sched", severity: "att", code: "missed" })]);
+    await settle();
+    expect(rows(page.container)).toHaveLength(1);
     expect(bed.called("ops.events.list")).toHaveLength(0);
   });
 

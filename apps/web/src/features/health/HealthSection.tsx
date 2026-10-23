@@ -1,6 +1,6 @@
 import "../../i18n/register-health.ts";
 import type { HealthEvent } from "@pap/contracts";
-import { Button, Chip, EmptyState } from "@pap/ui";
+import { Button, Chip, EmptyState, Segmented, TextField } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -8,7 +8,11 @@ import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedOps } from "../../stores/health-feed.ts";
 import { useHealthStore } from "../../stores/health-store.ts";
+import { keeps, loadFilters, saveFilters, withSeverity, type HealthFilters } from "./health-filters.ts";
 import { codeText, cursorOf, sourceOf, whenText } from "./health.vm.ts";
+
+const KINDS = ["all", "feed", "sched", "task", "outbox", "agent"] as const;
+const SEVERITIES = ["err", "att", "mut"] as const;
 
 /**
  * Settings › Health (spec §5): the daemon's failure console of the current run. One row per collapsed event,
@@ -21,6 +25,11 @@ export function HealthSection() {
   const view = useHealthStore((state) => state.view);
   const [failed, setFailed] = useState(false);
   const [now] = useState(() => Date.now());
+  const [filters, setFilters] = useState<HealthFilters>(loadFilters);
+  const update = (next: HealthFilters) => {
+    setFilters(next);
+    saveFilters(next);
+  };
 
   useEffect(() => feedOps(getRuntime().subscriptions, () => setFailed(true)), []);
 
@@ -78,6 +87,37 @@ export function HealthSection() {
         />
       ) : null}
       {!failed && view.loaded && view.events.length > 0 ? (
+        <div className="flex flex-wrap items-end gap-s3" data-health-filters>
+          <Segmented
+            label={t("health.filter.label")}
+            value={filters.kind}
+            options={KINDS.map((kind) => ({ value: kind, label: t(`health.filter.${kind}`) }))}
+            onChange={(kind) => update({ ...filters, kind })}
+          />
+          {SEVERITIES.map((severity) => {
+            const on = filters.severities[severity];
+            return (
+              <button
+                key={severity}
+                type="button"
+                aria-pressed={on}
+                aria-label={t(`health.severity.${severity}`)}
+                onClick={() => update(withSeverity(filters, severity, !on))}
+              >
+                <Chip tone={on ? severity : "mut"} label={t(`health.severity.${severity}`)} />
+              </button>
+            );
+          })}
+          <div className="w-48">
+            <TextField
+              label={t("health.search.label")}
+              value={filters.search}
+              onChange={(search) => update({ ...filters, search })}
+            />
+          </div>
+        </div>
+      ) : null}
+      {!failed && view.loaded && view.events.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full border-collapse text-ui">
             <thead>
@@ -92,42 +132,48 @@ export function HealthSection() {
               </tr>
             </thead>
             <tbody>
-              {view.events.map((event) => {
-                const source = sourceOf(event);
-                return (
-                  <tr key={event.seq} className="border-b border-border align-top">
-                    <td className="whitespace-nowrap px-s3 py-s1 font-mono text-code text-muted tabular-nums">
-                      {whenText(event.ts, now, locale)}
-                    </td>
-                    <td className="px-s3 py-s1">
-                      <Chip tone={event.severity} label={t(`health.severity.${event.severity}`)} />
-                    </td>
-                    <td className="whitespace-nowrap px-s3 py-s1 label-hud text-muted">
-                      {t(`health.kind.${event.kind}`)}
-                    </td>
-                    <td className="whitespace-nowrap px-s3 py-s1 font-mono text-code text-fg">
-                      {event.code}
-                    </td>
-                    <td className="min-w-0 break-words px-s3 py-s1 text-fg">{codeText(event)}</td>
-                    <td className="px-s3 py-s1 font-mono text-code text-muted">
-                      {source.to === null ? (
-                        source.label
-                      ) : source.to === "/tasks" ? (
-                        <Link to={source.to} className="text-fg underline focus-ring">
-                          {source.label}
-                        </Link>
-                      ) : (
-                        <Link to={source.to} params={source.params} className="text-fg underline focus-ring">
-                          {source.label}
-                        </Link>
-                      )}
-                    </td>
-                    <td className="px-s3 py-s1 font-mono text-code text-muted tabular-nums">
-                      {event.count > 1 ? t("health.count", { n: event.count }) : "—"}
-                    </td>
-                  </tr>
-                );
-              })}
+              {view.events
+                .filter((event) => keeps(event, filters))
+                .map((event) => {
+                  const source = sourceOf(event);
+                  return (
+                    <tr key={event.seq} className="border-b border-border align-top">
+                      <td className="whitespace-nowrap px-s3 py-s1 font-mono text-code text-muted tabular-nums">
+                        {whenText(event.ts, now, locale)}
+                      </td>
+                      <td className="px-s3 py-s1">
+                        <Chip tone={event.severity} label={t(`health.severity.${event.severity}`)} />
+                      </td>
+                      <td className="whitespace-nowrap px-s3 py-s1 label-hud text-muted">
+                        {t(`health.kind.${event.kind}`)}
+                      </td>
+                      <td className="whitespace-nowrap px-s3 py-s1 font-mono text-code text-fg">
+                        {event.code}
+                      </td>
+                      <td className="min-w-0 break-words px-s3 py-s1 text-fg">{codeText(event)}</td>
+                      <td className="px-s3 py-s1 font-mono text-code text-muted">
+                        {source.to === null ? (
+                          source.label
+                        ) : source.to === "/tasks" ? (
+                          <Link to={source.to} className="text-fg underline focus-ring">
+                            {source.label}
+                          </Link>
+                        ) : (
+                          <Link
+                            to={source.to}
+                            params={source.params}
+                            className="text-fg underline focus-ring"
+                          >
+                            {source.label}
+                          </Link>
+                        )}
+                      </td>
+                      <td className="px-s3 py-s1 font-mono text-code text-muted tabular-nums">
+                        {event.count > 1 ? t("health.count", { n: event.count }) : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
