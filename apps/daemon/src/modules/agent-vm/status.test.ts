@@ -6,14 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { captureLogger } from "../../testing/capture-logger.ts";
 import { createClaudeTokenStore } from "./claude-token.ts";
-import {
-  assessStack,
-  createHostStatus,
-  createVmStatus,
-  STACK_REASONS,
-  STACK_TTL_MS,
-  type VmStatusDeps,
-} from "./status.ts";
+import { assessStack, createVmStatus, STACK_REASONS, STACK_TTL_MS, type VmStatusDeps } from "./status.ts";
 import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
 
 /*
@@ -55,7 +48,7 @@ function make(over: Partial<VmStatusDeps> = {}) {
   const status = createVmStatus({
     clock,
     logger,
-    assess: () => assessStack(vmd, PAP),
+    assess: () => assessStack(vmd, PAP, () => true),
     claudeToken,
     agentsOf: () => [{ id: "helper-1a2b" }, { id: "scout-9c8d" }],
     phaseOf: (id) => phases.get(id) ?? "stopped",
@@ -68,7 +61,7 @@ function make(over: Partial<VmStatusDeps> = {}) {
 
 describe("assessStack", () => {
   it("is usable when pap-vmd answers pap's version with its ruleset and bridge", async () => {
-    await expect(assessStack(vmd, PAP)).resolves.toMatchObject({
+    await expect(assessStack(vmd, PAP, () => true)).resolves.toMatchObject({
       usable: true,
       reason: null,
       vmdVersion: PAP,
@@ -76,9 +69,16 @@ describe("assessStack", () => {
     });
   });
 
+  it("is unusable with kvm_missing when /dev/kvm is absent", async () => {
+    await expect(assessStack(vmd, PAP, () => false)).resolves.toMatchObject({
+      usable: false,
+      reason: STACK_REASONS.kvm_missing,
+    });
+  });
+
   it("an unreachable pap-vmd is unusable with the setup sentence (M-unreachable)", async () => {
     vmd.failNext("vmd.health", "unavailable");
-    const view = await assessStack(vmd, PAP);
+    const view = await assessStack(vmd, PAP, () => true);
     expect(view).toEqual({
       usable: false,
       reason: STACK_REASONS.unreachable,
@@ -92,12 +92,12 @@ describe("assessStack", () => {
 
   it("an answer that is not a health report reads as unreachable", async () => {
     answer = { version: PAP };
-    expect((await assessStack(vmd, PAP)).reason).toBe(STACK_REASONS.unreachable);
+    expect((await assessStack(vmd, PAP, () => true)).reason).toBe(STACK_REASONS.unreachable);
   });
 
   it("a pap-vmd of another version names both versions and `sudo pap vm setup` (M-version)", async () => {
     answer = { version: "1.3.0", ruleset: true, bridge: true, stateFreeMb: 1 };
-    const view = await assessStack(vmd, PAP);
+    const view = await assessStack(vmd, PAP, () => true);
     expect(view.usable).toBe(false);
     expect(view.vmdVersion).toBe("1.3.0");
     expect(view.reason).toBe(STACK_REASONS.version("1.3.0", PAP));
@@ -106,12 +106,12 @@ describe("assessStack", () => {
 
   it("a pap-vmd without its ruleset is unusable (M-ruleset)", async () => {
     answer = { version: PAP, ruleset: false, bridge: true, stateFreeMb: 1 };
-    expect((await assessStack(vmd, PAP)).reason).toBe(STACK_REASONS.ruleset);
+    expect((await assessStack(vmd, PAP, () => true)).reason).toBe(STACK_REASONS.ruleset);
   });
 
   it("a pap-vmd without pap0 is unusable (M-bridge)", async () => {
     answer = { version: PAP, ruleset: true, bridge: false, stateFreeMb: 1 };
-    expect((await assessStack(vmd, PAP)).reason).toBe(STACK_REASONS.bridge);
+    expect((await assessStack(vmd, PAP, () => true)).reason).toBe(STACK_REASONS.bridge);
   });
 });
 
@@ -121,7 +121,6 @@ describe("the VM status view", () => {
     const view = await status.view("owner");
     expect(VmStatusView.safeParse(view).success).toBe(true);
     expect(view).toEqual({
-      runtime: "vm",
       usable: true,
       reason: null,
       vmdVersion: PAP,
@@ -169,25 +168,6 @@ describe("the VM status view", () => {
     const view = await make({ agentsOf: () => many }).status.view("owner");
     expect(view.agents).toHaveLength(32);
     expect(VmStatusView.safeParse(view).success).toBe(true);
-  });
-});
-
-describe("the host-mode view (AVM-P17)", () => {
-  it("answers an unavailable stack, the token's state, and no VM", async () => {
-    const { logger } = captureLogger();
-    const claudeToken = createClaudeTokenStore({ secretsDir: join(root, "secrets"), logger });
-    const view = createHostStatus(claudeToken);
-    expect(view()).toEqual({
-      runtime: "host",
-      usable: false,
-      reason: "not_configured",
-      vmdVersion: null,
-      claudeToken: "missing",
-      agents: [],
-    });
-    claudeToken.set(TOKEN);
-    expect(view().claudeToken).toBe("set");
-    expect(JSON.stringify(view())).not.toContain(TOKEN);
   });
 });
 

@@ -1,10 +1,10 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
 import { AgentInput, type ToolPreset } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { layoutOf } from "../agent-vm/index.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { initRecordOf } from "./testing/fake-policy.ts";
+import { fakeVmLaunch } from "./testing/fake-vm-launch.ts";
 import { codeOf } from "./testing/helpers.ts";
 import { type BedOptions, type BedReply, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -18,15 +18,13 @@ const build = (options: BedOptions = {}) => {
   replies = { set_tools: { success: true } };
   return createServiceBed(
     { createSessionsStore, createSessionsService, loadTranscriptReader },
-    { replies, ...options },
+    { replies, vmLaunch: fakeVmLaunch, ...options },
   );
 };
-const USABLE = { usable: true, path: "/usr/bin/bwrap" } as const;
 
 /** A thread whose profile has `preset`; `profile.preset` can be edited while it runs. */
-async function thread(preset: ToolPreset, options: BedOptions = {}, ensure = async () => USABLE) {
+async function thread(preset: ToolPreset, options: BedOptions = {}, ensure = async () => {}) {
   bed = build(options);
-  mkdirSync(join(bed.dir, "pap", "agents", ID), { recursive: true, mode: 0o700 });
   const profile = { preset };
   bed.service.agent.setAgentPorts({
     agents: {
@@ -35,7 +33,15 @@ async function thread(preset: ToolPreset, options: BedOptions = {}, ensure = asy
         name: "Atlas",
         quarantined: false,
       }),
-      probe: { ensure },
+      vmLayoutOf: (row) =>
+        row.agentId === undefined
+          ? null
+          : layoutOf("process", `${bed.dir}/pap`, { agentId: row.agentId, taskKey: null }),
+      // The gate awaits this after it read the profile: a test holds a start here.
+      claudeEnvOf: async () => {
+        await ensure();
+        return {};
+      },
     },
   });
   const { sessionId } = await bed.service.agentSessions.createAgentSession({
@@ -185,11 +191,10 @@ describe("a start reads the owner's choice as it starts (W5-R28)", () => {
     let open = () => {};
     const { sessionId, profile, release } = await thread("default", {}, async () => {
       await probed;
-      return USABLE;
     });
     await release(0);
     probed = new Promise((resolve) => (open = resolve));
-    // The gate has read the `default` profile and waits for the probe; the profile is widened before the owner asks.
+    // The gate has read the `default` profile and waits for the Claude Code environment; the profile is widened before the owner asks.
     const reopened = bed.service.reopen(sessionId, OWNER);
     profile.preset = "full";
     const asked = bed.service.setTools({ sessionId, preset: "full" }, OWNER);

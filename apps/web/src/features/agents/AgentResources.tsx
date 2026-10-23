@@ -44,8 +44,6 @@ export function AgentResources({ draft, errors, set }: Props) {
           />
         );
       })}
-      <p className="text-ui text-muted">{t("agentVm.vault")}</p>
-      <p className="text-ui text-muted">{t("agentVm.prechecks")}</p>
     </fieldset>
   );
 }

@@ -62,7 +62,7 @@ describe("the French copy of the agents, automation and Inbox speaks to the owne
   }
 
   it("the advice to remove a leg of the triad uses the plural imperative", () => {
-    expect(agentSafetyFr["agentSafety.tri.remove.private"]).toContain("gardez");
+    expect(agentSafetyFr["agentSafety.tri.remove.private"]).toContain("donnez");
     expect(agentSafetyFr["agentSafety.tri.remove.untrusted"]).toContain("retirez");
     expect(agentSafetyFr["agentSafety.tri.remove.exfil"]).toContain("coupez");
   });

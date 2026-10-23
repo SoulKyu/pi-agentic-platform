@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AgentInput, type AgentView, EGRESS_UNKNOWN, type VmStatusView } from "@pap/contracts";
+import { AgentInput, type AgentView, type VmStatusView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentVmEn, agentVmFr } from "../../i18n/catalog/agent-vm.ts";
@@ -18,7 +18,6 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
 
 const vmStatus = (patch: Partial<VmStatusView> = {}): VmStatusView => ({
-  runtime: "vm",
   usable: true,
   reason: null,
   vmdVersion: "1.0.0",
@@ -53,12 +52,7 @@ async function open(status: VmStatusView | "fails", agent: AgentView | null = sa
   await mount(
     <TooltipProvider>
       <StepUpContext.Provider value={stepUp as unknown as StepUpRunner}>
-        <AgentForm
-          agent={agent}
-          probe={{ usable: true, path: "/usr/bin/bwrap", reason: null, checkedAt: 5, egress: EGRESS_UNKNOWN }}
-          presetField={() => null}
-          onSaved={() => {}}
-        />
+        <AgentForm agent={agent} presetField={() => null} onSaved={() => {}} />
       </StepUpContext.Provider>
     </TooltipProvider>,
   );
@@ -126,9 +120,9 @@ describe("agent form: VM resources", () => {
 
   it("says the VM notes: no vault, no prechecks, a shell that is always isolated", async () => {
     await open(vmStatus());
-    expect(body()).toContain("their shell is always isolated. With the network on it reaches only the hosts");
-    expect(body()).toContain("The vault for VM agents arrives with sub-project 2.");
-    expect(body()).toContain("Trigger prechecks for a VM agent arrive with sub-project 3.");
+    expect(body()).toContain(
+      "Its shell is always isolated, in its own VM. With the network on it reaches only the hosts",
+    );
     expect(body()).not.toContain("Off is still yours to choose.");
   });
 
@@ -141,15 +135,10 @@ describe("agent form: VM resources", () => {
     expect(sentInput(bed)?.sandbox).toEqual({ required: true, network: true });
   });
 
-  it("keeps the host form as it is outside VM mode, or when the status cannot be read", async () => {
-    for (const status of [vmStatus({ runtime: "host" }), "fails" as const]) {
-      document.body.replaceChildren();
-      await open(status);
-      expect(body()).not.toContain("Memory (MiB)");
-      expect(body()).not.toContain("The vault for VM agents");
-      expect(body()).toContain("bubblewrap found at /usr/bin/bwrap");
-      expect(alerts(document.body)).toEqual([]);
-    }
+  it("shows the VM fields even when the status cannot be read", async () => {
+    await open("fails");
+    expect(body()).toContain("Memory (MiB)");
+    expect(alerts(document.body)).toEqual([]);
   });
 });
 
@@ -165,10 +154,6 @@ describe("the French catalog", () => {
   it("carries the owner's sentences word for word", () => {
     // Sub-project 2 replaced sub-project 1's "sans réseau" sentence.
     expect(agentVmFr["agentVm.sandboxNote"]).toContain("Avec le réseau activé, il ne joint que les hôtes");
-    expect(agentVmFr["agentVm.vault"]).toBe("Le coffre des agents en VM arrive avec le sous-projet 2.");
-    expect(agentVmFr["agentVm.prechecks"]).toBe(
-      "Les pré-checks d'un agent en VM arrivent avec le sous-projet 3.",
-    );
     expect(agentVmFr["agentVm.exportHtml"]).toBe("L'export HTML d'un agent en VM arrive plus tard.");
     expect(Object.keys(agentVmFr).sort()).toEqual(Object.keys(agentVmEn).sort());
   });

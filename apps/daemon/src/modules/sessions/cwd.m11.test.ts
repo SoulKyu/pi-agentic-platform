@@ -79,7 +79,6 @@ describe("sessions.create, fork and clone", () => {
     bed.service.agent.setAgentPorts({
       agents: {
         profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }),
-        probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       },
     });
     const { sessionId } = await bed.service.agentSessions.createAgentSession({

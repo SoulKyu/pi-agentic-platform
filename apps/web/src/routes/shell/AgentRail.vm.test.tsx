@@ -35,7 +35,6 @@ const summary = (id: string): AgentSummary => ({
   lastActivityAt: 1,
 });
 const status = (patch: Partial<VmStatusView>): VmStatusView => ({
-  runtime: "vm",
   usable: false,
   reason: "no kvm",
   vmdVersion: null,
@@ -92,7 +91,6 @@ describe("the agent rail when the VMs cannot run", () => {
 
   it.each([
     ["VMs usable", status({ usable: true, reason: null })],
-    ["host runtime", status({ runtime: "host" })],
     ["no answer", null],
   ])("leaves the agents alone with %s", async (_name, vm) => {
     const page = await show(vm);

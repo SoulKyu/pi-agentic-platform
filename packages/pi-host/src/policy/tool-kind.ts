@@ -11,7 +11,7 @@ export interface ToolFacts {
   readonly path: string;
   readonly readOnlyHint?: boolean | undefined;
   readonly openWorldHint?: boolean | undefined;
-  /** Whether the session's sandbox has network; only the policy extension sets it, from `init.sandbox`, and only a `bash` from `SANDBOX_SOURCE` reads it. */
+  /** Whether the session's sandbox has network; only the policy extension sets it, from the VM session, and only a `bash` from `SANDBOX_SOURCE` reads it. */
   readonly sandboxNetwork?: boolean | undefined;
   /** The worker's policy config has `vm`; only the policy extension sets it, and only `read`/`write`/`edit`/`ls` from `VM_FILES_SOURCE` read it. */
   readonly vm?: boolean | undefined;

@@ -66,11 +66,10 @@ describe("agent form: what asks for the password (widensReach)", () => {
   });
 
   it("a new agent wider than the defaults does", () => {
-    expect(needsStepUp(null, fresh({ sandboxRequired: false }))).toBe(true);
+    expect(needsStepUp(null, fresh({ network: true }))).toBe(true);
   });
 
-  it("turning the sandbox off, the network on, a higher mode, a higher preset or the full preset widens", () => {
-    expect(edit({}, { sandboxRequired: false })).toBe(true);
+  it("turning the network on, a higher mode, a higher preset or the full preset widens", () => {
     expect(edit({}, { network: true })).toBe(true);
     expect(edit({ mode: "read-only" }, { mode: "auto-accept-edits" })).toBe(true);
     expect(edit({ preset: "chat" }, { preset: "default" })).toBe(true);
@@ -78,7 +77,6 @@ describe("agent form: what asks for the password (widensReach)", () => {
   });
 
   it("the way back does not", () => {
-    expect(edit({ sandbox: { required: false, network: false } }, { sandboxRequired: true })).toBe(false);
     expect(edit({ sandbox: { required: true, network: true } }, { network: false })).toBe(false);
     expect(edit({ mode: "auto-accept-edits" }, { mode: "read-only" })).toBe(false);
     expect(edit({ preset: "default" }, { preset: "chat" })).toBe(false);
@@ -98,7 +96,7 @@ describe("agent form: what asks for the password (widensReach)", () => {
   });
 
   it("a draft the schema refuses asks for nothing: it cannot be saved", () => {
-    expect(needsStepUp(null, fresh({ name: "two words", sandboxRequired: false }))).toBe(false);
+    expect(needsStepUp(null, fresh({ name: "two words", network: true }))).toBe(false);
   });
 });
 
@@ -162,27 +160,5 @@ describe("agent form: the other fields speak the schema", () => {
       save: "staged",
       recallLimit: 4,
     });
-  });
-});
-
-describe("agent form: host entries in host mode (A1 carried)", () => {
-  const withHosts = (hosts: string) => fresh({ ownHosts: false, hosts });
-
-  it.each(["k8s.lan:6443", "192.168.1.40", "[fd00::1]:6443", "api.example.com:443"])(
-    "refuses %s with the VM-mode field error in host mode",
-    (entry) => {
-      const result = toInput(withHosts(`api.example.com\n${entry}`), true);
-      expect(result.ok).toBe(false);
-      expect(!result.ok && result.errors["allowHosts"]).toBe("agentForm.error.allowHosts.vmOnly");
-    },
-  );
-
-  it("accepts the same entries in VM mode, and plain names and wildcards in host mode", () => {
-    expect(toInput(withHosts("k8s.lan:6443\n192.168.1.40"), false).ok).toBe(true);
-    expect(toInput(withHosts("api.example.com\n*.docs.example.com"), true).ok).toBe(true);
-  });
-
-  it("does not judge the owner's list, which the agent form does not hold", () => {
-    expect(toInput(fresh({ ownHosts: true, hosts: "k8s.lan:6443" }), true).ok).toBe(true);
   });
 });

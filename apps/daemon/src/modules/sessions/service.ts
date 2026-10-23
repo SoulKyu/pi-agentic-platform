@@ -373,8 +373,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       policyLink.stop();
       memory.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
-      // The workers are gone: the proxy removes its folders under the runtime folder (a tmpfs nobody else empties).
-      await agent.egress()?.shutdown();
     },
     restartFolder: folderRestart.restart,
     releaseIdle: folderRestart.releaseIdle,

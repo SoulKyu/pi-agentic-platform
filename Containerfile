@@ -19,7 +19,7 @@ RUN pnpm install --frozen-lockfile \
 # Nothing from the build stage is copied except its stage folder: no compiler, no pnpm, no registry credential, no source.
 FROM ${BASE_IMAGE}
 RUN apt-get update \
- && apt-get install -y --no-install-recommends bubblewrap tini python3 git openssh-client ca-certificates ripgrep \
+ && apt-get install -y --no-install-recommends tini python3 git openssh-client ca-certificates ripgrep \
  && rm -rf /var/lib/apt/lists/*
 RUN useradd --create-home --uid 10001 --shell /bin/bash pap
 COPY --from=build --chown=root:root /pap-image-build/stage /opt/pap

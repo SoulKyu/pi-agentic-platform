@@ -110,6 +110,7 @@ describe("sending", () => {
     wireOpen = false;
     expect(worker.handle.send({ type: "get_state", id: "r1" })).toBe(false);
     wireOpen = true;
+    worker.guestGone();
     worker.wireClosed();
     expect(worker.handle.send({ type: "get_state", id: "r1" })).toBe(false);
   });
@@ -139,6 +140,7 @@ describe("sending", () => {
     worker.receive({ type: "response", id: "r1", command: "get_state", success: true });
     expect(await answer).toMatchObject({ id: "r1", success: true });
     const waiting = worker.handle.request({ type: "get_state" });
+    worker.guestGone();
     worker.wireClosed();
     await expect(waiting).rejects.toEqual(new PapError("worker_failed"));
   });
@@ -233,6 +235,7 @@ describe("exit and stop", () => {
 
   it("resolves exited from the wire's close when the guest said nothing, and the guest's report after it changes nothing", async () => {
     make();
+    worker.guestGone();
     worker.wireClosed();
     expect((await worker.handle.exited).cause).toBe("exit_code");
     worker.guestExited({ code: 0, signal: null, cause: "clean" }, "late");

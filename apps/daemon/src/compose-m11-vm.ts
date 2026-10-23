@@ -11,37 +11,33 @@ import { createRefusalSink } from "./modules/agent-vm/index.ts";
 
 export type { AgentsVm };
 
-/** What the VM composition adds to M11's three call sites; nothing in host mode. */
+/** What the VM composition adds to M11's call sites; nothing when a bed composes without it. */
 export interface VmPorts {
   /** Into the one `agents` object of `setAgentPorts`: it replaces the whole object, so it cannot be set apart. */
-  readonly sessions: Partial<Pick<AgentsVm, "vmLayoutOf" | "agentRunsInVm">>;
+  readonly sessions: Partial<Pick<AgentsVm, "vmLayoutOf">>;
   /** Into `createAgents`: the host's resource ceilings, the check of the package picks and the VM runtime's link (T15). */
   readonly agents: {
     resourceHost?: AgentsVm["resourceHost"];
     checkPackages?: AgentsVm["checkPackages"];
     vm?: AgentsVm["agentLink"];
   };
-  /** Into `createAgentSafety`: no prompt chips from a host home. */
-  readonly safety: Partial<Pick<AgentsVm, "agentRunsInVm">>;
 }
 
-const NONE: VmPorts = { sessions: {}, agents: {}, safety: {} };
+const NONE: VmPorts = { sessions: {}, agents: {} };
 
 /**
- * The VM wiring of composeM11 (`modules.vm`: `PAP_AGENTS_RUNTIME=vm`, absent in host mode). A predicate that is not wired stops
- * the boot (T8a, fail closed), because an agent row would otherwise run on the host; and a vm mode without this wiring is
- * stopped by `setAgentPorts`, which the sessions module (given a launcher) refuses without `vmLayoutOf` and `agentRunsInVm`.
+ * The VM wiring of composeM11 (`modules.vm`, absent only in a bed that composes without it). A predicate that is not wired stops
+ * the boot (T8a, fail closed); and `setAgentPorts` refuses an agents object without `vmLayoutOf` once the sessions module has a launcher.
  */
 export function vmPortsOf(vm: AgentsVm | undefined): VmPorts {
   if (vm === undefined) return NONE;
-  for (const name of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages"] as const)
-    if (typeof vm[name] !== "function") throw new Error(`PAP_AGENTS_RUNTIME=vm: ${name} is not wired`);
-  if (typeof vm.agentLink !== "object") throw new Error("PAP_AGENTS_RUNTIME=vm: agentLink is not wired");
-  const { vmLayoutOf, agentRunsInVm, resourceHost, checkPackages, agentLink } = vm;
+  for (const name of ["vmLayoutOf", "resourceHost", "checkPackages"] as const)
+    if (typeof vm[name] !== "function") throw new Error(`${name} is not wired`);
+  if (typeof vm.agentLink !== "object") throw new Error("agentLink is not wired");
+  const { vmLayoutOf, resourceHost, checkPackages, agentLink } = vm;
   return {
-    sessions: { vmLayoutOf, agentRunsInVm },
+    sessions: { vmLayoutOf },
     agents: { resourceHost, checkPackages, vm: agentLink },
-    safety: { agentRunsInVm },
   };
 }
 

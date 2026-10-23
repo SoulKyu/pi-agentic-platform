@@ -1,4 +1,3 @@
-import { EGRESS_UNKNOWN } from "@pap/contracts";
 // @vitest-environment happy-dom
 import { TooltipProvider } from "@pap/ui";
 import { act } from "react";
@@ -22,12 +21,7 @@ async function open(settings: () => unknown) {
   await mount(
     <TooltipProvider>
       <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
-        <NewAgentDialog
-          probe={{ usable: true, path: "/usr/bin/bwrap", reason: null, checkedAt: 1, egress: EGRESS_UNKNOWN }}
-          presetField={() => null}
-          onClose={vi.fn()}
-          onCreated={vi.fn()}
-        />
+        <NewAgentDialog presetField={() => null} onClose={vi.fn()} onCreated={vi.fn()} />
       </StepUpContext.Provider>
     </TooltipProvider>,
   );
@@ -52,15 +46,6 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
     }));
     expect(bed.called("settings.get")).toEqual([expect.objectContaining({ params: { key: "agents" } })]);
     expect(networkOn()).toBe(true);
-  });
-
-  it("starts with the sandbox off when the owner chose that", async () => {
-    await open(() => ({
-      value: { newAgent: { sandbox: { required: false, network: false } } },
-      revision: 2,
-    }));
-    expect(networkOn()).toBeNull();
-    expect(offWarning()).toBe(true);
   });
 
   it("starts from the safe defaults when nothing is stored", async () => {
@@ -90,18 +75,7 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
     await mount(
       <TooltipProvider>
         <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
-          <NewAgentDialog
-            probe={{
-              usable: true,
-              path: "/usr/bin/bwrap",
-              reason: null,
-              checkedAt: 1,
-              egress: EGRESS_UNKNOWN,
-            }}
-            presetField={() => null}
-            onClose={vi.fn()}
-            onCreated={vi.fn()}
-          />
+          <NewAgentDialog presetField={() => null} onClose={vi.fn()} onCreated={vi.fn()} />
         </StepUpContext.Provider>
       </TooltipProvider>,
     );
@@ -118,18 +92,7 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
     await mount(
       <TooltipProvider>
         <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
-          <NewAgentDialog
-            probe={{
-              usable: true,
-              path: "/usr/bin/bwrap",
-              reason: null,
-              checkedAt: 1,
-              egress: EGRESS_UNKNOWN,
-            }}
-            presetField={() => null}
-            onClose={vi.fn()}
-            onCreated={vi.fn()}
-          />
+          <NewAgentDialog presetField={() => null} onClose={vi.fn()} onCreated={vi.fn()} />
         </StepUpContext.Provider>
       </TooltipProvider>,
     );
@@ -143,7 +106,7 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
     });
     expect(text(document.body)).not.toContain("Loading…");
     expect(text(document.body)).toContain(
-      "The defaults did not answer, so this form starts from the safe ones: sandbox on, network off.",
+      "The defaults did not answer, so this form starts from the safe ones: network off.",
     );
     expect(networkOn()).toBe(false);
     expect(offWarning()).toBe(false);

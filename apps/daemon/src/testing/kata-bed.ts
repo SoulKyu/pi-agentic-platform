@@ -174,7 +174,6 @@ export async function startKataBed(
         agentFiles,
         config: {
           home: KATA_HOME,
-          agentsRuntime: "vm",
           testAgentRuntime: null,
           workerIdleMs: options.workerIdleMs ?? 30 * 60_000,
         },

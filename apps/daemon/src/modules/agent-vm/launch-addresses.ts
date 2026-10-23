@@ -1,6 +1,6 @@
 import type { VmScope } from "../egress/index.ts";
 
-export type LaunchScope = Omit<VmScope, "hosts">;
+export type LaunchScope = Omit<VmScope, "hosts" | "trustedSources">;
 
 /**
  * Which running launch sits behind a VM's bridge address (spec §3): the egress proxy identifies an agent by its source

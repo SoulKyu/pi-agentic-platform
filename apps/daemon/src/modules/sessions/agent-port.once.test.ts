@@ -37,7 +37,6 @@ function setup(sandboxRequired = true, options?: BedOptions, extra: Partial<Sess
       vaultOf: () => ({}),
       onceOf: () => waiting.map((each) => ({ ...each })),
       onceUsed: used,
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       ...extra,
     },
   });
@@ -77,7 +76,7 @@ describe("every record carries the session's full once list (W5-R37)", () => {
   it("an untargeted send (a vault change) gives each session its own list, so it never empties a worker's set", async () => {
     setup();
     waiting = [{ id: "id-API_TOKEN", name: "API_TOKEN", value: VALUE, expiresAt: EXP }];
-    const { sessionId } = await thread();
+    await thread();
     const plain: VaultUpdateRecord = {
       type: "vault_update",
       vault: { SAVED_NAME: "saved-value-123" },
@@ -90,12 +89,11 @@ describe("every record carries the session's full once list (W5-R37)", () => {
     waiting = [];
     expect(bed.service.agentSessions.sendToAgent("u1", ATLAS, plain)).toBe(1);
     expect(updates(0).at(-1)).toEqual(plain);
-    expect(sessionId).toBeTruthy();
   });
 });
 
 describe("sandboxed (M11R103)", () => {
-  it("is true for a worker that started with the sandbox on, for its owner only", async () => {
+  it("is true for a started VM worker, for its owner only", async () => {
     setup();
     const { sessionId } = await thread();
     expect(bed.service.agentSessions.sandboxed("u1", sessionId)).toBe(true);
@@ -103,15 +101,15 @@ describe("sandboxed (M11R103)", () => {
     expect(bed.service.agentSessions.sandboxed("u1", "nobody")).toBe(false);
   });
 
-  it("is false when the agent's sandbox is off", async () => {
+  it("ignores the profile's retired sandbox switch: a VM shell is always pap's", async () => {
     setup(false);
     const { sessionId } = await thread();
-    expect(bed.service.agentSessions.sandboxed("u1", sessionId)).toBe(false);
+    expect(bed.service.agentSessions.sandboxed("u1", sessionId)).toBe(true);
   });
 });
 
 describe("init.once (M11R105)", () => {
-  it("starts a sandboxed thread with the values that wait for its session", async () => {
+  it("starts a thread with the values that wait for its session", async () => {
     setup();
     waiting = [{ id: "id-API_TOKEN", name: "API_TOKEN", value: VALUE, expiresAt: EXP }];
     await thread();
@@ -128,13 +126,12 @@ describe("init.once (M11R105)", () => {
     expect(init).not.toHaveProperty("once");
   });
 
-  it("never gives a value to a worker without the sandbox", async () => {
+  it("gives the value whatever the profile's retired sandbox switch says", async () => {
     setup(false);
     waiting = [{ id: "id-API_TOKEN", name: "API_TOKEN", value: VALUE, expiresAt: EXP }];
     await thread();
-    const init = bed.spawned[0]?.sent.find((record) => record.type === "init") as Record<string, unknown>;
-    expect(init).not.toHaveProperty("once");
-    expect(JSON.stringify(init)).not.toContain(VALUE);
+    const init = bed.spawned[0]?.sent.find((record) => record.type === "init");
+    expect(init).toMatchObject({ once: [{ value: VALUE }] });
   });
 });
 

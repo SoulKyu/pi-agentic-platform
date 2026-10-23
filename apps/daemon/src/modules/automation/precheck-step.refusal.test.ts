@@ -1,4 +1,4 @@
-import { AutomationSettings, PapError } from "@pap/contracts";
+import { AutomationSettings } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testCaller } from "../../testing/caller.ts";
 import { createDryRun } from "./dry-run.ts";
@@ -54,40 +54,8 @@ function setup(
   });
   return { step, dry, record, run, fakes, id };
 }
-const journal = (id: string) =>
-  bed.db.all<{ verdict: string; detail: string | null }>(
-    "SELECT verdict, detail FROM trigger_fires WHERE trigger_id = $id ORDER BY id",
-    { id },
-  );
 
-describe("a refused agent precheck journals its own code", () => {
-  it.each([
-    ["agent_paused", "quarantined"],
-    ["not_found", "missing"],
-    ["sandbox_unavailable", "sandbox_unavailable"],
-  ] as const)("%s from the sandbox gate is journaled as %s", async (code, detail) => {
-    const { step, record, run, fakes, id } = setup();
-    fakes.precheckSandbox.mockImplementation(async () => {
-      throw new PapError(code);
-    });
-    expect(await step.run(record, how)).toMatchObject({
-      kind: "stop",
-      verdict: "error",
-      detail,
-      answer: detail,
-    });
-    expect(journal(id)).toEqual([{ verdict: "error", detail }]);
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  it("an error of another kind stays 'precheck spawn' and never writes its text", async () => {
-    const { step, record, fakes } = setup();
-    fakes.precheckSandbox.mockImplementation(async () => {
-      throw new Error("secret-token-in-message");
-    });
-    expect(await step.run(record, how)).toMatchObject({ kind: "stop", detail: "precheck spawn" });
-  });
-
+describe("a refused precheck journals its own code", () => {
   it("a folder that is gone is journaled as invalid_cwd", async () => {
     const { trigger: created } = bed.triggers.create(
       bed.owner(),
@@ -112,26 +80,14 @@ describe("a paused or quarantined agent's precheck does not run", () => {
   it.each([
     ["paused", { paused: true }],
     ["quarantined", { quarantinedAt: 5 }],
-  ] as const)("%s: no sandbox is built and no command is spawned", async (_name, over) => {
-    const { step, record, run, fakes } = setup(over);
+  ] as const)("%s: no command is spawned", async (_name, over) => {
+    const { step, record, run } = setup(over);
     expect(await step.run(record, how)).toEqual({ kind: "go", precheck: null });
     expect(run).not.toHaveBeenCalled();
-    expect(fakes.precheckSandbox).not.toHaveBeenCalled();
   });
 });
 
 describe("the dry run of an agent trigger", () => {
-  it("reports the sandbox refusal as its closed code, not as an empty error", async () => {
-    const { dry, fakes, id, run } = setup();
-    fakes.precheckSandbox.mockImplementation(async () => {
-      throw new PapError("sandbox_unavailable");
-    });
-    const result = await dry.run(testCaller(), { triggerId: id });
-    expect(result.precheck).toMatchObject({ verdict: "error", output: "sandbox_unavailable" });
-    expect(result.reasons).toContain("precheck_error");
-    expect(run).not.toHaveBeenCalled();
-  });
-
   it("refuses a sample payload for a thread target and a token's dry run of it, as the fire does", async () => {
     const { dry, id } = setup({ target: "thread" });
     await expect(dry.run(testCaller(), { triggerId: id, payload: "outside text" })).rejects.toMatchObject({

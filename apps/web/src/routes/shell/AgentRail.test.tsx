@@ -51,12 +51,6 @@ beforeEach(() => {
   bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
-  bed.handlers["agents.sandboxStatus"] = () => ({
-    usable: true,
-    path: "/usr/bin/bwrap",
-    reason: null,
-    checkedAt: 1,
-  });
   current.runtime = bed.runtime;
   localStorage.clear();
   useAgentsStore.getState().reset();

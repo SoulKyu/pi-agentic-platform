@@ -16,7 +16,6 @@ export { createUnread } from "./unread.ts";
 export { createAgentReads } from "./status.ts";
 export { createQueueTask } from "./queue.ts";
 export { createAgentSafety } from "./safety.ts";
-export { createSandboxMethods } from "./sandbox.ts";
 export { type AgentEvents, createAgentEvents, SUMMARY_CHARS } from "./events.ts";
 export {
   createDelegate,

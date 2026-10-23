@@ -15,7 +15,7 @@ describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
     expect(composed).toBeGreaterThan(0);
     expect(composed).toBeLessThan(source.indexOf("createSessionsModule("));
     expect(composed).toBeLessThan(source.indexOf("startServer("));
-    expect(source).toContain("vmLaunch: agentsVm?.launch");
+    expect(source).toContain("vmLaunch: agentsVm.launch");
     expect(source).toContain("vm: agentsVm");
   });
 
@@ -34,7 +34,7 @@ describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
     const daemon = await startTestDaemon(
       { steps: [] },
       {
-        config: { agentsRuntime: "vm", testAgentRuntime: "process" },
+        config: { testAgentRuntime: "process" },
         deps: { agentsVm: { backend: () => fake, relay: "off" } },
       },
     );
@@ -46,15 +46,14 @@ describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
   });
 
   // Without the test switch the backend is Kata, through pap-vmd's socket (a path that is not there, never the real one).
-  it("refuses to boot in vm mode with no pap-vmd to start a VM", async () => {
-    await expect(
-      startTestDaemon(
-        { steps: [] },
-        {
-          config: { agentsRuntime: "vm", testAgentRuntime: null },
-          deps: { agentsVm: { kata: { socket: "/nonexistent/pap-vm/vmd.sock" } } },
-        },
-      ),
-    ).rejects.toThrow(/pap-vmd/);
+  it("boots in vm mode with no pap-vmd: agents are unavailable", async () => {
+    const daemon = await startTestDaemon(
+      { steps: [] },
+      {
+        config: { testAgentRuntime: null },
+        deps: { agentsVm: { kata: { socket: "/nonexistent/pap-vm/vmd.sock" } } },
+      },
+    );
+    started.push(daemon);
   });
 });

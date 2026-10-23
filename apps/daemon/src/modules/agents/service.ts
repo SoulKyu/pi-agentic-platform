@@ -277,6 +277,7 @@ export function createAgents(deps: AgentsDeps) {
 
     trash: (caller: Caller) => ({ agents: store.trashed(caller.userId, clock.now()) }),
     async create(caller: Caller, input: AgentInput): Promise<AgentView> {
+      await deps.vm?.require();
       stepUpIfWider(deps, caller, null, input, clock.now());
       const ownerId = caller.userId;
       const profile = profileOf(input);

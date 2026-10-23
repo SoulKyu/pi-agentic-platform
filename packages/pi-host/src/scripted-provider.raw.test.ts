@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setRawChannel } from "./raw-channel.ts";
 import { ProviderScript, scriptedReplies } from "./scripted-provider.ts";
 
 // Test only: a step that sends `platform_call` records as written, the way a compromised worker would.
@@ -73,5 +74,19 @@ describe("a step with rawPlatformCalls", () => {
     expect(readFileSync(file, "utf8")).toBe(
       `${JSON.stringify({ type: "platform_result", id: "r1", ok: false, error: "forbidden" })}\n`,
     );
+  });
+
+  it("uses the host's channel when it has one (a VM worker has no process IPC)", () => {
+    const viaHost: unknown[] = [];
+    const listeners: Array<(record: never) => void> = [];
+    setRawChannel({
+      send: (record) => viaHost.push(record) > 0,
+      onMessage: (listener) => void listeners.push(listener as never),
+    });
+    scriptedReplies(
+      ProviderScript.parse({ steps: [{ text: "sent", rawPlatformCalls: [call("lane.note")] }] }),
+    )(ask);
+    expect(viaHost).toMatchObject([{ type: "platform_call", op: "lane.note" }]);
+    expect(sent).toEqual([]);
   });
 });

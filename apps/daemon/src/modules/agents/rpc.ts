@@ -1,6 +1,5 @@
 import type { HandlerTable } from "@pap/contracts";
 import type { QueueTask } from "./queue.ts";
-import type { SandboxMethods } from "./sandbox.ts";
 import type { Requests } from "./requests.ts";
 import type { Permissions } from "./permissions.ts";
 import type { Prompts } from "./prompts.ts";
@@ -19,8 +18,6 @@ export type AgentsRpc = Pick<
   | "agents.create"
   | "agents.update"
   | "agents.delete"
-  | "agents.sandboxStatus"
-  | "agents.recheckSandbox"
   | "agents.openThread"
   | "agents.resetThread"
   | "agents.markRead"
@@ -48,7 +45,6 @@ export interface AgentSafetyServices {
 /** Each handler decodes (the dispatcher did), calls one service method and lets typed errors through (C §1.4.3). */
 export function agentsRpc(
   agents: Pick<Agents, "list" | "view" | "trash" | "create" | "update" | "remove" | "pause">,
-  sandbox: SandboxMethods,
   threads: Threads,
   unread: Pick<Unread, "markRead">,
   reads: AgentReads,
@@ -63,8 +59,6 @@ export function agentsRpc(
     "agents.create": async ({ input }, ctx) => agents.create(ctx.caller, input),
     "agents.update": async (params, ctx) => agents.update(ctx.caller, params),
     "agents.delete": async ({ agentId }, ctx) => agents.remove(ctx.caller, agentId),
-    "agents.sandboxStatus": async () => sandbox.status(),
-    "agents.recheckSandbox": async () => sandbox.recheck(),
     "agents.openThread": async ({ agentId }, ctx) => threads.open(ctx.caller.userId, agentId),
     "agents.resetThread": async ({ agentId }, ctx) => {
       await threads.reset(ctx.caller, agentId);

@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import { PapError, VmdHealth, type VmStatusView } from "@pap/contracts";
 import type { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
@@ -9,7 +10,11 @@ import type { VmdClient } from "./vmd-client.ts";
 
 /** The sentences of the stack's state: `pap doctor` and `agents.vmStatus` print the same ones (R6, T1's view). */
 export const STACK_REASONS = {
+  kvm_missing: "this machine has no /dev/kvm: agents run in microVMs, which need KVM",
   unreachable: "pap-vmd does not answer: run `sudo pap vm setup`, then start pap-vmd",
+  /** pap booted without a usable VM stack (no pap-vmd then, or a held port): its listeners stay off until it restarts. */
+  restart:
+    "pap started before its VM stack was ready, or a port on the bridge address was held; the rest of pap works: restart pap (`systemctl --user restart pap`) to start its agents",
   version: (found: string, pap: string): string =>
     `pap-vmd is at version ${found}, pap at ${pap}: run \`sudo pap vm setup\``,
   ruleset: "pap-vmd's firewall table is not loaded: run `sudo pap vm setup`",
@@ -32,12 +37,26 @@ export interface StackAssessment {
   readonly health: Health | null;
 }
 
+/** `/dev/kvm` is a character device. */
+export function hasKvm(): boolean {
+  try {
+    return statSync("/dev/kvm").isCharacterDevice();
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Whether the agents' VMs can start (R6, RT-40): pap-vmd answers `vmd.health`, runs pap's version, and has loaded its ruleset
+ * Whether the agents' VMs can start (R6, RT-40): `/dev/kvm` exists, pap-vmd answers `vmd.health`, runs pap's version, and has loaded its ruleset
  * and made pap0. The first fact that fails gives the sentence. Never throws: a pap-vmd that fails or answers nonsense is
  * unreachable.
  */
-export async function assessStack(client: VmdClient, papVersion: string): Promise<StackAssessment> {
+export async function assessStack(
+  client: VmdClient,
+  papVersion: string,
+  kvm: () => boolean,
+): Promise<StackAssessment> {
+  if (!kvm()) return { usable: false, reason: STACK_REASONS.kvm_missing, vmdVersion: null, health: null };
   let health: Health;
   try {
     health = VmdHealth.parse(await client.request({ op: "vmd.health" }));
@@ -53,18 +72,6 @@ export async function assessStack(client: VmdClient, papVersion: string): Promis
           ? STACK_REASONS.bridge
           : null;
   return { usable: reason === null, reason, vmdVersion: health.version, health };
-}
-
-/** `PAP_AGENTS_RUNTIME=host` (AVM-P17): T1's view of a stack that is not there. Only the Claude token has a state. */
-export function createHostStatus(claudeToken: Pick<ClaudeTokenStore, "status">): () => VmStatusView {
-  return () => ({
-    runtime: "host",
-    usable: false,
-    reason: "not_configured",
-    vmdVersion: null,
-    claudeToken: claudeToken.status(),
-    agents: [],
-  });
 }
 
 export interface VmStatusDeps {
@@ -105,7 +112,6 @@ export function createVmStatus(deps: VmStatusDeps): VmStatus {
     async view(ownerId) {
       const stack = await fresh();
       return {
-        runtime: "vm",
         usable: stack.usable,
         reason: stack.reason,
         vmdVersion: stack.vmdVersion,

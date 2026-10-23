@@ -61,11 +61,10 @@ case "$verb" in
     done
     podman run --detach --name "$name" --replace --stop-timeout 40 \
       --user 10001:10001 --userns=keep-id:uid=10001,gid=10001 --cap-drop ALL \
-      --security-opt no-new-privileges --security-opt systempaths=unconfined \
+      --security-opt no-new-privileges \
       --publish "127.0.0.1:$port:$port" --env "PAP_PORT=$port" \
       --volume "$VOLUME:/home/pap" ${mounts[@]+"${mounts[@]}"} -- "$IMAGE" >/dev/null
     printf 'pap-container: started %s on http://localhost:%s (this machine only). Setup URL: %s url --name %s\n' "$name" "$port" "$0" "$name"
-    printf 'pap-container: agents that require the sandbox need the options above; check: podman exec %s node /opt/pap/apps/daemon/dist/main.js doctor --only bwrap\n' "$name"
     ;;
   url)
     podman container exists -- "$name" || die "no container named $name (podman ps -a)"

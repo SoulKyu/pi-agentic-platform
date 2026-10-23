@@ -89,7 +89,7 @@ export interface SessionsServiceDeps {
   readonly runs?: RunObserver;
   /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
   readonly admission?: Admission;
-  /** Present under `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  /** Present when the VM stack is composed (T8a): the agents' sessions start in their VMs through it. */
   readonly vmLaunch?: VmLaunch;
 }
 

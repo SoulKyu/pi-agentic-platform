@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { PapError, type SandboxSpec } from "@pap/contracts";
+import { PapError } from "@pap/contracts";
 import { vi } from "vitest";
 import type { Db } from "../../../kernel/db/database.ts";
 import type { AgentPorts } from "../index.ts";
@@ -40,20 +40,6 @@ export function fakeAgentPorts(root: string, realSpend?: AgentPorts["spend"]) {
     sessions += 1;
     return { sessionId: `agent-s${sessions}` };
   });
-  const precheckSandbox = vi.fn(async (): Promise<SandboxSpec> => ({
-    bwrap: "/usr/bin/bwrap",
-    view: "system",
-    home: homeOf(AGENT),
-    writable: null,
-    hide: ["/var/log"],
-    egress: null,
-    network: false,
-  }));
-  /** A networked precheck's own proxy socket (M11R243); the default spec is network-off, so this is only called when a test asks. */
-  const precheckEgress = vi.fn(async () => ({
-    socket: "/run/pap-fake/0/0.s",
-    release: async (): Promise<void> => {},
-  }));
   const lastText = vi.fn(async (): Promise<string | null> => "The run's last words.");
   const taskFolders = vi.fn((): ReadonlySet<string> => new Set<string>());
   /** The thread's state as `threadState` reports it, by session; an unlisted session is a warm idle thread. */
@@ -170,7 +156,7 @@ export function fakeAgentPorts(root: string, realSpend?: AgentPorts["spend"]) {
         rmSync(scratchPathOf(agentId, taskId), { recursive: true, force: true });
       },
     },
-    sessions: { createAgentSession, precheckSandbox, precheckEgress, lastText, taskFolders, threadState },
+    sessions: { createAgentSession, lastText, taskFolders, threadState },
     threads: { open },
     events: { isolated, runCard, runCardEnded, reminder, delegation, delegationEnded },
     delegations: { back },
@@ -182,8 +168,6 @@ export function fakeAgentPorts(root: string, realSpend?: AgentPorts["spend"]) {
     cards,
     removed,
     createAgentSession,
-    precheckSandbox,
-    precheckEgress,
     lastText,
     taskFolders,
     isolated,

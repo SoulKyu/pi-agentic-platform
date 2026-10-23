@@ -1,4 +1,3 @@
-import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
 import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
@@ -75,11 +74,9 @@ export interface DaemonDeps {
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
   /** Tests only: replaces the boot probe of the worker scopes. */
   readonly probeScopes?: typeof probeScopes;
-  /** Tests only: replaces the process spawn of the sandbox probe (a bwrap that never answers). */
-  readonly sandboxSpawn?: typeof spawn;
   readonly push?: PushSeams; // tests only: replaces the transport side
   readonly fontsFetcher?: Fetcher; // tests only: replaces the Google Fonts fetcher
-  readonly agentsVm?: AgentsVmSeams; // PAP_AGENTS_RUNTIME=vm: the guest seam, T9b's mirrors (J1)
+  readonly agentsVm?: AgentsVmSeams; // the guest seam, T9b's mirrors (J1)
 }
 
 /**
@@ -161,8 +158,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
     closers.push({ name: "agent_files_sweep", close: vmRpc.stopSweep });
     const core = { db, clock, logger, config, readOnly, hub, env, ...vmRpc.shared };
-    const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
-    vmRpc.bindStatus(agentsVm?.status.view);
+    const agentsVm = await composeAgentsVm(core, closers, deps.agentsVm);
+    vmRpc.bindStatus(agentsVm.status.view);
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
     const onOriginRefused = createOriginRefusalLog(logger, clock);
@@ -241,7 +238,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       workerUmask,
       env,
       scopes,
-      vmLaunch: agentsVm?.launch,
+      vmLaunch: agentsVm.launch,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     ownerOf = sessions.ownerOf;
@@ -259,25 +256,22 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     lanes.bind({ sessions, pi, policy: policy.port, hub });
     const m10Late = composeM10(core, m10, { audit, auth, policy, projects, sessions, settings, wk, scopes });
-    const m11 = composeM11(
-      { ...core, probeSpawn: deps.sandboxSpawn },
-      {
-        sessions,
-        policy,
-        audit,
-        lanes,
-        git: wk.git,
-        runs: m10.runs.port,
-        automationModule: m10Late.automation,
-        inbox: m10Late.inbox,
-        settings,
-        subagents: { pi, sessions },
-        claudeEnvOf: createClaudeEnvOf({ sourcesOf: pi.plugins.sourcesOf, logger, daemonEnv: env }),
-        vm: agentsVm,
-      },
-    );
+    const m11 = composeM11(core, {
+      sessions,
+      policy,
+      audit,
+      lanes,
+      git: wk.git,
+      runs: m10.runs.port,
+      automationModule: m10Late.automation,
+      inbox: m10Late.inbox,
+      settings,
+      subagents: { pi, sessions },
+      claudeEnvOf: createClaudeEnvOf({ sourcesOf: pi.plugins.sourcesOf, logger, daemonEnv: env }),
+      vm: agentsVm,
+    });
     vmRpc.bindAgents(m11.agents);
-    agentsVm?.bindLate({ sessions, pi, ...m11.vmLate, runs: m10.runs, automation: m10Late.automation });
+    agentsVm.bindLate({ sessions, pi, ...m11.vmLate, runs: m10.runs, automation: m10Late.automation });
     const agents = { port: m11.agents };
     const push = composePush(
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },

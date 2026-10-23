@@ -6,7 +6,7 @@ import {
 } from "node:http";
 import type { Socket } from "node:net";
 import type { EgressHost, EgressReason } from "@pap/contracts";
-import type { Decision } from "./judge.ts";
+import type { Decision } from "./proxy-core.ts";
 import { displayHost, refusalBody, refusalStatus, UNREADABLE_HOST } from "./refusal.ts";
 
 /** What the plain HTTP relay needs of its command: bookkeeping and the upstream, nothing else. */

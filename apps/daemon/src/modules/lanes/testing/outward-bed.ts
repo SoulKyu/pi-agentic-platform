@@ -41,6 +41,8 @@ export async function startOutwardBed(
     readonly logger?: Logger;
     /** Daemon settings (a group of lanes plus the owner's own session need more than four workers). */
     readonly config?: Partial<Config>;
+    /** The agents on the process backend (`TestDaemonOptions.vm`): the platform-ops cases need agent sessions. */
+    readonly vm?: boolean;
   } = {},
 ): Promise<OutwardBed> {
   const repo = createGitBed();
@@ -53,6 +55,7 @@ export async function startOutwardBed(
     { steps: extra.steps ?? [{ text: "hi" }, { text: "hi" }, { text: "hi" }] },
     {
       config: { testGitProtocols: "file", ...extra.config },
+      ...(extra.vm ? { vm: true } : {}),
       ...(extra.logger ? { deps: { logger: extra.logger } } : {}),
       workerEnv: { PATH: `${stubDir}:${process.env.PATH ?? ""}`, ...extraEnv },
     },

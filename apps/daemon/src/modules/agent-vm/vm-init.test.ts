@@ -34,15 +34,6 @@ const host: InitRecord = {
   sessionFile: `${PAP_HOME}/agents/.mirrors/atlas-1a2b/s.jsonl`,
   papSessionId: "s1",
   platform: { ops: ["secret.request", "agent.approve"] },
-  sandbox: {
-    bwrap: "/usr/bin/bwrap",
-    view: "host",
-    home: `${PAP_HOME}/agents/atlas-1a2b`,
-    writable: `${PAP_HOME}/agents/atlas-1a2b`,
-    network: false,
-    egress: null,
-    hide: [PAP_HOME],
-  },
   vault: { TOKEN: "s3cret" },
   once: [{ id: "o".repeat(8), name: "ONE", value: "v", expiresAt: 5 }],
   agent: { id: "atlas-1a2b", name: "Atlas", role: "r" },
@@ -51,7 +42,7 @@ const host: InitRecord = {
   policy: vmRules,
 };
 
-describe("vmInitOf (R11, R17, RT-06)", () => {
+describe("vmInitOf (R17, RT-06)", () => {
   const out = vmInitOf(host, vm, "s.jsonl");
   it("translates the paths to the VM's layout", () => {
     expect(out.cwd).toBe(layout.home);
@@ -66,11 +57,11 @@ describe("vmInitOf (R11, R17, RT-06)", () => {
     expect(text).not.toContain(PI_DIR);
     expect(text).not.toContain("script.json");
   });
-  it("carries no sandbox, vault, once or memory, and no secret.request op", () => {
-    for (const key of ["sandbox", "vault", "once", "memory", "testProviderScript"])
-      expect(out).not.toHaveProperty(key);
-    expect(out.platform?.ops).toEqual(["agent.approve"]);
-    expect(JSON.stringify(out)).not.toContain("s3cret");
+  it("carries the vault, the one-use values and the secret.request op, but no memory (ADR 0081)", () => {
+    for (const key of ["memory", "testProviderScript"]) expect(out).not.toHaveProperty(key);
+    expect(out.vault).toEqual({ TOKEN: "s3cret" });
+    expect(out.once).toEqual(host.once);
+    expect(out.platform?.ops).toEqual(["secret.request", "agent.approve"]);
   });
   it("names no sessionFile without a mirror (Pi creates it in layout.sessions)", () => {
     expect(vmInitOf(host, vm, null)).not.toHaveProperty("sessionFile");

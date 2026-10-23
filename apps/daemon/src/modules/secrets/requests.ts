@@ -26,11 +26,8 @@ export interface SecretRequestsDeps {
   readonly sessions: {
     /** The worker of this session started with the sandbox on. */
     sandboxed(ownerId: string, sessionId: string): boolean;
-    /** The session runs in a VM (R11): the vault does not reach it. */
-    runsInVm?(ownerId: string, sessionId: string): boolean;
     sendToAgent: SecretsDeps["sessions"]["sendToAgent"];
   };
-  readonly probe: { ensure(): Promise<{ readonly usable: boolean }> };
   readonly clock: Pick<Clock, "now" | "setTimeout" | "clearTimeout">;
   readonly audit: Pick<AuditPort, "append">;
   readonly logger: Logger;
@@ -74,12 +71,9 @@ export function createSecretRequests(deps: SecretRequestsDeps) {
   const op: PlatformHandler<"secret.request"> = async (args, ctx) => {
     if (ctx.agentId === null) throw new PlatformRefusal("not_found");
     if (ctx.signal.aborted) throw new PlatformRefusal("cancelled");
-    // R11 (RT-11), before any card: a VM agent has no vault, whatever its profile's sandbox switch says.
-    if (deps.sessions.runsInVm?.(ctx.ownerId, ctx.sessionId)) throw new PlatformRefusal("unavailable");
     // First of all (RT-17): a value for a shell that is not sandboxed would never be used, and a vault value never reaches one.
     if (!deps.sessions.sandboxed(ctx.ownerId, ctx.sessionId))
       throw new PlatformRefusal("sandbox_unavailable");
-    if (!(await deps.probe.ensure()).usable) throw new PlatformRefusal("sandbox_unavailable");
     if (ctx.signal.aborted) throw new PlatformRefusal("cancelled");
     const id = requests.open({
       kind: "secret",

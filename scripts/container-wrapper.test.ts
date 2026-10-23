@@ -28,8 +28,6 @@ const baseRun = (port = "7777") => [
   "ALL",
   "--security-opt",
   "no-new-privileges",
-  "--security-opt",
-  "systempaths=unconfined",
   "--publish",
   `127.0.0.1:${port}:${port}`,
   "--env",
@@ -46,14 +44,14 @@ describe("pap-container.sh run", () => {
     expect(outcome.status).toBe(0);
     expect(runCall(outcome)).toEqual(baseRun());
     const text = JSON.stringify(runCall(outcome));
-    for (const forbidden of ["--privileged", "--cap-add", "0.0.0.0", "--network"])
+    for (const forbidden of ["--privileged", "--cap-add", "0.0.0.0", "--network", "systempaths"])
       expect(text).not.toContain(forbidden);
   });
 
-  it("says that agents need the flag and prints the doctor command", () => {
+  it("says where pap listens and prints no sandbox command", () => {
     const outcome = sandbox().exec(wrapper, ["run"]);
     expect(outcome.stdout).toContain("started pap on http://localhost:7777");
-    expect(outcome.stdout).toContain("doctor --only bwrap");
+    expect(outcome.stdout).not.toContain("doctor --only bwrap");
   });
 
   it("changes only the port occurrences and the env for --port", () => {

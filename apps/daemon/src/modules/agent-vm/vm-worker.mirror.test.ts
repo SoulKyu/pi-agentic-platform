@@ -128,6 +128,7 @@ describe("a line parsed in the thread (R32: the connection is paused meanwhile)"
   it("drops the answer when the connection closed meanwhile, and closes the mirror once", async () => {
     make();
     worker.receive(append(100));
+    worker.guestGone();
     worker.wireClosed();
     expect(mirrorClosed).toBe(1);
     pending[0]?.("ok");
@@ -177,6 +178,7 @@ describe("closing the mirror", () => {
   it("is done once when the worker ends by the guest's report", () => {
     make();
     worker.guestExited({ code: 0, signal: null, cause: "clean" }, "");
+    worker.guestGone();
     worker.wireClosed();
     expect(mirrorClosed).toBe(1);
   });

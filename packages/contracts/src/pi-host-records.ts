@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { EgressClose, EgressOpen } from "./egress.ts";
 import { FilePutResult, HomeResult, SessionAppend } from "./agents-vm.ts";
 import {
   AlwaysScopes,
@@ -143,8 +142,6 @@ const PapRecord = z.discriminatedUnion("type", [
   PlatformCallRecord,
   PlatformCancelRecord,
   SecretUsedRecord,
-  EgressOpen,
-  EgressClose,
   SessionAppend,
   FilePutResult,
   HomeResult,

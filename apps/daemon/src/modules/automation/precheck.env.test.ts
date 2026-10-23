@@ -44,23 +44,4 @@ describe("precheckEnv (owner c7, m10q7)", () => {
   it("does not carry a variable the trigger did not name", () => {
     expect(precheckEnv(DAEMON_ENV, [])).not.toHaveProperty("KUBECONFIG");
   });
-
-  it("an agent's precheck never keeps the owner's proxy variables; with network it gets pap's proxy (decision 90)", () => {
-    const off = precheckEnv(DAEMON_ENV, ["KUBECONFIG"], { proxied: false });
-    expect(off).not.toHaveProperty("HTTPS_PROXY");
-    expect(off).not.toHaveProperty("NO_PROXY");
-    const on = precheckEnv({ ...DAEMON_ENV, NO_PROXY: "*", ALL_PROXY: "socks5h://upstream:1080" }, [], {
-      proxied: true,
-    });
-    expect(on).toMatchObject({
-      HTTP_PROXY: "http://127.0.0.1:3128",
-      HTTPS_PROXY: "http://127.0.0.1:3128",
-      ALL_PROXY: "http://127.0.0.1:3128",
-      https_proxy: "http://127.0.0.1:3128",
-      NO_PROXY: "",
-      no_proxy: "",
-    });
-    expect(JSON.stringify(on)).not.toContain("upstream");
-    expect(JSON.stringify(on)).not.toContain("proxy:3128");
-  });
 });

@@ -1,32 +1,6 @@
 import { isIP } from "node:net";
 import { type EgressReason, lastLabelStartsWithDigit } from "@pap/contracts";
 
-/** What a command's connections are judged against (owner a1, a2). */
-export interface EgressScope {
-  readonly ownerId: string;
-  readonly agentId: string;
-  /** Null for a precheck: no grants. */
-  readonly sessionId: string | null;
-  /** The worker's start-time list (W5-R26): the agent's, else the owner's, else empty. Null (any public host) is for tests only: no production scope carries it (C 5.3). */
-  readonly hosts: readonly string[] | null;
-  readonly trustedSources: readonly string[];
-  /** Live: the thread's grants now (W5-R35); [] for tasks, children, prechecks. */
-  grants(): readonly string[];
-}
-
-/** An exact entry, or `*.` and a parent (subdomains only): the host list's semantics (M5R21). */
-const hostMatches = (host: string, list: readonly string[]): boolean =>
-  list.some((entry) =>
-    entry.startsWith("*.") ? host.endsWith(entry.slice(1)) && host.length > entry.length - 1 : host === entry,
-  );
-
-/** The effective allowlist, read at each connection. */
-export const allowed = (scope: EgressScope, host: string): boolean =>
-  scope.hosts === null ||
-  hostMatches(host, scope.hosts) ||
-  scope.trustedSources.includes(host) ||
-  scope.grants().includes(host);
-
 const LABEL = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**

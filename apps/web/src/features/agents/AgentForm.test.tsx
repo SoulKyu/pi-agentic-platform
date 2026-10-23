@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AgentInput, type AgentView, EGRESS_UNKNOWN, type SandboxStatus } from "@pap/contracts";
+import { AgentInput, type AgentView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -24,28 +24,6 @@ function newBed() {
   return bed;
 }
 const inShell = (children: ReactNode) => <TooltipProvider>{children}</TooltipProvider>;
-
-const usable: SandboxStatus = {
-  usable: true,
-  path: "/usr/bin/bwrap",
-  reason: null,
-  checkedAt: 5,
-  egress: EGRESS_UNKNOWN,
-};
-const missing: SandboxStatus = {
-  usable: false,
-  path: null,
-  reason: "missing",
-  checkedAt: 5,
-  egress: EGRESS_UNKNOWN,
-};
-const checking: SandboxStatus = {
-  usable: false,
-  path: null,
-  reason: null,
-  checkedAt: 0,
-  egress: EGRESS_UNKNOWN,
-};
 
 const view = (patch: Partial<Parameters<typeof AgentInput.parse>[0]> = {}, revision = 3): AgentView => ({
   id: "atlas-1a2b",
@@ -73,7 +51,7 @@ beforeEach(() => {
   setLocale("en");
 });
 
-async function open(agent: AgentView | null = null, probe: SandboxStatus = usable) {
+async function open(agent: AgentView | null = null) {
   const bed = newBed();
   bed.handlers["agents.create"] = (params) =>
     view({ name: (params as { input: { name: string } }).input.name }, 1);
@@ -83,7 +61,6 @@ async function open(agent: AgentView | null = null, probe: SandboxStatus = usabl
       <StepUpContext.Provider value={calls.stepUp as unknown as StepUpRunner}>
         <AgentForm
           agent={agent}
-          probe={probe}
           presetField={(value) => <span data-testid="preset">preset:{value}</span>}
           onSaved={calls.saved}
           onCancel={calls.cancelled}
@@ -97,81 +74,11 @@ async function open(agent: AgentView | null = null, probe: SandboxStatus = usabl
 const body = () => text(document.body);
 const say = (label: string, value: string) => typeInto(field(document.body, label), value);
 
-describe("agent form: the sandbox line", () => {
-  it("says where bubblewrap is when the probe is usable", async () => {
-    await open();
-    expect(body()).toContain("bubblewrap found at /usr/bin/bwrap");
-    expect(body()).not.toContain("not usable");
-    expect(body()).toContain("The shell sees its home and the system, never your home folder.");
-  });
-
-  it("says why when the probe is not usable, and still offers Off with its consequences", async () => {
-    await open(null, missing);
-    await say("Name", "scout");
-    expect(body()).toContain("not usable: bubblewrap is not installed");
-    expect(body()).toContain("Off is still yours to choose.");
-    expect(body()).not.toContain("scout's commands run as you");
-    await click(button(document.body, "Off"));
-    expect(body()).toContain(
-      "scout's commands run as you, with your files and keys; its secrets are not given to its shell.",
-    );
-    expect(body()).toContain("Saving asks for your password: this lets scout do more.");
-  });
-
-  it("says it is checking while the probe has not answered", async () => {
-    await open(null, checking);
-    expect(body()).toContain("Checking the sandbox…");
-  });
-
-  it("shows the network switch only while the sandbox is required, with its copy", async () => {
-    await open();
-    expect(body()).toContain("The shell reaches only the hosts pap's proxy lets through.");
-    await click(button(document.body, "Off"));
-    expect(body()).not.toContain("The shell reaches only the hosts pap's proxy lets through.");
-  });
-});
-
-describe("agent form: before a name is typed", () => {
-  it("says 'This agent' for the sandbox-off warning, never the fallback label", async () => {
-    await open();
-    await click(button(document.body, "Off"));
-    expect(body()).toContain(
-      "This agent's commands run as you, with your files and keys; its secrets are not given to its shell.",
-    );
-    expect(body()).not.toContain("Name's commands");
-  });
-
-  it("shows no step-up copy before a valid name: the form cannot widen anything yet", async () => {
-    await open();
-    await click(button(document.body, "Off"));
-    expect(body()).not.toContain("Saving asks for your password");
-  });
-
-  it("uses the name as soon as one is typed", async () => {
-    await open();
-    await click(button(document.body, "Off"));
-    await say("Name", "@scout");
-    expect(body()).toContain("scout's commands run as you");
-    expect(body()).toContain("lets scout do more.");
-    expect(body()).not.toContain("This agent's commands");
-  });
-
-  it("says it in French", async () => {
-    setLocale("fr");
-    await open();
-    await click(button(document.body, "Désactivé"));
-    expect(body()).toContain("Les commandes de cet agent s'exécutent comme vous");
-    expect(body()).not.toContain("de Nom");
-  });
-});
-
 describe("agent form: the memory capture", () => {
   it("labels its off option 'Capture off', so no two buttons share the name 'Off'", async () => {
     await open();
     await click(document.querySelector('[data-slot="agent-memory"] [role="switch"]') as Element);
     expect(hasButton(document.body, "Capture off")).toBe(true);
-    // `button` throws when several buttons carry the name: the sandbox's Off is the only one left.
-    expect(button(document.body, "Off").closest('[data-slot="agent-sandbox"]')).not.toBeNull();
   });
 
   it("has the French label too", () => {
@@ -223,9 +130,15 @@ describe("agent form: saving and the password", () => {
     expect(calls.saved).toHaveBeenCalledWith(expect.objectContaining({ name: "atlas" }));
   });
 
+  it('has no sandbox switch, and its hosts hint does not say "VM mode:"', async () => {
+    await open(view({ allowHosts: ["api.example.com"] }));
+    expect(document.querySelector('[data-slot="agent-sandbox"]')).toBeNull();
+    expect(body()).not.toContain("VM mode:");
+  });
+
   it("says the password is asked up front when the profile widens, and saves through the step-up", async () => {
     const { bed } = await open(view());
-    await click(button(document.body, "Off"));
+    await click(document.querySelector('[data-slot="agent-network"] [role="switch"]') as Element);
     expect(body()).toContain("Saving asks for your password: this lets atlas do more.");
     await click(button(document.body, "Save"));
     await settle();
@@ -234,7 +147,7 @@ describe("agent form: saving and the password", () => {
     expect(call?.params).toEqual({
       agentId: "atlas-1a2b",
       baseRevision: 3,
-      input: AgentInput.parse({ name: "atlas", sandbox: { required: false, network: false } }),
+      input: AgentInput.parse({ name: "atlas", sandbox: { required: true, network: true } }),
     });
     expect(call?.options?.commandId).toBe("step-cmd-1");
   });
@@ -268,8 +181,8 @@ describe("agent form: saving and the password", () => {
 
   it("a cancelled password prompt saves nothing and says nothing is wrong", async () => {
     calls.stepUp = vi.fn(async () => null);
-    const { bed } = await open(view({ sandbox: { required: true, network: true } }));
-    await click(button(document.body, "Off"));
+    const { bed } = await open(view({ sandbox: { required: true, network: false } }));
+    await click(document.querySelector('[data-slot="agent-network"] [role="switch"]') as Element);
     await click(button(document.body, "Save"));
     await settle();
     expect(bed.called("agents.update")).toEqual([]);
@@ -347,7 +260,6 @@ describe("agent form: en and fr", () => {
     setLocale("fr");
     await open();
     expect(body()).toContain("Budget quotidien");
-    expect(body()).toContain("bubblewrap trouvé dans /usr/bin/bwrap");
     expect(field(document.body, "USD par jour").placeholder).toBe("Pas de budget");
   });
 });

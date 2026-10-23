@@ -28,7 +28,6 @@ async function setup() {
         ownerId === "u1" && agentId === ID
           ? { input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }
           : null,
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     },
   });
   const platform = createPlatformPort({

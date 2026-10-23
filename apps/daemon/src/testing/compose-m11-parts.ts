@@ -1,3 +1,4 @@
+import { createAgentFiles } from "../modules/agent-vm/index.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,16 +11,6 @@ import { createInbox, INBOX_MIGRATIONS } from "../modules/inbox/index.ts";
 import { RUNS_MIGRATIONS } from "../modules/runs/index.ts";
 
 const dirs: string[] = [];
-/** A proxy that never booted: unusable, nothing opens. */
-const UNUSABLE_EGRESS = {
-  ready: async () => {},
-  status: () => ({ usable: false, python: null, reason: "no_python" }),
-  forwarderPath: null,
-  openCommand: async () => ({ reason: "unavailable" }),
-  closeCommand: async () => ({ hosts: [], truncated: true, up: 0, down: 0 }),
-  dropSession: async () => {},
-  recheck: async () => {},
-};
 /** A spy that takes anything: typed here, so that the inferred type of `parts` can be named in a declaration. */
 const spy = () => vi.fn<(...args: unknown[]) => unknown>();
 /** Removes the folders the parts made; the test files call it from `afterEach`. */
@@ -28,9 +19,7 @@ export function disposeParts(): void {
 }
 
 /** `composeM11` over a real database (the M11 and Inbox tables) and fakes for the other modules. */
-export function parts(
-  options: { readOnly?: boolean; busy?: boolean; beforeBoot?(dir: string): void; realEgress?: boolean } = {},
-) {
+export function parts(options: { readOnly?: boolean; busy?: boolean; beforeBoot?(dir: string): void } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pap-compose-m11-"));
   dirs.push(dir);
   const clock = createFakeClock();
@@ -136,14 +125,15 @@ export function parts(
     resolveRef: vi.spyOn(inbox.agentItems, "resolveRef"),
   };
   options.beforeBoot?.(dir);
+  const agentFiles = createAgentFiles({ secretsDir: join(dir, "secrets"), logger: silentLogger });
   const m11 = composeM11(
     {
       db,
-      config: { home: dir, bwrapOverride: "/nonexistent/pap-bwrap", piAgentDir: join(dir, "pi-agent") },
-      env: {},
+      config: { home: dir, piAgentDir: join(dir, "pi-agent") },
       clock,
       logger: silentLogger,
       readOnly: options.readOnly ?? false,
+      agentFiles,
       hub,
     },
     {
@@ -156,8 +146,6 @@ export function parts(
       inbox,
       settings,
       subagents,
-      // The real proxy would probe python3 and write under the home for every composition: the tests that do not need it get a stand-in.
-      ...(options.realEgress ? {} : { egress: UNUSABLE_EGRESS }),
     } as never,
   );
   return {
@@ -171,6 +159,7 @@ export function parts(
     inbox,
     agentItems,
     home: dir,
+    agentFiles,
     hub,
     runs,
     runEnds,

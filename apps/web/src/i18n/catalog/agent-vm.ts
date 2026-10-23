@@ -30,10 +30,8 @@ export const agentVmEn = {
   "agentVm.pi.retry": "Try again",
   "agentVm.pi.gone": "A package that is no longer in your Pi profile",
   "agentVm.sandboxNote":
-    "The sandbox switch does not apply to VM agents: their shell is always isolated. With the network on it reaches only the hosts on this agent's list, through pap's proxy; with it off it has no network.",
+    "Its shell is always isolated, in its own VM. With the network on it reaches only the hosts on this agent's list, through pap's proxy; with it off it has no network.",
   "agentVm.network.hint": "In a VM the network goes through pap's proxy and this agent's host list.",
-  "agentVm.vault": "The vault for VM agents arrives with sub-project 2.",
-  "agentVm.prechecks": "Trigger prechecks for a VM agent arrive with sub-project 3.",
   "agentVm.exportHtml": "The HTML export of a VM agent arrives later.",
   "agentVm.unusable":
     "Agent VMs are not usable: run sudo pap vm setup (pap doctor says why). Agents cannot start until then.",
@@ -94,10 +92,8 @@ export const agentVmFr: Record<keyof typeof agentVmEn, string> = {
   "agentVm.pi.retry": "Réessayer",
   "agentVm.pi.gone": "Un paquet qui n'est plus dans votre profil Pi",
   "agentVm.sandboxNote":
-    "Le réglage du bac à sable ne s'applique pas aux agents en VM : leur shell est toujours isolé. Avec le réseau activé, il ne joint que les hôtes de la liste de cet agent, via le proxy de pap ; sans lui, il n'a pas de réseau.",
+    "Son shell est toujours isolé, dans sa propre VM. Avec le réseau activé, il ne joint que les hôtes de la liste de cet agent, via le proxy de pap ; sans lui, il n'a pas de réseau.",
   "agentVm.network.hint": "En VM, le réseau passe par le proxy de pap et la liste d'hôtes de cet agent.",
-  "agentVm.vault": "Le coffre des agents en VM arrive avec le sous-projet 2.",
-  "agentVm.prechecks": "Les pré-checks d'un agent en VM arrivent avec le sous-projet 3.",
   "agentVm.exportHtml": "L'export HTML d'un agent en VM arrive plus tard.",
   "agentVm.unusable":
     "Les VM d'agents ne sont pas utilisables : lancez « sudo pap vm setup » (pap doctor dit pourquoi). Les agents ne peuvent pas démarrer d'ici là.",

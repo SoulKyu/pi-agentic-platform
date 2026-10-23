@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AgentInput, type SandboxStatus } from "@pap/contracts";
+import { AgentInput } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
@@ -17,18 +17,6 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 }));
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
 
-const noEgress: SandboxStatus = {
-  usable: true,
-  path: "/usr/bin/bwrap",
-  reason: null,
-  checkedAt: 5,
-  egress: { usable: false, python: null, reason: "no_python" },
-};
-const withEgress: SandboxStatus = {
-  ...noEgress,
-  egress: { usable: true, python: "/usr/bin/python3", reason: null },
-};
-
 beforeEach(() => setLocale("en"));
 
 async function fields(patch: Partial<Draft> = {}, name = "atlas") {
@@ -42,7 +30,6 @@ async function fields(patch: Partial<Draft> = {}, name = "atlas") {
 }
 
 async function form(
-  probe: SandboxStatus,
   patch: Parameters<typeof AgentInput.parse>[0] = { name: "atlas" },
   ownerHosts: string[] | null | "fails" = null,
 ) {
@@ -69,7 +56,6 @@ async function form(
             createdAt: 1,
             updatedAt: 2,
           }}
-          probe={probe}
           presetField={() => null}
           onSaved={() => {}}
         />
@@ -145,19 +131,14 @@ describe("AutonomyFields", () => {
 
 describe("the agent form around the autonomy group", () => {
   it("warns on the host list that a listed host can receive files and secrets", async () => {
-    const body = await form(withEgress, { name: "atlas", allowHosts: ["api.example.com"] });
+    const body = await form({ name: "atlas", allowHosts: ["api.example.com"] });
     expect(body).toContain(
       "A listed host can receive whatever this agent sends it, its files and secrets included. List only hosts you trust with them.",
     );
   });
 
-  it("says the proxy needs python3 when the egress status is not usable", async () => {
-    const body = await form(noEgress, { name: "atlas", sandbox: { required: true, network: true } });
-    expect(body).toContain("Network goes through pap's egress proxy, which needs python3 on this server (");
-  });
-
   it("asks for the password when its own list reaches beyond the owner's, not when the owner's covers it", async () => {
-    await form(withEgress, { name: "atlas", allowHosts: null }, ["docs.example.com"]);
+    await form({ name: "atlas", allowHosts: null }, ["docs.example.com"]);
     await click(button(document.body, "Only these"));
     await typeInto(field(document.body, "Hosts, one per line"), "docs.example.com");
     expect(text(document.body)).not.toContain("Saving asks for your password");
@@ -166,20 +147,9 @@ describe("the agent form around the autonomy group", () => {
   });
 
   it("takes the cautious reading when the owner's list cannot be read", async () => {
-    await form(withEgress, { name: "atlas", allowHosts: null }, "fails");
+    await form({ name: "atlas", allowHosts: null }, "fails");
     await click(button(document.body, "Only these"));
     await typeInto(field(document.body, "Hosts, one per line"), "docs.example.com");
     expect(text(document.body)).toContain("Saving asks for your password");
-  });
-
-  it("says nothing about python3 while the network is off, and shows it when the switch goes on", async () => {
-    const off = await form(noEgress, { name: "atlas", sandbox: { required: true, network: false } });
-    expect(off).not.toContain("python3 on this server");
-    await click(document.querySelector('[data-slot="agent-sandbox"] [role="switch"]') as Element);
-    expect(text(document.body)).toContain("python3 on this server");
-  });
-
-  it("says nothing about python3 when the proxy is usable", async () => {
-    expect(await form(withEgress)).not.toContain("python3 on this server");
   });
 });

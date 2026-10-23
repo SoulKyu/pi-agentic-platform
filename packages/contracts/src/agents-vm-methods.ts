@@ -15,7 +15,6 @@ export const VM_PHASES = ["stopped", "starting", "running", "paused", "stopping"
 /** `agents.vmStatus`: Settings › Agents and the agent screen read it (R6: "run `sudo pap vm setup`" when not usable). */
 export const VmStatusView = z
   .object({
-    runtime: z.enum(["host", "vm"]),
     usable: z.boolean(),
     reason: z.string().max(256).nullable(),
     vmdVersion: z.string().max(64).nullable(),
@@ -23,7 +22,7 @@ export const VmStatusView = z
     /**
      * What the host can give ONE agent (AVM-E33, the agent form's ceilings): the memory a VM may ask for (the cap less the VM's own
      * overhead), the host's cores, and the disk the state folder can add (its free space less `PAP_MIN_FREE_DISK_MB`; null when
-     * pap-vmd did not say). Null or absent in host mode, or when pap-vmd does not answer.
+     * pap-vmd did not say). Null or absent when pap-vmd does not answer.
      */
     host: z
       .object({

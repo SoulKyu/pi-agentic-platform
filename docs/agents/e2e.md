@@ -11,9 +11,9 @@ Fifteen browser journeys (J01 to J15, the `.e2e.ts` files of `scripts/e2e`) driv
 
 Nothing here has run on macOS, Windows or WSL.
 
-## Sandbox requirement (J07)
+## Agents in the journeys (J07)
 
-The agent journey needs a usable bubblewrap. The CI job asks the setup action for `sandbox: "true"`: it installs `bubblewrap` and sets `kernel.apparmor_restrict_unprivileged_userns=0` (Ubuntu 24.04 runners restrict unprivileged user namespaces; the `integration` job asks for the same). ripgrep and `fd` come from the same action. Under a truthy `CI`, an unusable bubblewrap fails J07; on a development machine J07 skips with one warning.
+The e2e daemon has no pap-vmd and no KVM, so J07 is the "no VM stack" journey: the New agent dialog shows the microVM EmptyState ("Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.") in place of the form, and no agent appears. The phone's Agents tab shows the same EmptyState (unit test, not e2e).
 
 ## Commands
 

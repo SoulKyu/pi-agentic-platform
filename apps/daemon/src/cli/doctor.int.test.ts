@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { DOCTOR_ONLY_NO_VM } from "./testing/doctor-only.ts";
 import { fakeSystemd } from "./testing/fake-systemd.ts";
 
 const MAIN = fileURLToPath(new URL("../main.ts", import.meta.url));
@@ -62,8 +63,9 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
     expect([snapshot(papHome), snapshot(home)]).toEqual(before);
   });
 
-  it("--json parses, lists every registered check and adds no ANSI", () => {
-    const r = pap("--json");
+  // The `vm.*` checks are left out: they read the machine's real pap-vmd socket and `/opt/pap-vm`, which a test never reaches.
+  it("--json parses, lists the registered checks and adds no ANSI", () => {
+    const r = pap("--json", "--only", DOCTOR_ONLY_NO_VM);
     // the planted garbage state.db makes `schema` fail, so 1 is expected here
     expect([0, 1, 2]).toContain(r.status);
     expect(r.stdout).not.toContain("\u001b");
@@ -82,22 +84,8 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
       "backup",
       "https",
       "push",
-      "bwrap",
-      "python3",
       "update_available",
-      "vm.kvm",
-      "vm.vmd",
-      "vm.stack",
-      "vm.network",
-      "vm.images",
-      "vm.disk",
-      "vm.listeners",
-      "vm.firewall",
     ]);
-    // Host mode (no PAP_AGENTS_RUNTIME=vm): the agent VM checks do not apply and never reach for pap-vmd (T18).
-    expect(report.results.filter((x) => x.id.startsWith("vm.")).map((x) => x.status)).toEqual(
-      Array(8).fill("skip"),
-    );
   });
 
   it("a healthy default install exits 0 for the state checks: no backup yet is info, never warn", () => {
@@ -160,8 +148,8 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
     fake.set("active", "yes\n");
     fake.set("active-enter", "Fri 2026-10-16 10:00:00 UTC\n");
     const before = [snapshot(papHome), snapshot(home)];
-    pap();
-    pap("--json");
+    pap("--only", DOCTOR_ONLY_NO_VM);
+    pap("--json", "--only", DOCTOR_ONLY_NO_VM);
     expect([snapshot(papHome), snapshot(home)]).toEqual(before);
     expect(fake.calls().length).toBeGreaterThan(0);
     for (const call of fake.calls()) expect(call).toMatch(ALLOWED_CALL);

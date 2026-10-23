@@ -32,7 +32,7 @@ export interface AgentHeaderProps {
   readonly confirm: ReactNode;
   /** The status panel's toggle (M11R125): it is there whatever the setting says. */
   readonly statusToggle?: { readonly open: boolean; onToggle(): void };
-  /** Thread / Files / Settings (M11R126): the agent's own settings sit beside its thread; Files only in VM mode. */
+  /** Thread / Files / Settings (M11R126): the agent's own settings sit beside its thread. */
   readonly tab?: { readonly value: AgentTab; readonly files?: boolean; onChange(tab: AgentTab): void };
   /** Opens the Queue task dialog (Task 23); without it the button waits, disabled. */
   onQueueTask?(): void;

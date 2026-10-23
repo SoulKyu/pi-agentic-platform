@@ -18,6 +18,7 @@ import { papErrorOf, type VmdClient, VmdError } from "./vmd-client.ts";
 export const PROFILE_TTL_MS = 30_000;
 /** The root-owned bundle changes only with `pap vm setup`: its digest is read again at most this often. */
 export const BASE_TTL_MS = 3_600_000;
+const BASE_TAG_PREFIX = "pap-agent-base-";
 /** The profile changes under a start this many times in a row: the start fails `conflict` and the next one tries again. */
 const RESOLVE_TRIES = 3;
 export const REBUILD_NOTICE =
@@ -59,6 +60,10 @@ export interface KataImages {
   stopped(agentId: string): void;
   /** The agent is deleted: its notice memory and its package pairs go. */
   forget(agentId: string): void;
+  /** The digest the base tag follows: the installed bundle's (the tag's suffix), read again when `fresh`. */
+  installedDigest(fresh?: boolean): string;
+  /** The same digest over another bundle folder (the daemon's own), so the two compare. */
+  digestOf(dir: string): string;
   /**
    * Once a week (the caller ticks): rebuilds the base with `apt-get upgrade`. A success is on disk before it is used (a restart
    * does not rebuild every image twice). A failure is logged and retried after an hour by the policy's `retryAt`, which is in
@@ -120,10 +125,13 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   /** pap-vmd joins a second build of a tag already building, so the daemon only waits. */
   const buildOnce = (request: Build): Promise<void> => client.request(request).then(() => undefined);
 
-  function baseTagNow(): string {
-    if (baseCache !== null && clock.now() - baseCache.at < BASE_TTL_MS) return baseCache.tag;
+  /** The digest of a bundle folder, salted like the base tag's: the installed one and the daemon's own compare under it. */
+  const bundleDigest = (dir: string): string => treeDigest(dir, `pap-base-1\0${deps.nodeImage}`);
+
+  function baseTagNow(fresh = false): string {
+    if (!fresh && baseCache !== null && clock.now() - baseCache.at < BASE_TTL_MS) return baseCache.tag;
     try {
-      const tag = `pap-agent-base-${treeDigest(deps.bundleRoot, `pap-base-1\0${deps.nodeImage}`)}`;
+      const tag = `${BASE_TAG_PREFIX}${bundleDigest(deps.bundleRoot)}`;
       baseCache = { tag, at: clock.now() };
       return tag;
     } catch (error) {
@@ -350,6 +358,8 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
       policy.forget(agentId);
       deps.entries.forget(agentId);
     },
+    installedDigest: (fresh) => baseTagNow(fresh).slice(BASE_TAG_PREFIX.length),
+    digestOf: bundleDigest,
     async upgradeBaseIfDue() {
       try {
         const baseTag = baseTagNow();

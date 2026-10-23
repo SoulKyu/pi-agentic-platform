@@ -42,7 +42,6 @@ function withAgent(policy: ReturnType<typeof fakePolicyPort>) {
         name: "Atlas",
         quarantined: false,
       }),
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     },
   });
 }
@@ -64,27 +63,6 @@ describe("memory trust at a worker's start (M11R142)", () => {
     await bed.service.reopen(sessionId, OWNER);
     expect(inits[1]?.memory).toEqual(CLOSED);
     expect(bed.spawnEnvs[1]).toEqual({ PI_MEM0_CAPTURE: "0" });
-  });
-
-  it("an untainted agent thread is trusted with its policy; once tainted its next worker is untrusted under its profile", async () => {
-    const policy = fakePolicyPort();
-    withAgent(policy);
-    const { sessionId } = await bed.service.agentSessions.createAgentSession({
-      ownerId: "u1",
-      agentId: "atlas-1a2b",
-      role: "thread",
-    });
-    expect(inits[0]?.memory).toEqual({
-      profile: "atlas-1a2b",
-      trust: "trusted",
-      memory: { capture: "auto", save: "staged" },
-    });
-    expect(bed.spawnEnvs[0]).toBeUndefined();
-    policy.markTainted("u1", sessionId);
-    await bed.spawned[0]?.exited;
-    await bed.service.reopen(sessionId, OWNER);
-    expect(inits[1]?.memory).toEqual({ profile: "atlas-1a2b", trust: "untrusted" });
-    expect(bed.spawnEnvs[1]).toBeUndefined();
   });
 });
 

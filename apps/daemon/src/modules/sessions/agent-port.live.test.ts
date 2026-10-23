@@ -24,7 +24,6 @@ function setup(options?: BedOptions): void {
         ? { input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }
         : null,
     vaultOf: () => ({}),
-    probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
   };
   bed.service.agent.setAgentPorts({ agents });
 }

@@ -30,7 +30,7 @@ beforeAll(async () => {
   // $1 000 per million tokens: any reply costs far more than a cent.
   t = await startTestDaemon(
     { prices: { input: 1000, output: 1000 }, steps: [{ text: "Round one." }, { text: "Hello owner." }] },
-    { deps: { clock, push: { transport, subscriptions: subs, sessionLive: subs } } },
+    { deps: { clock, push: { transport, subscriptions: subs, sessionLive: subs } }, vm: true },
   );
   owner = await openOwner(t);
   const [user] = rows<{ id: string }>(t.home, "SELECT id FROM users");

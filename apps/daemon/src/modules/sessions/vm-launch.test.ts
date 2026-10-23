@@ -117,6 +117,7 @@ function setup(
     runtime: { spawn } as never,
     papHome: home,
     layoutOf: (r) => (r.agentId === undefined ? null : vmLayout(r)),
+    joinLaunch: () => {},
     imageTagOf,
     ...(recheck ? { recheck } : {}),
     mirrors: { inputFor },
@@ -299,8 +300,8 @@ describe("createVmLaunch (T8a)", () => {
       agentDir: layout.piAgentDir,
       vm: { layout, bwrap: VM_BWRAP, relayKey: KEY, slot: SLOT, rootView: VM_ROOT_VIEW },
     });
-    for (const key of ["sandbox", "vault", "once", "memory"]) expect(out.init).not.toHaveProperty(key);
-    expect(JSON.stringify(out.init)).not.toContain("s3cret");
+    for (const key of ["sandbox", "once", "memory"]) expect(out.init).not.toHaveProperty(key);
+    expect(out.init.vault).toEqual({ TOKEN: "s3cret" });
     expect(bed.worker.sent).toEqual([]);
   });
   // Mutant: the dry-run vmInitOf before runtime.spawn removed. Killed by the two cases below (the spawn would happen).

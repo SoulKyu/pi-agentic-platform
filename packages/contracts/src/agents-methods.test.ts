@@ -75,26 +75,4 @@ describe("agents methods (M11R43)", () => {
       true,
     );
   });
-
-  it("the sandbox status is a token read, the re-check a browser-only command with its own error", () => {
-    expect(methods["agents.sandboxStatus"].permission).toBe("agents:read");
-    expect(methods["agents.recheckSandbox"].permission).toBe("agents:admin");
-    expect(methods["agents.recheckSandbox"].errors).toEqual(["rate_limited"]);
-    expect(
-      methods["agents.sandboxStatus"].result.parse({
-        usable: true,
-        path: "/usr/bin/bwrap",
-        reason: null,
-        checkedAt: 0,
-      }),
-    ).toMatchObject({ usable: true });
-    expect(() =>
-      methods["agents.sandboxStatus"].result.parse({
-        usable: false,
-        path: null,
-        reason: "other",
-        checkedAt: 1,
-      }),
-    ).toThrow();
-  });
 });

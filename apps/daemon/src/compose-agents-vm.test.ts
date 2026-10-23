@@ -22,9 +22,12 @@ const ID = "atlas-1a2b";
 const IMAGE = `pap-agent-agent-${"0".repeat(64)}`;
 const config = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore["config"] => ({
   home: "/pap-home",
-  agentsRuntime: "vm",
+  agentsRuntimeSet: false,
+  dev: false,
+  devVmd: false,
   agentsMemoryMaxMb: 8192,
   testAgentRuntime: "process",
+  testVmdSocket: null,
   testProviderScript: "/script.json",
   workerIdleMs: 0,
   minFreeDiskMb: 0,
@@ -64,20 +67,11 @@ afterEach(async () => {
 const compose = (c: AgentsVmCore, seams: AgentsVmSeams = {}) =>
   composeAgentsVm(c, closers, { relay: "off", ...seams });
 
-describe("composeAgentsVm in host mode", () => {
-  it("composes nothing: no gateway, no closer", async () => {
-    expect(await compose(core({ agentsRuntime: "host" }))).toBeNull();
-    expect(closers).toEqual([]);
-  });
-});
-
-describe("composeAgentsVm in vm mode refuses to boot without a backend", () => {
-  it("without the test switch the backend is Kata: no pap-vmd, no boot (T15a)", async () => {
+describe("composeAgentsVm in vm mode without a usable backend", () => {
+  it("without the test switch the backend is Kata: no pap-vmd, the boot goes on and agents are unavailable (T15a)", async () => {
     const kata = { socket: "/nonexistent/pap-vm/vmd.sock" };
-    await expect(compose(core({ testAgentRuntime: null }), { process: PROCESS, kata })).rejects.toThrow(
-      /pap-vmd/,
-    );
-    expect(closers).toEqual([]);
+    const vm = await compose(core({ testAgentRuntime: null }), { process: PROCESS, kata });
+    await expect(vm?.status.require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
   });
   it("the process backend needs its guest seam and the scripted provider", async () => {
     await expect(compose(core())).rejects.toThrow(/guest/);
@@ -132,7 +126,6 @@ describe("composeAgentsVm in vm mode", () => {
     expect(vm.vmLayoutOf(row({ agentRole: "task" }))?.root).toBe(
       join("/pap-home", "tmp", "agent-vm", `${ID}-${key}`),
     );
-    expect(vm.agentRunsInVm("u1", ID)).toBe(true);
     expect(vm.resourceHost().memoryCapMb).toBe(8192);
     expect(vm.resourceHost().cores).toBeGreaterThanOrEqual(1);
   });
@@ -366,18 +359,16 @@ describe("composeAgentsVm's mirrors (T9b)", () => {
 describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
   const vm = {
     vmLayoutOf: () => null,
-    agentRunsInVm: () => true,
     resourceHost: () => ({ memoryCapMb: 1, cores: 1 }),
     checkPackages: async () => {},
     agentLink: { stop: async () => {}, dispose: async () => {}, purge: async () => {}, resume: () => {} },
   } as unknown as AgentsVm;
-  it("host mode adds nothing", () => {
-    expect(vmPortsOf(undefined)).toEqual({ sessions: {}, agents: {}, safety: {} });
+  it("a bed without the VM composition adds nothing", () => {
+    expect(vmPortsOf(undefined)).toEqual({ sessions: {}, agents: {} });
   });
-  it("vm mode hands the predicates to the sessions, the safety services and the resource ceilings", () => {
+  it("vm mode hands the predicate to the sessions and the resource ceilings", () => {
     const ports = vmPortsOf(vm);
-    expect(ports.sessions).toEqual({ vmLayoutOf: vm.vmLayoutOf, agentRunsInVm: vm.agentRunsInVm });
-    expect(ports.safety).toEqual({ agentRunsInVm: vm.agentRunsInVm });
+    expect(ports.sessions).toEqual({ vmLayoutOf: vm.vmLayoutOf });
     expect(ports.agents).toEqual({
       resourceHost: vm.resourceHost,
       checkPackages: vm.checkPackages,
@@ -385,7 +376,7 @@ describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
     });
   });
   it("stops the boot when a predicate is unwired", () => {
-    for (const missing of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages", "agentLink"])
+    for (const missing of ["vmLayoutOf", "resourceHost", "checkPackages", "agentLink"])
       expect(() => vmPortsOf({ ...vm, [missing]: undefined } as unknown as AgentsVm)).toThrow(
         new RegExp(missing),
       );

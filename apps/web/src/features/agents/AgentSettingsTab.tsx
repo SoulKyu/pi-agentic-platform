@@ -9,7 +9,6 @@ import { AgentSettingsView } from "./AgentSettingsView.tsx";
 import { PermissionsSheet } from "./PermissionsSheet.tsx";
 import { SecretsList } from "./SecretsList.tsx";
 import { useAgentPermissions } from "./use-agent-permissions.ts";
-import { useSandboxStatus } from "./use-sandbox-status.ts";
 
 export interface AgentSettingsTabProps {
   readonly agent: AgentSummary;
@@ -31,7 +30,6 @@ export interface AgentSettingsTabProps {
 export function AgentSettingsTab(props: AgentSettingsTabProps) {
   const t = useT();
   const { agent } = props;
-  const sandbox = useSandboxStatus();
   const stepUp = useStepUpRunner();
   const resuming = usePendingAction();
   const [problem, setProblem] = useState<MessageKey | null>(null);
@@ -46,7 +44,6 @@ export function AgentSettingsTab(props: AgentSettingsTabProps) {
       <AgentSettingsView
         agentId={agent.id}
         summary={agent}
-        probe={sandbox.status}
         presetField={props.presetField}
         {...(props.focus === undefined ? {} : { focus: props.focus })}
         after={

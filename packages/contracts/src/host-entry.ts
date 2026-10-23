@@ -62,12 +62,6 @@ export function tryParseHostEntry(entry: string): HostEntry | null {
   return { host: wildcard ? parts.host.slice(2) : parts.host, ip: false, wildcard, ports };
 }
 
-/** Whether host mode refuses the entry: it names a port or an IP address, which only VM mode matches (decision 119). */
-export function entryNeedsVm(entry: string): boolean {
-  const parsed = tryParseHostEntry(entry);
-  return parsed !== null && (parsed.ip || parsed.ports.length !== 2 || entry.includes(":"));
-}
-
 export function parseHostEntry(entry: string): HostEntry {
   const parsed = tryParseHostEntry(entry);
   if (!parsed) throw new Error("not a host entry");

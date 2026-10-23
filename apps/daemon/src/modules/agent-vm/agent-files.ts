@@ -22,6 +22,8 @@ import type { Logger } from "../../kernel/logger.ts";
 
 /** Only the class of a failure is logged (its code), never its message: a path or a value could be in it. */
 const errorClass = (error: unknown): string => (error as NodeJS.ErrnoException | null)?.code ?? "error";
+/** No link at the end, and a pipe cannot block the open. */
+const OPEN_FLAGS = constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK;
 const CONFLICT_CODES = new Set(["EISDIR", "ENOTEMPTY", "EEXIST", "ENOTDIR"]);
 /** `<id>-<stamp>` or `<id>-<stamp>-<n>`: the stamp is a 10 to 16 digit time, so an id that ends in digits is not taken for one (as trash.ts). */
 const TRASH_ENTRY = /^(.+)-(\d{10,16})(?:-\d+)?$/;
@@ -42,6 +44,8 @@ export interface AgentFiles {
   remove(agentId: string, path: string): void;
   /** Every file whole, by path: what the worker writes into the VM home. A link or an odd file is skipped. */
   read(agentId: string): Promise<Array<{ path: string; bytes: Buffer }>>;
+  /** One file whole, or null when it is absent, not a regular file, a link (or below one), or over `AGENT_FILE_LIMITS.maxBytes`. */
+  readOne(agentId: string, path: string): Promise<Buffer | null>;
   /** The paths removed since the VM last heard of them: the worker deletes them from the home, then `delivered` clears them. */
   pendingRemovals(agentId: string): string[];
   delivered(agentId: string, removed: string[]): void;
@@ -241,7 +245,7 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
       for (const entry of entriesOf(agentId)) {
         let handle;
         try {
-          handle = await open(entry.absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
+          handle = await open(entry.absolute, OPEN_FLAGS);
           if (!(await handle.stat()).isFile()) continue;
           files.push({ path: entry.path, bytes: await handle.readFile() });
         } catch (error) {
@@ -253,6 +257,27 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
         }
       }
       return files;
+    },
+
+    async readOne(agentId, path) {
+      idOf(agentId);
+      const segments = pathOf(path);
+      let folder = join(root, agentId);
+      for (const level of segments.slice(0, -1)) {
+        folder = join(folder, level);
+        if (!isRealFolder(folder)) return null;
+      }
+      let handle;
+      try {
+        handle = await open(join(folder, segments[segments.length - 1] as string), OPEN_FLAGS);
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.size > AGENT_FILE_LIMITS.maxBytes) return null;
+        return await handle.readFile();
+      } catch {
+        return null;
+      } finally {
+        await handle?.close();
+      }
     },
 
     pendingRemovals: (agentId) => pending(agentId),
@@ -321,6 +346,14 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
 function isLink(path: string): boolean {
   try {
     return lstatSync(path).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function isRealFolder(path: string): boolean {
+  try {
+    return lstatSync(path).isDirectory();
   } catch {
     return false;
   }

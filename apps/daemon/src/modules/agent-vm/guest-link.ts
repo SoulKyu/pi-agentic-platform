@@ -199,6 +199,7 @@ export function createGuestLink(deps: {
       isClosed = true;
       for (const entry of slots.values()) {
         if (entry === USED) continue;
+        entry.worker?.guestGone();
         giveUp(entry, new PapError("worker_failed"));
         entry.wire?.close();
       }

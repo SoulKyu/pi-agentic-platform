@@ -1,7 +1,7 @@
 import { isVaultName, type VaultUpdateRecord } from "@pap/contracts";
 import { errorClass } from "./bounded.ts";
 import type { SecretSource } from "./policy/secrets.ts";
-import type { SandboxEnvironment } from "./sandbox-env.ts";
+import type { ShellEnvironment } from "./shell-env.ts";
 
 /** The daemon holds at most this many per agent (`ONCE_LIMITS`); a record that lists more is said on stderr, never skipped silently. */
 const MAX_WAITING = 3;
@@ -97,10 +97,7 @@ export function createOnceSecrets(hooks: {
 }
 
 /** The sandboxed shell's environment plus the one-use value the command names; the vault part is the wrapped one's. */
-export function withOnceSecrets(
-  base: SandboxEnvironment,
-  once: Pick<OnceSecrets, "take">,
-): SandboxEnvironment {
+export function withOnceSecrets(base: ShellEnvironment, once: Pick<OnceSecrets, "take">): ShellEnvironment {
   return {
     envFor: (command) => ({ ...base.envFor(command), ...once.take(command) }),
     setVault: (vault) => base.setVault(vault),
@@ -115,7 +112,7 @@ export function withOnceSecrets(
  */
 export function createVaultSink(deps: {
   readonly source: Pick<SecretSource, "setVault" | "setOnce">;
-  readonly environment: Pick<SandboxEnvironment, "setVault"> | undefined;
+  readonly environment: Pick<ShellEnvironment, "setVault"> | undefined;
   readonly once: Pick<OnceSecrets, "replace" | "entries">;
 }): { update(record: Pick<VaultUpdateRecord, "vault" | "once">): void } {
   return {

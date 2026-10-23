@@ -30,6 +30,7 @@ function hostsOf(input: { allowHosts: string[] | null } | null, ownerHosts?: Age
       claudeToken: { status: () => "missing" },
       readOnly: false,
       bindMirrorHooks: () => {},
+      bindTaint: () => {},
     },
     late,
   ).hostsOf;

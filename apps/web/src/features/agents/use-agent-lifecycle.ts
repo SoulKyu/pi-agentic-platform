@@ -5,7 +5,7 @@ import { agentLifecycle, type Lifecycle } from "./agent-lifecycle.ts";
 
 /**
  * The one lifecycle every surface of an agent shows: its summary, its thread's session status and its VM phase
- * (`agents.vmStatus`, read once; null in host mode or when it cannot be read). Null means ready: no badge.
+ * (`agents.vmStatus`, read once; null until read or when it cannot be read). Null means ready: no badge.
  */
 export function useAgentLifecycle(agent: AgentSummary, sessionId: string | null): Lifecycle | null {
   const session = useSessionStore((state) =>

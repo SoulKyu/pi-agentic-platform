@@ -1,6 +1,5 @@
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { testCaller } from "./testing/caller.ts";
 import { disposeParts, parts } from "./testing/compose-m11-parts.ts";
@@ -22,22 +21,12 @@ describe("composeM11", () => {
     expect(laneOf).toHaveBeenCalled();
   });
 
-  it("gives the sessions module the registry and the sandbox probe (M11R53, M11R57)", async () => {
-    const { sessions, m11 } = parts();
+  it("gives the sessions module the registry (M11R53)", () => {
+    const { sessions } = parts();
     const ports = sessions.setAgentPorts.mock.calls[1]?.[0] as {
-      agents: {
-        profileOf(ownerId: string, agentId: string): unknown;
-        probe: { ensure(): Promise<unknown> };
-      };
+      agents: { profileOf(ownerId: string, agentId: string): unknown };
     };
     expect(ports.agents.profileOf("u1", "atlas-1a2b")).toBeNull();
-    // PAP_BWRAP names nothing: the boot probe ends `missing` without failing the boot, and a launch is refused on it.
-    expect(await ports.agents.probe.ensure()).toEqual({ usable: false, reason: "missing" });
-    expect(await m11.rpc["agents.sandboxStatus"]({}, {} as never)).toMatchObject({
-      usable: false,
-      path: null,
-      reason: "missing",
-    });
   });
 
   it("stops the dispatcher: later calls are unavailable", async () => {
@@ -80,9 +69,7 @@ describe("composeM11", () => {
       "agents.purgeTrash",
       "agents.quarantine",
       "agents.queueTask",
-      "agents.recheckSandbox",
       "agents.resetThread",
-      "agents.sandboxStatus",
       "agents.setPaused",
       "agents.status",
       "agents.trash",
@@ -341,21 +328,5 @@ describe("the agents' vault (M11R86)", () => {
     expect(existsSync(file)).toBe(true);
     await m11.rpc["agents.delete"]({ agentId: "atlas-0001" }, ctx);
     expect(existsSync(file)).toBe(false);
-  });
-});
-
-describe("the sandbox probe's folder (W5 carry 5, fix round 2)", () => {
-  const source = readFileSync(fileURLToPath(new URL("./compose-m11-probe.ts", import.meta.url)), "utf8");
-
-  it("is made in $PAP_HOME, and the canaries of a crashed probe are removed at boot", () => {
-    expect(source).toContain("tmp: core.config.home");
-    const { home } = parts({
-      beforeBoot: (dir) => {
-        mkdirSync(join(dir, "pap-probe-Stale1"));
-        mkdirSync(join(dir, "agents"));
-      },
-    });
-    expect(existsSync(join(home, "pap-probe-Stale1"))).toBe(false);
-    expect(existsSync(join(home, "agents"))).toBe(true);
   });
 });

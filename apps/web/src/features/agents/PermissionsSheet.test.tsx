@@ -68,28 +68,9 @@ describe("the trifecta as advice (M11R126, M11R116)", () => {
     );
     expect(words).toContain("advice, nothing is blocked");
     expect(words).toContain("To remove a leg");
-    expect(words).toContain("keep the sandbox on");
+    expect(words).toContain("Private data: give it no file tools");
     expect(words).toContain("webhook and feed triggers");
     expect(words).toContain("turn the sandbox network off");
-  });
-
-  it("does not name the proxy in the advice while the sandbox is unavailable: the shell cannot start", async () => {
-    const view: PermissionsView = {
-      ...quiet,
-      sandbox: { required: true, effective: "unavailable", network: true },
-      trifecta: { privateData: true, untrustedContent: true, exfiltration: true },
-    };
-    // The advice line of the exfiltration leg, up to its closing parenthesis.
-    const advice = async () =>
-      /(?:Sending data out|Envoi de données) ?:[^)]*\)/.exec(await shown(view))?.[0] ?? "";
-    const english = await advice();
-    expect(english).toContain("remove its web tools and MCP servers");
-    expect(english).not.toMatch(/proxy/i);
-    expect(english).not.toContain("turn the sandbox network off");
-    setLocale("fr");
-    const french = await advice();
-    expect(french).toContain("retirez ses outils web et ses serveurs MCP");
-    expect(french).not.toMatch(/proxy/i);
   });
 
   it("says 'may' in the 3 of 3 sentence when the legs are assumed", async () => {
@@ -116,17 +97,6 @@ describe("the trifecta as advice (M11R126, M11R116)", () => {
 
 describe("fix round 1 (m2): the exfiltration leg says how, by sandbox and egress", () => {
   const exfil = { ...quiet.trifecta, exfiltration: true };
-  it("says the shell is unrestricted when the sandbox is off, not 'any host the proxy lets it reach'", async () => {
-    const words = await shown({
-      ...quiet,
-      sandbox: { required: false, effective: "off", network: true },
-      egress: "off",
-      trifecta: exfil,
-    });
-    expect(words).toContain("This agent can send data out: its shell is unrestricted");
-    expect(words).not.toContain("the proxy lets it reach");
-  });
-
   it("says the shell has no network when the sandbox is on and its network is off", async () => {
     const words = await shown({
       ...quiet,
@@ -142,40 +112,15 @@ describe("fix round 1 (m2): the exfiltration leg says how, by sandbox and egress
     expect(await shown({ ...quiet, trifecta: exfil })).toContain("any host the proxy lets it reach");
   });
 
-  it("does not call an unavailable sandbox unrestricted: the shell cannot start", async () => {
-    const words = await shown({
-      ...quiet,
-      sandbox: { required: true, effective: "unavailable", network: true },
-      egress: "off",
-      trifecta: exfil,
-    });
-    expect(words).toContain("its shell cannot start");
-    expect(words).not.toContain("unrestricted");
-  });
-
-  it("does not name the proxy in the 3 of 3 advice for an unsandboxed shell", async () => {
-    const all = { privateData: true, untrustedContent: true, exfiltration: true };
-    const open = await shown({
-      ...quiet,
-      sandbox: { required: false, effective: "off", network: true },
-      egress: "off",
-      trifecta: all,
-    });
-    expect(open).toContain("Sending data out: turn the sandbox on");
-    expect(open).not.toContain("the proxy lets it reach");
-    const proxied = await shown({ ...quiet, trifecta: all });
-    expect(proxied).toContain("Sending data out: turn the sandbox network off");
-  });
-
   it("writes the new French copy with vous", async () => {
     setLocale("fr");
     const words = await shown({
       ...quiet,
-      sandbox: { required: false, effective: "off", network: true },
+      sandbox: { required: true, effective: "on", network: false },
       egress: "off",
       trifecta: exfil,
     });
-    expect(words).toContain("n'est pas restreint");
+    expect(words).toContain("son shell n'a pas de réseau");
     expect(words).toContain("vous");
   });
 });
@@ -216,15 +161,6 @@ describe("the rest of the sheet", () => {
     expect(off).toContain("Egress: off");
     expect(off).toContain("Trusted sources: none");
     expect(off).toContain("Trusted autonomy: off");
-  });
-
-  it("says when the sandbox is off or unavailable, in plain words", async () => {
-    expect(
-      await shown({ ...quiet, sandbox: { required: false, effective: "off", network: true } }),
-    ).toContain("Sandbox: off. Its shell runs as you");
-    expect(
-      await shown({ ...quiet, sandbox: { required: true, effective: "unavailable", network: true } }),
-    ).toContain("required but not available");
   });
 
   it("lists the vault names, the triggers and the blocked commands, never a value", async () => {

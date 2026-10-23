@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDispatcher } from "./kernel/ws/dispatcher.ts";
@@ -59,7 +59,7 @@ describe("quarantine, the permissions sheet and the prompt chips are wired (Task
     insertAgent(db);
     expect(await m11.rpc["agents.permissions"]({ agentId: AGENT_ID }, call())).toMatchObject({
       tools: { preset: "default", active: "unknown-until-start" },
-      sandbox: { required: true, effective: "unavailable" },
+      sandbox: { required: true, effective: "on" },
       mcp: "owner's servers",
       egress: "off",
     });
@@ -73,11 +73,10 @@ describe("quarantine, the permissions sheet and the prompt chips are wired (Task
     ).rejects.toMatchObject({ code: "forbidden" });
   });
 
-  it("serves the prompt chips of the agent's home", async () => {
-    const { m11, db, home } = parts();
+  it("serves the prompt chips from the agent's imported files", async () => {
+    const { m11, db, agentFiles } = parts();
     insertAgent(db);
-    mkdirSync(join(home, "agents", AGENT_ID, "prompts"), { recursive: true, mode: 0o700 });
-    writeFileSync(join(home, "agents", AGENT_ID, "prompts", "daily.md"), "Summarise today");
+    agentFiles.put(AGENT_ID, "prompts/daily.md", Buffer.from("Summarise today"));
     expect(await m11.rpc["agents.prompts"]({ agentId: AGENT_ID }, call())).toEqual({ names: ["daily.md"] });
     expect(await m11.rpc["agents.prompt"]({ agentId: AGENT_ID, name: "daily.md" }, call())).toEqual({
       text: "Summarise today",

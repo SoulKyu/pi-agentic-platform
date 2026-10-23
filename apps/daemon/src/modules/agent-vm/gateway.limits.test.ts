@@ -1,5 +1,6 @@
 import { AGENT_VM_MAX_FRAME_BYTES, GATEWAY_LIMITS, encodeSocketFrame } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
+import { EXIT_TAIL_GRACE_MS } from "./vm-worker.ts";
 import { REFUSAL_QUIET_MS } from "./gateway.ts";
 import { guestHello, guestOf, type Harness, harness, spawnInput, workerOf } from "./gateway-fixtures.ts";
 
@@ -82,6 +83,7 @@ describe("a peer that never reads", () => {
     worker.socket.writableLength = GATEWAY_LIMITS.writeBacklogBytes + 1;
     expect(worker.handle.send({ type: "get_state", id: "b" })).toBe(false);
     expect(worker.socket.destroyed).toBe(true);
+    await h.clock.advance(EXIT_TAIL_GRACE_MS);
     expect((await worker.handle.exited).cause).toBe("exit_code");
     expect(h.lines.some((line) => line.msg === "agent_gateway_backlog")).toBe(true);
   });

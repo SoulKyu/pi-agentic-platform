@@ -35,7 +35,6 @@ function setup(initial: Profile) {
               quarantined: false,
             }
           : null,
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     },
   });
   return world;
@@ -84,20 +83,6 @@ describe("sandboxedThread (owner a5, M11R213)", () => {
     setup({ autonomy: false, sandbox: true });
     const { sessionId } = await thread();
     expect(sandboxed(sessionId)).toBe(true);
-  });
-
-  it("is false when the registry turned the sandbox off since", async () => {
-    const world = setup({ autonomy: false, sandbox: true });
-    const { sessionId } = await thread();
-    world.sandbox = false;
-    expect(sandboxed(sessionId)).toBe(false);
-  });
-
-  it("is false when the worker started without the sandbox and the registry has it on now", async () => {
-    const world = setup({ autonomy: false, sandbox: false });
-    const { sessionId } = await thread();
-    world.sandbox = true;
-    expect(sandboxed(sessionId)).toBe(false);
   });
 
   it("is true for a cold thread with the sandbox on in the registry", async () => {

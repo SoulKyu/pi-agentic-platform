@@ -54,6 +54,8 @@ export interface AgentsLinkContext {
    * thread VM, so the next thread VM takes the image that is current, not the one the stopped VM ran on.
    */
   stopVm(agentId: string, taskKey: string | null): Promise<void>;
+  /** The stack gate (`VmStatus.require`): `agents.create` is refused `sandbox_unavailable` while it is unusable. */
+  require(): Promise<void>;
   readonly papHome: string;
   readonly clock: Pick<Clock, "now" | "setTimeout" | "clearTimeout">;
   readonly logger: Pick<Logger, "warn" | "info">;
@@ -78,6 +80,7 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
   };
   return {
     link: {
+      require: ctx.require,
       async stop(agentId) {
         await ctx.runtime.stop(agentId);
         if (ctx.client !== null) await stopListed(ctx.client, ctx.stopVm, agentId);

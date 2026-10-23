@@ -156,7 +156,6 @@ export function widensReach(
           : listed.some((host) => !covers(ownerHosts ?? [], host)))
       : listed === null || listed.some((host) => !covers(was.allowHosts ?? [], host));
   return (
-    (was.sandbox.required && !after.sandbox.required) ||
     (!was.sandbox.network && after.sandbox.network) ||
     MODE_RANK[after.mode] > MODE_RANK[was.mode] ||
     PRESET_RANK[after.preset] > PRESET_RANK[was.preset] ||

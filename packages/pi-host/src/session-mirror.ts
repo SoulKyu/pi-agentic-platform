@@ -8,7 +8,7 @@ import {
 } from "@pap/contracts";
 import { logLineOf } from "./bounded.ts";
 import { closeQuietly, openFileChain, openRootDir } from "./nofollow.ts";
-import type { ShellTimers } from "./sandbox-ops.ts";
+import type { ShellTimers } from "./shell-process.ts";
 
 /** RT-38: how long bytes that could not be sent wait for the next try. */
 export const MIRROR_RETRY_MS = 2000;

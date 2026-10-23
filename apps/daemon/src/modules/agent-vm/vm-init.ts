@@ -27,8 +27,8 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
 }
 
 /**
- * What a worker in a VM is told at `init` (RT-06, R11, R17): the host record translated to the VM's paths. Nothing of the
- * host stays (no `sandbox`, whose folders are host folders; no `testProviderScript`), and no `vault`, `once` or `memory`.
+ * What a worker in a VM is told at `init` (RT-06, R17): the host record translated to the VM's paths. Nothing of the
+ * host stays (no `testProviderScript`, no `memory`); the vault and the one-use values do travel (ADR 0081).
  * `papHome` is a folder no VM has, so every host rule keyed on pap's home matches nothing (T11b replaces the ones a VM needs).
  * The record carries the relay key: it is never logged.
  */
@@ -44,14 +44,9 @@ export function vmInitOf(init: InitRecord, vm: VmInit, mirrorFile: string | null
     policy: vmRulesOf(init.policy, layout.root),
     vm,
   };
-  delete kept.sandbox;
-  delete kept.vault;
-  delete kept.once;
   delete kept.memory;
   delete kept.testProviderScript;
   delete kept.sessionFile;
   if (mirrorFile !== null) kept.sessionFile = `${layout.sessions}/${mirrorFile}`;
-  if (init.platform !== undefined)
-    kept.platform = { ops: init.platform.ops.filter((op) => op !== "secret.request") };
   return kept;
 }

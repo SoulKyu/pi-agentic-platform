@@ -36,9 +36,10 @@ const summary = (id: string, patch: Partial<AgentSummary> = {}): AgentSummary =>
 });
 
 let started: Array<{ stop(): void }> = [];
+let bed: ReturnType<typeof fakeRuntime>;
 beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
-  const bed = fakeRuntime("open");
+  bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   current.runtime = bed.runtime;
@@ -71,6 +72,28 @@ describe("the phone's Agents tab (M11R109, board 12)", () => {
     await vi.waitFor(
       () => expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("New agent"),
       { timeout: 2_000 },
+    );
+    await page.unmount();
+  });
+
+  it("shows the microVM EmptyState when the VM stack is unusable", async () => {
+    bed.handlers["agents.vmStatus"] = () => ({
+      usable: false,
+      reason: "no kvm",
+      vmdVersion: null,
+      claudeToken: "missing",
+      agents: [],
+    });
+    const page = await renderShell("/", { phone: true, chunks: ["newAgent"] });
+    await load([]);
+    await click(button(nav(page.container), "Agents"));
+    await settle();
+    expect(page.container.textContent).toContain(
+      "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.",
+    );
+    expect(page.container.textContent).not.toContain("Create your first agent");
+    expect([...page.container.querySelectorAll("main button")].map((one) => one.textContent)).not.toContain(
+      "New agent",
     );
     await page.unmount();
   });

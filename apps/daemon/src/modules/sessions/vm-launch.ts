@@ -48,6 +48,8 @@ export interface VmLaunchDeps {
   readonly papHome: string;
   /** The shared VM predicate: the row's layout, null for a host row. */
   layoutOf(row: SessionRow): VmLayout | null;
+  /** Joins the session to the VM launch it runs in: the proxy taints the launch's sessions together (spec §4). */
+  joinLaunch(launchId: string, sessionId: string): void;
   /** The image tag the agent's VM starts with (Kata: built first when it must be, so it may take minutes). */
   imageTagOf(
     agentId: string,
@@ -120,6 +122,7 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       deps.recheck?.(row.ownerId, row.agentId);
       const started = await deps.runtime.spawn(spec, worker, packages);
       const { handle } = started;
+      deps.joinLaunch(started.launchId, row.id);
       return {
         handle,
         bind(compose) {

@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import type { EventFrame } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -8,26 +7,13 @@ import { canonicalJson } from "../../kernel/ws/dispatcher.ts";
 import { openOwner, outcome, type Owner, result, rows } from "../../security/testing/automation-bed.ts";
 import { captureLogger } from "../../testing/capture-logger.ts";
 import { startTestDaemon, type TestDaemon } from "../../testing/harness.ts";
+import { writeScript } from "../../security/testing/agent-bed.ts";
 
-// The real /usr/bin/bwrap in temporary folders. CI must provide a working bwrap; locally the file skips with one line.
-function bwrapWorks(): boolean {
-  try {
-    execFileSync("/usr/bin/bwrap", ["--ro-bind", "/", "/", "--unshare-pid", "--", "/bin/true"], {
-      stdio: "ignore",
-    });
-    return true;
-  } catch {
-    return false;
-  }
-}
-const usable = bwrapWorks();
-if (!usable && process.env.CI) throw new Error("vault.int.test: CI must provide a working bwrap");
-if (!usable) console.warn("vault.int.test: skipped: no usable /usr/bin/bwrap on this machine");
-
+// The vault through a real daemon and a real worker on the process-backend VM (ADR 0081). The process backend cannot run the
+// root VM shell (`vm-shell/ops.vault.test.ts` proves what the shell is given), so the agent "prints" a value with a scripted
+// text step: a value its worker holds comes back as `[SECRET:NAME]`, one it does not hold comes back raw.
 const VALUE = "planted-vault-value-8e2c41b7d9";
-const BOLT = "bolt-vault-value-6d3e90a1f5";
 const LATE = "late-vault-value-4a7f10c2e6";
-const bash = (command: string, id: string) => ({ toolCalls: [{ name: "bash", args: { command }, id }] });
 
 type StreamEvent = { kind?: string; status?: string };
 /** A status event that arrived after position `from` of the connection's event list (seq restarts per session). */
@@ -43,19 +29,9 @@ let agentId: string;
 let sessionId: string;
 
 beforeAll(async () => {
-  if (!usable) return;
   t = await startTestDaemon(
-    {
-      steps: [
-        bash("echo first=$API_TOKEN; echo bolt=[$BOLT_TOKEN]", "b1"),
-        { text: "one" },
-        bash("echo late=$LATE_TOKEN", "b2"),
-        { text: "two" },
-        bash("echo gone=[$API_TOKEN]", "b3"),
-        { text: "three" },
-      ],
-    },
-    { deps: { logger: logs.logger } },
+    { steps: [{ text: "placeholder" }] },
+    { vm: true, deps: { logger: logs.logger } },
   );
   owner = await openOwner(t);
 });
@@ -64,18 +40,27 @@ afterAll(async () => {
   await t?.stop();
 });
 
+/** What the agent typed during the last prompt, as the stream delivered it. */
+let typed = "";
 async function prompt(text: string): Promise<void> {
   const client = owner.client;
   const from = client.events.length;
   expect((await client.call("sessions.prompt", { sessionId, text })).ok).toBe(true);
   await client.waitForEvent(statusAfter(client, "running", from));
   await client.waitForEvent(statusAfter(client, "idle", from));
+  typed = client.events
+    .slice(from)
+    .map(
+      (frame) =>
+        (frame.event as { event?: { assistantMessageEvent?: { type?: string; delta?: string } } }).event,
+    )
+    .filter((event) => /_delta$/.test(event?.assistantMessageEvent?.type ?? ""))
+    .map((event) => event?.assistantMessageEvent?.delta ?? "")
+    .join("");
 }
-const output = async (toolCallId: string): Promise<string> =>
-  result<{ text: string }>(await owner.client.call("sessions.toolOutput", { sessionId, toolCallId })).text;
 
-describe.skipIf(!usable)("the vault through a real daemon, a real worker and a real bwrap", () => {
-  it("a browser sets a secret; the agent's shell sees it, and everything it prints comes back redacted", async () => {
+describe("the vault through a real daemon and a real worker in the process-backend VM", () => {
+  it("a browser sets a secret; the worker holds it from its init, and everything the agent prints comes back redacted", async () => {
     const created = result<{ id: string }>(
       await owner.client.call("agents.create", { input: { name: "Atlas", preset: "full" } as never }),
     );
@@ -83,61 +68,33 @@ describe.skipIf(!usable)("the vault through a real daemon, a real worker and a r
     expect(
       outcome(await owner.client.call("secrets.set", { agentId, name: "API_TOKEN", value: VALUE })),
     ).toBe("ok");
+    writeScript(t, {
+      steps: [{ text: `first=${VALUE}` }, { text: `late=${LATE}` }, { text: `gone=[${VALUE}]` }],
+    });
     sessionId = result<{ sessionId: string }>(
       await owner.client.call("agents.openThread", { agentId }),
     ).sessionId;
     expect((await owner.client.call("subscribe.session", { sessionId })).ok).toBe(true);
     await prompt("go");
-    expect(await output("b1")).toContain("first=[SECRET:API_TOKEN]");
-    expect(await output("b1")).not.toContain(VALUE);
+    expect(typed).toContain("first=[SECRET:API_TOKEN]");
+    expect(typed).not.toContain(VALUE);
   });
 
-  it("a secret saved while the worker runs reaches its shell at once, a deleted one is gone", async () => {
+  it("a secret saved while the worker runs reaches it at once, a deleted one is still redacted until the worker exits", async () => {
     expect(
       outcome(await owner.client.call("secrets.set", { agentId, name: "LATE_TOKEN", value: LATE })),
     ).toBe("ok");
     await prompt("again");
-    expect(await output("b2")).toContain("late=[SECRET:LATE_TOKEN]");
+    expect(typed).toContain("late=[SECRET:LATE_TOKEN]");
     expect(outcome(await owner.client.call("secrets.delete", { agentId, name: "API_TOKEN" }))).toBe("ok");
     await prompt("once more");
-    expect(await output("b3")).toContain("gone=[]");
+    // A value that leaves stays redacted until the worker exits (the redactor retires it, never forgets it).
+    expect(typed).toContain("gone=[[SECRET:API_TOKEN]]");
     const listed = result<{ entries: Array<{ name: string }>; state: string }>(
       await owner.client.call("secrets.list", { agentId }),
     );
     expect(listed).toMatchObject({ state: "ok", entries: [{ name: "LATE_TOKEN" }] });
     expect(JSON.stringify(listed)).not.toContain(LATE);
-  });
-
-  it("an agent that runs without the sandbox never gets its vault (W5-R17)", async () => {
-    const bolt = result<{ id: string }>(
-      await owner.client.call("agents.create", {
-        input: { name: "Bolt", preset: "full", mode: "full-access", sandbox: { required: false } } as never,
-      }),
-    ).id;
-    expect(
-      outcome(await owner.client.call("secrets.set", { agentId: bolt, name: "BOLT_TOKEN", value: BOLT })),
-    ).toBe("ok");
-    // The only way to tell, from outside, that the vault was asked for: its file is made unreadable, and an unreadable
-    // vault that is read is logged (once per agent). A launch that passed the vault to this worker would log it.
-    const vaultRoot = join(t.home, "secrets", "vault");
-    const [ownerDir] = readdirSync(vaultRoot).filter((name) => name !== "key");
-    const file = join(vaultRoot, ownerDir ?? "", `agent-${bolt}.json`);
-    chmodSync(file, 0o644);
-    try {
-      sessionId = result<{ sessionId: string }>(
-        await owner.client.call("agents.openThread", { agentId: bolt }),
-      ).sessionId;
-      expect((await owner.client.call("subscribe.session", { sessionId })).ok).toBe(true);
-      await prompt("go");
-      expect(logs.lines.filter((line) => line.msg === "vault_unreadable" && line.agentId === bolt)).toEqual(
-        [],
-      );
-    } finally {
-      chmodSync(file, 0o600);
-    }
-    // Each worker walks the script from its first step: this thread ran `b1` with its stored secret out of its shell.
-    expect(await output("b1")).toContain("bolt=[]");
-    expect(await output("b1")).not.toContain(BOLT);
   });
 
   it("a token cannot list, set or delete", async () => {
@@ -171,7 +128,7 @@ describe.skipIf(!usable)("the vault through a real daemon, a real worker and a r
     const [ownerDir] = readdirSync(vault).filter((name) => name !== "key");
     expect(statSync(join(vault, ownerDir ?? "")).mode & 0o777).toBe(0o700);
     const files = readdirSync(join(vault, ownerDir ?? ""));
-    expect(files).toHaveLength(2);
+    expect(files).toHaveLength(1);
     expect(files).toContain(`agent-${agentId}.json`);
     expect(statSync(join(vault, ownerDir ?? "", files[0] ?? "")).mode & 0o777).toBe(0o600);
   });
@@ -193,17 +150,11 @@ describe.skipIf(!usable)("the vault through a real daemon, a real worker and a r
 
   it("the audit rows name the change and never the value", () => {
     const audit = rows<Record<string, unknown>>(t.home, "SELECT * FROM audit WHERE reason LIKE 'secret %'");
-    expect(audit.map((row) => row.reason)).toEqual([
-      "secret set",
-      "secret set",
-      "secret delete",
-      "secret set",
-    ]);
+    expect(audit.map((row) => row.reason)).toEqual(["secret set", "secret set", "secret delete"]);
     expect(audit.map((row) => JSON.parse(String(row.detail)))).toEqual([
       { agentId, name: "API_TOKEN", op: "set" },
       { agentId, name: "LATE_TOKEN", op: "set" },
       { agentId, name: "API_TOKEN", op: "delete" },
-      { agentId: expect.any(String), name: "BOLT_TOKEN", op: "set" },
     ]);
     expect(JSON.stringify(audit)).not.toContain(VALUE);
   });
@@ -215,7 +166,7 @@ describe.skipIf(!usable)("the vault through a real daemon, a real worker and a r
       JSON.stringify(rows(t.home, "SELECT * FROM audit")),
       JSON.stringify(rows(t.home, "SELECT * FROM receipts")),
     ].join("\n");
-    for (const value of [VALUE, LATE, BOLT]) {
+    for (const value of [VALUE, LATE]) {
       expect(tracked).not.toContain(value);
       expect(tracked).not.toContain(Buffer.from(value).toString("base64"));
     }
@@ -224,10 +175,16 @@ describe.skipIf(!usable)("the vault through a real daemon, a real worker and a r
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) scan(path);
-        else if (entry.isFile() && !path.startsWith(join(t.home, "secrets", "vault"))) {
+        // Left out: the sealed vault, the test's own scripts (they type the values) and Pi's session files, which keep the
+        // model's typed text raw (M5's documented limit; its tool results are redacted).
+        else if (
+          entry.isFile() &&
+          !path.startsWith(join(t.home, "secrets", "vault")) &&
+          !path.endsWith("script.json") &&
+          !path.endsWith(".jsonl")
+        ) {
           const bytes = readFileSync(path);
-          if (bytes.includes(VALUE) || bytes.includes(LATE) || bytes.includes(BOLT))
-            hits.push(relative(t.root, path));
+          if (bytes.includes(VALUE) || bytes.includes(LATE)) hits.push(relative(t.root, path));
         }
       }
     };

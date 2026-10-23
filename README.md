@@ -18,7 +18,7 @@ Status: early development, on the way to v1.
 
 ## Long-term agents
 
-Named agents that keep a thread, a home folder, a daily budget and a sandbox. Atlas below is a release watcher: it answers in its thread, hands a risky diff to a subagent, and stops to ask before it acts.
+Named agents that keep a thread, a home folder, a daily budget and a microVM of their own. Atlas below is a release watcher: it answers in its thread, hands a risky diff to a subagent, and stops to ask before it acts.
 
 ![An agent's space: thread, secret request, an isolated run and the status panel with today's cost against the budget](docs/screenshots/agents-space.png)
 
@@ -31,7 +31,7 @@ Named agents that keep a thread, a home folder, a daily budget and a sandbox. At
 ![Settings, Agents: the agent list and the sandbox status, with what the sandbox does and does not cover](docs/screenshots/agents-sandbox.png)
 
 - Each agent has its own home (`$PAP_HOME/agents/<id>/`, a git repository with `MEMORY.md`) and one trusted thread. Its name, role, model, tool preset, mode and daily budget are set per agent.
-- Its shell runs only inside bubblewrap, and the agent does not start without it. Network is off by default; when on, it goes through pap's egress proxy, which guarantees hosts, not content.
+- Every agent runs in its own microVM (Kata Containers, Cloud Hypervisor), its shell in bubblewrap inside it, and it does not start without KVM and `sudo pap vm setup`: on a machine without them pap works and shows the agents screen as unavailable. Network is off by default; when on, it goes through pap's egress proxy, which guarantees hosts, not content.
 - It can ask you for an approval or a secret from its thread or the Inbox. A request expires after 25 minutes. Secrets come from a vault and reach commands as environment variables, never as text in the thread.
 - The `subagent` tool runs a task in a child session (up to 4 at once, 2 by default, one level deep) held to its parent's tools and mode. Agents can also hand work to other agents that opted in, and set reminders for themselves.
 - Memory is pi-mem0's. With `save: staged` (or after external content) an agent's `memory_save` goes to a review queue in Settings, Memory; nothing is remembered until you approve it, and approved facts show in the agent's status panel.

@@ -5,14 +5,12 @@ function port(options: { owner?: string; agentId?: string | undefined } = {}) {
   const agentText = vi.fn<(sessionId: string, max: number, since?: number) => Promise<string>>(
     async () => "last words",
   );
-  const precheck = vi.fn(async () => ({ view: "system" }));
   const row = { id: "s1", ownerId: options.owner ?? "u1", agentId: options.agentId ?? "atlas-1a2b" };
   const value = createAgentPort({
     deps: { store: { get: (id: string) => (id === "s1" ? row : undefined) } },
-    agent: { precheckSandbox: precheck },
     lastText: agentText,
   } as never);
-  return { value, agentText, precheck };
+  return { value, agentText };
 }
 
 describe("lastText (M11R69)", () => {
@@ -39,13 +37,5 @@ describe("lastText (M11R69)", () => {
     expect(await noAgent.lastText("u1", "s1", 10)).toBeNull();
     expect(plain.agentText).not.toHaveBeenCalled();
     expect(await port().value.lastText("u1", "gone", 10)).toBeNull();
-  });
-});
-
-describe("precheckSandbox (M11R68)", () => {
-  it("is the surface's, for the owner and the agent asked", async () => {
-    const { value, precheck } = port();
-    expect(await value.precheckSandbox("u1", "atlas-1a2b")).toEqual({ view: "system" });
-    expect(precheck).toHaveBeenCalledWith("u1", "atlas-1a2b");
   });
 });

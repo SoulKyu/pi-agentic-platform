@@ -152,7 +152,7 @@ describe("a paused agent's fires (M11R75)", () => {
     expect(fire()).toEqual({ verdict: "paused" });
   });
 
-  it("spawn no precheck for a paused agent's trigger, and run it once the agent is resumed", async () => {
+  it("spawn no precheck for a paused agent's trigger, and refuse it once the agent is resumed (agents run in microVMs)", async () => {
     setup();
     insertAgentTrigger(bed.db, fakes.homeOf(AGENT), { precheck: "exit 0" });
     const run = vi.fn(async () => ({ verdict: "pass" as const, exitCode: 0, durationMs: 1, output: "ok" }));
@@ -173,8 +173,11 @@ describe("a paused agent's fires (M11R75)", () => {
     expect(await step.run(record as NonNullable<typeof record>, how)).toEqual({ kind: "go", precheck: null });
     expect(run).not.toHaveBeenCalled();
     if (agent) agent.paused = false;
-    expect(await step.run(record as NonNullable<typeof record>, how)).toEqual({ kind: "go", precheck: "ok" });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(await step.run(record as NonNullable<typeof record>, how)).toMatchObject({
+      kind: "stop",
+      detail: "precheck_agent",
+    });
+    expect(run).not.toHaveBeenCalled();
   });
 
   it("leave a project trigger alone", () => {

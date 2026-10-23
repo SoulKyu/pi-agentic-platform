@@ -27,7 +27,7 @@ afterEach(async () => {
 });
 
 describe("the Claude token methods", () => {
-  it("store and remove the token in host mode, 0600 in a 0700 folder, and answer no value", async () => {
+  it("store and remove the token without a VM stack, 0600 in a 0700 folder, and answer no value", async () => {
     const { logger, lines } = captureLogger();
     t = await startTestDaemon({ steps: [{ text: "ok" }] }, { deps: { logger } });
     owner = await openOwner(t);
@@ -51,10 +51,10 @@ describe("the Claude token methods", () => {
     ]);
     expect(JSON.stringify(audited).includes(TOKEN)).toBe(false);
     expect(JSON.stringify(lines).includes(TOKEN)).toBe(false);
-    // The method that still has its placeholder (T18) and the purge (host mode: no VM runtime) keep answering as before.
+    // The purge of an agent that is not in the owner's trash answers not_found.
     expect(await owner.client.call("agents.purgeTrash", { agentId: "scout-0001" })).toMatchObject({
       ok: false,
-      error: { code: "sandbox_unavailable" },
+      error: { code: "not_found" },
     });
   }, 60_000);
 

@@ -16,7 +16,13 @@ import { vmAddressRefused } from "./vm-address.ts";
  *  - M6  DNS pinning: `ips: answers` replaced by `ips: [host]` -> "pins the connection to the checked answers"
  */
 
-const scope = (hosts: string[]): VmScope => ({ agentId: "a1", launchId: "l1", source: "thread", hosts });
+const scope = (hosts: string[]): VmScope => ({
+  agentId: "a1",
+  launchId: "l1",
+  source: "thread",
+  hosts,
+  trustedSources: [],
+});
 
 function setup(answers: Record<string, string[]>, hostAddresses: string[] = []) {
   const resolved: string[] = [];

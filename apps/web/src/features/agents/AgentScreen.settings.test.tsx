@@ -66,12 +66,6 @@ beforeEach(async () => {
   bed.handlers["agents.markRead"] = () => ({});
   bed.handlers["agents.prompts"] = () => ({ names: [] });
   bed.handlers["agents.status"] = () => status();
-  bed.handlers["agents.sandboxStatus"] = () => ({
-    usable: true,
-    path: "/usr/bin/bwrap",
-    reason: null,
-    checkedAt: 1,
-  });
   bed.handlers["agents.permissions"] = () => ({
     tools: { preset: "default", active: "unknown-until-start" },
     sandbox: { required: true, effective: "on", network: true },

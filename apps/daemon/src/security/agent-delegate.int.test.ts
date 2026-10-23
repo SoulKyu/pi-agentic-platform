@@ -59,6 +59,7 @@ beforeAll(async () => {
   scratch = mkdtempSync(join(tmpdir(), "pap-delegate-"));
   t = await startTestDaemon(scriptOf(ATLAS_FIRST), {
     deps: { clock },
+    vm: true,
     extensions: { lookup: lookupTool(LOOKUP_REPLY) },
   });
   owner = await openOwner(t);

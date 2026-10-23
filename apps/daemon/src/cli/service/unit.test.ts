@@ -62,7 +62,7 @@ describe("renderUnit", () => {
     expect(text).not.toContain("PAP_HOME");
     expect(text).not.toContain("--port");
   });
-  it("never takes the directives that would break M11's bwrap sandbox or carry a secret", () => {
+  it("never takes the directives that would break the agents' sandbox or carry a secret", () => {
     const text = renderUnit({ node: NODE, main: MAIN, home: "/home/u/.pap", stopTimeoutSec: 40 });
     for (const forbidden of [
       "ProtectHome",
@@ -70,7 +70,6 @@ describe("renderUnit", () => {
       "RestrictNamespaces",
       "PrivateUsers",
       "SystemCallFilter",
-      "PAP_BWRAP",
       "_KEY",
       "TOKEN",
     ])

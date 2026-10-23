@@ -18,7 +18,6 @@ export const PRESET_TOOLS: Readonly<Record<Exclude<ToolPreset, "configured">, re
   full: ["read", "bash", "edit", "write", "grep", "find", "ls"],
 };
 const ALL_CODING = PRESET_TOOLS.full;
-const FILE_TOOLS = new Set(["read", "edit", "write", "grep", "find", "ls"]);
 const SHELL_TOOLS = new Set(["bash", "powershell"]);
 const URL_TOOL = /web|fetch|url|http|browse/i;
 /** Pi's coding tools and pap's own platform tools: every other active tool may be an MCP server's or an extension's. */
@@ -31,8 +30,6 @@ const KNOWN_TOOLS: ReadonlySet<string> = new Set([
 export interface PermissionsDeps {
   readonly store: Pick<AgentStore, "get">;
   readonly links: () => AgentLinks;
-  /** The last sandbox probe says bwrap can run here. */
-  sandboxUsable(): boolean;
   /** The owner's host list (null: no list, which is no host for a shell and any host for a URL tool) and the count of commands blocked for every agent of the owner. */
   ownerPolicy(ownerId: string): { readonly allowHosts: readonly string[] | null; readonly blocked: number };
   /** The tools a live thread's worker said are active; null when no worker is up. Never starts one. */
@@ -50,7 +47,7 @@ const targetOf = (view: TriggerView): "thread" | "isolated" =>
   view.agent?.target ?? view.execution?.agent?.target ?? "isolated";
 
 /**
- * `agents.permissions` (M11R116): what the agent can do, from its profile, the sandbox probe and, when a thread is up, the
+ * `agents.permissions` (M11R116): what the agent can do, from its profile and, when a thread is up, the
  * tools that thread loaded. The trifecta is advice only; a leg is set when it cannot be ruled out. Nothing here starts a
  * worker or connects a server. Pi keeps every active tool that is neither a coding tool nor a platform tool under every
  * preset but `chat` (MCP servers and extensions included), so without a live thread they are assumed present unless the
@@ -71,7 +68,6 @@ export function createPermissions(deps: PermissionsDeps) {
         record.threadSessionId === null ? null : deps.liveTools(ownerId, record.threadSessionId);
       const live = loadout?.tools ?? null;
       const tools = live ?? (input.preset === "configured" ? ALL_CODING : PRESET_TOOLS[input.preset]);
-      const effective = !input.sandbox.required ? "off" : deps.sandboxUsable() ? "on" : "unavailable";
       const owner = deps.ownerPolicy(ownerId);
 
       const triggers: PermissionsView["triggers"] = [];
@@ -82,7 +78,6 @@ export function createPermissions(deps: PermissionsDeps) {
       // A vault that cannot be read lists nothing (`state: "unreadable"`); the secrets page says why.
       const vaultNames = links.vault?.list?.(caller, agentId).entries.map((entry) => entry.name) ?? [];
 
-      const hasFileTool = tools.some((name) => FILE_TOOLS.has(name));
       const hasShell = tools.some((name) => SHELL_TOOLS.has(name));
       const hasUrlTool = live !== null && live.some((name) => URL_TOOL.test(name));
       const hasMcp =
@@ -98,11 +93,11 @@ export function createPermissions(deps: PermissionsDeps) {
       // sources and the hosts granted in the thread.
       const grants = record.threadSessionId === null ? [] : deps.hostGrants(record.threadSessionId);
       const reachesAHost = (own?.length ?? 0) > 0 || input.trustedSources.length > 0 || grants.length > 0;
-      const networked = input.sandbox.required && input.sandbox.network && effective === "on";
+      const networked = input.sandbox.network;
 
       return {
         tools: { preset: input.preset, active: live === null ? "unknown-until-start" : [...live] },
-        sandbox: { required: input.sandbox.required, effective, network: input.sandbox.network },
+        sandbox: { required: true, effective: "on", network: input.sandbox.network },
         hosts: input.allowHosts ?? (owner.allowHosts === null ? "any" : "owner's list"),
         blocked: owner.blocked + input.denylist.length,
         vaultNames,
@@ -112,15 +107,14 @@ export function createPermissions(deps: PermissionsDeps) {
         trustedAutonomy: input.trustedAutonomy,
         egress: networked ? "proxied" : "off",
         trifecta: {
-          privateData: hasFileTool && effective !== "on",
+          // ponytail: the vault's values reach the VM shell (ADR 0081); imported files are not counted yet, add them when
+          // this sheet reads the agent's file list.
+          privateData: vaultNames.length > 0,
           untrustedContent:
             hasUrlTool ||
             hasMcp ||
             triggers.some((each) => each.source === "webhook" || each.source === "feed"),
-          exfiltration:
-            (hasShell && (effective !== "on" || (networked && reachesAHost))) ||
-            (hasUrlTool && !hostList) ||
-            hasMcp,
+          exfiltration: (hasShell && networked && reachesAHost) || (hasUrlTool && !hostList) || hasMcp,
         },
       };
     },

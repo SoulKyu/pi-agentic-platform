@@ -44,6 +44,8 @@ function run(args: string[], home = join(root, "home"), env: Record<string, stri
         PI_CODING_AGENT_DIR: join(root, "agent"),
         PI_TELEMETRY: "0",
         PAP_WORKER_SCOPE: "off",
+        PAP_TEST_PROVIDER_SCRIPT: join(root, "script.json"),
+        PAP_TEST_VMD_SOCKET: join(root, "no-vmd.sock"),
         ...env,
       },
     },

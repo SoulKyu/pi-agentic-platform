@@ -11,15 +11,7 @@ import { openDatabase } from "../kernel/db/database.ts";
 import { captureLogger } from "../testing/capture-logger.ts";
 import { startOutwardBed, type OutwardBed } from "../modules/lanes/testing/outward-bed.ts";
 import { alertBody, bearer, createTrigger, deliver, rows, webhookInput } from "./testing/automation-bed.ts";
-import {
-  bwrapUsable,
-  callOf,
-  effectsOf,
-  opRows,
-  requestRows,
-  taskRowsOf,
-  writeScript,
-} from "./testing/agent-bed.ts";
+import { callOf, effectsOf, opRows, requestRows, taskRowsOf, writeScript } from "./testing/agent-bed.ts";
 import { everyOp, rawAnswers, rawCall, rawStep } from "./testing/raw-platform-extension.ts";
 
 // The roadmap's first M11 exit criterion, from inside real workers: "no caller can run an op its session type does not
@@ -27,7 +19,6 @@ import { everyOp, rawAnswers, rawCall, rawStep } from "./testing/raw-platform-ex
 // most types register no such tool). Exactly the table's cells run; every other cell is `forbidden`, changes nothing and
 // leaves one `block` audit row `{op, type, code}`. The `subagent.run` cells of plain, lane and agent-thread run (Task 29b's
 // handler; the owner's switch is on by default) and each of those workers registers the `subagent` tool (RT-09: read from its loadout).
-const usable = bwrapUsable("platform-ops.int.test");
 
 type Cell = "ok" | "forbidden";
 const NONE: Record<PlatformOp, Cell> = {
@@ -70,11 +61,10 @@ const armScript = (name: string, steps: object[] = [rawStep(everyOp())]) =>
   writeScript(bed.t, { steps, captureRawResults: resultsFile(name) });
 
 beforeAll(async () => {
-  if (!usable) return;
   bed = await startOutwardBed(
     [{}],
     {},
-    { steps: [{ text: "x" }], logger: logs.logger, config: { maxWorkers: 12 } },
+    { steps: [{ text: "x" }], logger: logs.logger, config: { maxWorkers: 12 }, vm: true },
   );
   call = callOf(bed.owner);
   atlas = (await call<{ id: string }>("agents.create", { input: AgentInput.parse({ name: "Atlas" }) })).id;
@@ -183,7 +173,7 @@ async function fireWebhook(trigger: { id: string; secret: string }, fingerprint:
   return sessionId;
 }
 
-describe.skipIf(!usable)("every op from every session type, through real workers (M11R111)", () => {
+describe("every op from every session type, agent sessions in the process-backend VM (M11R111)", () => {
   it("plain: every op is forbidden but subagent.run, which runs a child", async () => {
     armScript("plain");
     const before = effectsOf(bed.t);

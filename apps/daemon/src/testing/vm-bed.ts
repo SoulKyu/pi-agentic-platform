@@ -1,18 +1,11 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { AgentInput } from "@pap/contracts";
 import type { AgentsVm, AgentsVmSeams } from "../compose-agents-vm.ts";
 import type { VmSpec } from "../modules/agent-vm/index.ts";
 import { type Owner, openOwner } from "../security/testing/automation-bed.ts";
 import { callOf } from "../security/testing/agent-bed.ts";
 import { type TestDaemon, type TestDaemonOptions, startTestDaemon } from "./harness.ts";
-
-const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
-/** The VM process's node flags: workers dial the gateway over TCP, so the tests' network guard cannot ride along. */
-const VM_EXEC_ARGV = ["--conditions=development", "--disable-warning=ExperimentalWarning"];
+import { vmPlumbing } from "./vm-plumbing.ts";
 
 export interface VmBed {
   /** The composition (the runtime, the relay link): set once the daemon is up. */
@@ -33,7 +26,7 @@ export interface VmBed {
 }
 
 /**
- * A whole daemon in `PAP_AGENTS_RUNTIME=vm` on the process backend (T7): the agent's guest and its pi-host worker run as local
+ * A whole daemon on the process backend (T7): the agent's guest and its pi-host worker run as local
  * processes over the real gateway, the mirror and the relay link, on the scripted provider. Nothing reaches the network.
  */
 export async function startVmBed(
@@ -46,45 +39,19 @@ export async function startVmBed(
   } = {},
 ): Promise<VmBed> {
   const { seams, imageFiles, ...rest } = options;
-  const image = mkdtempSync(join(tmpdir(), "pap-vm-image-"));
-  mkdirSync(join(image, "extensions"), { recursive: true });
-  writeFileSync(join(image, "settings.json"), "{}");
-  for (const [file, content] of Object.entries(imageFiles ?? {})) {
-    mkdirSync(dirname(join(image, file)), { recursive: true });
-    writeFileSync(join(image, file), content);
-  }
-  const vms: VmBed["vms"] = { started: [], stopped: [] };
-  let t: TestDaemon | undefined;
-  let exposed: AgentsVm | undefined;
+  const plumbing = vmPlumbing({ config: rest.config, deps: rest.deps }, { seams, imageFiles });
+  const { vms } = plumbing;
+  let t: TestDaemon;
   try {
-    t = await startTestDaemon(script, {
-      ...rest,
-      config: { agentsRuntime: "vm", testAgentRuntime: "process", ...options.config },
-      deps: {
-        ...options.deps,
-        agentsVm: {
-          process: {
-            guestEntry: join(REPO, "packages/pi-host/src/guest/main.ts"),
-            execArgv: VM_EXEC_ARGV,
-            imageAgentSource: image,
-          },
-          relayExecArgv: VM_EXEC_ARGV,
-          expose: (vm) => void (exposed = vm),
-          observe: {
-            started: (spec) => void vms.started.push(spec),
-            stopped: (agentId, taskKey) => void vms.stopped.push({ agentId, taskKey }),
-          },
-          ...seams,
-        },
-      },
-    });
+    t = await startTestDaemon(script, { ...rest, ...plumbing.options });
   } catch (error) {
-    rmSync(image, { recursive: true, force: true });
+    plumbing.dispose();
     throw error;
   }
   const daemon = t;
   const owner = await openOwner(daemon);
   const call = callOf(owner.client);
+  const exposed = plumbing.exposed();
   if (exposed === undefined) throw new Error("the VM composition was not exposed");
   return {
     vm: exposed,
@@ -117,7 +84,7 @@ export async function startVmBed(
         execFileSync("chmod", ["-R", "u+w", daemon.root]);
         await daemon.stop();
       } finally {
-        rmSync(image, { recursive: true, force: true });
+        plumbing.dispose();
       }
     },
   };

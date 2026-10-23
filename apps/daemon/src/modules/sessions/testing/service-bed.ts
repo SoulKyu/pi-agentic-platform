@@ -20,6 +20,8 @@ import type { AuditPort } from "../../audit/index.ts";
 import type { AttachmentsPort } from "../../files/index.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 import type { ProjectsPort } from "../../projects/index.ts";
+import { fakeVmLaunch } from "./fake-vm-launch.ts";
+import { withVmPorts } from "./vm-ports.ts";
 import {
   type Admission,
   createExports,
@@ -277,10 +279,15 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     freeMemMb: () => options.freeMemMb ?? 4096,
     ...(options.admission ? { admission: options.admission(clock) } : {}),
     spawn: (_cwd, env) => makeWorker(env),
-    ...(options.vmLaunch
-      ? { vmLaunch: options.vmLaunch(() => makeWorker(), { papHome: join(dir, "pap") }) }
-      : {}),
+    ...{ vmLaunch: (options.vmLaunch ?? fakeVmLaunch)(() => makeWorker(), { papHome: join(dir, "pap") }) },
   });
+  // Agents run in microVMs only: the bed's agent ports get the VM predicates unless the test names its own.
+  const surface = (service as { agent?: { setAgentPorts(ports: Parameters<typeof withVmPorts>[1]): void } })
+    .agent;
+  if (surface) {
+    const setAgentPorts = surface.setAgentPorts;
+    surface.setAgentPorts = (ports) => setAgentPorts(withVmPorts(join(dir, "pap"), ports));
+  }
   hub.registerSnapshot("session", (key) => service.snapshot(key));
   return {
     dir,

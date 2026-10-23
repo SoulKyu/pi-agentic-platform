@@ -1,4 +1,4 @@
-import { type AgentInput, bwrapArgv, type Caller, PapError, type TriggerInput } from "@pap/contracts";
+import { type AgentInput, type Caller, PapError, type TriggerInput } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AgentEvents, DelegationBack, ScratchPort } from "../agents/index.ts";
 import type { AgentSpend } from "../runs/index.ts";
@@ -30,7 +30,7 @@ export interface AgentPorts {
   };
   readonly sessions: Pick<
     SessionsAgentPort,
-    "createAgentSession" | "precheckSandbox" | "precheckEgress" | "lastText" | "taskFolders" | "threadState"
+    "createAgentSession" | "lastText" | "taskFolders" | "threadState"
   >;
   /** The agent's thread: the one it has, or a new one (M11R59). */
   readonly threads: { open(ownerId: string, agentId: string): Promise<{ sessionId: string }> };
@@ -85,60 +85,16 @@ export function resolveExecution(
   return { cwd: registry.homeOf(ownerId, agent.agentId), agentId: agent.agentId };
 }
 
-/**
- * W5-R31: always sandboxed, whatever the agent's `sandbox.required` says; on a host without a usable bwrap every agent
- * precheck answers `sandbox_unavailable`.
- * M11R68: the command of an agent trigger's precheck runs inside the agent's sandbox, as `[bwrap, ...argv]`. Fails closed
- * (`sandbox_unavailable` and the gate's other codes): there is no unsandboxed run to fall back to. A networked sandbox gets its
- * own proxy socket for this run (M11R243); `release` ends it and is called once the command is over, whatever came of it.
- */
-export async function precheckWrapOf(
-  binding: AgentBinding | undefined,
-  ownerId: string,
-  agentId: string,
-): Promise<{ wrap: (command: string) => string[]; release: () => Promise<void>; proxied: boolean }> {
-  const ports = binding?.ports();
-  if (!ports) throw new PapError("sandbox_unavailable");
-  const spec = await ports.sessions.precheckSandbox(ownerId, agentId);
-  const held = spec.network ? await ports.sessions.precheckEgress(ownerId, agentId) : null;
-  return {
-    wrap: (command) => [spec.bwrap, ...bwrapArgv(spec, command, held?.socket)],
-    release: async () => void (await held?.release()),
-    proxied: held !== null,
-  };
-}
+/** The word a stored precheck on an agent trigger is refused with: agents run in microVMs, where a precheck has no place. */
+export const PRECHECK_AGENT = "precheck_agent";
 
 /**
- * The closed word a refused precheck is journaled with (T10): the gate's own answer, never the thrown text. An agent
- * that is quarantined (the sessions gate throws `agent_paused` only for a quarantined profile: a merely paused agent never
- * reaches it, the precheck step hands it on first), gone, or a folder that is gone say so; anything else is the spawn's generic failure.
+ * The closed word a refused precheck is journaled with (T10), never the thrown text: a folder that is gone says so, anything
+ * else is the spawn's generic failure. An agent trigger's stored precheck is refused earlier, as `PRECHECK_AGENT`.
  */
 export function precheckRefusal(error: unknown): string {
-  if (!(error instanceof PapError)) return "precheck spawn";
-  switch (error.code) {
-    case "sandbox_unavailable":
-      return "sandbox_unavailable";
-    case "agent_paused":
-      return "quarantined";
-    case "not_found":
-      return "missing";
-    case "invalid_cwd":
-      return "invalid_cwd";
-    default:
-      return "precheck spawn";
-  }
-}
-
-/** Ends a precheck's proxy socket; a failure is logged, never thrown into the run's outcome (M11R243). */
-export async function releaseEgress(
-  release: (() => Promise<void>) | undefined,
-  logger: Logger,
-): Promise<void> {
-  try {
-    await release?.();
-  } catch (error) {
-    logger.warn("precheck_egress_release_failed", { err: error });
-  }
+  if (error instanceof PapError && error.code === "invalid_cwd") return "invalid_cwd";
+  return "precheck spawn";
 }
 
 export interface AgentTriggerLinkDeps {

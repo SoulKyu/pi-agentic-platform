@@ -60,8 +60,18 @@ describe("pi-host worker: boot", () => {
   ])("refuses to start with the policy %j", async (policy) => {
     const host = bed.launch({ steps: [{ text: "hi" }] }, { policy });
     expect(await host.exited).toBe(70);
-    expect(host.stderr()).toContain("invalid policy rules");
+    expect(host.stderr()).toContain("invalid policy rules (fields: policy");
     expect(host.records.some((r) => r.type === "ready")).toBe(false);
+  });
+
+  it("names the failing policy path and never its value", async () => {
+    const host = bed.launch(
+      { steps: [{ text: "hi" }] },
+      { policy: { profile: "interactive", approvalMode: "SECRET-VALUE" } },
+    );
+    expect(await host.exited).toBe(70);
+    expect(host.stderr()).toContain("policy.approvalMode");
+    expect(host.stderr()).not.toContain("SECRET-VALUE");
   });
 
   it.each([

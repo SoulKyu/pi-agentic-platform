@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { Socket } from "node:net";
-import { EGRESS_LIMITS } from "@pap/contracts";
+import { cleansContent, EGRESS_LIMITS } from "@pap/contracts";
 import type { TimerHandle } from "../../kernel/clock.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
 import { type Limits, createCores, type ProxyCore, sendAndClose } from "./proxy-core.ts";
@@ -18,6 +18,8 @@ export interface VmEgressDeps extends Pick<
   /** The launch behind a source address, with its host list now (the agent's, else the owner's); null: no running launch. */
   scopeOf(address: string): VmScope | null;
   onRefusal(refusal: VmRefusal): void;
+  /** A request was allowed and did not leave content clean (spec §4): the launch's sessions are tainted. A refused one never calls it. */
+  onTaint?(launch: { readonly agentId: string; readonly launchId: string }): void;
 }
 
 /** A VM's tunnels live as long as the VM: the per-command byte cap of host mode would cut a long transfer. */
@@ -130,6 +132,12 @@ export function createVmEgress(deps: VmEgressDeps) {
               });
             } catch (error) {
               logger.warn("egress_vm_refusal_sink_failed", { err: error });
+            }
+          } else if ("ips" in decision && !cleansContent(kind, port, decision.host, now.trustedSources)) {
+            try {
+              deps.onTaint?.({ agentId: now.agentId, launchId: now.launchId });
+            } catch (error) {
+              logger.warn("egress_vm_taint_sink_failed", { err: error });
             }
           }
           return decision;

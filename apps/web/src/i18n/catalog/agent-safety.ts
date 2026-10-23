@@ -24,16 +24,12 @@ export const agentSafetyEn = {
   "agentSafety.perm.tools.active": "Active tools: {tools}.",
   "agentSafety.perm.tools.unknown":
     "Active tools: listed once its thread has started (pap starts nothing just to show this).",
-  "agentSafety.perm.sandbox.on": "Sandbox: on. Its shell runs in bubblewrap, with its own folders.",
-  "agentSafety.perm.sandbox.off": "Sandbox: off. Its shell runs as you, with your files and your network.",
-  "agentSafety.perm.sandbox.unavailable":
-    "Sandbox: required but not available on this machine, so it cannot start a shell.",
+  "agentSafety.perm.sandbox.on": "Sandbox: on. Its shell runs in its own microVM, with its own folders.",
   "agentSafety.perm.network.on": "Network: allowed.",
   "agentSafety.perm.network.off": "Network: off.",
   "agentSafety.perm.egress.proxied":
     "Egress: proxied. Its shell's traffic goes through pap's allowlist proxy.",
-  "agentSafety.perm.egress.off":
-    "Egress: off. pap's proxy is not in the path (the network is off, or the sandbox is not on).",
+  "agentSafety.perm.egress.off": "Egress: off. pap's proxy is not in the path (its sandbox network is off).",
   "agentSafety.perm.hosts": "Hosts: {hosts}",
   "agentSafety.perm.hosts.owner": "Hosts: the list you set for all agents",
   "agentSafety.perm.hosts.any":
@@ -81,14 +77,6 @@ export const agentSafetyEn = {
     "This agent can send data out: through a web tool, an MCP server, or a networked shell to any host the proxy lets it reach.",
   "agentSafety.tri.exfil.may":
     "This agent may send data out: through a web tool, an MCP server, or a networked shell to any host the proxy lets it reach.",
-  "agentSafety.tri.exfil.open.can":
-    "This agent can send data out: its shell is unrestricted (the sandbox is not on), so it can reach any host you can.",
-  "agentSafety.tri.exfil.open.may":
-    "This agent may send data out: its shell is unrestricted unless the sandbox is on, and then it can reach any host you can.",
-  "agentSafety.tri.exfil.unavailable.can":
-    "This agent can send data out: through a web tool or an MCP server (its shell cannot start: the sandbox it requires is unavailable).",
-  "agentSafety.tri.exfil.unavailable.may":
-    "This agent may send data out: through a web tool or an MCP server (its shell cannot start: the sandbox it requires is unavailable).",
   "agentSafety.tri.exfil.noshell.can":
     "This agent can send data out: through a web tool or an MCP server (its shell has no network).",
   "agentSafety.tri.exfil.noshell.may":
@@ -96,19 +84,15 @@ export const agentSafetyEn = {
   "agentSafety.tri.exfil.none":
     "This agent cannot send data out: no networked shell, web tool or MCP server.",
   "agentSafety.tri.remove": "To remove a leg",
-  "agentSafety.tri.remove.private": "Private data: keep the sandbox on, or give it no file tools.",
+  "agentSafety.tri.remove.private": "Private data: give it no file tools.",
   "agentSafety.tri.remove.untrusted":
     "Untrusted content: remove its webhook and feed triggers, and the MCP servers and web tools it does not need.",
   "agentSafety.tri.remove.exfil":
     "Sending data out: turn the sandbox network off, or give it its own short host list instead of any host the proxy lets it reach.",
-  "agentSafety.tri.remove.exfil.unavailable":
-    "Sending data out: remove its web tools and MCP servers (its shell cannot start while the sandbox is unavailable).",
-  "agentSafety.tri.remove.exfil.open":
-    "Sending data out: turn the sandbox on, then turn its network off or give it its own short host list. Without the sandbox, its shell reaches any host you can.",
 
   "agentSafety.secrets.title": "Secrets",
   "agentSafety.secrets.intro":
-    "Values are never shown again. The agent's shell gets them as environment variables; outputs show [SECRET:NAME]. Without the sandbox, the vault is not given to the shell.",
+    "Values are never shown again. The agent's shell gets them as environment variables; outputs show [SECRET:NAME]. The values live in the agent's microVM while it runs.",
   "agentSafety.secrets.limits":
     "Encrypted in pap's vault: at most 50 names, up to 4 096 characters per value.",
   "agentSafety.secrets.protects":
@@ -221,17 +205,13 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
   "agentSafety.perm.tools.unknown":
     "Outils actifs : listés une fois son fil démarré (pap ne démarre rien juste pour l'afficher).",
   "agentSafety.perm.sandbox.on":
-    "Bac à sable : activé. Son shell tourne dans bubblewrap, avec ses propres dossiers.",
-  "agentSafety.perm.sandbox.off":
-    "Bac à sable : désactivé. Son shell tourne comme vous, avec vos fichiers et votre réseau.",
-  "agentSafety.perm.sandbox.unavailable":
-    "Bac à sable : exigé mais indisponible sur cette machine, donc il ne peut pas lancer de shell.",
+    "Bac à sable : activé. Son shell tourne dans sa propre microVM, avec ses propres dossiers.",
   "agentSafety.perm.network.on": "Réseau : autorisé.",
   "agentSafety.perm.network.off": "Réseau : coupé.",
   "agentSafety.perm.egress.proxied":
     "Sortie : via proxy. Le trafic de son shell passe par le proxy à liste d'autorisation de pap.",
   "agentSafety.perm.egress.off":
-    "Sortie : coupée. Le proxy de pap n'est pas sur le chemin (le réseau est coupé, ou le bac à sable n'est pas activé).",
+    "Sortie : coupée. Le proxy de pap n'est pas sur le chemin (le réseau de son bac à sable est coupé).",
   "agentSafety.perm.hosts": "Hôtes : {hosts}",
   "agentSafety.perm.hosts.owner": "Hôtes : la liste que vous avez fixée pour tous les agents",
   "agentSafety.perm.hosts.any":
@@ -279,14 +259,6 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
     "Cet agent peut envoyer des données à l'extérieur : par un outil web, un serveur MCP, ou un shell en réseau vers n'importe quel hôte que le proxy le laisse atteindre.",
   "agentSafety.tri.exfil.may":
     "Cet agent peut éventuellement envoyer des données à l'extérieur : par un outil web, un serveur MCP, ou un shell en réseau vers n'importe quel hôte que le proxy le laisse atteindre.",
-  "agentSafety.tri.exfil.open.can":
-    "Cet agent peut envoyer des données à l'extérieur : son shell n'est pas restreint (le bac à sable n'est pas activé), il atteint donc tous les hôtes que vous atteignez.",
-  "agentSafety.tri.exfil.open.may":
-    "Cet agent peut éventuellement envoyer des données à l'extérieur : son shell n'est pas restreint tant que le bac à sable n'est pas activé, et il atteint alors tous les hôtes que vous atteignez.",
-  "agentSafety.tri.exfil.unavailable.can":
-    "Cet agent peut envoyer des données à l'extérieur : par un outil web ou un serveur MCP (son shell ne peut pas démarrer : le bac à sable qu'il exige est indisponible).",
-  "agentSafety.tri.exfil.unavailable.may":
-    "Cet agent peut éventuellement envoyer des données à l'extérieur : par un outil web ou un serveur MCP (son shell ne peut pas démarrer : le bac à sable qu'il exige est indisponible).",
   "agentSafety.tri.exfil.noshell.can":
     "Cet agent peut envoyer des données à l'extérieur : par un outil web ou un serveur MCP (son shell n'a pas de réseau).",
   "agentSafety.tri.exfil.noshell.may":
@@ -294,20 +266,15 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
   "agentSafety.tri.exfil.none":
     "Cet agent ne peut pas envoyer de données à l'extérieur : ni shell en réseau, ni outil web, ni serveur MCP.",
   "agentSafety.tri.remove": "Pour retirer une branche",
-  "agentSafety.tri.remove.private":
-    "Données privées : gardez le bac à sable activé, ou ne lui donnez aucun outil de fichiers.",
+  "agentSafety.tri.remove.private": "Données privées : ne lui donnez aucun outil de fichiers.",
   "agentSafety.tri.remove.untrusted":
     "Contenu non fiable : retirez ses déclencheurs webhook et flux, et les serveurs MCP et outils web dont il n'a pas besoin.",
   "agentSafety.tri.remove.exfil":
     "Envoi de données : coupez le réseau du bac à sable, ou donnez-lui sa propre courte liste d'hôtes au lieu de n'importe quel hôte que le proxy le laisse atteindre.",
-  "agentSafety.tri.remove.exfil.unavailable":
-    "Envoi de données : retirez ses outils web et ses serveurs MCP (son shell ne peut pas démarrer tant que le bac à sable est indisponible).",
-  "agentSafety.tri.remove.exfil.open":
-    "Envoi de données : activez le bac à sable, puis coupez son réseau ou donnez-lui sa propre courte liste d'hôtes. Sans le bac à sable, son shell atteint tous les hôtes que vous atteignez.",
 
   "agentSafety.secrets.title": "Secrets",
   "agentSafety.secrets.intro":
-    "Les valeurs ne sont plus jamais affichées. Le shell de l'agent les reçoit comme variables d'environnement ; les sorties affichent [SECRET:NOM]. Sans le bac à sable, le coffre n'est pas donné au shell.",
+    "Les valeurs ne sont plus jamais affichées. Le shell de l'agent les reçoit comme variables d'environnement ; les sorties affichent [SECRET:NOM]. Les valeurs vivent dans la microVM de l'agent pendant qu'il tourne.",
   "agentSafety.secrets.limits":
     "Chiffrés dans le coffre de pap : 50 noms au plus, 4 096 caractères au plus par valeur.",
   "agentSafety.secrets.protects":

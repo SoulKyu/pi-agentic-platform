@@ -35,8 +35,6 @@ describe("schema", () => {
       "schema",
       "update_pending",
       "backup",
-      "bwrap",
-      "python3",
       "update_available",
     ]);
   });

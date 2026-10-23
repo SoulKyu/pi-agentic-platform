@@ -1,9 +1,10 @@
-import { existsSync, lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { AGENT_NET } from "@pap/contracts";
 import { VERSION } from "../../kernel/version.ts";
 import {
   assessStack,
+  hasKvm,
   createVmdClient,
   GATEWAY_ENDPOINT,
   ownerOf,
@@ -51,9 +52,6 @@ const MIN_FREE_DEFAULT_MB = 1024;
 const DEFAULT_DISK_MB = 4096;
 const KEPT_FILES_MAX = 10_000;
 const SETUP = "sudo pap vm setup";
-
-const asVm = (ctx: DoctorContext): boolean =>
-  (ctx.unit === null ? ctx.env : ctx.unit.env).PAP_AGENTS_RUNTIME === "vm";
 
 function floorOf(ctx: DoctorContext): number {
   const raw = (ctx.unit === null ? ctx.env : ctx.unit.env).PAP_MIN_FREE_DISK_MB;
@@ -118,14 +116,8 @@ export function defaultVmProbes(): VmProbes {
   };
   return {
     papVersion: VERSION,
-    kvm: () => {
-      try {
-        return statSync("/dev/kvm").isCharacterDevice();
-      } catch {
-        return false;
-      }
-    },
-    stack: (ctx) => assessStack(createVmdClient(VMD_SOCKET, ctx.clock), VERSION),
+    kvm: hasKvm,
+    stack: (ctx) => assessStack(createVmdClient(VMD_SOCKET, ctx.clock), VERSION, hasKvm),
     images: imagesOf,
     reserved: (ctx) => ({ agentDisksMb: agentDisksMb(ctx), keptMirrorsMb: keptMirrorsMb(ctx) }),
     listeners: () => {
@@ -152,14 +144,10 @@ export function defaultVmProbes(): VmProbes {
   };
 }
 
-const NOT_VM: CheckResult = {
-  status: "skip",
-  detail: "PAP_AGENTS_RUNTIME is not vm: the agents run on the host",
-};
 const NO_VMD: CheckResult = { status: "skip", detail: "pap-vmd does not answer" };
 
 /**
- * The agent VM stack (T18): one check per fact. They apply only when the unit (else the shell) sets `PAP_AGENTS_RUNTIME=vm`.
+ * The agent VM stack (T18): one check per fact. They run whatever the environment says: every agent is a VM.
  * The root-only facts come from `vmd.health` (RT-40): doctor runs as pap's user and cannot read the ruleset or the root-owned
  * state folder. Every result that is not ok has a `fix`.
  */
@@ -182,7 +170,6 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
     id,
     title,
     async run(ctx) {
-      if (!asVm(ctx)) return NOT_VM;
       const stack = await stackOf(ctx);
       return stack.health === null ? NO_VMD : judge(stack.health, ctx);
     },
@@ -191,8 +178,7 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
     {
       id: "vm.kvm",
       title: "KVM for the agents' VMs",
-      async run(ctx) {
-        if (!asVm(ctx)) return NOT_VM;
+      async run() {
         return probes.kvm()
           ? { status: "ok", detail: "/dev/kvm exists" }
           : {
@@ -206,7 +192,6 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
       id: "vm.vmd",
       title: "pap-vmd",
       async run(ctx) {
-        if (!asVm(ctx)) return NOT_VM;
         const stack = await stackOf(ctx);
         if (stack.health === null) return { status: "fail", detail: STACK_REASONS.unreachable, fix: SETUP };
         return stack.health.version === probes.papVersion
@@ -232,7 +217,6 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
       id: "vm.images",
       title: "Agent images",
       async run(ctx) {
-        if (!asVm(ctx)) return NOT_VM;
         if ((await stackOf(ctx)).health === null) return NO_VMD;
         const tags = await probes.images(ctx);
         if (tags === null)
@@ -267,22 +251,15 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
       id: "vm.listeners",
       title: "The sockets on the bridge address",
       async run(ctx) {
-        if (!asVm(ctx)) return NOT_VM;
         const { gateway, relay, proxy } = probes.listeners();
         const where = `${AGENT_NET.host}:${AGENT_NET.gatewayPort}, :${AGENT_NET.relayPort} and :${AGENT_NET.proxyPort}`;
         if (!gateway.listening && !relay.listening && !proxy.listening) {
           if (!ctx.lockHeld)
             return { status: "info", detail: `pap is not running: nothing listens on ${where}` };
-          // T20b M7: with no unit, the mode is only this shell's; the daemon that holds the lock may run in host mode.
-          if (ctx.unit === null)
-            return {
-              status: "info",
-              detail: `another pap holds the home's lock and nothing listens on ${where}; only this shell sets PAP_AGENTS_RUNTIME=vm, so that pap may run in host mode`,
-            };
           return {
             status: "warn",
             detail: `pap runs but nothing listens on ${where} (if it just started, run doctor again in a moment)`,
-            fix: "journalctl --user -u pap -n 50",
+            fix: "journalctl --user -u pap -n 50; a pap that booted before the VM stack was ready needs systemctl --user restart pap",
           };
         }
         const foreign = (what: string): CheckResult => ({
@@ -314,8 +291,7 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
     {
       id: "vm.firewall",
       title: "Host firewall",
-      async run(ctx) {
-        if (!asVm(ctx)) return NOT_VM;
+      async run() {
         const active = probes.firewalls();
         if (active.length === 0) return { status: "ok", detail: "neither ufw nor firewalld is active" };
         const fixes = active.map((name) =>

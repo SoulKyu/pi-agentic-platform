@@ -21,7 +21,6 @@ const trigger = (name: string, type: string, target: "thread" | "isolated"): Tri
 
 interface World {
   input?: object;
-  usable?: boolean;
   ownerHosts?: readonly string[] | null;
   triggers?: TriggerView[];
   live?: readonly string[] | null;
@@ -55,7 +54,6 @@ async function sheet(world: World = {}) {
   const permissions = createPermissions({
     store: bed.agents.store,
     links: bed.agents.links,
-    sandboxUsable: () => world.usable ?? true,
     ownerPolicy: () => ({ allowHosts: world.ownerHosts === undefined ? [] : world.ownerHosts, blocked: 4 }),
     liveTools: (_ownerId, sessionId) =>
       sessionId === "s1" && world.live ? { tools: world.live, truncated: world.truncated ?? false } : null,
@@ -104,19 +102,16 @@ describe("agents.permissions (M11R116)", () => {
     expect((await sheet({ ownerHosts: null })).view().hosts).toBe("any");
   });
 
-  it("the sandbox is effectively on, off, or unavailable on this machine", async () => {
-    expect((await sheet({ usable: true })).view().sandbox.effective).toBe("on");
-    expect((await sheet({ usable: false })).view().sandbox.effective).toBe("unavailable");
-    expect((await sheet({ input: { sandbox: { required: false } } })).view().sandbox.effective).toBe("off");
+  it("a VM agent's shell always runs in the sandbox, whatever the retired required field says", async () => {
+    expect((await sheet()).view().sandbox).toMatchObject({ required: true, effective: "on" });
+    const legacy = (await sheet({ input: { sandbox: { required: false, network: true } } })).view();
+    expect(legacy.sandbox).toEqual({ required: true, effective: "on", network: true });
+    expect(legacy.egress).toBe("proxied");
   });
 
-  it("egress is proxied only when the sandbox is effectively on and its network is on", async () => {
+  it("egress is proxied exactly when the sandbox network is on", async () => {
     const on = { sandbox: { required: true, network: true } };
     expect((await sheet({ input: on })).view().egress).toBe("proxied");
-    expect((await sheet({ input: on, usable: false })).view().egress).toBe("off");
-    expect((await sheet({ input: { sandbox: { required: false, network: true } } })).view().egress).toBe(
-      "off",
-    );
     expect((await sheet({ input: { sandbox: { required: true, network: false } } })).view().egress).toBe(
       "off",
     );
@@ -140,22 +135,9 @@ describe("agents.permissions (M11R116)", () => {
   describe("the trifecta", () => {
     const legs = async (world: World) => (await sheet(world)).view().trifecta;
 
-    it("private data: a file tool without the sandbox", async () => {
-      const off = { sandbox: { required: false } };
-      expect((await legs({ input: { ...off, preset: "read-only" } })).privateData).toBe(true);
-      expect((await legs({ input: { preset: "read-only" } })).privateData).toBe(false);
-      expect((await legs({ input: { ...off, preset: "chat" } })).privateData).toBe(false);
-      expect((await legs({ input: { ...off, preset: "none" } })).privateData).toBe(false);
-      expect(
-        (await legs({ input: { sandbox: { required: true }, preset: "default" }, usable: false }))
-          .privateData,
-      ).toBe(true);
-    });
-
-    it("private data follows a live thread's tools over the preset", async () => {
-      const off = { sandbox: { required: false }, preset: "read-only" };
-      expect((await legs({ input: off, live: ["web_fetch"] })).privateData).toBe(false);
-      expect((await legs({ input: off, live: ["edit"] })).privateData).toBe(true);
+    it("private data: the agent's vault values, which reach its VM shell", async () => {
+      expect((await legs({ input: { preset: "full" }, live: ["edit"] })).privateData).toBe(false);
+      expect((await legs({ input: { preset: "read-only" }, vault: ["API_TOKEN"] })).privateData).toBe(true);
     });
 
     it("untrusted content: a webhook or a feed trigger, a URL tool, an MCP server", async () => {
@@ -217,10 +199,9 @@ describe("agents.permissions (M11R116)", () => {
       ]);
     });
 
-    it("exfiltration: a shell with the sandbox off, or with network and a host it may reach", async () => {
+    it("exfiltration: a shell with network and a host it may reach (the retired required field changes nothing)", async () => {
       const shell = { preset: "default" };
-      expect((await legs({ input: { ...shell, sandbox: { required: false } } })).exfiltration).toBe(true);
-      // Sandbox on, network on, the owner's list is empty and the agent has no other host: nothing to reach.
+      // Network on, the owner's list is empty and the agent has no other host: nothing to reach.
       const net = { ...shell, sandbox: { required: true, network: true } };
       expect((await legs({ input: { ...net, preset: "chat" } })).exfiltration).toBe(false);
       expect((await legs({ input: { ...net, preset: "none" }, live: ["bash"] })).exfiltration).toBe(false);
@@ -276,9 +257,9 @@ describe("agents.permissions (M11R116)", () => {
     });
 
     it("is advice only: the sheet reads, it never changes the agent", async () => {
-      const { id, view } = await sheet({ input: { sandbox: { required: false }, preset: "full" } });
+      const { id, view } = await sheet({ input: { preset: "full" } });
       const before = bed.agents.port.get("u1", id);
-      expect(view().trifecta).toEqual({ privateData: true, untrustedContent: true, exfiltration: true });
+      expect(view().trifecta).toMatchObject({ untrustedContent: true, exfiltration: true });
       expect(bed.agents.port.get("u1", id)).toEqual(before);
     });
   });
@@ -303,7 +284,6 @@ describe("agents.permissions (M11R116)", () => {
     const permissions = createPermissions({
       store: bed.agents.store,
       links: bed.agents.links,
-      sandboxUsable: () => true,
       ownerPolicy: () => ({ allowHosts: null, blocked: 0 }),
       liveTools: () => null,
       hostGrants: () => [],

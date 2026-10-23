@@ -26,40 +26,31 @@ const row = (): SessionRow =>
     cwd: join(papHome, "agents", ID),
   }) as SessionRow;
 const VM_HOME = "/agent/home";
-function deps(bridge: boolean, vm: boolean) {
+function deps(bridge: boolean) {
   const asked: Array<{ vm: boolean; home: string }> = [];
   const value: AgentGateDeps = {
     papHome,
     agentDir: join(root, "pi"),
     profileOf: () => ({
-      input: AgentInput.parse({ name: "Atlas", sandbox: { required: false } }),
+      input: AgentInput.parse({ name: "Atlas" }),
       name: "Atlas",
       quarantined: false,
     }),
-    ...(vm ? { vmLayoutOf: () => ({ home: VM_HOME }) as VmLayout } : {}),
+    vmLayoutOf: () => ({ home: VM_HOME }) as VmLayout,
     claudeEnvOf: (_input, where) => {
       asked.push(where);
       return Promise.resolve<Record<string, string>>(
         bridge ? { CLAUDE_CONFIG_DIR: `${where.home}/.claude` } : {},
       );
     },
-    probe: { ensure: () => Promise.reject(new Error("no probe")) },
     logger: captureLogger().logger,
   };
   return { value, asked };
 }
 
 describe("the launch gate and the Claude Code environment (ADR 0080)", () => {
-  it("carries a host bridge agent's environment, asked for its real home", async () => {
-    const { value, asked } = deps(true, false);
-    const launch = await agentGate(row(), value);
-    const home = join(papHome, "agents", ID);
-    expect(asked).toEqual([{ vm: false, home }]);
-    expect(launch.claudeEnv).toEqual({ CLAUDE_CONFIG_DIR: `${home}/.claude` });
-  });
-
   it("carries a VM bridge agent's environment, asked for the layout's home", async () => {
-    const { value, asked } = deps(true, true);
+    const { value, asked } = deps(true);
     const launch = await agentGate(row(), value);
     expect(asked).toEqual([{ vm: true, home: VM_HOME }]);
     expect(launch.claudeEnv).toEqual({ CLAUDE_CONFIG_DIR: `${VM_HOME}/.claude` });
@@ -67,9 +58,7 @@ describe("the launch gate and the Claude Code environment (ADR 0080)", () => {
   });
 
   it("leaves the launch of any other agent untouched", async () => {
-    for (const vm of [false, true]) {
-      const { value } = deps(false, vm);
-      expect(await agentGate(row(), value)).not.toHaveProperty("claudeEnv");
-    }
+    const { value } = deps(false);
+    expect(await agentGate(row(), value)).not.toHaveProperty("claudeEnv");
   });
 });

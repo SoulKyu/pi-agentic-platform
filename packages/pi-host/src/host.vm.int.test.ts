@@ -90,23 +90,7 @@ const endOf = (id: string) => (r: HostRecord) => r.type === "tool_execution_end"
 const argvs = (): string[][] =>
   readdirSync(records).map((name) => readFileSync(join(records, name), "utf8").split("\n").slice(0, -1));
 
-const NETWORKED = {
-  bwrap: "/usr/bin/bwrap",
-  view: "host",
-  home: "/nonexistent-host-home",
-  writable: "/nonexistent-host-home",
-  hide: ["/nonexistent-host-hide"],
-  network: true,
-  egress: { python: "/usr/bin/python3", forwarder: "/nonexistent/fwd.py" },
-};
-
 describe("a VM worker: pap's shell is the only shell (RT-02, R15)", () => {
-  it("refuses to start when the init record carries both `vm` and `sandbox`", async () => {
-    await expect(launch([{ text: "done" }], "full-access", { sandbox: NETWORKED })).rejects.toThrow(
-      "must not carry `sandbox`",
-    );
-  });
-
   for (const mode of ["auto-accept-edits", "full-access"])
     it(`runs bwrapVmArgv with no network, no question, in ${mode}`, async () => {
       await launch([call("bash", { command: "echo hi" }, "c1"), { text: "done" }], mode);
@@ -259,7 +243,7 @@ describe("a VM session in this process", () => {
     vi.unstubAllEnvs();
   });
 
-  async function open(sandbox: boolean, vm = true) {
+  async function open(vm = true) {
     let api: ExtensionAPI | undefined;
     const reports: Array<{ extensionPath: string; event: string; error: string }> = [];
     const rules = rulesFor("full-access", world.layout.home);
@@ -274,7 +258,6 @@ describe("a VM session in this process", () => {
         testProviderScript: join(world.base, "script.json"),
         agent: { id: "atlas-1a2b", name: "Atlas", role: "" },
         ...(vm ? { vm: vmInit() } : {}),
-        ...(sandbox ? { sandbox: NETWORKED } : {}),
       } as never,
       {
         ui: createUiBridge(() => true),
@@ -303,15 +286,13 @@ describe("a VM session in this process", () => {
     tools.filter((tool) => tool.name === name).map((tool) => tool.sourceInfo.path);
 
   it("registers read, write, edit and ls from the VM source, bash from the sandbox source, grep and find stay Pi's", async () => {
-    for (const sandbox of [false, true]) {
-      const { tools } = await open(sandbox);
-      for (const name of ["read", "write", "edit", "ls"])
-        expect(sourcesOf(tools, name), name).toEqual([VM_FILES_SOURCE]);
-      expect(sourcesOf(tools, "bash")).toEqual([SANDBOX_SOURCE]);
-      expect(sourcesOf(tools, "grep")).toEqual(["builtin:grep"]);
-      expect(sourcesOf(tools, "find")).toEqual(["builtin:find"]);
-      await dispose();
-    }
+    const { tools } = await open();
+    for (const name of ["read", "write", "edit", "ls"])
+      expect(sourcesOf(tools, name), name).toEqual([VM_FILES_SOURCE]);
+    expect(sourcesOf(tools, "bash")).toEqual([SANDBOX_SOURCE]);
+    expect(sourcesOf(tools, "grep")).toEqual(["builtin:grep"]);
+    expect(sourcesOf(tools, "find")).toEqual(["builtin:find"]);
+    await dispose();
   });
 
   // Mutant R1: `applyRelayKey` left out of `openSession`: the provider keeps its placeholder and the bridge has no token.
@@ -326,7 +307,7 @@ describe("a VM session in this process", () => {
         },
       }),
     );
-    await open(false);
+    await open();
     expect((await session?.modelRuntime.getAuth("zai"))?.auth.apiKey).toBe(KEY);
     expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe(KEY);
     expect(process.env.ANTHROPIC_BASE_URL).toBe("http://claude.internal:7842");
@@ -335,7 +316,7 @@ describe("a VM session in this process", () => {
   it("a host session leaves ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL unset", async () => {
     vi.stubEnv("ANTHROPIC_AUTH_TOKEN", undefined);
     vi.stubEnv("ANTHROPIC_BASE_URL", undefined);
-    await open(false, false);
+    await open(false);
     expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
     expect(process.env.ANTHROPIC_BASE_URL).toBeUndefined();
   });
@@ -353,7 +334,7 @@ describe("a VM session in this process", () => {
       join(bed.agentDir, "extensions", "shadow.js"),
       `export default function (pi) {\n${shadow}\n}\n`,
     );
-    const { tools, reports } = await open(false);
+    const { tools, reports } = await open();
     for (const name of ["read", "write", "edit", "ls"])
       expect(sourcesOf(tools, name), name).toEqual([VM_FILES_SOURCE]);
     expect(reports.filter((report) => report.event === "tool_name_collision")).toEqual([
@@ -367,7 +348,7 @@ describe("a VM session in this process", () => {
   });
 
   it("names the layout's home as the agent's home in the system prompt (RT-06)", async () => {
-    await open(false);
+    await open();
     expect(session?.systemPrompt).toContain(`Your home folder is ${world.layout.home};`);
     expect(session?.systemPrompt).toContain("the network is off");
     expect(session?.systemPrompt).not.toContain(join(bed.papHome, "agents"));
@@ -376,6 +357,6 @@ describe("a VM session in this process", () => {
   it("stops the worker when a writable root is a link", async () => {
     rmSync(world.layout.inbox, { recursive: true });
     symlinkSync(world.layout.pi, world.layout.inbox);
-    await expect(open(false)).rejects.toThrow("not a real folder");
+    await expect(open()).rejects.toThrow("not a real folder");
   });
 });

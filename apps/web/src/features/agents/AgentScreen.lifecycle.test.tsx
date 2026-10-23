@@ -75,7 +75,6 @@ const show = async () => {
 describe("one lifecycle for the header pill and the chip above the composer", () => {
   const vm = (phase: "running" | "stopped" | "starting" | "paused") =>
     (bed.handlers["agents.vmStatus"] = () => ({
-      runtime: "vm",
       usable: true,
       reason: null,
       vmdVersion: "1.0.0",

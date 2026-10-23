@@ -5,7 +5,7 @@ export const agentSettingsEn = {
   "agentForm.dialog.close": "Close",
   "agentForm.dialog.loading": "Loading…",
   "agentForm.dialog.late":
-    "The defaults did not answer, so this form starts from the safe ones: sandbox on, network off.",
+    "The defaults did not answer, so this form starts from the safe ones: network off.",
   "agentForm.name": "Name",
   "agentForm.name.hint": "One word. Mention it with @name.",
   "agentForm.initials": "Initials",
@@ -30,23 +30,6 @@ export const agentSettingsEn = {
   "agentForm.mode.auto-accept-edits": "Auto-accept edits",
   "agentForm.mode.full-access": "Full access",
   "agentForm.sandbox": "Sandbox",
-  "agentForm.sandbox.required": "Required",
-  "agentForm.sandbox.off": "Off",
-  "agentForm.sandbox.offWarning":
-    "{name}'s commands run as you, with your files and keys; its secrets are not given to its shell.",
-  "agentForm.sandbox.offWarning.unnamed":
-    "This agent's commands run as you, with your files and keys; its secrets are not given to its shell.",
-  "agentForm.sandbox.unusableHint":
-    "Required cannot start this agent until bubblewrap works here. Off is still yours to choose.",
-  "agentForm.sandbox.folders":
-    "The shell sees its home and the system, never your home folder. Its file tools read only its home, its own runs folder, the files attached to the thread, Pi's skills (read-only) and the system folders.",
-  "agentForm.probe.checking": "Checking the sandbox…",
-  "agentForm.probe.usable": "bubblewrap found at {path}",
-  "agentForm.probe.unusable": "not usable: {reason}",
-  "agentForm.probe.reason.missing": "bubblewrap is not installed",
-  "agentForm.probe.reason.unsafe_path": "bubblewrap sits in a folder other users can write to",
-  "agentForm.probe.reason.refused": "this system refuses unprivileged sandboxes",
-  "agentForm.probe.reason.timeout": "the check took too long",
   "agentForm.network": "Network",
   "agentForm.network.hint": "The shell reaches only the hosts pap's proxy lets through.",
   "agentForm.hosts": "Allowed hosts",
@@ -54,7 +37,7 @@ export const agentSettingsEn = {
   "agentForm.hosts.only": "Only these",
   "agentForm.hosts.field": "Hosts, one per line",
   "agentForm.hosts.hint":
-    "Its URL tools reach only these. *.example.com covers subdomains. VM mode: host:port (default 80 and 443) and IPs, e.g. k8s.lan:6443.",
+    "Its URL tools reach only these. *.example.com covers subdomains. Also host:port (default 80 and 443) and IPs, e.g. k8s.lan:6443.",
   "agentForm.hosts.risk":
     "A listed host can receive whatever this agent sends it, its files and secrets included. List only hosts you trust with them.",
   "agentForm.sources": "Trusted sources",
@@ -111,9 +94,7 @@ export const agentSettingsEn = {
   "agentForm.error.budget.usdPerDay": "A number between 0 and 1000.",
   "agentForm.error.budget.tokensPerDay": "A whole number between 0 and 1000000000.",
   "agentForm.error.allowHosts":
-    "Host names (api.example.com or *.example.com), or host:port and IPs in VM mode, 256 at most.",
-  "agentForm.error.allowHosts.vmOnly":
-    "A port or an IP address in this list needs VM mode: pap runs agents on the host here, which matches host names only. Nothing was saved.",
+    "Host names (api.example.com or *.example.com), or host:port and IPs, 256 at most.",
   "agentForm.error.denylist": "One visible pattern per line, 50 at most.",
   "agentForm.error.memory.hint": "Visible text, 500 characters at most.",
   "agentForm.error.memory.recallLimit": "A whole number between 0 and 20.",
@@ -138,7 +119,7 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.dialog.close": "Fermer",
   "agentForm.dialog.loading": "Chargement…",
   "agentForm.dialog.late":
-    "Les valeurs par défaut n'ont pas répondu : ce formulaire part des valeurs sûres (bac à sable activé, réseau coupé).",
+    "Les valeurs par défaut n'ont pas répondu : ce formulaire part des valeurs sûres (réseau coupé).",
   "agentForm.name": "Nom",
   "agentForm.name.hint": "Un seul mot. Mentionnez-le avec @nom.",
   "agentForm.initials": "Initiales",
@@ -163,24 +144,6 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.mode.auto-accept-edits": "Modifications acceptées",
   "agentForm.mode.full-access": "Accès complet",
   "agentForm.sandbox": "Bac à sable",
-  "agentForm.sandbox.required": "Obligatoire",
-  "agentForm.sandbox.off": "Désactivé",
-  "agentForm.sandbox.offWarning":
-    "Les commandes de {name} s'exécutent comme vous, avec vos fichiers et vos clés ; ses secrets ne sont pas donnés à son shell.",
-  "agentForm.sandbox.offWarning.unnamed":
-    "Les commandes de cet agent s'exécutent comme vous, avec vos fichiers et vos clés ; ses secrets ne sont pas donnés à son shell.",
-  "agentForm.sandbox.unusableHint":
-    "Obligatoire empêche cet agent de démarrer tant que bubblewrap ne fonctionne pas ici. Désactivé reste votre choix.",
-  "agentForm.sandbox.folders":
-    "Le shell voit son dossier et le système, jamais votre dossier personnel. Ses outils de fichiers ne lisent que son dossier, son dossier d'exécutions, les fichiers joints au fil, les skills de Pi (en lecture seule) et les dossiers système.",
-  "agentForm.probe.checking": "Vérification du bac à sable…",
-  "agentForm.probe.usable": "bubblewrap trouvé dans {path}",
-  "agentForm.probe.unusable": "inutilisable : {reason}",
-  "agentForm.probe.reason.missing": "bubblewrap n'est pas installé",
-  "agentForm.probe.reason.unsafe_path":
-    "bubblewrap est dans un dossier où d'autres utilisateurs peuvent écrire",
-  "agentForm.probe.reason.refused": "ce système refuse les bacs à sable sans privilège",
-  "agentForm.probe.reason.timeout": "la vérification a pris trop de temps",
   "agentForm.network": "Réseau",
   "agentForm.network.hint": "Le shell ne joint que les hôtes que le proxy de pap laisse passer.",
   "agentForm.hosts": "Hôtes autorisés",
@@ -188,7 +151,7 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.hosts.only": "Seulement ceux-ci",
   "agentForm.hosts.field": "Hôtes, un par ligne",
   "agentForm.hosts.hint":
-    "Ses outils d'URL ne joignent que ceux-ci. *.exemple.com couvre les sous-domaines. Mode VM : host:port (80 et 443 par défaut) et IP, ex. k8s.lan:6443.",
+    "Ses outils d'URL ne joignent que ceux-ci. *.exemple.com couvre les sous-domaines. Aussi host:port (80 et 443 par défaut) et IP, ex. k8s.lan:6443.",
   "agentForm.hosts.risk":
     "Un hôte de la liste peut recevoir tout ce que cet agent lui envoie, fichiers et secrets compris. Ne listez que des hôtes à qui vous les confieriez.",
   "agentForm.sources": "Sources de confiance",
@@ -245,9 +208,7 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.error.budget.usdPerDay": "Un nombre entre 0 et 1000.",
   "agentForm.error.budget.tokensPerDay": "Un nombre entier entre 0 et 1000000000.",
   "agentForm.error.allowHosts":
-    "Des noms d'hôte (api.exemple.com ou *.exemple.com), ou host:port et IP en mode VM, 256 au plus.",
-  "agentForm.error.allowHosts.vmOnly":
-    "Un port ou une adresse IP dans cette liste demande le mode VM : ici pap lance les agents sur l'hôte, qui ne reconnaît que des noms d'hôte. Rien n'a été enregistré.",
+    "Des noms d'hôte (api.exemple.com ou *.exemple.com), ou host:port et IP, 256 au plus.",
   "agentForm.error.denylist": "Un motif visible par ligne, 50 au plus.",
   "agentForm.error.memory.hint": "Texte visible, 500 caractères au plus.",
   "agentForm.error.memory.recallLimit": "Un nombre entier entre 0 et 20.",

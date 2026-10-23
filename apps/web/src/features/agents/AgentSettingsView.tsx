@@ -1,5 +1,5 @@
 import "./register-agent-catalog.ts";
-import { type AgentSummary, type SandboxStatus, type ToolPreset } from "@pap/contracts";
+import { type AgentSummary, type ToolPreset } from "@pap/contracts";
 import { Banner, Button, toast } from "@pap/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -10,7 +10,6 @@ interface Props {
   readonly agentId: string;
   /** The stream's word on this agent: when it moves, the agent is read again. */
   readonly summary: AgentSummary | undefined;
-  readonly probe: SandboxStatus;
   presetField(value: ToolPreset, onChange: (preset: ToolPreset) => void): ReactNode;
   /** The list this view came from (Settings › Agents); the agent's own tab has none. */
   onBack?(): void;
@@ -21,7 +20,7 @@ interface Props {
 }
 
 /** One agent's settings (M11R97): the form of Task 15 over the agent as `agents.get` reads it. */
-export function AgentSettingsView({ agentId, summary, probe, presetField, onBack, focus, after }: Props) {
+export function AgentSettingsView({ agentId, summary, presetField, onBack, focus, after }: Props) {
   const t = useT();
   const stamp = `${summary?.lastActivityAt ?? 0}:${summary?.name ?? ""}:${summary?.state ?? ""}`;
   const { load, reload, set } = useAgentView(agentId, stamp);
@@ -89,7 +88,6 @@ export function AgentSettingsView({ agentId, summary, probe, presetField, onBack
             <AgentForm
               key={`${load.agent.id}:${load.agent.revision}`}
               agent={load.agent}
-              probe={probe}
               presetField={presetField}
               onReload={readdAndNote}
               onSaved={(saved) => {

@@ -116,38 +116,32 @@ describe("vmGate (T8a, RT-08)", () => {
 
 describe("agentGate in VM mode (T8a)", () => {
   function gateDeps(vm: boolean) {
-    const probe = { ensure: vi.fn(async () => ({ usable: true as const, path: "/usr/bin/bwrap" })) };
     const vaultOf = vi.fn(() => ({ TOKEN: "s3cret" }));
     const onceOf = vi.fn(() => []);
-    const ready = vi.fn(async () => {});
     const value: AgentGateDeps = {
       papHome: home, // no agents/<id> folder: a host gate would refuse with invalid_cwd
       agentDir: join(home, "pi"),
       logger: silentLogger,
       profileOf: () => profile(),
-      probe,
       vaultOf,
       onceOf,
-      egress: { ready, status: () => ({ usable: true, python: "/usr/bin/python3", reason: null }) } as never,
       vmLayoutOf: vm ? () => ({}) as never : () => null,
     };
-    return { value, probe, vaultOf, onceOf, ready };
+    return { value, vaultOf, onceOf };
   }
-  it("takes the VM gate: no probe, no home, no vault, no one-use values, no egress boot", async () => {
-    const { value, probe, vaultOf, onceOf, ready } = gateDeps(true);
+  it("takes the VM gate: no home, and the vault and one-use values read once (ADR 0081)", async () => {
+    const { value, vaultOf, onceOf } = gateDeps(true);
     const launch = await agentGate(row(), value);
     expect(launch.vm).toBe(true);
     expect(launch).not.toHaveProperty("sandbox");
-    expect(launch).not.toHaveProperty("vault");
-    expect(probe.ensure).not.toHaveBeenCalled();
-    expect(vaultOf).not.toHaveBeenCalled();
-    expect(onceOf).not.toHaveBeenCalled();
-    expect(ready).not.toHaveBeenCalled();
+    expect(launch.vault).toEqual({ TOKEN: "s3cret" });
+    expect(launch).not.toHaveProperty("once");
+    expect(vaultOf).toHaveBeenCalledOnce();
+    expect(onceOf).toHaveBeenCalledOnce();
     expect(() => statSync(join(home, "agents", ID))).toThrow();
   });
-  it("takes the host gate for a host row (no vm flag)", async () => {
+  it("refuses a row with no VM layout: there is no host gate", async () => {
     const { value } = gateDeps(false);
-    // The host gate opens the agent's home, which does not exist here: its refusal proves it ran.
-    expect(await codeOf(agentGate(row(), value))).toBe("invalid_cwd");
+    expect(await codeOf(agentGate(row(), value))).toBe("sandbox_unavailable");
   });
 });

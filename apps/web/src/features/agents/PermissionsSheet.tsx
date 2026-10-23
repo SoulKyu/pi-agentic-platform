@@ -10,42 +10,28 @@ const LEGS: ReadonlyArray<readonly [Leg, keyof PermissionsView["trifecta"]]> = [
   ["exfil", "exfiltration"],
 ];
 
-type Shell = "open." | "noshell." | "unavailable." | "";
+type Shell = "noshell." | "";
 /** The leg's sentence; only the exfiltration leg has a variant per shell. */
 const legKey = (leg: Leg, kind: "can" | "may" | "none", shell: Shell) =>
   (leg === "exfil" && kind !== "none"
     ? `agentSafety.tri.exfil.${shell}${kind}`
     : `agentSafety.tri.${leg}.${kind}`) as MessageKey;
 
+const removeKey = (leg: Leg): MessageKey => `agentSafety.tri.remove.${leg}` as MessageKey;
+
 /**
  * What the agent can do, in plain words (M11R126, M11R116): its tools, sandbox and egress, hosts, secrets' names, triggers,
  * and the lethal trifecta as advice. A leg that comes from assumptions, because no thread has listed its tools yet, reads
  * "may"; one seen in a live thread reads "can". Nothing here blocks anything.
  */
-/** The advice per leg: the exfiltration leg's depends on the shell, and with no shell it names no proxy. */
-function removeKey(leg: string, exfil: Shell): MessageKey {
-  if (leg !== "exfil") return `agentSafety.tri.remove.${leg}` as MessageKey;
-  if (exfil === "open.") return "agentSafety.tri.remove.exfil.open";
-  if (exfil === "unavailable.") return "agentSafety.tri.remove.exfil.unavailable";
-  return "agentSafety.tri.remove.exfil";
-}
-
 export function PermissionsSheet({ view }: { readonly view: PermissionsView }) {
   const t = useT();
   const titleId = useId();
   const { sandbox } = view;
   const assumed = view.tools.active === "unknown-until-start";
   const verb = assumed ? "may" : "can";
-  // How the exfiltration leg is reached depends on the shell: unrestricted, without network, or behind the proxy (m2).
-  // An unavailable sandbox means no shell at all (it cannot start), so it is not "unrestricted"; only "off" is.
-  const exfil: Shell =
-    sandbox.effective === "unavailable"
-      ? "unavailable."
-      : sandbox.effective === "off"
-        ? "open."
-        : view.egress === "off"
-          ? "noshell."
-          : "";
+  // The shell always runs in the microVM: with no network, or behind the proxy.
+  const exfil: Shell = view.egress === "off" ? "noshell." : "";
   const on = LEGS.filter(([, key]) => view.trifecta[key]);
   const all = on.length === LEGS.length;
   const hosts = Array.isArray(view.hosts)
@@ -78,7 +64,7 @@ export function PermissionsSheet({ view }: { readonly view: PermissionsView }) {
             <p className="label-hud text-muted">{t("agentSafety.tri.remove")}</p>
             <ul className="flex flex-col gap-s1 text-ui text-fg">
               {LEGS.map(([leg]) => (
-                <li key={leg}>{t(removeKey(leg, exfil))}</li>
+                <li key={leg}>{t(removeKey(leg))}</li>
               ))}
             </ul>
           </div>
@@ -93,10 +79,8 @@ export function PermissionsSheet({ view }: { readonly view: PermissionsView }) {
                 tools: view.tools.active === "unknown-until-start" ? "" : view.tools.active.join(", "),
               })}
         </li>
-        <li>{t(`agentSafety.perm.sandbox.${sandbox.effective}`)}</li>
-        {sandbox.required ? (
-          <li>{t(sandbox.network ? "agentSafety.perm.network.on" : "agentSafety.perm.network.off")}</li>
-        ) : null}
+        <li>{t("agentSafety.perm.sandbox.on")}</li>
+        <li>{t(sandbox.network ? "agentSafety.perm.network.on" : "agentSafety.perm.network.off")}</li>
         <li>{t(`agentSafety.perm.egress.${view.egress}`)}</li>
         <li>{hosts}</li>
         <li>

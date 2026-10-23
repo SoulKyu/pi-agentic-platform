@@ -39,7 +39,6 @@ import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
 
-export { agentHomeOf } from "./agent-home.ts";
 export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
 export type { SessionsAutomationPort } from "./automation-port.ts";
@@ -87,7 +86,7 @@ export interface SessionsModuleDeps {
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
   readonly scopes: WorkerScopes;
-  /** `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  /** Present when the VM stack is composed (T8a): the agents' sessions start in their VMs through it. */
   readonly vmLaunch?: VmLaunch | undefined;
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;

@@ -1,7 +1,9 @@
 import type { AgentInput, Caller, SecretEntry, TaskView, TriggerView } from "@pap/contracts";
 
-/** What the agents module asks of the VM runtime (`PAP_AGENTS_RUNTIME=vm`; absent in host mode). */
+/** What the agents module asks of the VM runtime (absent in a bed that composes no VM stack). */
 export interface AgentVmLink {
+  /** `sandbox_unavailable` when the VM stack is unusable: an agent is not created on a machine that cannot run it. */
+  require(): Promise<void>;
   /** Stops every VM of the agent (its own and its isolated tasks'), revoking their launches; the disk stays (RT-41). */
   stop(agentId: string): Promise<void>;
   /** A delete: the disk to pap-vmd's trash and the mirrors to the daemon's, named by `stamp` (7 days, RT-40). Safe to repeat. */

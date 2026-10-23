@@ -3,11 +3,10 @@ import { AGENT_LIMITS, DaemonToWorker, InitRecord, parseWorkerRecord } from "./i
 
 const init = { type: "init", cwd: "/w", agentDir: "/a", papHome: "/p", umask: 0o22, policy: {} };
 
-describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
+describe("InitRecord platform, vault and agent fields (M11R8)", () => {
   it("defaults platform to no ops and leaves the rest absent", () => {
     const parsed = InitRecord.parse(init);
     expect(parsed.platform).toEqual({ ops: [] });
-    expect(parsed.sandbox).toBeUndefined();
     expect(parsed.vault).toBeUndefined();
     expect(parsed.once).toBeUndefined();
     expect(parsed.agent).toBeUndefined();
@@ -17,15 +16,6 @@ describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
     const record = {
       ...init,
       platform: { ops: ["agent.notify", "subagent.run"] },
-      sandbox: {
-        bwrap: "/usr/bin/bwrap",
-        view: "host",
-        home: "/p/agents/a-1a2b",
-        writable: "/p/agents/a-1a2b",
-        hide: ["/h"],
-        network: false,
-        egress: null,
-      },
       vault: { GITHUB_TOKEN: "x".repeat(4096) },
       once: [{ id: "i1", name: "NPM_TOKEN", value: "v", expiresAt: 1 }],
       agent: { id: "atlas-1a2b", name: "Atlas", role: "r".repeat(AGENT_LIMITS.roleChars) },
@@ -87,8 +77,11 @@ describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
     );
   });
 
-  it("refuses a sandbox that is not a SandboxSpec", () => {
-    expect(InitRecord.safeParse({ ...init, sandbox: { bwrap: "bwrap" } }).success).toBe(false);
+  it("refuses a host sandbox field, naming its path and never its value", () => {
+    const result = InitRecord.safeParse({ ...init, sandbox: { home: "/secret/home" } });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.map((issue) => issue.path)).toEqual([["sandbox"]]);
+    expect(JSON.stringify(result.error?.issues)).not.toContain("/secret/home");
   });
 });
 

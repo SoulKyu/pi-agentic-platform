@@ -33,9 +33,6 @@ host_glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | cut -s -d' ' -f2)" || host_
 [ -n "$host_glibc" ] || die "cannot read the glibc version: this archive needs glibc"
 [ "$(printf '%s\n%s\n' "$MIN_GLIBC" "$host_glibc" | sort -V | head -n1)" = "$MIN_GLIBC" ] \
   || die "glibc $host_glibc is older than $MIN_GLIBC, which this archive was built against"
-bwrap_path="${PAP_BWRAP:-/usr/bin/bwrap}"
-{ [ -x "$bwrap_path" ] && [ "$(stat -c %u -- "$bwrap_path")" = 0 ]; } \
-  || warn "bubblewrap not found: agents that require the sandbox will not start (sudo apt install bubblewrap)"
 
 source_archive="$(cd -- "$(dirname -- "$0")" && pwd -P)/$ARCHIVE_NAME"
 [ -f "$source_archive" ] && [ ! -L "$source_archive" ] || die "$ARCHIVE_NAME must sit next to this script (and not be a symbolic link)"

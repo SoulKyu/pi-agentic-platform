@@ -72,6 +72,7 @@ describe("the VM egress listener", () => {
     launchId,
     source: "thread",
     hosts,
+    trustedSources: [],
   });
 
   beforeEach(async () => {

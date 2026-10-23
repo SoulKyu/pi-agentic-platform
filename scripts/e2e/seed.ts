@@ -1,42 +1,13 @@
-// What J06 to J09 plant in the daemon's folders and read back from outside the page: the sandbox rule, the script a worker
+// What J06 to J09 plant in the daemon's folders and read back from outside the page: the script a worker
 // reads when it starts, pi-mem0's folder (staged facts, snapshots, the requests pap writes) and a read of the state file.
 // No `@pap/*` import (Playwright's loader lacks the `development` condition).
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { dirname, join } from "node:path";
-import { expect, type Locator, test } from "@playwright/test";
+import { expect, type Locator } from "@playwright/test";
 import { runningUnder } from "../smoke-proc.ts";
 import type { PapInstance, ScriptStep } from "./fixtures.ts";
-
-interface Sandbox {
-  usable: boolean;
-  reason: string | null;
-  checkedAt: number;
-}
-
-/**
- * The agents of J07 need bubblewrap. Locally a host without it skips the test with a warning; under `CI` it is a failure
- * (the rule of AGENTS.md: the int tests skip locally and throw under CI). Waits for the first probe to end.
- */
-export async function bwrapUsable(pap: PapInstance): Promise<boolean> {
-  let status: Sandbox = { usable: false, reason: null, checkedAt: 0 };
-  await expect
-    .poll(
-      async () => {
-        status = await pap.rpc<Sandbox>("agents.sandboxStatus");
-        return status.checkedAt > 0;
-      },
-      { message: "the sandbox probe ends", timeout: 30_000 },
-    )
-    .toBe(true);
-  if (status.usable) return true;
-  const why = `bubblewrap is not usable here (${status.reason ?? "unknown"})`;
-  if (process.env["CI"]) throw new Error(why);
-  console.warn(`e2e: skipped, ${why}`);
-  test.skip(true, why);
-  return false;
-}
 
 /** The folder the script of the next worker to start is read from (`script.json` beside the daemon's folders). */
 const scriptFile = (pap: PapInstance): string => join(dirname(pap.home), "script.json");

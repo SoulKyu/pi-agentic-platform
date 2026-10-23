@@ -45,7 +45,13 @@ export interface AgentRuntime {
     spec: VmSpec,
     worker: WorkerSpawnInput,
     packages: PackagePicks,
-  ): Promise<{ handle: WorkerHandle & VmWorkerHandle; layout: VmLayout; relayKey: string; slot: string }>;
+  ): Promise<{
+    handle: WorkerHandle & VmWorkerHandle;
+    layout: VmLayout;
+    relayKey: string;
+    slot: string;
+    launchId: string;
+  }>;
   phase(agentId: string): VmPhase;
   /** A live worker of the agent's running thread VM, or undefined: where a live change of the agent's files goes. */
   threadWorker(agentId: string): WorkerHandle | undefined;
@@ -274,7 +280,13 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         // Not awaited: the worker answers only after its `init`, which the launcher sends once this returns (it queues the
         // frames until its session is open). Waiting here would wait for an answer that cannot come.
       }
-      return { handle, layout: entry.layout, relayKey: entry.relayKey, slot: handle.slot };
+      return {
+        handle,
+        layout: entry.layout,
+        relayKey: entry.relayKey,
+        slot: handle.slot,
+        launchId: entry.launchId,
+      };
     },
     threadWorker(agentId) {
       const entry = entries.get(agentId);

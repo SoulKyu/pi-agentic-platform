@@ -51,6 +51,7 @@ afterEach(async () => {
 const start = (loopback: boolean, logger = captureLogger()) =>
   startTestDaemon(SCRIPT, {
     root,
+    vm: true,
     config: { testPushLoopback: loopback, pushSubject: SUBJECT },
     deps: { clock, logger: logger.logger, push: {} },
   });

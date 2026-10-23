@@ -4,6 +4,7 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { request } from "node:http";
 import { createServer } from "node:net";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket } from "ws";
@@ -83,11 +84,23 @@ export interface Daemon {
   line(msg: string): Promise<Json>;
 }
 
+/** pap-vmd's real socket (`VMD_SOCKET`): the built daemon dials it and stops every VM it lists, so a smoke never reaches it. */
+export const REAL_VMD_SOCKET = "/run/pap-vm/vmd.sock";
+
+/** A daemon that names no pap-vmd of its own (`PAP_TEST_VMD_SOCKET`) is refused while a live pap-vmd runs on this host. */
+export function refuseLiveVmd(env: NodeJS.ProcessEnv, exists: (path: string) => boolean = existsSync): void {
+  if (env["PAP_TEST_VMD_SOCKET"] === undefined && exists(REAL_VMD_SOCKET))
+    throw new Error(
+      `a live pap-vmd runs here (${REAL_VMD_SOCKET}): this smoke would reach it; run it where none does (CI)`,
+    );
+}
+
 export function startDaemon(
   env: NodeJS.ProcessEnv,
   port: number,
   launch?: { file: string; args: readonly string[] },
 ): Daemon {
+  refuseLiveVmd(env);
   // No --conditions: this is the built daemon on its own. The guard reaches workers through PAP_TEST_WORKER_IMPORT.
   // `launch` replaces the whole command line (smoke-install.ts runs the one the installed unit holds).
   const child = spawn(

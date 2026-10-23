@@ -4,7 +4,6 @@ import { initTools, storeNewSession } from "./automation-port.ts";
 import { storeChildPolicy } from "./child-port.ts";
 import { type AgentLaunch, applyProfileModel, initFieldsOf, refusedModelNotice } from "./agent-gate.ts";
 import type { AgentSurface } from "./agent-surface.ts";
-import { createEgressLink } from "./egress-link.ts";
 import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
@@ -69,7 +68,6 @@ export interface LaunchContext {
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
 export function createLaunch(ctx: LaunchContext) {
   const { deps, live, reopening, starting, grants, policyLink } = ctx;
-  const bridgeEgress = createEgressLink(deps.logger);
   const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
     store: deps.store,
     clock: deps.clock,
@@ -109,7 +107,7 @@ export function createLaunch(ctx: LaunchContext) {
     try {
       // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox
       // (R38: a VM worker is one).
-      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.sandbox === undefined && agentLaunch?.vm !== true)
+      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.vm !== true)
         throw new PapError("sandbox_unavailable");
       return await start(row, isNew, agentLaunch);
     } catch (error) {
@@ -201,7 +199,7 @@ export function createLaunch(ctx: LaunchContext) {
       const env = { ...agentLaunch?.claudeEnv, ...composed.trust.env };
       handle = Object.keys(env).length > 0 ? deps.spawn(row.cwd, env) : deps.spawn(row.cwd);
     }
-    const { scope, rules, init } = composed;
+    const { scope, init } = composed;
     const session: LiveSession = startLiveSession(
       {
         handle,
@@ -246,12 +244,6 @@ export function createLaunch(ctx: LaunchContext) {
     );
     if (init.vm) vmTargets.set(session, { handle, inbox: init.vm.layout.inbox, clock: deps.clock, logger });
     bridgePlatform(handle, row, ctx.agent, logger);
-    // The scope is the start-time snapshot of the rules this worker got (W5-R26); an owner session has none and is refused.
-    bridgeEgress(
-      handle,
-      agentLaunch ? ctx.agent.egressScope(row, rules, agentLaunch.sandbox) : null,
-      ctx.agent.egress,
-    );
     // Nothing awaits between the rules in `init` and here, so a change cannot fall between the two.
     grants.track(session, row, scope);
     starting.add(session);

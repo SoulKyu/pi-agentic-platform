@@ -2,7 +2,6 @@
 import { TriggerInput } from "@pap/contracts";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { RpcError } from "../../runtime/index.ts";
 import { button, click, field, settle, text, typeInto } from "../../testing/dom.ts";
 import { current, newBed, showWithStepUp } from "./board-bed.tsx";
 import { DryRunPanel } from "./DryRunPanel.tsx";
@@ -13,6 +12,13 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
   getRuntime: () => current.runtime,
 }));
 
+const vmStatus = (usable: boolean) => ({
+  usable,
+  reason: usable ? null : "kvm_missing",
+  vmdVersion: null,
+  claudeToken: "missing",
+  agents: [],
+});
 const AGENT = "atlas-1a2b";
 const inputOf = (target: "thread" | "isolated") => ({
   ok: true as const,
@@ -27,12 +33,7 @@ const inputOf = (target: "thread" | "isolated") => ({
 beforeEach(() => {
   const bed = newBed();
   bed.handlers["automation.dryRun"] = () => dryRunOf();
-  bed.handlers["agents.sandboxStatus"] = () => ({
-    usable: true,
-    path: "/usr/bin/bwrap",
-    reason: null,
-    checkedAt: 1,
-  });
+  bed.handlers["agents.vmStatus"] = () => vmStatus(true);
   bed.handlers["trust.status"] = () => ({
     requiresTrust: false,
     decision: null,
@@ -66,18 +67,16 @@ describe("DryRunPanel: an agent trigger", () => {
     expect(field(isolated.container, "Sample payload")).toBeDefined();
   });
 
-  it("says so when the sandbox state cannot be read", async () => {
+  it("says so when the VM stack is not usable", async () => {
     const bed = newBed();
     bed.handlers["automation.dryRun"] = () => dryRunOf();
-    bed.handlers["agents.sandboxStatus"] = () => {
-      throw new RpcError("internal");
-    };
+    bed.handlers["agents.vmStatus"] = () => vmStatus(false);
     const page = await showWithStepUp(
       <DryRunPanel input={inputOf("isolated")} sourceType="manual" savedId={null} onInvalid={vi.fn()} />,
     );
     await click(button(page.container, "Dry-run"));
     await settle();
-    expect(text(page.container)).toContain("sandbox could not be read");
+    expect(text(page.container)).toContain("sandbox unavailable (the VM stack is not ready)");
   });
 
   it("sends no payload once the field is hidden by a thread target, nor on a schedule", async () => {

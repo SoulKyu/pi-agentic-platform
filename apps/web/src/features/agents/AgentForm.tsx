@@ -1,11 +1,10 @@
 import "./register-agent-catalog.ts";
-import { AgentView, APPROVAL_MODES, type SandboxStatus, type ToolPreset } from "@pap/contracts";
+import { AgentView, APPROVAL_MODES, type ToolPreset } from "@pap/contracts";
 import { Button, Collapsible, Segmented, Select, Switch, TextField, usePendingAction } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
 import type { PickerModel } from "../models/picker/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
-import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { AgentPackages } from "./AgentPackages.tsx";
 import { AgentResources } from "./AgentResources.tsx";
@@ -15,15 +14,12 @@ import { derivedInitials, draftFromInput, type Draft, needsStepUp, toInput } fro
 import { MemoryFields } from "./MemoryFields.tsx";
 import { levelsFor } from "./model-fields.vm.ts";
 import { ModelFields } from "./ModelFields.tsx";
-import { EgressLine, SandboxLine } from "./SandboxLine.tsx";
 import type { NewAgentStart } from "./use-new-agent-defaults.ts";
 import { useOwnerHosts } from "./use-owner-hosts.ts";
 
 interface Props {
   /** The agent being edited (the Settings tab), or null for a new one. */
   readonly agent: AgentView | null;
-  /** The sandbox probe, a prop until Task 16 wires `agents.sandboxStatus` (W5-R21). */
-  readonly probe: SandboxStatus;
   /** M7's tool preset picker, given by the host so this feature imports no other feature. */
   presetField(value: ToolPreset, onChange: (preset: ToolPreset) => void): ReactNode;
   /** A new agent's starting sandbox, from the owner's agents settings (M11R99); an edited agent keeps its own. */
@@ -54,14 +50,10 @@ const saveFailure = (failure: unknown): MessageKey => {
  * `AgentInput` through the view-model. A save that widens what the agent can do says so first and goes through the
  * shell's password step-up (M11R94); any other save is sent as it is.
  */
-export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel, onReload }: Props) {
+export function AgentForm({ agent, presetField, start, onSaved, onCancel, onReload }: Props) {
   const t = useT();
   const stepUp = useStepUpRunner();
   const pending = usePendingAction();
-  const runtime = useVmStatus().status?.runtime;
-  const vm = runtime === "vm";
-  // Known to be host mode: an unreadable status leaves the daemon to judge the list.
-  const hostMode = runtime === "host";
   const reloading = usePendingAction();
   const before = agent?.input ?? null;
   const [draft, setDraft] = useState(() => ({
@@ -74,7 +66,7 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
   const [problem, setProblem] = useState<MessageKey | null>(null);
   const [roleHelp, setRoleHelp] = useState(false);
 
-  const built = toInput(draft, hostMode);
+  const built = toInput(draft);
   const errors = attempted && !built.ok ? built.errors : {};
   const fail = (key: string) => {
     const error = errors[key];
@@ -181,51 +173,15 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
         onChange={(mode) => set({ mode })}
       />
       {presetField(draft.preset, (preset) => set({ preset }))}
-      <fieldset data-slot="agent-sandbox" className="flex min-w-0 flex-col gap-s2">
+      <fieldset data-slot="agent-network" className="flex min-w-0 flex-col gap-s2">
         <legend className="label-hud text-muted">{t("agentForm.sandbox")}</legend>
-        {vm ? (
-          <>
-            <p className="text-ui text-muted">{t("agentVm.sandboxNote")}</p>
-            <Switch
-              label={t("agentForm.network")}
-              hint={t("agentVm.network.hint")}
-              checked={draft.network}
-              onChange={(network) => set({ network })}
-            />
-          </>
-        ) : (
-          <>
-            <SandboxLine probe={probe} />
-            <Segmented
-              label={t("agentForm.sandbox")}
-              value={draft.sandboxRequired ? "required" : "off"}
-              options={[
-                { value: "required", label: t("agentForm.sandbox.required") },
-                { value: "off", label: t("agentForm.sandbox.off") },
-              ]}
-              onChange={(value) => set({ sandboxRequired: value === "required" })}
-            />
-            {draft.sandboxRequired && probe.checkedAt !== 0 && !probe.usable ? (
-              <p className="text-ui text-attn">{t("agentForm.sandbox.unusableHint")}</p>
-            ) : null}
-            {draft.sandboxRequired ? (
-              <Switch
-                label={t("agentForm.network")}
-                hint={t("agentForm.network.hint")}
-                checked={draft.network}
-                onChange={(network) => set({ network })}
-              />
-            ) : (
-              <p role="status" className="text-ui text-attn">
-                {typedName === ""
-                  ? t("agentForm.sandbox.offWarning.unnamed")
-                  : t("agentForm.sandbox.offWarning", { name: typedName })}
-              </p>
-            )}
-            {draft.sandboxRequired && draft.network ? <EgressLine probe={probe} /> : null}
-            <p className="text-ui text-muted">{t("agentForm.sandbox.folders")}</p>
-          </>
-        )}
+        <p className="text-ui text-muted">{t("agentVm.sandboxNote")}</p>
+        <Switch
+          label={t("agentForm.network")}
+          hint={t("agentVm.network.hint")}
+          checked={draft.network}
+          onChange={(network) => set({ network })}
+        />
       </fieldset>
       <fieldset data-slot="agent-hosts" className="flex min-w-0 flex-col gap-s2">
         <legend className="label-hud text-muted">{t("agentForm.hosts")}</legend>
@@ -271,10 +227,8 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
         onChange={(acceptsDelegation) => set({ acceptsDelegation })}
       />
       <MemoryFields draft={draft} errors={errors} set={set} />
-      {vm ? <AgentResources draft={draft} errors={errors} set={set} /> : null}
-      {vm ? (
-        <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
-      ) : null}
+      <AgentResources draft={draft} errors={errors} set={set} />
+      <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
       {widens ? (
         <p role="status" className="text-ui text-attn">
           {t("agentForm.stepUp", { name: typedName })}

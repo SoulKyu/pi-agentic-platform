@@ -34,7 +34,6 @@ function setup(sandboxRequired = true, options?: BedOptions): void {
           }
         : null,
     vaultOf: () => ({ ...vault }),
-    probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
   };
   bed.service.agent.setAgentPorts({ agents });
 }
@@ -63,13 +62,14 @@ describe("sendToAgent (M11R86)", () => {
     expect(vaultUpdates(2)).toEqual([RECORD]);
   });
 
-  it("does not reach another owner's call, a child, or a worker started without the sandbox", async () => {
+  it("reaches a VM worker whatever the profile's retired sandbox switch says", async () => {
     setup(false);
     await thread(ATLAS);
-    expect(bed.service.agentSessions.sendToAgent("u1", ATLAS, RECORD)).toBe(0);
-    expect(vaultUpdates(0)).toEqual([]);
+    expect(bed.service.agentSessions.sendToAgent("u1", ATLAS, RECORD)).toBe(1);
+    expect(vaultUpdates(0)).toEqual([RECORD]);
+  });
 
-    bed.dispose();
+  it("does not reach another owner's call or a child", async () => {
     setup();
     const { sessionId } = await thread(ATLAS);
     expect(bed.service.agentSessions.sendToAgent("u2", ATLAS, RECORD)).toBe(0);

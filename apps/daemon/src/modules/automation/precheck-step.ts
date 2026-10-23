@@ -9,7 +9,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { Gates } from "./gates.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { PrecheckOrigin } from "./precheck-queue.ts";
-import { type AgentBinding, precheckRefusal, precheckWrapOf, releaseEgress } from "./trigger-agent.ts";
+import { type AgentBinding, PRECHECK_AGENT, precheckRefusal } from "./trigger-agent.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 /** What a precheck is given: its command, the saved folder, the names of the daemon variables it keeps (owner m10q7), who asked. */
@@ -21,10 +21,6 @@ export interface PrecheckInput {
   readonly origin: PrecheckOrigin;
   /** Aborted: the command is killed through the ladder (a feed poll past its deadline, Task 10). */
   readonly signal?: AbortSignal;
-  /** An agent trigger's sandbox (M11R68): the command runs as `[bwrap, ...argv]`, never in a plain shell. */
-  readonly wrap?: (command: string) => string[];
-  /** The sandbox has network, through the agent's own proxy socket: the command gets pap's proxy variables (decision 90). */
-  readonly proxied?: boolean;
 }
 /**
  * What the port answers: the contract's outcome and a `detail` of ours. A skip's detail is the first line of its output,
@@ -74,7 +70,7 @@ export interface PrecheckStepDeps {
   readonly gates: Pick<Gates, "over">;
   readonly triggers: { resolveFolder(cwd: string): string };
   readonly precheck?: PrecheckPort;
-  /** The agents' ports (M11): an agent trigger's precheck runs in the agent's sandbox. */
+  /** The agents' ports (M11): whether the agent still exists and is paused. */
   readonly agents?: AgentBinding;
 }
 
@@ -133,35 +129,23 @@ export function createPrecheckStep(deps: PrecheckStepDeps) {
         record.agentId === null ? null : deps.agents?.ports()?.registry.get(record.ownerId, record.agentId);
       if (agent && (agent.paused || agent.quarantinedAt !== null)) return { kind: "go", precheck: null };
       if (how.gated && deps.gates.over(record.ownerId, record.id)) return { kind: "go", precheck: null };
+      // A stored precheck on an agent trigger is refused, never ignored: ignoring it would wake the agent at every tick.
+      if (record.agentId !== null) return stop(record, how, "error", PRECHECK_AGENT, PRECHECK_AGENT);
       let cwd: string;
-      let wrap: ((command: string) => string[]) | undefined;
-      let release: (() => Promise<void>) | undefined;
-      let proxied = false;
       try {
-        // An agent's home is inside pap's own folder, which `resolveFolder` refuses; its sandbox opens it instead.
-        cwd = record.agentId === null ? deps.triggers.resolveFolder(record.cwd) : record.cwd;
-        if (record.agentId !== null)
-          ({ wrap, release, proxied } = await precheckWrapOf(deps.agents, record.ownerId, record.agentId));
+        cwd = deps.triggers.resolveFolder(record.cwd);
       } catch (error) {
-        // Never an unsandboxed run: an unusable sandbox is the precheck's own error, named by the gate's own word.
         const code = precheckRefusal(error);
         return stop(record, how, "error", code, code);
       }
-      let outcome: PrecheckRun | null;
-      try {
-        outcome = await runPrecheck(deps, {
-          command,
-          cwd,
-          env: record.input?.execution.env ?? [],
-          triggerId: record.id,
-          origin: how.origin,
-          signal: how.signal,
-          ...(wrap ? { wrap, proxied } : {}),
-        });
-      } finally {
-        // The command's proxy socket ends with it, a spawn failure included (M11R243).
-        await releaseEgress(release, deps.logger);
-      }
+      const outcome = await runPrecheck(deps, {
+        command,
+        cwd,
+        env: record.input?.execution.env ?? [],
+        triggerId: record.id,
+        origin: how.origin,
+        signal: how.signal,
+      });
       if (outcome === null || outcome.verdict === "pass")
         return { kind: "go", precheck: outcome?.output ?? null };
       if (outcome.verdict === "skip")

@@ -10,6 +10,7 @@ import {
   type ShellTimers,
   SYSTEM_TIMERS,
 } from "../shell-process.ts";
+import type { ShellEnvironment } from "../shell-env.ts";
 import { bwrapVmArgv, type VmShellSpec } from "./argv.ts";
 import { encodeSeccomp, shellSeccompProgram } from "./seccomp.ts";
 
@@ -21,7 +22,7 @@ const SHELL_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 /**
  * The agent's shell in its VM: every command is `bwrap … -- /bin/sh -c <command>` with the filter on fd 3 (R2, R18). The
- * environment is a fixed allowlist, never the worker's (it holds the relay key, R13) and never the one Pi passes. One
+ * environment is a fixed allowlist plus the vault (ADR 0081), never the worker's (it holds the relay key, R13) and never the one Pi passes. One
  * command runs at a time; later calls wait their turn. No fallback: a bwrap that cannot start is a failed command.
  */
 export function vmShell(
@@ -32,18 +33,20 @@ export function vmShell(
     readonly redact?: () => Redactor;
     /** The proxy variables the shell gets when `spec.network` is on (the worker's own, see `pickProxyEnv`). */
     readonly proxyEnv?: Readonly<Record<string, string>>;
+    /** The vault's values and the one-use value the command names (ADR 0081); read once per command, at its start. */
+    readonly environment?: Pick<ShellEnvironment, "envFor">;
   } = {},
 ): ShellOperations {
   const timers = deps.timers ?? SYSTEM_TIMERS;
   const spawn = deps.spawn ?? nodeSpawn;
   const filter = encodeSeccomp(shellSeccompProgram());
-  const env = {
+  const fixed = {
     PATH: SHELL_PATH,
     HOME: spec.layout.home,
     LANG: "C.UTF-8",
     TERM: "dumb",
-    ...(spec.network ? deps.proxyEnv : {}),
   };
+  const proxy = spec.network ? deps.proxyEnv : {};
   const overlay = `${spec.layout.shellOverlay}/${spec.slot}`;
   let overlayMade = false;
   let tail: Promise<unknown> = Promise.resolve();
@@ -68,7 +71,8 @@ export function vmShell(
         // The argument list starts with the binary itself (the first element is `spec.bwrap`).
         const child = spawn(argv[0] ?? spec.bwrap, argv.slice(1), {
           cwd: "/",
-          env: { ...env },
+          // The vault first, then the proxy, then the fixed names, which win: nothing the vault holds can move PATH or HOME.
+          env: { ...deps.environment?.envFor(command), ...proxy, ...fixed },
           detached: true,
           stdio: ["ignore", "pipe", "pipe", "pipe"],
         });

@@ -75,8 +75,9 @@ export const PermissionsView = z
       .strict(),
     sandbox: z
       .object({
-        required: z.boolean(),
-        effective: z.enum(["on", "off", "unavailable"]),
+        /** Always true: every agent shell runs in its microVM (the stored `sandbox.required` is retired). */
+        required: z.literal(true),
+        effective: z.literal("on"),
         network: z.boolean(),
       })
       .strict(),

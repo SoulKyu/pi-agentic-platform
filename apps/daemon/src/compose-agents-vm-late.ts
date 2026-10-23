@@ -105,6 +105,8 @@ export interface AgentsVmDerived {
   agentOpen(ownerId: string, agentId: string): void;
   /** The agent's host list now: its own, else the owner's, else none. Null: the agent is unknown. */
   hostsOf(agentId: string): readonly string[] | null;
+  /** The agent's trusted sources now; none when the agent is unknown. */
+  trustedOf(agentId: string): readonly string[];
   /** Posts a notice into the agent's thread (the image being rebuilt, a disk that grows later); logged when it has none yet. */
   notify(agentId: string, text: string): void;
 }
@@ -130,6 +132,8 @@ export function bindAgentsVmLate(
     readonly claudeToken: Pick<ClaudeTokenStore, "status">;
     readonly readOnly: boolean;
     bindMirrorHooks(hooks: MirrorHooks): void;
+    /** Where the proxy's taint of a launch's sessions goes (spec §4). */
+    bindTaint(taint: (sessionId: string) => void): void;
   },
   late: AgentsVmLate,
 ): AgentsVmDerived {
@@ -140,6 +144,8 @@ export function bindAgentsVmLate(
     taint: (sessionId) => late.sessions.mirror.taint(sessionId),
     canWrite: () => !ctx.readOnly,
   });
+
+  ctx.bindTaint((sessionId) => late.sessions.mirror.taint(sessionId));
 
   const turns = new Map<string, number>();
   // M2: the last list of models read for an agent. A helper that is busy or slow must not empty a running agent's policy.
@@ -219,6 +225,10 @@ export function bindAgentsVmLate(
       const record = ownerId === null ? null : late.agents.get(ownerId, agentId);
       if (ownerId === null || record?.input == null) return null;
       return record.input.allowHosts ?? late.ownerHosts?.(ownerId) ?? [];
+    },
+    trustedOf(agentId) {
+      const ownerId = late.agents.ownerOf(agentId);
+      return (ownerId === null ? null : late.agents.get(ownerId, agentId))?.input?.trustedSources ?? [];
     },
     agentOpen(ownerId, agentId) {
       const record = late.agents.get(ownerId, agentId);

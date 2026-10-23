@@ -74,7 +74,7 @@ describe("Task 21 contracts", () => {
     expect(pick("agents.prompt")).toEqual(["agents:read", true, false]);
     expect(agentsMethods["agents.setPaused"].errors).toContain("step_up_required");
     expect(agentsMethods["agents.prompt"].errors).toEqual(
-      expect.arrayContaining(["payload_too_large", "bad_request", "invalid_cwd", "not_found"]),
+      expect.arrayContaining(["payload_too_large", "bad_request", "not_found"]),
     );
   });
 

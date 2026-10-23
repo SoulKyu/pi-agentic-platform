@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AgentInput, EGRESS_UNKNOWN, type AgentSummary, type AgentView } from "@pap/contracts";
+import { AgentInput, type AgentSummary, type AgentView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -40,13 +40,6 @@ const view: AgentView = {
   createdAt: 1,
   updatedAt: 1,
 };
-const probe = {
-  usable: true,
-  path: "/usr/bin/bwrap",
-  reason: null,
-  checkedAt: 1,
-  egress: EGRESS_UNKNOWN,
-} as const;
 
 let bed: ReturnType<typeof fakeRuntime>;
 beforeEach(() => {
@@ -62,7 +55,6 @@ const tree = (at: number) => (
       <AgentSettingsView
         agentId="atlas-1a2b"
         summary={summary(at)}
-        probe={probe}
         presetField={() => null}
         after={<input aria-label="Secret name" />}
       />

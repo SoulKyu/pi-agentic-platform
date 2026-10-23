@@ -169,8 +169,7 @@ describe("archive installer", () => {
   it("holds no eval, curl, wget, stray sudo or command substitution around the archive name", () => {
     const text = readFileSync(TEMPLATE, "utf8");
     expect(text).not.toMatch(/\b(eval|curl|wget)\b/);
-    for (const line of text.split("\n").filter((l) => /\bsudo\b/.test(l)))
-      expect(line).toContain("apt install bubblewrap");
+    expect(text).not.toMatch(/\bsudo\b/);
     expect(text).not.toMatch(/\$\([^)]*ARCHIVE_NAME/);
   });
 
@@ -331,9 +330,9 @@ describe("archive installer", () => {
     expect(result.stderr).toContain("the previous release (r1) is back in place");
   });
 
-  it("warns, without failing, when bubblewrap is missing", () => {
+  it("no longer looks for bubblewrap: agents run in microVMs", () => {
     const result = installBed("r1").run();
     expect(result.status).toBe(0);
-    expect(result.stderr).toContain("bubblewrap not found: agents that require the sandbox will not start");
+    expect(result.stderr).not.toContain("bubblewrap");
   });
 });

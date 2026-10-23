@@ -101,18 +101,12 @@ const row = (page: { container: HTMLElement }, body: string): HTMLElement => {
 };
 
 describe("in VM mode (R17)", () => {
-  const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+  const vm = { usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
 
   it("says pi-mem0 does not work in VM agents", async () => {
     bed.handlers["agents.vmStatus"] = () => vm;
     await show();
     expect(text(document.body)).toContain("pi-mem0 does not work in VM agents (sub-project 5).");
-  });
-
-  it("says nothing of it in host mode", async () => {
-    bed.handlers["agents.vmStatus"] = () => ({ ...vm, runtime: "host" });
-    await show();
-    expect(text(document.body)).not.toContain("VM agents");
   });
 });
 

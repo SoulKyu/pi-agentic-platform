@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AgentInput, PolicyRules } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import type { SandboxProbe } from "../../kernel/sandbox/probe.ts";
+import { layoutOf } from "../agent-vm/index.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
@@ -18,14 +18,15 @@ let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 
 interface World {
-  probe: SandboxProbe;
+  /** False: this machine has no VM stack. */
+  vm: boolean;
   input: AgentInput;
 }
 function setup(input: object = {}, options?: BedOptions): World {
   bed = build(options);
   mkdirSync(join(bed.dir, "pap", "agents", ID), { recursive: true, mode: 0o700 });
   const world: World = {
-    probe: { usable: true, path: "/usr/bin/bwrap" },
+    vm: true,
     input: AgentInput.parse({
       name: "Atlas",
       role: "Be brief.",
@@ -41,7 +42,10 @@ function setup(input: object = {}, options?: BedOptions): World {
     profileOf: (ownerId, agentId) =>
       ownerId === "u1" && agentId === ID ? { input: world.input, name: "Atlas", quarantined: false } : null,
     vaultOf: () => ({ TOKEN: "v" }),
-    probe: { ensure: async () => world.probe },
+    vmLayoutOf: (row) =>
+      world.vm && row.agentId !== undefined
+        ? layoutOf("process", join(bed.dir, "pap"), { agentId: row.agentId, taskKey: null })
+        : null,
   };
   bed.service.agent.setAgentPorts({ agents });
   return world;
@@ -51,6 +55,7 @@ const thread = () =>
 const child = (parent: string) =>
   bed.service.child.createChildSession({ ownerId: "u1", parentSessionId: parent });
 const home = () => join(bed.dir, "pap", "agents", ID);
+const vmHome = () => layoutOf("process", join(bed.dir, "pap"), { agentId: ID, taskKey: null }).home;
 const rulesOf = (index: number) => PolicyRules.parse(initRecordOf(bed.spawned[index])?.policy);
 
 describe("a child of an agent thread (RT-07, M11R136)", () => {
@@ -74,7 +79,7 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     expect(rulesOf(1)).toMatchObject({
       profile: "agent-thread",
       allowHosts: ["api.example"],
-      agentHome: home(),
+      agentHome: vmHome(),
       agentScratch: null,
       sandbox: { required: true, network: false },
       autonomy: null,
@@ -83,11 +88,7 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     });
     expect(rulesOf(1).denylist).toContain("rm -rf *");
     expect(initRecordOf(bed.spawned[1])?.platform).toEqual({ ops: [] });
-    expect(initRecordOf(bed.spawned[1])?.sandbox).toMatchObject({
-      view: "host",
-      home: home(),
-      writable: home(),
-    });
+    expect(initRecordOf(bed.spawned[1])).not.toHaveProperty("sandbox");
   });
 
   it("never carries the agent's mode: full-access becomes auto-accept-edits", async () => {
@@ -98,7 +99,7 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     expect(rulesOf(1).approvalMode).toBe("auto-accept-edits");
   });
 
-  it("has no vault and no one-use value in its init, whatever the agent holds", async () => {
+  it("has no vault and no one-use value in its init, whatever the agent holds (RT-07)", async () => {
     setup();
     const parent = await thread();
     await child(parent.sessionId);
@@ -107,7 +108,7 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     expect(initRecordOf(bed.spawned[1])).not.toHaveProperty("once");
   });
 
-  it("is not told of a vault change, while the thread is", async () => {
+  it("is not told of a vault change, while the thread is (RT-07)", async () => {
     setup();
     const parent = await thread();
     await child(parent.sessionId);
@@ -122,10 +123,10 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     expect(updates(1)).toEqual([]);
   });
 
-  it("starts through the launch gate: no usable sandbox means sandbox_unavailable and no worker", async () => {
+  it("starts through the launch gate: no VM stack means sandbox_unavailable and no worker", async () => {
     const world = setup();
     const parent = await thread();
-    world.probe = { usable: false, reason: "missing" };
+    world.vm = false;
     expect(await codeOf(child(parent.sessionId))).toBe("sandbox_unavailable");
     expect(bed.spawned).toHaveLength(1);
     expect(bed.store.listByOwner("u1")).toHaveLength(1);
@@ -137,7 +138,6 @@ describe("a child of an agent thread (RT-07, M11R136)", () => {
     bed.service.agent.setAgentPorts({
       agents: {
         profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: true }),
-        probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       },
     });
     expect(await codeOf(child(parent.sessionId))).toBe("agent_paused");

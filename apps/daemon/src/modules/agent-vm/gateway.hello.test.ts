@@ -6,6 +6,7 @@ import {
   PapError,
 } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
+import { EXIT_TAIL_GRACE_MS } from "./vm-worker.ts";
 import {
   AGENT,
   FakeSocket,
@@ -200,6 +201,7 @@ describe("workers", () => {
     expect(again.destroyed).toBe(true);
     expect(worker.socket.destroyed).toBe(false);
     worker.socket.hangUp();
+    await h.clock.advance(EXIT_TAIL_GRACE_MS);
     await worker.handle.exited;
     const late = h.connect();
     late.feed(workerHello(launch, worker.slot));

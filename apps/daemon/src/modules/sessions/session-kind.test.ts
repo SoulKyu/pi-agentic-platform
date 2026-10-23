@@ -123,7 +123,6 @@ const opsOfStart = async (row: Partial<SessionRow> = {}) => {
     bed.service.agent.setAgentPorts({
       agents: {
         profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }),
-        probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       },
     });
   }

@@ -57,23 +57,3 @@ describe("dispatch: vault_update (M11R26)", () => {
     }
   });
 });
-
-// Mutant V1: drop the `if (deps.vm)` branch (the record reaches the vault in a VM session): "drops the record in a VM session".
-describe("dispatch: vault_update in a VM session (R11)", () => {
-  it("drops the record, logs the type once, never the values", () => {
-    const update = vi.fn();
-    const write = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    const dispatch = createDispatch({ ...deps({ update }), vm: true });
-    const record: VaultUpdateRecord = {
-      type: "vault_update",
-      vault: { A_NAME: "value-0123456789" },
-      once: [],
-    };
-    dispatch(record);
-    dispatch(record);
-    const logged = write.mock.calls.map((call) => String(call[0])).join("");
-    write.mockRestore();
-    expect(update).not.toHaveBeenCalled();
-    expect(logged).toBe("pi-host: vault_update dropped in a VM session\n");
-  });
-});

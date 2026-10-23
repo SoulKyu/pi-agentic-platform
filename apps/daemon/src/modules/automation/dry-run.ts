@@ -13,13 +13,7 @@ import type { Gates } from "./gates.ts";
 import { type PrecheckPort, runPrecheck } from "./precheck-step.ts";
 import { type FenceSource, RENDERED_PROMPT_MAX, renderPrompt } from "./prompt.ts";
 import type { TaskStore } from "./tasks.ts";
-import {
-  type AgentBinding,
-  precheckRefusal,
-  precheckWrapOf,
-  releaseEgress,
-  resolveExecution,
-} from "./trigger-agent.ts";
+import { type AgentBinding, PRECHECK_AGENT, resolveExecution } from "./trigger-agent.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 export interface DryRunDeps {
@@ -76,29 +70,16 @@ export function createDryRun(deps: DryRunDeps) {
       saved.input?.execution.precheck === command &&
       sameNames(saved.input.execution.env, config.execution.env);
     if (!keeps) return "not_run_unsaved";
-    let wrap: ((command: string) => string[]) | undefined;
-    let release: (() => Promise<void>) | undefined;
-    let proxied = false;
-    try {
-      if (saved.agentId !== null)
-        ({ wrap, release, proxied } = await precheckWrapOf(deps.agents, saved.ownerId, saved.agentId));
-    } catch (error) {
-      // No sandbox, no run (M11R68). The output is the gate's closed word, the one the journal would carry.
-      return { verdict: "error", exitCode: null, durationMs: 0, output: precheckRefusal(error) };
-    }
-    let outcome: Awaited<ReturnType<typeof runPrecheck>>;
-    try {
-      outcome = await runPrecheck(deps, {
-        command,
-        cwd: saved.cwd,
-        env: config.execution.env,
-        triggerId: saved.id,
-        origin: "manual",
-        ...(wrap ? { wrap, proxied } : {}),
-      });
-    } finally {
-      await releaseEgress(release, deps.logger);
-    }
+    // Agents run in microVMs: a stored precheck is refused, with the word a fire journals.
+    if (saved.agentId !== null)
+      return { verdict: "error", exitCode: null, durationMs: 0, output: PRECHECK_AGENT };
+    const outcome = await runPrecheck(deps, {
+      command,
+      cwd: saved.cwd,
+      env: config.execution.env,
+      triggerId: saved.id,
+      origin: "manual",
+    });
     if (outcome === null) return null;
     return {
       verdict: outcome.verdict,

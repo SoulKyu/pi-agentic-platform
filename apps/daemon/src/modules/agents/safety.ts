@@ -1,7 +1,7 @@
 import type { Clock } from "../../kernel/clock.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { createPermissions, type PermissionsDeps } from "./permissions.ts";
-import { createPrompts } from "./prompts.ts";
+import { createPrompts, type PromptsDeps } from "./prompts.ts";
 import { createQuarantine, type QuarantineDeps } from "./quarantine.ts";
 import type { AgentSafetyServices } from "./rpc.ts";
 import type { AgentStore } from "./store.ts";
@@ -18,15 +18,13 @@ export interface AgentSafetyDeps {
   readonly requireStepUp: QuarantineDeps["requireStepUp"];
   readonly changed: QuarantineDeps["changed"];
   readonly papHome: string;
-  readonly sandboxUsable: PermissionsDeps["sandboxUsable"];
   /** The owner's settings (their host list and blocked commands); undefined when the policy module is absent. */
   ownerSettings(
     ownerId: string,
   ): { readonly allowHosts: readonly string[] | null; readonly denylist: readonly unknown[] } | undefined;
   readonly liveTools: PermissionsDeps["liveTools"];
   readonly hostGrants: PermissionsDeps["hostGrants"];
-  /** The agent runs in a VM (R16): no prompt chips. */
-  agentRunsInVm?(ownerId: string, agentId: string): boolean;
+  readonly files: PromptsDeps["files"];
 }
 
 /** Task 21's three services behind `agents.quarantine`, `agents.permissions` and `agents.prompts`, and T15's `agents.purgeTrash`. */

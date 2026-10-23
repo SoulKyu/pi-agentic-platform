@@ -95,7 +95,7 @@ describe("error codes", () => {
 describe("M11 codes (membership, never adjacency)", () => {
   it("has the two agent codes with fixed messages, before unknown_method", () => {
     const expected = {
-      sandbox_unavailable: "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
+      sandbox_unavailable: "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`.",
       agent_paused: "This agent is paused. Resume it from its header.",
     } as const;
     for (const [code, message] of Object.entries(expected)) {

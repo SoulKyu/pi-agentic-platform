@@ -28,9 +28,7 @@ async function world(vm: boolean) {
   bed.service.agent.setAgentPorts({
     agents: {
       profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }),
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       vmLayoutOf: () => (vm ? layoutOf("kata", bed.dir, { agentId: ID, taskKey: null }) : null),
-      agentRunsInVm: () => vm,
     },
   });
   return (

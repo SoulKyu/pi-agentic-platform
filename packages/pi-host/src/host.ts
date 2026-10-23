@@ -10,9 +10,11 @@ import { createHomeFiles } from "./home-files.ts";
 import { createInbox } from "./inbox-put.ts";
 import type { Ipc } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";
+import { createShellEnvironment } from "./shell-env.ts";
 import { createOnceSecrets, createVaultSink, withOnceSecrets } from "./once-secrets.ts";
 import { openSession } from "./open-session.ts";
 import { createPlatformPort } from "./platform-tools.ts";
+import { setRawChannel } from "./raw-channel.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
 import { NO_REDACTOR } from "./policy/redact.ts";
@@ -22,9 +24,6 @@ import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
 import { redactStdio, type Writable } from "./redact-stdio.ts";
 import { createDeltaGate } from "./delta-gate.ts";
-import { createEgressClient } from "./egress-client.ts";
-import { createSandboxEnvironment } from "./sandbox-env.ts";
-import { SYSTEM_TIMERS } from "./sandbox-ops.ts";
 import { createIsBuiltin } from "./policy/builtin-lookup.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { createSessionMirror, openUnderRoot, type SessionMirror } from "./session-mirror.ts";
@@ -52,6 +51,7 @@ function exit(session: AgentSession | null, code: number): never {
 }
 
 export async function runHost(rawIpc: Ipc): Promise<void> {
+  if (process.env["PAP_TEST_PROVIDER"] === "1") setRawChannel(rawIpc);
   // Until the session knows its secrets nothing is redacted; the first records are small ones the worker made itself.
   let secrets: SecretSource | null = null;
   // Every sender below uses `ipc`: each record leaves through the redaction (M5R36). Receiving stays on the raw channel.
@@ -142,7 +142,13 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
 
   const initial = await init;
   const first = PolicyRules.safeParse(initial.policy);
-  if (!first.success) throw new Error("the init record carries invalid policy rules: refusing to start");
+  if (!first.success) {
+    // Field names only (never a value): the owner sees which rule the daemon wrote wrong.
+    const fields = [...new Set(first.error.issues.map((issue) => ["policy", ...issue.path].join(".")))];
+    throw new Error(
+      `the init record carries invalid policy rules (fields: ${fields.slice(0, 8).join(", ")}): refusing to start`,
+    );
+  }
   // `null` after a malformed update: every call blocks (M5R11). Both are assigned in one synchronous step below,
   // so the pipeline, which reads the version and the rules without awaiting between them, never sees one moved alone.
   let rules: PolicyRules | null = first.data;
@@ -171,7 +177,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     reportTaint();
     noteMidRun();
   });
-  const entries = createSessionEntries((record) => ipc.send(record), initial.sandbox);
+  const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
   const source = createSecretSource({ env: process.env, agentDir: initial.agentDir });
@@ -183,17 +189,9 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
         process.stderr.write("pi-host: secret_used not sent\n");
     },
   });
-  // Fail closed: a VM session's shell is pap's VM shell only; a host sandbox next to it would build an environment and an egress client for nothing.
-  if (initial.vm && initial.sandbox)
-    throw new Error("pi-host: an init record with `vm` must not carry `sandbox`: refusing to start");
-  const sandboxEnvironment = initial.sandbox
-    ? withOnceSecrets(createSandboxEnvironment(process.env, initial.sandbox, initial.vault ?? {}), once)
-    : undefined;
-  // Only a networked agent sandbox asks the daemon for a proxy socket per command (M11R232).
-  const egress = initial.sandbox?.egress
-    ? createEgressClient((record) => ipc.send(record), SYSTEM_TIMERS)
-    : undefined;
-  const vaultSink = createVaultSink({ source, environment: sandboxEnvironment, once });
+  // The VM shell's environment (ADR 0081): the vault, then the one-use value a command names; a vault update rebuilds it.
+  const shellEnvironment = withOnceSecrets(createShellEnvironment(process.env, initial.vault ?? {}), once);
+  const vaultSink = createVaultSink({ source, environment: shellEnvironment, once });
   // From the first byte of output: the vault is redacted even when no sandbox gives it to a shell (M11R26).
   vaultSink.update({ vault: initial.vault ?? {}, once: initial.once ?? [] });
   for (const stream of [process.stdout, process.stderr])
@@ -203,11 +201,10 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
     secrets: source,
-    ...(sandboxEnvironment ? { sandboxEnvironment } : {}),
+    ...(initial.vm ? { shellEnvironment } : {}),
     ui,
     approvals,
     platform: platform.port,
-    ...(egress ? { egress } : {}),
     rules: () => rules,
     rulesVersion: () => rulesVersion,
     taint,
@@ -249,7 +246,6 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ...(mirror ? { mirror } : {}),
-    ...(vm ? { vm: true } : {}),
     ...(vm ? { inbox: createInbox(vm.layout.inbox), inboxDir: vm.layout.inbox } : {}),
     ...(vm ? { home: createHomeFiles(vm.layout.home) } : {}),
     ipc,
@@ -257,7 +253,6 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     approvals,
     platform,
     vault: { update: (record) => vaultSink.update(record) },
-    ...(egress ? { egress } : {}),
     setRules: (next) => {
       rules = next;
       rulesVersion++;

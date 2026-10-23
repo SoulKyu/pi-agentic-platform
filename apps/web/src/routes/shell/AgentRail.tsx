@@ -56,7 +56,7 @@ export function AgentRail() {
   const t = useT();
   const agents = useAgents((view) => view.agents);
   const vm = useVmStatus().status;
-  const greyed = vm !== null && vm.runtime === "vm" && !vm.usable;
+  const greyed = vm !== null && !vm.usable;
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const item = itemFromPath(pathname, false);
   const currentId = item?.kind === "agent" ? item.id : null;

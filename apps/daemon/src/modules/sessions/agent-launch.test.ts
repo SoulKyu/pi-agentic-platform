@@ -25,7 +25,6 @@ it("a start that throws before the spawn drops the start-time profile it had set
         name: "Atlas",
         quarantined: false,
       }),
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     },
   });
   const { sessionId } = await bed.service.agentSessions.createAgentSession({

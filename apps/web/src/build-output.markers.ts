@@ -197,11 +197,9 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
     markers: [/Create your first agent/, /Créez votre premier agent/],
   },
   {
-    title:
-      "keeps Settings › Agents, the agent form and the sandbox status out of the initial assets (M11R97)",
+    title: "keeps Settings › Agents, the agent form and its strings out of the initial assets (M11R97)",
     markers: [
       /A named assistant with its own home, memory and limits\./,
-      /data-slot":\W*agents-sandbox/,
       /Named assistants with their own home, memory and limits\./,
       /Des assistants nommés, avec leur propre dossier personnel/,
     ],
@@ -240,7 +238,6 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
  */
 export const EAGER_FORBIDDEN: ReadonlyArray<{ readonly component: string; readonly marker: RegExp }> = [
   { component: "AgentForm", marker: /data-agent-form/ },
-  { component: "SandboxStatus", marker: /data-slot":\W*agents-sandbox/ },
   { component: "AgentScreen", marker: /data-agent-pane/ },
   { component: "EventCard", marker: /Result handed over by/ },
   { component: "RequestCards", marker: /asks before it acts/ },

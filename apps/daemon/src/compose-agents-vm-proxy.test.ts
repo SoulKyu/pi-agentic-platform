@@ -34,7 +34,10 @@ describe("the VMs' proxy composition", () => {
       clock: createFakeClock(),
       logger,
       bind: undefined,
-      hostsOf: (agentId) => (agentId === "atlas-1a2b" ? ["listed.example.test"] : null),
+      late: () => ({
+        hostsOf: (agentId) => (agentId === "atlas-1a2b" ? ["listed.example.test"] : null),
+        trustedOf: () => [],
+      }),
       closers,
     });
     const port = await proxy.start();
@@ -61,7 +64,7 @@ describe("the VMs' proxy composition", () => {
       clock: createFakeClock(),
       logger,
       bind: undefined,
-      hostsOf: () => [],
+      late: () => ({ hostsOf: () => [], trustedOf: () => [] }),
       closers,
     });
     const sources: unknown[] = [];

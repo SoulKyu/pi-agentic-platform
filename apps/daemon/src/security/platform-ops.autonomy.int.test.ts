@@ -13,7 +13,7 @@ import { dialogIdOf, lookupTool, markOf, nextDialog, waitIdle } from "./testing/
 // Owner a6 end to end (X2a could not drive it on lane B): a tainted agent_delegate / agent_remind asks without trusted
 // autonomy, runs with it (the `autonomy` audit row), keeps running after a restart, and an owner who turns it off while
 // the worker runs is refused `tainted` by the daemon's registry (the worker keeps its start-time profile, W5-R26); the
-// next worker, started with the profile as it is now, asks again. The sandbox is off: this file needs no bwrap.
+// next worker, started with the profile as it is now, asks again. The agents run on the process-backend VM.
 // A tainted thread's worker is released when its run settles, so every prompt below starts a worker with the profile
 // as it is then, and that worker reads the script as it is then: the script is written before each prompt, and a plain
 // one right after the worker is up, for the isolated tasks that Scout's delegations start later.
@@ -44,7 +44,7 @@ afterAll(async () => {
 async function life(first = false): Promise<void> {
   client?.close();
   await t?.stop();
-  t = await startTestDaemon({ steps: PLAIN }, { root, extensions: { lookup: lookupTool(REPLY) } });
+  t = await startTestDaemon({ steps: PLAIN }, { root, vm: true, extensions: { lookup: lookupTool(REPLY) } });
   client = first ? (await openOwner(t)).client : (await reopenOwner(t)).client;
   call = callOf(client);
 }

@@ -7,7 +7,6 @@ import { button, click, mount, text } from "../../testing/dom.ts";
 import { VmStatus } from "./VmStatus.tsx";
 
 const status = (patch: Partial<VmStatusView> = {}): VmStatusView => ({
-  runtime: "vm",
   usable: true,
   reason: null,
   vmdVersion: "1.2.3",

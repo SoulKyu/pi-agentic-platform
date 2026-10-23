@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   chmodSync,
   existsSync,
@@ -293,5 +294,33 @@ describe("logs", () => {
     files.put(AGENT, KUBE, bytes("TOPSECRET-CONTENT"));
     files.remove(AGENT, KUBE);
     expect(JSON.stringify(logs.lines)).not.toContain("TOPSECRET-CONTENT");
+  });
+
+  describe("readOne", () => {
+    it("returns null for a pipe without blocking", async () => {
+      files.put(AGENT, "prompts/a.md", bytes("hello"));
+      execFileSync("mkfifo", [join(folderOf(), "prompts", "x.md")]);
+      expect(await files.readOne(AGENT, "prompts/x.md")).toBeNull();
+    });
+
+    it("refuses a file over the import limit", async () => {
+      files.put(AGENT, "prompts/a.md", bytes("hello"));
+      writeFileSync(join(folderOf(), "prompts", "big.md"), Buffer.alloc(AGENT_FILE_LIMITS.maxBytes + 1));
+      expect(await files.readOne(AGENT, "prompts/big.md")).toBeNull();
+    });
+
+    it("reads a regular file whole and is null when absent", async () => {
+      files.put(AGENT, "prompts/a.md", bytes("hello"));
+      expect((await files.readOne(AGENT, "prompts/a.md"))?.toString()).toBe("hello");
+      expect(await files.readOne(AGENT, "prompts/none.md")).toBeNull();
+    });
+
+    it("refuses a link, and a file below a linked folder", async () => {
+      files.put(AGENT, "prompts/a.md", bytes("hello"));
+      symlinkSync(join(folderOf(), "prompts", "a.md"), join(folderOf(), "prompts", "l.md"));
+      symlinkSync(join(folderOf(), "prompts"), join(folderOf(), "linked"));
+      expect(await files.readOne(AGENT, "prompts/l.md")).toBeNull();
+      expect(await files.readOne(AGENT, "linked/a.md")).toBeNull();
+    });
   });
 });

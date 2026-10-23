@@ -123,9 +123,10 @@ export const shellEn = {
     "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
   "error.disk_low":
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
-  "error.sandbox_unavailable":
-    "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
+  "error.sandbox_unavailable": "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`.",
   "error.agent_paused": "This agent is paused. Resume it from its header.",
+  "error.vm_bundle_stale":
+    "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
   "error.push_unavailable": "Notifications are not available on this server. See Settings › Notifications.",
   "error.push_revoked":
     "This device was removed from the notification list. Enable notifications again to add it back.",
@@ -268,8 +269,10 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "error.disk_low":
     "Le disque est presque plein : pap garde de la place libre pour sa base de données. Libérez de l'espace, puis réessayez.",
   "error.sandbox_unavailable":
-    "La sandbox de cet agent ne peut pas tourner sur ce serveur dans sa configuration. Voir Réglages › Agents.",
+    "Les agents tournent dans des microVM : cette machine a besoin de KVM et de `sudo pap vm setup`.",
   "error.agent_paused": "Cet agent est en pause. Reprenez-le depuis son en-tête.",
+  "error.vm_bundle_stale":
+    "Le code dans la VM de cet agent est plus ancien que pap. Lancez `sudo pap vm setup`, puis rouvrez le fil. Rien n'est perdu.",
   "error.push_unavailable":
     "Les notifications ne sont pas disponibles sur ce serveur. Voir Réglages › Notifications.",
   "error.push_revoked":

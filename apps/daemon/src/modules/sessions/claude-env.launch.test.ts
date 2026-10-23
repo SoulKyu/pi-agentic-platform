@@ -24,7 +24,6 @@ async function launchAgent(bridge: boolean) {
       }),
       claudeEnvOf: (_input, where) =>
         Promise.resolve<Record<string, string>>(bridge ? { CLAUDE_CONFIG_DIR: `${where.home}/.claude` } : {}),
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     },
   });
   await bed.service.agentSessions.createAgentSession({
@@ -34,14 +33,7 @@ async function launchAgent(bridge: boolean) {
   });
 }
 
-describe("the host worker of a claude-bridge agent (ADR 0080)", () => {
-  it("gets CLAUDE_CONFIG_DIR in the agent's home and never IS_SANDBOX", async () => {
-    await launchAgent(true);
-    expect(bed.spawnEnvs[0]).toEqual({
-      CLAUDE_CONFIG_DIR: join(bed.dir, "pap", "agents", "atlas-1a2b", ".claude"),
-    });
-  });
-
+describe("the worker of an agent without the bridge (ADR 0080)", () => {
   it("gets neither for any other agent", async () => {
     await launchAgent(false);
     expect(bed.spawnEnvs[0]).toBeUndefined();

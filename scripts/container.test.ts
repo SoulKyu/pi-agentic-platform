@@ -49,9 +49,10 @@ describe("Containerfile", () => {
     expect(finalStage).not.toMatch(/npmrc/);
   });
 
-  it("installs the sandbox tools and no toolchain in the final stage", () => {
+  it("installs tini and python3, no bubblewrap and no toolchain in the final stage", () => {
     const apt = instructions(finalStage).find((line) => line.includes("apt-get install")) ?? "";
-    for (const pkg of ["bubblewrap", "tini", "python3"]) expect(apt).toMatch(new RegExp(`\\b${pkg}\\b`));
+    for (const pkg of ["tini", "python3"]) expect(apt).toMatch(new RegExp(`\\b${pkg}\\b`));
+    expect(apt).not.toContain("bubblewrap");
     for (const pkg of ["g++", "make", "pnpm", "corepack", "build-essential"])
       expect(finalStage).not.toContain(pkg);
   });
@@ -139,11 +140,10 @@ describe(".containerignore", () => {
 describe("entrypoint", () => {
   const entrypoint = read("scripts/container-entrypoint.sh");
 
-  it("parses, warns once when the sandbox cannot run, then execs the daemon", () => {
+  it("parses, then execs the daemon with no sandbox probe", () => {
     execFileSync("sh", ["-n", join(repo, "scripts/container-entrypoint.sh")]);
     expect(entrypoint).toMatch(/^set -eu$/m);
-    expect(entrypoint).toContain("doctor --only bwrap");
-    expect(entrypoint).toContain("container_sandbox_unavailable");
+    expect(entrypoint).not.toContain("doctor");
     expect(entrypoint).toMatch(/^exec node .* serve --host 0\.0\.0\.0 --port "\$\{PAP_PORT:-7777\}"$/m);
   });
 });

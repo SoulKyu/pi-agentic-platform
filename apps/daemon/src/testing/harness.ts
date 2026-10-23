@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
@@ -11,6 +12,7 @@ import { createFakeTransport } from "../modules/push/testing/fake-transport.ts";
 import { freePort } from "./free-port.ts";
 import { httpRequest } from "./http-client.ts";
 import { selfSignedCertificate } from "./self-signed.ts";
+import { vmPlumbing } from "./vm-plumbing.ts";
 import { connectTestClient, type TestClient } from "./ws-client.ts";
 
 const OWNER_PASSWORD = "correct horse battery staple";
@@ -45,6 +47,11 @@ export interface TestDaemonOptions {
   /** Extra worker environment (a fake `GITHUB_TOKEN`), added to the harness defaults; `HOME` and `PI_*` are refused. */
   readonly workerEnv?: Readonly<Record<string, string>>;
   readonly deps?: Omit<DaemonDeps, "env">;
+  /**
+   * The agents run on the process backend (agents are microVMs only): the guest and its pi-host worker are local processes. The
+   * daemon's `extensions` and `agentFiles` seed the VM's Pi folder, which is where an agent's worker reads them (R28).
+   */
+  readonly vm?: boolean;
   /** Start on the folders of an earlier daemon (a restart): `root` is that daemon's, and `stop()` leaves it in place. */
   readonly root?: string;
 }
@@ -55,9 +62,36 @@ export interface TestDaemonOptions {
  */
 export async function startTestDaemon(script: object, options: TestDaemonOptions = {}): Promise<TestDaemon> {
   const root = options.root ?? mkdtempSync(join(tmpdir(), "pap-int-"));
+  const plumbing = options.vm
+    ? vmPlumbing(options, {
+        imageFiles: {
+          ...Object.fromEntries(
+            Object.entries(options.extensions ?? {}).map(([name, source]) => [
+              `extensions/${name}.js`,
+              source,
+            ]),
+          ),
+          ...options.agentFiles,
+        },
+      })
+    : null;
   try {
-    return await startIn(root, script, options);
+    const started = await startIn(root, script, plumbing ? { ...options, ...plumbing.options } : options);
+    if (!plumbing) return started;
+    return {
+      ...started,
+      async stop() {
+        // The VM's copy of the image is read-only: the folder must be writable again to go.
+        execFileSync("chmod", ["-R", "u+w", started.root]);
+        try {
+          await started.stop();
+        } finally {
+          plumbing.dispose();
+        }
+      },
+    };
   } catch (error) {
+    plumbing?.dispose();
     // Whatever failed (a certificate, a lock, a taken port), the directory it made goes with it.
     if (options.root === undefined) rmSync(root, { recursive: true, force: true });
     throw error;
@@ -126,9 +160,12 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     pushSubject: null,
     pushExtraHosts: [],
     testPushLoopback: false,
-    agentsRuntime: "host",
+    agentsRuntimeSet: false,
+    devVmd: false,
     agentsMemoryMaxMb: 8192,
     testAgentRuntime: null,
+    // A socket nobody listens on: a plain daemon boots with the agents unavailable and never dials the real pap-vmd.
+    testVmdSocket: join(root, "no-vmd.sock"),
     staticRoot: null,
     logLevel: "warn",
     ...options.config,

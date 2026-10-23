@@ -1,5 +1,6 @@
 import { GATEWAY_PING_MISSES, GATEWAY_PING_MS } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
+import { EXIT_TAIL_GRACE_MS } from "./vm-worker.ts";
 import { guestOf, type Harness, harness, workerOf } from "./gateway-fixtures.ts";
 
 let h: Harness;
@@ -38,6 +39,7 @@ describe("liveness", () => {
     ).toHaveLength(GATEWAY_PING_MISSES);
     await h.clock.advance(GATEWAY_PING_MS);
     expect(worker.socket.destroyed).toBe(true);
+    await h.clock.advance(EXIT_TAIL_GRACE_MS);
     expect((await worker.handle.exited).cause).toBe("exit_code");
     expect(guest.socket.destroyed).toBe(false);
   });

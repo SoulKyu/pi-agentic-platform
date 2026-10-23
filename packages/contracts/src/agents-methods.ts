@@ -3,7 +3,6 @@ import { AGENT_EVENT_LIMITS, AGENT_LIMITS, AgentEventView, AgentInput, AgentSpen
 import { AGENT_PROMPT_LIMITS, AgentPromptName, PermissionsView, QuarantineResult } from "./agents-safety.ts";
 import { TaskView, TriggerView } from "./automation-views.ts";
 import { defineMethod } from "./define.ts";
-import { EGRESS_UNKNOWN, EgressStatus } from "./egress.ts";
 import { AGENT_GATE_ERRORS } from "./errors.ts";
 import { Cursor } from "./frames.ts";
 import { AgentId } from "./platform.ts";
@@ -28,21 +27,6 @@ export const AgentView = z
   })
   .strict();
 export type AgentView = z.infer<typeof AgentView>;
-
-/** Why the sandbox cannot be used (M11R18); the probe's reasons, read by Settings › Agents. */
-export const SANDBOX_REASONS = ["missing", "unsafe_path", "refused", "timeout"] as const;
-/** The last probe (M11R20). `checkedAt` 0: the first probe has not ended ("checking", not "unavailable"). */
-export const SandboxStatus = z
-  .object({
-    usable: z.boolean(),
-    path: z.string().max(4096).nullable(),
-    reason: z.enum(SANDBOX_REASONS).nullable(),
-    checkedAt: z.number().int().min(0),
-    // The egress proxy (M11R242); a view from before it existed reads as unusable.
-    egress: EgressStatus.default(EGRESS_UNKNOWN),
-  })
-  .strict();
-export type SandboxStatus = z.infer<typeof SandboxStatus>;
 
 const Params = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
 
@@ -83,7 +67,14 @@ export const agentsMethods = {
     idempotent: false,
     params: Params({ input: AgentInput }),
     result: AgentView,
-    errors: ["step_up_required", "limit_reached", "conflict", "bad_request", "read_only"],
+    errors: [
+      "step_up_required",
+      "limit_reached",
+      "conflict",
+      "bad_request",
+      "read_only",
+      "sandbox_unavailable",
+    ],
   }),
   // Compare-and-set on `revision`; a widening edit asks for the password, a narrowing one or a budget does not.
   "agents.update": defineMethod({
@@ -103,24 +94,6 @@ export const agentsMethods = {
     params: Params({ agentId: AgentId }),
     result: Params({ trashedAs: z.string().max(128) }),
     errors: ["step_up_required", "not_found", "session_busy", "command_failed", "read_only"],
-  }),
-  // Tokens may read it (agents:read); the probe is one the daemon runs anyway.
-  "agents.sandboxStatus": defineMethod({
-    name: "agents.sandboxStatus",
-    permission: "agents:read",
-    idempotent: true,
-    params: Params({}),
-    result: SandboxStatus,
-    errors: [],
-  }),
-  // Probes again now (M11R19): browser sessions only (agents:admin is outside the token permissions); at most one per 10 s.
-  "agents.recheckSandbox": defineMethod({
-    name: "agents.recheckSandbox",
-    permission: "agents:admin",
-    idempotent: true,
-    params: Params({}),
-    result: SandboxStatus,
-    errors: ["rate_limited"],
   }),
   // The agent's one trusted thread (M11R59): the same session for every open, a new one after a reset. The launch gate
   // refuses a new thread like any agent start; a paused agent opens, a quarantined one does not.
@@ -239,14 +212,14 @@ export const agentsMethods = {
     result: PermissionsView,
     errors: ["not_found", "forbidden"],
   }),
-  // The prompt chips (M11R186): the home is agent-writable, so the text is data for the composer, never a prompt pap sends.
+  // The prompt chips (M11R186): the files the owner imported, as text that is data for the composer, never a prompt pap sends.
   "agents.prompts": defineMethod({
     name: "agents.prompts",
     permission: "agents:read",
     idempotent: true,
     params: Params({ agentId: AgentId }),
     result: Params({ names: z.array(AgentPromptName).max(AGENT_PROMPT_LIMITS.names) }),
-    errors: ["not_found", "invalid_cwd"],
+    errors: ["not_found"],
   }),
   "agents.prompt": defineMethod({
     name: "agents.prompt",
@@ -254,6 +227,6 @@ export const agentsMethods = {
     idempotent: true,
     params: Params({ agentId: AgentId, name: AgentPromptName }),
     result: Params({ text: z.string().max(AGENT_PROMPT_LIMITS.bytes) }),
-    errors: ["not_found", "invalid_cwd", "payload_too_large", "bad_request"],
+    errors: ["not_found", "payload_too_large", "bad_request"],
   }),
 };

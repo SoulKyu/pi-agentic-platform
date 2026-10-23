@@ -177,7 +177,6 @@ export const installBed = (id: string, root: Root = makeRoot(), options: BedOpti
       PATH: `${root.bin}:${process.env.PATH ?? ""}`,
       HOME: extra.home ?? root.home,
       LANG: "C.UTF-8",
-      PAP_BWRAP: join(root.root, "missing-bwrap"),
       SYSLOG: root.sysLog,
       ...extra.env,
     };

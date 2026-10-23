@@ -116,6 +116,7 @@ export function createCrashBed(steps: object): CrashBed {
             PAP_MIN_FREE_DISK_MB: "0",
             PAP_UPDATE_CHECK: "0",
             PAP_TEST_PROVIDER_SCRIPT: scriptPath,
+            PAP_TEST_VMD_SOCKET: join(root, "no-vmd.sock"),
             PAP_TEST_WORKER_IMPORT: GUARD,
             ...(hold === undefined ? {} : { PAP_TEST_OUTBOX_HOLD: hold }),
           },

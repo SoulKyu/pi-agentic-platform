@@ -53,9 +53,12 @@ const claudeToken = (state: "set" | "missing" = "missing") => ({
 const core = (): AgentsVmCore => ({
   config: {
     home: join(root, "pap"),
-    agentsRuntime: "vm",
+    agentsRuntimeSet: false,
+    dev: false,
+    devVmd: false,
     agentsMemoryMaxMb: 8192,
     testAgentRuntime: null,
+    testVmdSocket: null,
     testProviderScript: null,
     workerIdleMs: 0,
     minFreeDiskMb: 1000,
@@ -92,7 +95,7 @@ describe("vm mode (the Kata composition)", () => {
     const vm = await vmMode();
     const view = await vm.status.view("u1");
     expect(VmStatusView.safeParse(view).success).toBe(true);
-    expect(view).toMatchObject({ runtime: "vm", usable: true, reason: null, vmdVersion: VERSION });
+    expect(view).toMatchObject({ usable: true, reason: null, vmdVersion: VERSION });
     expect(view.host).toMatchObject({ memoryMb: 8192 - 512, diskMb: 49_000 });
     expect(view.host?.cpus).toBeGreaterThanOrEqual(1);
   });
@@ -300,14 +303,36 @@ describe("composeVmStatus", () => {
     expect((await status.view("u2")).agents).toEqual([]);
   });
 
+  it("down mode: the real reason while pap-vmd is not fine, and the restart once it is (after `sudo pap vm setup`)", async () => {
+    const down = (kvm = true) =>
+      composeVmStatus(
+        { clock, logger: silentLogger, claudeToken: claudeToken(), config },
+        fake,
+        {
+          phase: () => "stopped",
+        },
+        { kvm: () => kvm, down: () => true },
+      ).status;
+    const recovered = await down().view("u1");
+    expect(recovered.usable).toBe(false);
+    expect(recovered.reason).toContain("restart pap");
+    expect(recovered.reason).not.toContain("does not answer");
+    await expect(down().require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
+    fake.handle("vmd.health", () => {
+      throw new Error("down");
+    });
+    expect((await down().view("u1")).reason).toContain("pap-vmd does not answer");
+    expect((await down(false).view("u1")).reason).toContain("/dev/kvm");
+  });
+
   it("the process backend has no pap-vmd: usable, no version, no ceilings", async () => {
     const view = await make(null).status.view("u1");
-    expect(view).toMatchObject({ runtime: "vm", usable: true, reason: null, vmdVersion: null, host: null });
+    expect(view).toMatchObject({ usable: true, reason: null, vmdVersion: null, host: null });
     await expect(make(null).status.require()).resolves.toBeUndefined();
   });
 });
 
-describe("agents.vmStatus in both modes (AVM-P17)", () => {
+describe("agents.vmStatus", () => {
   const rpc = () => {
     const appended: unknown[] = [];
     const composed = composeAgentsVmRpc({ home: join(root, "pap") }, silentLogger, clock, {
@@ -317,20 +342,20 @@ describe("agents.vmStatus in both modes (AVM-P17)", () => {
   };
   const ctxOf = (userId = "u1") => ({ caller: testCaller({ userId }) }) as never;
 
-  it("host mode answers T1's view of an unavailable stack", async () => {
+  it("answers `internal` until the VM composition's view is bound", async () => {
     const { rpc: handlers } = rpc();
-    expect(await handlers["agents.vmStatus"]({}, ctxOf())).toEqual({
-      runtime: "host",
-      usable: false,
-      reason: "not_configured",
-      vmdVersion: null,
-      claudeToken: "missing",
-      agents: [],
-    });
+    await expect(handlers["agents.vmStatus"]({}, ctxOf())).rejects.toMatchObject({ code: "internal" });
   });
 
   it("reports the Claude token `set` after a set, `missing` after a clear, and never the value (J1a M10)", async () => {
-    const { rpc: handlers, claudeToken: store } = rpc();
+    const { rpc: handlers, claudeToken: store, bindStatus } = rpc();
+    bindStatus(async () => ({
+      usable: true,
+      reason: null,
+      vmdVersion: null,
+      claudeToken: store.status(),
+      agents: [],
+    }));
     store.set(TOKEN);
     const view = await handlers["agents.vmStatus"]({}, ctxOf());
     expect(view.claudeToken).toBe("set");
@@ -342,7 +367,6 @@ describe("agents.vmStatus in both modes (AVM-P17)", () => {
   it("answers the bound view, for the caller's own agents (M-host-bound, M-owner)", async () => {
     const { rpc: handlers, bindStatus } = rpc();
     const view = vi.fn(async (ownerId: string) => ({
-      runtime: "vm" as const,
       usable: true,
       reason: null,
       vmdVersion: "1",
@@ -352,7 +376,5 @@ describe("agents.vmStatus in both modes (AVM-P17)", () => {
     bindStatus(view);
     expect((await handlers["agents.vmStatus"]({}, ctxOf("u7"))).agents[0]?.id).toBe("of-u7");
     expect(view).toHaveBeenCalledWith("u7");
-    bindStatus(undefined);
-    expect((await handlers["agents.vmStatus"]({}, ctxOf())).runtime).toBe("host");
   });
 });

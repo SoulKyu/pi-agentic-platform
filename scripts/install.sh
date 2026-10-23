@@ -3,7 +3,6 @@
 set -euo pipefail
 
 die() { printf 'pap-install: %s\n' "$*" >&2; exit 1; }
-warn() { printf 'pap-install: warning: %s\n' "$*" >&2; }
 
 [ "$(id -u)" -ne 0 ] || die "do not run as root: pap is a user service"
 [ "$(uname -s)" = Linux ] || die "linux only"
@@ -25,9 +24,6 @@ for tool in gcc g++ make python3 systemctl; do
 done
 systemctl --user show-environment >/dev/null 2>&1 \
   || die "no systemd user manager (log in with a full session, or set XDG_RUNTIME_DIR=/run/user/$(id -u))"
-bwrap_path="${PAP_BWRAP:-/usr/bin/bwrap}"
-{ [ -x "$bwrap_path" ] && [ "$(stat -L -c %u -- "$bwrap_path")" = 0 ]; } \
-  || warn "bubblewrap not found: agents that require the sandbox will not start (sudo apt install bubblewrap)"
 
 if command -v pnpm >/dev/null 2>&1; then
   pnpm_cmd=(pnpm)

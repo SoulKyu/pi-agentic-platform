@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { AgentInput, type InitRecord, type VmLayout } from "@pap/contracts";
+import { AgentInput, type InitRecord } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
 import { layoutOf, type VmSpec } from "../agent-vm/index.ts";
@@ -23,8 +23,8 @@ afterEach(() => bed.dispose());
 
 interface World {
   specs: VmSpec[];
-  /** How often the host's probe, vault and one-use values were read. */
-  reads: { probe: number; vault: number; once: number };
+  /** How often the host's vault and one-use values were read. */
+  reads: { vault: number; once: number };
   /** Holds every runtime.spawn until `release()`. */
   hold: boolean;
   release(): void;
@@ -32,7 +32,7 @@ interface World {
 }
 const world: World = {
   specs: [],
-  reads: { probe: 0, vault: 0, once: 0 },
+  reads: { vault: 0, once: 0 },
   hold: false,
   release: () => {},
   profile: { sandboxRequired: true, quarantined: false },
@@ -42,7 +42,7 @@ const taskKeyOf = (row: { agentRole?: string | undefined; id: string }): string 
 
 function setup(options: BedOptions = {}, vm = true): { papHome: string } {
   world.specs = [];
-  world.reads = { probe: 0, vault: 0, once: 0 };
+  world.reads = { vault: 0, once: 0 };
   world.hold = false;
   world.release = () => {};
   world.profile = { sandboxRequired: true, quarantined: false };
@@ -61,11 +61,13 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
                     layout: layoutOf("process", papHome, spec),
                     relayKey: "a".repeat(64),
                     slot: "b".repeat(32),
+                    launchId: "launch-1",
                   };
                 },
               } as never,
               papHome,
               packageSources: async () => null,
+              joinLaunch: () => {},
               toImageEntries: (_agentId, _image, sources) => (sources === null ? null : [...sources]),
               layoutOf: (row) =>
                 row.agentId === undefined
@@ -103,16 +105,10 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
         : null,
     vaultOf: () => (world.reads.vault++, { TOKEN: "s3cret" }),
     onceOf: () => (world.reads.once++, []),
-    probe: { ensure: async () => (world.reads.probe++, { usable: true as const, path: "/usr/bin/bwrap" }) },
-    ...(vm
-      ? {
-          vmLayoutOf: (row) =>
-            row.agentId === undefined
-              ? null
-              : layoutOf("process", papHome, { agentId: row.agentId, taskKey: taskKeyOf(row) }),
-          agentRunsInVm: () => true,
-        }
-      : {}),
+    vmLayoutOf: (row) =>
+      !vm || row.agentId === undefined
+        ? null
+        : layoutOf("process", papHome, { agentId: row.agentId, taskKey: taskKeyOf(row) }),
   };
   bed.service.agent.setAgentPorts({ agents });
   return { papHome };
@@ -132,16 +128,17 @@ describe("agent sessions in vm mode (T8a)", () => {
     const layout = layoutOf("process", papHome, { agentId: ID, taskKey: null });
     expect(init).toMatchObject({ cwd: layout.home, agentDir: layout.piAgentDir, papSessionId: sessionId });
     expect(vmOf(0)).toMatchObject({ layout, bwrap: "/usr/bin/bwrap", rootView: "read-only" });
-    for (const key of ["sandbox", "vault", "once", "memory", "testProviderScript"])
-      expect(init).not.toHaveProperty(key);
-    expect(JSON.stringify(init)).not.toContain("s3cret");
+    for (const key of ["sandbox", "memory", "testProviderScript"]) expect(init).not.toHaveProperty(key);
+    // ADR 0081: the vault travels in the VM's init.
+    expect(init).toMatchObject({ vault: { TOKEN: "s3cret" } });
     expect(JSON.stringify(init)).not.toContain(papHome + "/agents");
     expect(bed.spawned[0]?.sent.filter((record) => record.type === "init")).toHaveLength(1);
   });
-  it("the VM rows get no host probe, no vault read, no one-use values and no host home", async () => {
+  it("the VM rows read the vault and the one-use values (gate, then drift check), and get no host home", async () => {
     const { papHome } = setup();
     await thread();
-    expect(world.reads).toEqual({ probe: 0, vault: 0, once: 0 });
+    // The gate reads them, and the drift check once the worker is live.
+    expect(world.reads).toEqual({ vault: 2, once: 2 });
     expect(() => statSync(join(papHome, "agents", ID))).toThrow();
     expect(statSync(join(papHome, "agents", ".mirrors", ID)).mode & 0o777).toBe(0o700);
   });
@@ -175,18 +172,6 @@ describe("agent sessions in vm mode (T8a)", () => {
     expect(bed.spawned).toHaveLength(1);
     expect(initRecordOf(bed.spawned[0])).not.toHaveProperty("vm");
   });
-  it("a VM row without a launcher (host mode with the layout wired) is refused internal: nothing spawns", async () => {
-    setup({}, false);
-    bed.service.agent.setAgentPorts({
-      agents: {
-        profileOf: () => ({ input: AgentInput.parse({ name: "A" }), name: "A", quarantined: false }),
-        probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
-        vmLayoutOf: (row) => layoutOf("process", "/p", { agentId: row.agentId ?? ID, taskKey: null }),
-      },
-    });
-    expect(await codeOf(thread())).toBe("internal");
-    expect(bed.spawned).toHaveLength(0);
-  });
   it("memory trust is not recorded for a VM thread: a taint does not release its worker", async () => {
     const policy = fakePolicyPort();
     setup({ policy });
@@ -216,23 +201,16 @@ describe("a sandbox-only continuation counts a VM as sandboxed (R38, RT-10)", ()
     expect(world.specs).toHaveLength(2);
     expect(bed.spawned).toHaveLength(2);
   });
-  it("still refuses a cold host agent without a sandbox", async () => {
-    setup({}, false);
-    world.profile.sandboxRequired = false;
-    const sessionId = await cold();
-    expect(await codeOf(prompt(sessionId))).toBe("sandbox_unavailable");
-  });
   it("sandboxed() is true for a live VM session", async () => {
     setup();
     world.profile.sandboxRequired = false;
     const { sessionId } = await thread();
     await expect(prompt(sessionId)).resolves.toBeDefined();
   });
-  it("sandboxed() stays false for a live host agent without a sandbox", async () => {
+  it("with no VM stack a thread start is refused sandbox_unavailable, never started on the host", async () => {
     setup({}, false);
-    world.profile.sandboxRequired = false;
-    const { sessionId } = await thread();
-    expect(await codeOf(prompt(sessionId))).toBe("sandbox_unavailable");
+    expect(await codeOf(thread())).toBe("sandbox_unavailable");
+    expect(bed.spawned).toHaveLength(0);
   });
 });
 
@@ -287,17 +265,12 @@ describe("a shutdown during the VM boot (fail closed)", () => {
 
 describe("RT-10: a full-access VM thread's continuation is not held", () => {
   // Mutant: the VM line of sandboxedThread removed (runs/resume.ts `heldForFullAccess` would hold every continuation).
-  it("sandboxedThread is true for a VM thread whose profile has no host sandbox, false for a host one", async () => {
+  it("sandboxedThread is true for a VM thread whose profile has no host sandbox", async () => {
     setup();
     world.profile.sandboxRequired = false;
     const vm = await thread();
     expect(bed.service.agent.sandboxedThread("u1", vm.sessionId)).toBe(true);
     expect(bed.service.agent.sandboxedThread("u2", vm.sessionId)).toBe(false);
-    await bed.dispose();
-    setup({}, false);
-    world.profile.sandboxRequired = false;
-    const host = await thread();
-    expect(bed.service.agent.sandboxedThread("u1", host.sessionId)).toBe(false);
   });
 });
 
@@ -331,17 +304,15 @@ describe("a booting VM and a cold reopen (R29)", () => {
 describe("the boot assertion of the agents ports (fail closed)", () => {
   it("setAgentPorts refuses an agents object without the VM wiring when the launcher exists", () => {
     setup();
+    // The bed fills the VM predicate a test leaves out: a key that is present, empty, is a wiring that lacks it.
     const base: SessionsAgentDeps = {
       profileOf: () => null,
-      probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
+      vmLayoutOf: undefined as never,
     };
     expect(() => bed.service.agent.setAgentPorts({ agents: base })).toThrow(/vmLayoutOf/);
     expect(() =>
-      bed.service.agent.setAgentPorts({ agents: { ...base, vmLayoutOf: () => null as VmLayout | null } }),
-    ).toThrow(/agentRunsInVm/);
-    expect(() =>
       bed.service.agent.setAgentPorts({
-        agents: { ...base, vmLayoutOf: () => null, agentRunsInVm: () => true },
+        agents: { ...base, vmLayoutOf: () => null },
       }),
     ).not.toThrow();
   });
@@ -349,7 +320,7 @@ describe("the boot assertion of the agents ports (fail closed)", () => {
     setup({}, false);
     expect(() =>
       bed.service.agent.setAgentPorts({
-        agents: { profileOf: () => null, probe: { ensure: async () => ({ usable: true, path: "/b" }) } },
+        agents: { profileOf: () => null },
       }),
     ).not.toThrow();
   });

@@ -30,6 +30,7 @@ export const ERROR_CODES = [
   "disk_low",
   "sandbox_unavailable",
   "agent_paused",
+  "vm_bundle_stale",
   "push_unavailable",
   "push_revoked",
   "network",
@@ -43,6 +44,7 @@ export type ErrorCode = (typeof ERROR_CODES)[number];
 export const AGENT_GATE_ERRORS = [
   "sandbox_unavailable",
   "agent_paused",
+  "vm_bundle_stale",
   "invalid_cwd",
 ] as const satisfies readonly ErrorCode[];
 
@@ -80,8 +82,10 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
     "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
   disk_low:
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
-  sandbox_unavailable: "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
+  sandbox_unavailable: "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`.",
   agent_paused: "This agent is paused. Resume it from its header.",
+  vm_bundle_stale:
+    "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
   push_unavailable: "Notifications are not available on this server. See Settings › Notifications.",
   push_revoked:
     "This device was removed from the notification list. Enable notifications again to add it back.",

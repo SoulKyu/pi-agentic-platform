@@ -1,4 +1,3 @@
-import type { spawn } from "node:child_process";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Db } from "./kernel/db/database.ts";
@@ -8,8 +7,8 @@ import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { ClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import type { AgentsVm } from "./compose-m11-vm.ts";
 import type { AgentLinks, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
+import type { AgentFiles } from "./modules/agent-vm/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
-import type { EgressPort } from "./modules/egress/index.ts";
 import type { M11RunsPort } from "./compose-subagents.ts";
 import type { AutomationModule } from "./modules/automation/index.ts";
 import type { MemoryRpc } from "./modules/memory/index.ts";
@@ -23,17 +22,15 @@ import type { SettingsModule } from "./modules/settings/index.ts";
 /** What `composeM11` reads of the daemon's core. */
 export interface M11Core {
   readonly db: Db;
-  readonly config: Pick<Config, "home" | "bwrapOverride" | "piAgentDir"> & Partial<Pick<Config, "userHome">>;
-  /** The daemon's environment: the egress proxy's sockets live under `$XDG_RUNTIME_DIR` when it is private (W5-R42). */
-  readonly env?: Readonly<Record<string, string | undefined>>;
+  readonly config: Pick<Config, "home" | "piAgentDir"> & Partial<Pick<Config, "userHome">>;
   readonly clock: Clock;
   readonly logger: Logger;
   readonly readOnly: boolean;
   /** The agent file store's link: quarantine's `files` step lists its paths, a delete sends its folder to the trash. */
   readonly agentFilesLink?: AgentLinks["files"] | undefined;
+  /** The agent file store: the prompt chips are its `prompts/*.md` imports. */
+  readonly agentFiles?: Pick<AgentFiles, "list" | "readOne"> | undefined;
   readonly hub: Pick<StreamHub, "publish" | "registerSnapshot">;
-  /** Tests only: the process spawn of the sandbox probe. */
-  readonly probeSpawn?: typeof spawn | undefined;
 }
 
 /** The modules `composeM11` is given once they exist; later tasks add the ones they need. */
@@ -81,8 +78,6 @@ export interface M11Modules {
   /** ADR 0080: the Claude Code environment of a claude-bridge agent's worker, host or VM. Absent: none is set. */
   readonly claudeEnvOf?: ClaudeEnvOf | undefined;
   readonly vm?: AgentsVm | undefined;
-  /** Tests only: replaces the egress proxy. The daemon never passes one: production builds the real proxy (M11R244). */
-  readonly egress?: EgressPort;
   /** The owner's automation time zone: the day an agent's budget and figures count in (M11R74, M11R76). */
   readonly settings: { readonly port: Pick<SettingsModule["port"], "automation" | "agents"> };
 }

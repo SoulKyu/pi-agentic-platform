@@ -1,6 +1,5 @@
 import type { MigrationSource } from "./kernel/db/migrate.ts";
 import type { M11, M11Core, M11Modules } from "./compose-m11-types.ts";
-import { bootAgentEgress, bootSandboxProbe } from "./compose-m11-probe.ts";
 import { bindVmCrash, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
 import {
   AGENTS_MIGRATIONS,
@@ -21,12 +20,10 @@ import {
   createRemind,
   createQueueTask,
   createRequestViews,
-  createSandboxMethods,
   createThreadLink,
   createThreads,
   createUnread,
 } from "./modules/agents/index.ts";
-import type { EgressPort } from "./modules/egress/index.ts";
 import { composeSubagents } from "./compose-subagents.ts";
 import { requireStepUp } from "./modules/auth/index.ts";
 import { createMemoryModule } from "./modules/memory/index.ts";
@@ -43,6 +40,9 @@ import {
   vaultRootOf,
 } from "./modules/secrets/index.ts";
 import { SUBAGENTS_MIGRATIONS } from "./modules/subagents/index.ts";
+
+/** A composition without the file store (tests): no imported prompts. */
+const NO_AGENT_FILES = { list: () => [], readOne: async () => null };
 
 /** The migration sources of M11's new modules. The session kinds migration is the sessions module's own. */
 export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [AGENTS_MIGRATIONS, SUBAGENTS_MIGRATIONS];
@@ -62,7 +62,6 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     platform,
     inLane: (ownerId, cwd) => modules.lanes.paths.laneOf(cwd)?.ownerId === ownerId,
   });
-  const sandboxProbe = bootSandboxProbe(core);
   const agentsLogger = core.logger.child({ module: "agents" });
   const vm = vmPortsOf(modules.vm);
   const guard = createAgentGuard();
@@ -89,20 +88,13 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     logger: core.logger.child({ module: "secrets" }),
     readOnly: core.readOnly,
   });
-  // The egress proxy (M11R243) boots before any worker can start: the agents port that lets a launch through is bound below,
-  // and the launch gate waits for the proxy's `ready()`.
   const once = createOnceStore(() => core.clock.now());
-  const egress: EgressPort = modules.egress ?? bootAgentEgress(core);
   modules.sessions.setAgentPorts({
     agents: {
       profileOf: sessionAgentsOf(agents.port),
       vaultOf: secrets.vaultOf,
       onceOf: once.forSession,
       onceUsed: (sessionId, id) => void once.used(sessionId, id),
-      probe: sandboxProbe,
-      egress,
-      ownerHosts: (ownerId) => modules.policy?.port.settings(ownerId).allowHosts ?? null,
-      ...(core.config.userHome === undefined ? {} : { homeDir: () => core.config.userHome as string }),
       ...(modules.claudeEnvOf ? { claudeEnvOf: modules.claudeEnvOf } : {}),
       ...vm.sessions,
     },
@@ -223,7 +215,6 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     once,
     salt: () => (refSalt ??= loadRefSalt(vaultRootOf(core.config.home))),
     sessions: modules.sessions.agentSessions,
-    probe: sandboxProbe,
     clock: core.clock,
     audit: modules.audit.port,
     logger: core.logger.child({ module: "secrets" }),
@@ -265,7 +256,6 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     rpc: {
       ...agentsRpc(
         agents,
-        createSandboxMethods(sandboxProbe, core.clock, egress),
         threads,
         unread,
         createAgentReads({
@@ -288,11 +278,10 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
           requireStepUp,
           changed: stream.touch,
           papHome: core.config.home,
-          sandboxUsable: () => sandboxProbe.current().usable,
           ownerSettings: (ownerId) => modules.policy?.port.settings(ownerId),
           liveTools: modules.sessions.agentSessions.activeTools,
           hostGrants: (sessionId) => modules.sessions.hostGrants.of(sessionId),
-          ...vm.safety,
+          files: core.agentFiles ?? NO_AGENT_FILES,
         }),
       ),
       ...secretsRpc(secrets),

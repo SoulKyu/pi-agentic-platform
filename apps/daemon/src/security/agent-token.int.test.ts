@@ -23,10 +23,13 @@ const users = (): string => {
 
 beforeAll(async () => {
   scratch = mkdtempSync(join(tmpdir(), "pap-agent-token-"));
-  t = await startTestDaemon({
-    steps: [{ text: "ran" }, { text: "ran again" }],
-    captureUserMessages: join(scratch, "users.jsonl"),
-  });
+  t = await startTestDaemon(
+    {
+      steps: [{ text: "ran" }, { text: "ran again" }],
+      captureUserMessages: join(scratch, "users.jsonl"),
+    },
+    { vm: true },
+  );
   owner = await openOwner(t);
   const minted = await result<{ value: string }>(
     await owner.client.call("auth.tokens.create", {

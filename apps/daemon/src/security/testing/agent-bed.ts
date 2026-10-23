@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -10,21 +9,6 @@ import { result, rows } from "./automation-bed.ts";
 
 // Shared by the M11 exit-proof suites (Task 20): a real daemon, real workers on the scripted provider and the host's real
 // bwrap. Nothing here reaches the network, ~/.pap or ~/.pi/agent.
-
-/** The host's own bwrap, as the other int suites probe it. CI must provide one; locally the file skips with one line. */
-export function bwrapUsable(file: string): boolean {
-  let usable = true;
-  try {
-    execFileSync("/usr/bin/bwrap", ["--ro-bind", "/", "/", "--unshare-pid", "--", "/bin/true"], {
-      stdio: "ignore",
-    });
-  } catch {
-    usable = false;
-  }
-  if (!usable && process.env["CI"]) throw new Error(`${file}: CI must provide a working bwrap`);
-  if (!usable) console.warn(`${file}: skipped: no usable /usr/bin/bwrap on this machine`);
-  return usable;
-}
 
 /** A call that must have succeeded, typed. */
 export const callOf =

@@ -2,7 +2,7 @@
 
 One file per decision, numbered. A decision that deviates from a spec or changes a rule gets an ADR; the first line after the title is `Status:` and starts with `accepted` or `superseded by NNNN`.
 
-Next free number: 0081
+Next free number: 0082
 
 Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
 
@@ -57,7 +57,7 @@ Numbers marked "not used" were skipped and stay empty.
 | 0045 | [quota limits and auto-resume](0045-quota-limits-and-auto-resume.md) | accepted | 2026-10-15 |
 | 0046 | [feeds and the precheck without a sandbox](0046-feeds-and-precheck-without-sandbox.md) | accepted | 2026-10-15 |
 | 0047 | [platform calls and session types](0047-platform-calls-and-session-types.md) | accepted | 2026-10-16 |
-| 0048 | [the agent sandbox](0048-the-agent-sandbox.md) | accepted | 2026-10-16 |
+| 0048 | [the agent sandbox](0048-the-agent-sandbox.md) | superseded by 0081 | 2026-10-16 |
 | 0049 | [the vault and secret requests](0049-the-vault-and-secret-requests.md) | accepted | 2026-10-16 |
 | 0050 | [agents](0050-agents.md) | accepted | 2026-10-16 |
 | 0051 | [agents in the Inbox](0051-agents-in-the-inbox.md) | accepted | 2026-10-16 |
@@ -90,3 +90,4 @@ Numbers marked "not used" were skipped and stay empty.
 | 0078 | [agents run in microVMs](0078-agents-run-in-microvms.md) | accepted, sub-project 1 | 2026-10-19 |
 | 0079 | [agents in microVMs: a simple egress proxy and the agent's own credentials](0079-agents-vm-egress-and-files.md) | accepted, sub-project 2 | 2026-10-21 |
 | 0080 | [pap sets IS_SANDBOX=1 and CLAUDE_CONFIG_DIR for claude-bridge agents](0080-claude-code-env-for-claude-bridge-agents.md) | accepted | 2026-10-21 |
+| 0081 | [agents run only in microVMs](0081-agents-run-only-in-microvms.md) | accepted, sub-project 3 | 2026-10-22 |

@@ -1,4 +1,4 @@
-import type { HandlerTable, VmStatusView } from "@pap/contracts";
+import { type HandlerTable, PapError, type VmStatusView } from "@pap/contracts";
 import type { Hono } from "hono";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
@@ -17,7 +17,6 @@ import {
   createAgentFilesService,
   createClaudeTokenService,
   createClaudeTokenStore,
-  createHostStatus,
   mountAgentFilesRoute,
   secretsDirOf,
   startFilesTrashSweep,
@@ -33,11 +32,10 @@ export type AgentsVmRpc = Pick<
 >;
 
 /**
- * The `agents.vm.*` / `agents.vmStatus` handlers, in host and vm modes alike (AVM-P17, no `unknown_method` in host mode), and
- * the Claude token store behind the first two (`$PAP_HOME/secrets/claude-token`). `agents.purgeTrash` is the agents module's.
+ * The `agents.vm.*` / `agents.vmStatus` handlers, and the Claude token store behind the first two (`$PAP_HOME/secrets/claude-token`). `agents.purgeTrash` is the agents module's.
  * The agent file store (`$PAP_HOME/secrets/agent-files`) is built here too, with its two methods and `PUT /agent-files`; the agents
  * registry that says who owns an agent is bound later (`bindAgents`), until then no agent is anyone's.
- * `agents.vmStatus` answers the host-mode view until `bindStatus` is given the VM composition's (`vm` mode, T18).
+ * `agents.vmStatus` is bound to the VM composition's view (`bindStatus`) before the server listens (T18).
  */
 export function composeAgentsVmRpc(
   config: Pick<Config, "home">,
@@ -53,9 +51,9 @@ export function composeAgentsVmRpc(
     readonly agentFilesLink: NonNullable<AgentLinks["files"]>;
   };
   readonly rpc: AgentsVmRpc;
-  /** Stops the daily sweep of the files trash (it runs in host mode too). */
+  /** Stops the daily sweep of the files trash. */
   stopSweep(): void;
-  bindStatus(view: ((ownerId: string) => Promise<VmStatusView>) | undefined): void;
+  bindStatus(view: (ownerId: string) => Promise<VmStatusView>): void;
   bindAgents(agents: { ownerOf(agentId: string): string | null }): void;
   /** `PUT /agent-files`, cookie only. */
   mount(app: Hono, authenticate: (header: string | undefined) => Caller | null): void;
@@ -72,7 +70,6 @@ export function composeAgentsVmRpc(
     owns: (ownerId, agentId) => ownerOf(agentId) === ownerId,
     audit,
   });
-  const hostView = createHostStatus(claudeToken);
   const stopSweep = startFilesTrashSweep({ files: agentFiles, clock, logger: agentLogger });
   let vmView: ((ownerId: string) => Promise<VmStatusView>) | undefined;
   return {
@@ -95,7 +92,8 @@ export function composeAgentsVmRpc(
         logger: agentLogger,
       }),
     rpc: {
-      "agents.vmStatus": async (_params, ctx) => (vmView ? vmView(ctx.caller.userId) : hostView()),
+      "agents.vmStatus": async (_params, ctx) =>
+        vmView ? vmView(ctx.caller.userId) : Promise.reject(new PapError("internal")),
       ...agentFilesRpc(filesService),
       ...agentsVmTokenRpc(
         createClaudeTokenService(claudeToken, (caller) => requireStepUp(caller, clock.now()), audit),

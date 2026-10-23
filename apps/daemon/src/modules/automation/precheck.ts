@@ -1,5 +1,4 @@
 import { type ChildProcess, type spawn, type StdioOptions } from "node:child_process";
-import { EGRESS_ENV } from "@pap/contracts";
 import { type EnvSource, NETWORK_ENV, TOOLING_ENV, unattendedEnv } from "../../kernel/child-env.ts";
 import type { ScopeLaunch } from "../../kernel/supervisor/scope.ts";
 
@@ -12,14 +11,7 @@ export const PRECHECK_OUTPUT_BYTES = 4_096;
  * `XDG_*`, and the names the trigger lists. A never-passed name (the SSH agent, provider keys, forge tokens) stays out
  * even when listed; nothing is `set`.
  */
-export function precheckEnv(
-  base: EnvSource,
-  names: readonly string[],
-  agent?: { readonly proxied: boolean },
-): Record<string, string> {
-  // An agent's precheck runs in its sandbox: the owner's proxy variables never reach it, pap's own proxy only when it has network.
-  if (agent)
-    return unattendedEnv(base, { keep: [...TOOLING_ENV, ...names], set: agent.proxied ? EGRESS_ENV : {} });
+export function precheckEnv(base: EnvSource, names: readonly string[]): Record<string, string> {
   return unattendedEnv(base, { keep: [...NETWORK_ENV, ...TOOLING_ENV, ...names] });
 }
 
@@ -32,15 +24,14 @@ export interface PrecheckSpec {
 /**
  * `/bin/sh -c <command>`: the owner's command as saved, never with payload text in it. `env` is
  * `precheckEnv(process.env, trigger.execution.env)`. A systemd scope (`scopes.next({ kind: "terminal" })`, agreement 9)
- * goes in front of the shell. `wrap` (an agent trigger's sandbox, M11R68) replaces the shell with `[bwrap, ...argv]`.
+ * goes in front of the shell.
  */
 export function precheckSpec(
   command: string,
   env: Record<string, string>,
   scope: ScopeLaunch | null,
-  wrap?: (command: string) => string[],
 ): PrecheckSpec {
-  const shell = wrap ? wrap(command) : ["/bin/sh", "-c", command];
+  const shell = ["/bin/sh", "-c", command];
   return {
     file: scope ? scope.command : (shell[0] as string),
     args: scope ? [...scope.args, ...shell] : shell.slice(1),

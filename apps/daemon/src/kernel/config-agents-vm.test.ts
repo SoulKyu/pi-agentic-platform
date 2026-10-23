@@ -26,17 +26,12 @@ function refusal(env: NodeJS.ProcessEnv): string {
 }
 
 describe("PAP_AGENTS_RUNTIME", () => {
-  it("is host by default, also when empty", () => {
-    expect(loadConfig(input({})).agentsRuntime).toBe("host");
-    expect(loadConfig(input({ PAP_AGENTS_RUNTIME: "" })).agentsRuntime).toBe("host");
-  });
-  it("accepts host and vm", () => {
-    expect(loadConfig(input({ PAP_AGENTS_RUNTIME: "host" })).agentsRuntime).toBe("host");
-    expect(loadConfig(input({ PAP_AGENTS_RUNTIME: "vm" })).agentsRuntime).toBe("vm");
-  });
-  it("refuses another value without echoing it", () => {
-    const message = refusal({ PAP_AGENTS_RUNTIME: "kata-secret" });
-    expect(message).toBe("PAP_AGENTS_RUNTIME must be host or vm");
+  it("reads no runtime from PAP_AGENTS_RUNTIME and flags that it is set", () => {
+    const set = loadConfig(input({ PAP_AGENTS_RUNTIME: "host" }));
+    expect(set.agentsRuntimeSet).toBe(true);
+    expect(set).not.toHaveProperty("agentsRuntime");
+    expect(loadConfig(input({ PAP_AGENTS_RUNTIME: "kata-secret" })).agentsRuntimeSet).toBe(true);
+    expect(loadConfig(input({})).agentsRuntimeSet).toBe(false);
   });
 });
 

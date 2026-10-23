@@ -12,7 +12,9 @@ afterEach(() => bed.stop());
 const ended = (): number => bed.captures().filter((line) => line.startsWith("end after")).length;
 const warnings = (): string[] =>
   bed.lines.flatMap((line) =>
-    (line.level === "warn" || line.level === "error") && line.msg !== "test_provider_enabled"
+    (line.level === "warn" || line.level === "error") &&
+    line.msg !== "test_provider_enabled" &&
+    line.msg !== "agent_vm_bridge_unavailable"
       ? [String(line.msg)]
       : [],
   );

@@ -38,19 +38,21 @@ export function ExecutionSection({ draft, set, errors }: SectionProps) {
         />
       )}
       <EnvList env={draft.env} error={errors["execution.env"] ?? null} onChange={(env) => set({ env })} />
-      <TextField
-        multiline
-        mono
-        rows={2}
-        label={t("automation.editor.precheck")}
-        hint={[
-          t("automation.editor.precheck.hint"),
-          ...(agent ? [t("automation.editor.precheck.agent")] : []),
-        ].join(" ")}
-        error={errors["execution.precheck"] ?? null}
-        value={draft.precheck}
-        onChange={(precheck) => set({ precheck })}
-      />
+      {agent && draft.precheck.trim() === "" ? null : (
+        <TextField
+          multiline
+          mono
+          rows={2}
+          label={t("automation.editor.precheck")}
+          hint={[
+            t("automation.editor.precheck.hint"),
+            ...(agent ? [t("automation.editor.precheck.agent")] : []),
+          ].join(" ")}
+          error={errors["execution.precheck"] ?? null}
+          value={draft.precheck}
+          onChange={(precheck) => set({ precheck })}
+        />
+      )}
       <Segmented
         label={t("automation.editor.interrupted")}
         value={draft.retryOnInterrupt ? "retry" : "no"}

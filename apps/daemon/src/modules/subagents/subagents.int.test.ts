@@ -1,7 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentInput } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { startTestDaemon, type TestDaemon } from "../../testing/harness.ts";
 import type { TestClient } from "../../testing/ws-client.ts";
@@ -12,7 +11,7 @@ import { dialogIdOf, lookupTool, markOf, nextDialog, waitIdle } from "../../secu
 //   A. a plain session's `subagent` call makes a child thread whose scripted answer comes back as the tool result;
 //   B. the child is a session of its own: its Pi file, its parent, its run tagged `subagent`, and no `subagent` tool (depth 1);
 //   C. a tainted parent's child starts tainted and its task reaches it fenced;
-//   D. an agent thread's child keeps the agent: its runs carry the agent id (they count in its budget);
+//   D. (an agent thread's child keeps the agent: `subagents.agent.int.test.ts`, in a VM);
 //   F. a clean parent whose child reads external content ends tainted, with the answer fenced;
 //   E. (last, it changes the setting) with subagents switched off, a new worker registers no tool and a worker started before answers `unavailable`.
 // Every worker takes the script from its first step when it starts, so a phase writes the script of the worker that starts
@@ -214,38 +213,6 @@ describe("subagents in a whole daemon (Task 29b)", () => {
     });
     expect(output.text).toContain(CHILD_TEXT);
     expect(output.text).toContain("<untrusted");
-  });
-
-  it("D: an agent thread's child keeps the agent, so its runs count in the agent's budget", async () => {
-    await freshClient();
-    const agentId = (
-      await call<{ id: string }>("agents.create", {
-        input: AgentInput.parse({ name: "Atlas", preset: "read-only", sandbox: { required: false } }),
-      })
-    ).id;
-    writeScript([subagent("Check the board", "sa3"), { text: "Checked." }]);
-    const thread = (await call<{ sessionId: string }>("agents.openThread", { agentId })).sessionId;
-    writeScript([{ text: CHILD_TEXT }]);
-    await call("subscribe.session", { sessionId: thread });
-    const mark = await prompt(thread, "Check the board.");
-    await waitIdle(client, mark);
-
-    const [run] = runsOf(thread);
-    expect(run).toMatchObject({ state: "done" });
-    const child = run?.child_session_id ?? "";
-    expect(sessionRow(child)).toMatchObject({
-      parent_session_id: thread,
-      agent_id: agentId,
-      agent_role: "child",
-    });
-    await vi.waitFor(() => expect(childRuns(child)).toHaveLength(1), { timeout: 20_000 });
-    expect(childRuns(child)[0]).toMatchObject({
-      origin: "subagent",
-      agent_id: agentId,
-      parent_session_id: thread,
-    });
-    // The child's preset is the thread's: read-only, and still no subagent tool.
-    expect(await toolsOf(child, true)).not.toContain("subagent");
   });
 
   it("F: a clean parent whose child reads external content ends tainted, and gets the answer fenced", async () => {

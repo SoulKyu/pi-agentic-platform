@@ -141,7 +141,8 @@ describe("what the daemon does at boot", () => {
     const { logger, named } = capture();
     const onFatal = vi.fn();
     await boot(ANSWER, { deps: { logger, onFatal } });
-    const instance = listen.mock.contexts[0] as Server;
+    // The gateway of the agent VMs listens first; the HTTP server is the last to listen.
+    const instance = listen.mock.contexts.at(-1) as Server;
     const late = Object.assign(new Error("accept failed for /home/someone/secret"), { code: "EMFILE" });
     expect(() => instance.emit("error", late)).not.toThrow();
     expect(() => instance.emit("error", late)).not.toThrow();

@@ -16,6 +16,7 @@ import {
   type StreamFunction,
 } from "@earendil-works/pi-ai";
 import { z } from "zod";
+import { processChannel, rawChannel } from "./raw-channel.ts";
 
 const ScriptStep = z.object({
   text: z.string().optional(),
@@ -88,17 +89,18 @@ let rawCount = 0;
 let rawListening = false;
 /** Test only: sends the step's raw `platform_call` records and appends the answers to their ids (`r1`, `r2`...) to `captureRawResults`. */
 function sendRaw(script: ProviderScript, step: ScriptStep): void {
-  if (!step.rawPlatformCalls || !process.send) return;
+  const channel = rawChannel() ?? processChannel();
+  if (!step.rawPlatformCalls || !channel) return;
   const file = script.captureRawResults;
   if (file !== undefined && !rawListening) {
     rawListening = true;
-    process.on("message", (record: { type?: string; id?: string }) => {
-      if (record?.type === "platform_result" && record.id?.startsWith("r"))
+    channel.onMessage((record) => {
+      if (record.type === "platform_result" && record.id.startsWith("r"))
         appendFileSync(file, `${JSON.stringify(record)}\n`);
     });
   }
   for (const call of step.rawPlatformCalls)
-    process.send({ type: "platform_call", id: `r${++rawCount}`, ...call });
+    channel.send({ type: "platform_call", id: `r${++rawCount}`, ...call });
 }
 
 const SUMMARIZATION_PROMPT = "You are a context summarization assistant";

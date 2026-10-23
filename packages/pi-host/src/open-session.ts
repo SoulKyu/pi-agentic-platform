@@ -14,7 +14,6 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import { agentPrompt } from "./agent-prompt.ts";
-import { refusalAdviceOf } from "./egress-line.ts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { piBuiltins, signInNotifier } from "./builtins.ts";
@@ -28,12 +27,10 @@ import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./p
 import { UNTRUSTED_RULE } from "./policy/fence.ts";
 import type { Taint } from "./policy/taint.ts";
 import { createPlatformTools, platformFirst, type PlatformPort } from "./platform-tools.ts";
-import type { EgressClient } from "./egress-client.ts";
-import { createSandboxEnvironment, type SandboxEnvironment } from "./sandbox-env.ts";
-import { createSandboxTool, sandboxFirst } from "./sandbox-tool.ts";
 import { createVmFileTools, vmFilesFirst } from "./vm-files/extension.ts";
 import { realVmRoots } from "./policy/vm-paths.ts";
-import { createVmShellTool } from "./vm-shell/tool.ts";
+import type { ShellEnvironment } from "./shell-env.ts";
+import { createVmShellTool, vmShellFirst } from "./vm-shell/tool.ts";
 import { appendMemoryTrust } from "./memory-entry.ts";
 import { applyRelayKey } from "./relay-key.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
@@ -57,6 +54,8 @@ export interface OpenSessionDeps {
   audit(entry: PolicyAuditEntry): void;
   /** The secrets the worker knows (stage 06). */
   readonly secrets: SecretReader;
+  /** The VM shell's vault values and one-use values (ADR 0081); none: the shell gets no secret. */
+  readonly shellEnvironment?: Pick<ShellEnvironment, "envFor">;
   /** Told the active tool names at each `agent_start` (the session entry, M5R15). */
   onAgentStart?(activeToolNames: string[]): void;
   onEvent(event: AgentSessionEvent): void;
@@ -65,10 +64,6 @@ export interface OpenSessionDeps {
   readonly sendLoadout?: (record: Outbound) => unknown;
   /** The way to the daemon for the platform tools of `init.platform.ops`; absent (tests), every call is answered `unavailable`. */
   readonly platform?: PlatformPort;
-  /** The environment of the sandboxed shell, which the host rebuilds on a `vault_update`; absent, one is made from the worker's own (tests). */
-  readonly sandboxEnvironment?: SandboxEnvironment;
-  /** The way to the daemon's egress proxy for a networked sandbox (M11R232): its sockets and the reports the policy reads. */
-  readonly egress?: EgressClient;
   /** Inline extensions that load next to the policy and the Pi built-ins (the policy always runs last): tests. */
   readonly extraExtensions?: readonly InlineExtension[];
   /** Builds the policy extension. Only tests replace it, to prove that a session never starts without it. */
@@ -126,14 +121,14 @@ function requireAgentDirEnv(agentDir: string): void {
   }
 }
 
-/** The prompt's facts (M11R55): the home is the VM's (RT-06), its network the agent's switch (AVM2-E11), else the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
+/** The prompt's facts (M11R55): the home is the VM's (RT-06), its network the agent's switch (AVM2-E11), else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
 function agentFactsOf(init: InitRecord, scratch: string | null, vmNetwork: boolean) {
-  const { agent, sandbox, papHome, vm } = init;
+  const { agent, papHome, vm } = init;
   return {
     name: agent?.name ?? "",
-    home: vm?.layout.home ?? sandbox?.home ?? join(papHome, "agents", agent?.id ?? ""),
+    home: vm?.layout.home ?? join(papHome, "agents", agent?.id ?? ""),
     role: agent?.role ?? "",
-    network: vm ? vmNetwork : (sandbox?.network ?? null),
+    network: vm ? vmNetwork : null,
     scratch,
   };
 }
@@ -179,14 +174,9 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     taint: deps.taint,
     audit: deps.audit,
     secrets: deps.secrets,
-    // R15: pap's shell is the only shell of a VM session, whatever `init.sandbox` says; its network is the agent's switch,
-    // fixed at open (AVM2-E11): the shell, the taint of its results and the prompt all read the same `vmNetwork`.
-    ...(vm
-      ? { vm, sandbox: { network: vmNetwork } }
-      : init.sandbox
-        ? { sandbox: { network: init.sandbox.network } }
-        : {}),
-    ...(deps.egress ? { egress: deps.egress } : {}),
+    // R15: pap's shell is the only shell of a VM session; its network is the agent's switch, fixed at open (AVM2-E11):
+    // the shell, the taint of its results and the prompt all read the same `vmNetwork`.
+    ...(vm ? { vm, sandbox: { network: vmNetwork } } : {}),
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
     papHome,
@@ -196,11 +186,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     ask: (request, signal) => deps.approvals.ask(request, signal),
   });
   const platformOrder = platformFirst(deps.onExtensionError);
-  const sandboxOrder = sandboxFirst(deps.onExtensionError);
-  const vmOrder = vm ? vmFilesFirst(deps.onExtensionError) : undefined;
-  const hostSandbox = vm ? undefined : init.sandbox;
-  const sandboxEnvironment = hostSandbox
-    ? (deps.sandboxEnvironment ?? createSandboxEnvironment(process.env, hostSandbox, init.vault ?? {}))
+  const vmOrder = vm
+    ? { files: vmFilesFirst(deps.onExtensionError), shell: vmShellFirst(deps.onExtensionError) }
     : undefined;
   const trust = projectTrustResolver(agentDir, cwd, deps.onExtensionError, init.agent !== undefined);
   const services = await createAgentSessionServices({
@@ -220,23 +207,15 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         policy,
         ...(chat ? [] : piBuiltins({ showSignInLink })),
         createPresetKeeper(() => created.session),
-        // M11R22: pap's `bash` in bwrap; without a sandbox in the init record, Pi's own.
+        // pap's `bash` and file tools in the VM; an owner session keeps Pi's own.
         ...(init.vm && vm
           ? [
               createVmShellTool(init.vm, {
                 redact: () => deps.secrets.current(),
                 network: vmNetwork,
+                ...(deps.shellEnvironment ? { environment: deps.shellEnvironment } : {}),
               }),
               createVmFileTools(vm.roots, cwd),
-            ]
-          : []),
-        ...(hostSandbox && sandboxEnvironment
-          ? [
-              createSandboxTool(hostSandbox, sandboxEnvironment.envFor, {
-                ...(deps.egress ? { egress: deps.egress } : {}),
-                redact: () => deps.secrets.current(),
-                advice: () => refusalAdviceOf(deps.rules()?.profile, platformOps),
-              }),
             ]
           : []),
         // Loaded in every preset (inline factories always load, M7R74); `applyPreset` decides whether the model sees them.
@@ -253,8 +232,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...(deps.extraExtensions ?? []),
       ],
       extensionsOverride: (base) => {
-        const ordered = sandboxOrder(platformOrder(base));
-        return movePolicyLast(vmOrder ? vmOrder(ordered) : ordered);
+        const ordered = platformOrder(base);
+        return movePolicyLast(vmOrder ? vmOrder.files(vmOrder.shell(ordered)) : ordered);
       },
       // Once, at session creation: Pi's session files do not store the system prompt (M5R42).
       appendSystemPromptOverride: (base) => [

@@ -121,3 +121,13 @@ describe("ExecutionSection: precheck and its variables", () => {
     expect(text(page.container)).toContain("visible text, tabs and new lines only");
   });
 });
+
+describe("ExecutionSection: precheck of an agent target", () => {
+  it("hides the precheck field for an agent unless one is stored", async () => {
+    const empty = await show(initial({ agentId: "atlas-1a2b", target: "isolated" }));
+    expect(text(empty.container)).not.toContain("Precheck");
+    const stored = await show(initial({ agentId: "atlas-1a2b", target: "isolated", precheck: "true" }));
+    expect(text(stored.container)).toContain("Precheck");
+    expect(text(stored.container)).toContain("Prechecks do not run for agents: clear this field.");
+  });
+});

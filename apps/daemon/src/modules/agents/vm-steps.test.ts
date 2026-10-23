@@ -21,6 +21,7 @@ function link(log: string[], fail: ReadonlySet<string> = new Set()): AgentVmLink
     if (fail.has(name)) throw new Error(`${name} failed`);
   };
   return {
+    require: async () => {},
     stop: async (id) => call(`stop:${id}`),
     dispose: async (id, stamp) => call(`dispose:${id}:${stamp}`),
     purge: async (id) => call(`purge:${id}`),

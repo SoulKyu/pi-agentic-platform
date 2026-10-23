@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getRuntime } from "../runtime/index.ts";
 
 export interface VmStatusControl {
-  /** Null until the first answer, and after one that cannot be read: the page then behaves as in host mode. */
+  /** Null until the first answer, and after one that cannot be read: "not read yet", never a mode. */
   readonly status: VmStatusView | null;
   /** Reads `agents.vmStatus` again. */
   reload(): void;

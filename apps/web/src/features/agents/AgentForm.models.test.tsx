@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { AgentInput, EGRESS_UNKNOWN, type AgentView } from "@pap/contracts";
+import { AgentInput, type AgentView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import type { ReactNode } from "react";
 import { act } from "react";
@@ -24,13 +24,6 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
-const probe = {
-  usable: true,
-  path: "/usr/bin/bwrap",
-  reason: null,
-  checkedAt: 5,
-  egress: EGRESS_UNKNOWN,
-} as const;
 const view = (patch: Partial<Parameters<typeof AgentInput.parse>[0]> = {}): AgentView => ({
   id: "atlas-1a2b",
   name: "atlas",
@@ -81,7 +74,7 @@ async function open(agent: AgentView | null, available: unknown = pickable) {
   await mount(
     <TooltipProvider>
       <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
-        <AgentForm agent={agent} probe={probe} presetField={() => null} onSaved={vi.fn()} />
+        <AgentForm agent={agent} presetField={() => null} onSaved={vi.fn()} />
       </StepUpContext.Provider>
     </TooltipProvider>,
   );

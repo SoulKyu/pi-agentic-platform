@@ -22,7 +22,10 @@ let clock: SteppableClock;
 beforeAll(async () => {
   clock = createSteppableClock();
   // $1 000 per million tokens: any reply costs far more than the one cent the agent may spend in a day.
-  t = await startTestDaemon({ prices: { input: 1000, output: 1000 }, steps: STEPS }, { deps: { clock } });
+  t = await startTestDaemon(
+    { prices: { input: 1000, output: 1000 }, steps: STEPS },
+    { deps: { clock }, vm: true },
+  );
   owner = await openOwner(t);
 });
 afterAll(async () => {

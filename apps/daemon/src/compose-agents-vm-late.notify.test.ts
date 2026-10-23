@@ -32,6 +32,7 @@ function bed(thread: string | null, known = true) {
       claudeToken: { status: () => "missing" },
       readOnly: false,
       bindMirrorHooks: () => {},
+      bindTaint: () => {},
     },
     late,
   );

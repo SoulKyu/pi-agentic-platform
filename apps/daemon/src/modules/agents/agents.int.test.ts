@@ -12,7 +12,7 @@ let owner: Owner;
 let bot: TestClient;
 
 beforeAll(async () => {
-  t = await startTestDaemon({ steps: [{ text: "ok" }] });
+  t = await startTestDaemon({ steps: [{ text: "ok" }] }, { vm: true });
   owner = await openOwner(t);
   const minted = await owner.client.call("auth.tokens.create", {
     name: "ci",

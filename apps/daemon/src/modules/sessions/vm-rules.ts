@@ -3,8 +3,6 @@ import type { AgentRuleParts } from "./agent-rules.ts";
 
 /** What a VM session cannot do in sub-project 1, in English for the logs (the French copy is the web catalogs', T19). */
 export const VM_REFUSALS = {
-  /** R11. */
-  vault: "The vault of VM agents arrives with sub-project 2.",
   /** R16. */
   precheck: "Prechecks of a VM agent arrive with sub-project 3.",
   /** R37. */

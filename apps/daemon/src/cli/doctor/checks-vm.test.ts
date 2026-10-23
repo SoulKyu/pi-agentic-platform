@@ -6,7 +6,6 @@ import type { CheckResult, DoctorContext } from "./types.ts";
 
 /*
  * Mutants (RT-43), each run for real in the T18 report:
- *  - M-gate: the `PAP_AGENTS_RUNTIME=vm` gate removed -> "every check skips outside vm mode" fails.
  *  - M-version: `vm.vmd` ignores the version -> the "another version" case fails.
  *  - M-unreachable: `vm.vmd` ok on an unreachable pap-vmd -> the unreachable case fails.
  *  - M-sum: the disk room drops the kept mirrors, or the floor -> the "adds" cases fail.
@@ -69,41 +68,6 @@ describe("the agent VM checks", () => {
     const checks = makeVmChecks(probes());
     expect(checks.map((check) => check.id)).toEqual(IDS);
     expect(checks.every((check) => check.title.length > 0)).toBe(true);
-  });
-
-  it("every check skips outside vm mode, and never asks pap-vmd (M-gate)", async () => {
-    let asked = 0;
-    const counting = probes({
-      stack: async () => (asked++, usable),
-      kvm: () => (asked++, true),
-      images: async () => (asked++, []),
-      reserved: () => (asked++, { agentDisksMb: 0, keptMirrorsMb: 0 }),
-      firewalls: () => (asked++, []),
-      listeners: () => (
-        asked++,
-        {
-          gateway: { listening: false, pid: null },
-          proxy: { listening: false, pid: null },
-          relay: { listening: false, pid: null, parent: null },
-        }
-      ),
-    });
-    for (const check of makeVmChecks(counting)) {
-      for (const context of [ctx(), ctx({ unit: unitWith({ env: { PAP_AGENTS_RUNTIME: "host" } }) })]) {
-        expect(await check.run(context), check.id).toMatchObject({
-          status: "skip",
-          detail: "PAP_AGENTS_RUNTIME is not vm: the agents run on the host",
-        });
-      }
-    }
-    expect(asked).toBe(0);
-  });
-
-  it("reads the mode from the unit when there is one, else from the shell", async () => {
-    const shell = ctx({ env: { PAP_AGENTS_RUNTIME: "vm" } });
-    expect((await run("vm.kvm", {}, shell)).status).toBe("ok");
-    const unitHost = ctx({ unit: unitWith({ env: {} }), env: { PAP_AGENTS_RUNTIME: "vm" } });
-    expect((await run("vm.kvm", {}, unitHost)).status).toBe("skip");
   });
 
   it("a healthy stack is ok on every check", async () => {
@@ -304,17 +268,6 @@ describe("the agent VM checks", () => {
       );
       expect(result.status).toBe("warn");
       expect(result.detail).toContain("7843");
-    });
-    it("is info, with a hint, when the lock is held and only this shell (no unit) says vm", async () => {
-      const idle = only(none, { listening: false, pid: null, parent: null });
-      const shellOnly = ctx({
-        unit: null,
-        env: { PAP_AGENTS_RUNTIME: "vm" },
-        lockHeld: true,
-      });
-      const result = await run("vm.listeners", idle, shellOnly);
-      expect(result.status).toBe("info");
-      expect(result.detail).toContain("PAP_AGENTS_RUNTIME");
     });
     it("tells a warning at boot to be run again", async () => {
       const idle = only(none, { listening: false, pid: null, parent: null });

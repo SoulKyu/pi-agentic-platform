@@ -15,7 +15,7 @@ type Load =
 const HEAD_CLASSES = "label-hud px-s2 py-s1 text-left text-muted";
 
 /**
- * The agent's Files tab (sub-project 2, spec 7), VM mode only: the files pap writes into the agent's home. A row shows the
+ * The agent's Files tab (sub-project 2, spec 7): the files pap writes into the agent's home. A row shows the
  * path, the size and the import date, never the content. IMPORT and REPLACE send the raw file to `PUT /agent-files`;
  * REMOVE is irreversible and asks first.
  */

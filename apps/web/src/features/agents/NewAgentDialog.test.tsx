@@ -1,4 +1,3 @@
-import { EGRESS_UNKNOWN } from "@pap/contracts";
 // @vitest-environment happy-dom
 import { AgentInput, type AgentView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
@@ -29,8 +28,15 @@ const created: AgentView = {
   updatedAt: 1,
 };
 
-async function open() {
+async function open(usable = true) {
   const bed = fakeRuntime();
+  bed.handlers["agents.vmStatus"] = () => ({
+    usable,
+    reason: usable ? null : "no kvm",
+    vmdVersion: null,
+    claudeToken: "missing",
+    agents: [],
+  });
   current.runtime = bed.runtime;
   bed.handlers["agents.create"] = () => created;
   const onClose = vi.fn();
@@ -38,12 +44,7 @@ async function open() {
   await mount(
     <TooltipProvider>
       <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
-        <NewAgentDialog
-          probe={{ usable: true, path: "/usr/bin/bwrap", reason: null, checkedAt: 1, egress: EGRESS_UNKNOWN }}
-          presetField={() => null}
-          onClose={onClose}
-          onCreated={onCreated}
-        />
+        <NewAgentDialog presetField={() => null} onClose={onClose} onCreated={onCreated} />
       </StepUpContext.Provider>
     </TooltipProvider>,
   );
@@ -61,6 +62,15 @@ describe("new agent dialog", () => {
     expect(bed.called("agents.create")).toHaveLength(1);
     expect(onCreated).toHaveBeenCalledWith(created);
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the microVM EmptyState instead of the form when the VM stack is unusable", async () => {
+    const { bed } = await open(false);
+    expect(text(document.body)).toContain(
+      "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.",
+    );
+    expect(document.querySelector("[data-agent-form]")).toBeNull();
+    expect(bed.called("agents.create")).toEqual([]);
   });
 
   it("closes without creating on Cancel", async () => {

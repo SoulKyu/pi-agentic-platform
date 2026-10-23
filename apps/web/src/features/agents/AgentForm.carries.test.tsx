@@ -1,4 +1,3 @@
-import { EGRESS_UNKNOWN } from "@pap/contracts";
 // @vitest-environment happy-dom
 import { AgentInput, type AgentView } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
@@ -26,13 +25,6 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 }));
 
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
-const probe = {
-  usable: true,
-  path: "/usr/bin/bwrap",
-  reason: null,
-  checkedAt: 5,
-  egress: EGRESS_UNKNOWN,
-} as const;
 const view = (patch: Partial<Parameters<typeof AgentInput.parse>[0]> = {}, revision = 3): AgentView => ({
   id: "atlas-1a2b",
   name: "atlas",
@@ -60,7 +52,6 @@ async function open(agent: AgentView | null, onReload?: () => Promise<AgentView 
       <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
         <AgentForm
           agent={agent}
-          probe={probe}
           presetField={() => null}
           onSaved={vi.fn()}
           {...(onReload ? { onReload } : {})}

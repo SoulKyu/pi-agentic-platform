@@ -16,7 +16,6 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 }));
 
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
-const usable = { usable: true, path: "/usr/bin/bwrap", reason: null, checkedAt: 5 };
 
 const summary = (id: string, name: string, patch: Partial<AgentSummary> = {}): AgentSummary => ({
   id,
@@ -50,7 +49,6 @@ const snapshot = (agents: AgentSummary[]) =>
 async function open(agents: AgentSummary[] | null = [], views: Record<string, AgentView> = {}) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["agents.sandboxStatus"] = () => usable;
   bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["agents.get"] = (params) => {
     const found = views[(params as { agentId: string }).agentId];
@@ -113,10 +111,9 @@ describe("Settings › Agents: the list", () => {
     expect(body()).toContain("The agents list could not be read.");
   });
 
-  it("shows the sandbox under the list, read once and not through a second subscription", async () => {
+  it("reads the VM status once under the list, not through a second subscription", async () => {
     const { bed } = await open([summary("atlas-1a2b", "atlas")]);
-    expect(body()).toContain("Ready: bubblewrap at /usr/bin/bwrap");
-    expect(bed.called("agents.sandboxStatus")).toHaveLength(1);
+    expect(bed.called("agents.vmStatus")).toHaveLength(1);
     expect(bed.called("subscribe.agents")).toEqual([]);
     expect(bed.called("agents.list")).toEqual([]);
   });
@@ -135,13 +132,6 @@ describe("Settings › Agents: New agent (M11R96 entry point)", () => {
     expect(bed.called("agents.create")).toHaveLength(1);
     expect(hasButton(document.body, "All agents")).toBe(true);
     expect(bed.called("agents.get")).toHaveLength(1);
-  });
-
-  it("hands the dialog the probe the page reads, not a second one", async () => {
-    const { bed } = await open([]);
-    await click(button(document.body, "New agent"));
-    expect(body()).toContain("bubblewrap found at /usr/bin/bwrap");
-    expect(bed.called("agents.sandboxStatus")).toHaveLength(1);
   });
 });
 
@@ -292,13 +282,12 @@ describe("Settings › Agents: one agent", () => {
 });
 
 describe("Settings › Agents: the trash entry (J1b)", () => {
-  const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+  const vm = { usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
   const trashed = { agents: [{ agentId: "atlas-1a2b", name: "Atlas", deletedAt: 1 }] };
 
   it("shows a deleted agent's 'Purge now' in VM mode, after the delete note is gone", async () => {
     const bed = fakeRuntime();
     current.runtime = bed.runtime;
-    bed.handlers["agents.sandboxStatus"] = () => usable;
     bed.handlers["agents.vmStatus"] = () => vm;
     bed.handlers["agents.trash"] = () => trashed;
     snapshot([]);

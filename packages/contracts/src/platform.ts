@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { TrustedHost } from "./policy.ts";
-import { SandboxSpec } from "./sandbox.ts";
 import { isVaultName } from "./vault-names.ts";
 
 /**
@@ -303,12 +302,10 @@ export const InitPlatform = z
 export const InitAgent = z.object({ id: AgentId, name: AgentName, role: z.string().max(20_000) }).strict();
 
 /**
- * The M11 fields of the init record (M11R8), spread into `InitRecord`. `sandbox` present: the shell is pap's sandboxed
- * one, with the spec's view and writable folder. The daemon never logs an init record: `vault` and `once` hold secrets.
+ * The M11 fields of the init record (M11R8), spread into `InitRecord`. The daemon never logs an init record: `vault` and `once` hold secrets.
  */
 export const INIT_PLATFORM_FIELDS = {
   platform: InitPlatform,
-  sandbox: SandboxSpec.optional(),
   vault: VaultValues.optional(),
   once: OnceValues.optional(),
   agent: InitAgent.optional(),

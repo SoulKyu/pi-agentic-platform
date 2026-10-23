@@ -2,12 +2,12 @@
 
 `pap doctor [--json] [--only id[,id...]] [--unit <name>] [--home <abs dir>]` reads the machine and the install and says what is wrong, with the command that fixes it. It works while pap runs and never needs it stopped.
 
-Decisions: ADR 0067; rulings M6bR24 to M6bR28 in `docs/research/m6b-rulings.md`. The daily update check is in `update.md`. Inside the container image the entrypoint runs `pap doctor --only bwrap` at start (ADR 0065).
+Decisions: ADR 0067; rulings M6bR24 to M6bR28 in `docs/research/m6b-rulings.md`. The daily update check is in `update.md`.
 
 ## Read-only
 
-- It creates and changes nothing (the only exception is the `bwrap` probe's temporary folder, below): no `mkdir`, no `writeFile`, no lock taken, no `-wal` or `-shm` next to `state.db`. A home that does not exist is reported, not created.
-- The child programs are `systemctl --user` (`show`, `cat`, `is-*`, `show-environment`), `loginctl show-user` and `journalctl --user`, each with a timeout and an output cap, started with an argument list; and, for `bwrap`, the sandbox probe starts bubblewrap itself (5 s limit, below).
+- It creates and changes nothing: no `mkdir`, no `writeFile`, no lock taken, no `-wal` or `-shm` next to `state.db`. A home that does not exist is reported, not created.
+- The child programs are `systemctl --user` (`show`, `cat`, `is-*`, `show-environment`), `loginctl show-user` and `journalctl --user`, each with a timeout and an output cap, started with an argument list.
 - A check that throws is a `fail` ("the check could not run", fix "report this") and the others still run. A check that does not answer in 10 s is a `warn` ("timed out"); the timer reports it, it does not cancel a synchronous `statfs` on a hung mount, so `disk` on a hung mount can hold the command until the mount answers.
 - No message carries a child's raw error text, and the output carries no control character.
 
@@ -41,7 +41,7 @@ The `journal` check never prints a journal line (the first start writes a one-ti
 
 ## Daemon checks
 
-They read the home, never write it. The order of the whole list is the order of the output: the seven system checks, then `schema`, `update_pending`, `backup`, `bwrap`, `python3`, `update_available` (`https` and `push` sit between `backup` and `bwrap`, built from `pushReadiness` in `kernel/push-readiness.ts`).
+They read the home, never write it. The order of the whole list is the order of the output: the seven system checks, then `schema`, `update_pending`, `backup`, `update_available` (`https` and `push` sit between `backup` and `update_available`, built from `pushReadiness` in `kernel/push-readiness.ts`).
 
 | id | what it looks at | `fail` | `warn` | `info` |
 |---|---|---|---|---|
@@ -50,15 +50,13 @@ They read the home, never write it. The order of the whole list is the order of 
 | `backup` | `update/last-backup.json` as `pap backup` writes it (strict: `createdAt`, `file`, `encrypted`, `secrets` = `included` or `excluded`; a value with a character outside a plain charset reads as unreadable and is never shown) and the size of the `pap-backup-*` files in `$PAP_HOME/backups/`. Backups written with `--out` are not counted | | older than 30 days (compared in milliseconds); the record is unreadable | none made with `pap backup`; more than 2 GiB of backups (`pap backup --keep N`); the `backups/` folder cannot be read |
 | `https` | `listenFacts` (below) through the push readiness function | | plain HTTP, or an origin that does not match | `http://localhost` works on this machine only |
 | `push` | the same readiness, plus `secrets/push/vapid.json` by `lstat`: absent is ok (created at the first start); a regular file of mode 0600 in a folder of mode 0700, both owned by the user, is ok | | push is off (`keys_unreadable`, or the readiness above); never `fail` | localhost only |
-| `bwrap` | the real sandbox probe (never a PATH scan) with `PAP_BWRAP` of the unit | | missing; not root-owned; the probe is refused (in a container: `--security-opt systempaths=unconfined`, `scripts/pap-container.sh run`; on Ubuntu `kernel.apparmor_restrict_unprivileged_userns`); no answer in 5 s | |
-| `python3` | a root-owned `python3` in `/usr/bin`, `/usr/local/bin` or `/bin` (`trustedBinary`; it is not run) | | none: networked agents need it | |
 | `update_available` | `update/last-check.json`, written by the daily check (on by default; `PAP_UPDATE_CHECK=0` turns it off) or with `PAP_UPDATE_CHECK=1`; no network call | | | |
 
 `update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
 
 ## Agent VM checks
 
-They apply only when the unit (else the shell) sets `PAP_AGENTS_RUNTIME=vm`; otherwise each is `skip` ("the agents run on the host"). They run last. The root-only facts (the ruleset, pap0, the state folder's free space) come from pap-vmd's `vmd.health`, because doctor runs as pap's user. When pap-vmd does not answer, `vm.vmd` fails and the checks that need it are `skip` ("pap-vmd does not answer"). The sentences of `vm.vmd`, `vm.stack` and `vm.network` are the ones `agents.vmStatus` returns, and a launch is refused `sandbox_unavailable` while one of them fails.
+They run whatever the environment says: every agent is a VM. They run last. The root-only facts (the ruleset, pap0, the state folder's free space) come from pap-vmd's `vmd.health`, because doctor runs as pap's user. When pap-vmd does not answer, `vm.vmd` fails and the checks that need it are `skip` ("pap-vmd does not answer"). The sentences of `vm.vmd`, `vm.stack` and `vm.network` are the ones `agents.vmStatus` returns, and a launch is refused `sandbox_unavailable` while one of them fails.
 
 | id | what it looks at | `fail` | `warn` | `info` |
 |---|---|---|---|---|
@@ -70,10 +68,12 @@ They apply only when the unit (else the shell) sets `PAP_AGENTS_RUNTIME=vm`; oth
 | `vm.disk` | the state folder's free space against the agents' disks (4096 MB for a profile that names none) plus the kept mirrors (`agents/.mirrors/*/replaced`) plus `PAP_MIN_FREE_DISK_MB` | | less free space than that sum (disks are sparse: it is the worst case) | |
 | `vm.listeners` | who holds the sockets on 10.213.0.1:7841, :7842 and :7843 (the proxy must be the gateway's own process; a missing proxy port while the gateway listens is a warning: the VMs reach no host) (`/proc/net/tcp` and `tcp6`, then the fd tables of the user's processes): the relay's holder must be a child of the gateway's | held by a process that is not pap's (the daemon refuses launches too: `relay_listener_foreign`) | only the gateway listens, or pap runs and nothing listens | pap is not running |
 | `vm.firewall` | `ufw` (`/etc/ufw/ufw.conf`) or `firewalld` (its pid file) is active | | active: it can drop ports 7841, 7842 and 7843 on `pap0` (the fix lists the allow rule) | |
+| `vm.bundle` | the digest of `/opt/pap-vm/agent-bundle` equals the one of the agent bundle built with this pap (the `dist-agent` folder under `packages/pi-host`) | | different or not installed: `sudo pap vm setup`, then open the thread again | this pap has no bundle of its own to compare |
+| `vm.hostMade` | no agent's thread file lies outside the mirrors (`agents/.mirrors/<id>/`); a thread never prompted has no file and passes | | an agent made in host mode, listed by name: delete it and create it again | |
+| `vm.runtimeVar` | neither the unit nor the shell sets `PAP_AGENTS_RUNTIME` | | it is set and ignored: every agent runs in a microVM | |
 
-`vm.listeners` is `info` (not a warning) while another daemon holds the home's lock and only your shell sets `PAP_AGENTS_RUNTIME=vm` (no unit says so: the preview server running beside a shell that forces vm mode, for one). With a unit that sets it, nothing on the sockets while pap runs is a warning, and it shows for a moment at boot before the relay binds: run doctor again. Topic note: `agents-vm.md`.
+With a unit installed, nothing on the sockets while pap runs is a warning, and it shows for a moment at boot before the relay binds: run doctor again. Topic note: `agents-vm.md`.
 
-The `bwrap` probe starts bubblewrap, and makes and removes one temporary folder in `os.tmpdir()`; it is the only thing doctor creates, and nothing under the home.
 
 `https` and `push` read where pap says it is reached from the unit (`listenFacts`): `PAP_PUBLIC_ORIGIN` of the unit's environment (the shell's only when no unit is installed), else `scheme://host:port` with `localhost` for a loopback or wildcard `--host`, the unit's port (7777 by default), `https` with `--tls-cert`, and `--insecure-http`. The fix names `docs/agents/notifications.md#https` and the routes in order: the ngrok origin, `tailscale serve`, a reverse proxy through `PAP_PUBLIC_ORIGIN`, then `--tls-cert`; each is printed once (`push` points at the anchor). When the unit is installed but pap cannot parse it (a hand-written `ExecStart`, for example with a relative main path), both lines are `info`: "cannot read the listen flags of <unit>", with the flags to check by hand; they never claim localhost.
 

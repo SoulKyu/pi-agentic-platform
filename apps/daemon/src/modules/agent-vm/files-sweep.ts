@@ -5,8 +5,8 @@ import { TRASH_KEEP_MS } from "./trash.ts";
 const DAY_MS = 86_400_000;
 
 /**
- * At start and once a day, what is older than 7 days leaves `$PAP_HOME/secrets/agent-files/.trash`. It runs in host mode too:
- * the import route and a delete's move to the trash do not depend on the runtime. (A VM's trash sweep does the same, harmlessly.)
+ * At start and once a day, what is older than 7 days leaves `$PAP_HOME/secrets/agent-files/.trash`. The import route and a delete's move
+ * to the trash do not depend on the VM runtime. (A VM's trash sweep does the same, harmlessly.)
  * Returns the way to stop.
  */
 export function startFilesTrashSweep(deps: {

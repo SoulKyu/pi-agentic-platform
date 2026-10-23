@@ -67,18 +67,17 @@ describe("RunsAsField", () => {
     expect(text(page.container)).toContain("Allowed tools");
   });
 
-  it("says the precheck always runs in the agent's sandbox, for an agent only", async () => {
-    const agent = await show(initial({ agentId: ATLAS.id, target: "isolated" }));
-    expect(text(agent.container)).toContain("always runs in the agent's sandbox");
-    expect(text(agent.container)).toContain("usable bwrap");
-    const project = await show(initial());
-    expect(text(project.container)).not.toContain("always runs in the agent's sandbox");
+  it("says prechecks do not run for agents, on a stored precheck of an agent only", async () => {
+    const agent = await show(initial({ agentId: ATLAS.id, target: "isolated", precheck: "true" }));
+    expect(text(agent.container)).toContain("Prechecks do not run for agents: clear this field.");
+    const project = await show(initial({ precheck: "true" }));
+    expect(text(project.container)).not.toContain("Prechecks do not run for agents");
   });
 
   it("hides the Mode control for a thread target, keeps it for isolated, and keeps the precheck", async () => {
     const thread = await show(initial({ agentId: ATLAS.id, target: "thread", sourceType: "manual" }));
     expect(segmentOn(thread.container, "Approval mode")).toBeNull();
-    expect(text(thread.container)).toContain("Precheck");
+    expect(text(thread.container)).not.toContain("Precheck");
     const isolated = await show(initial({ agentId: ATLAS.id, target: "isolated" }));
     expect(segmentOn(isolated.container, "Approval mode")).not.toBeNull();
   });

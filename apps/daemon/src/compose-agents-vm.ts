@@ -1,14 +1,22 @@
-import { AGENT_NET, PapError, type VmLayout } from "@pap/contracts";
+import { PapError, type VmLayout } from "@pap/contracts";
 import { scriptCopier } from "./compose-agents-vm-script.ts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
-import { composeVmProxy } from "./compose-agents-vm-proxy.ts";
+import { composeVmProxy, type VmProxySeams } from "./compose-agents-vm-proxy.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
-import { awaitBridge, composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { awaitBridge, composeKata, listenGateway, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { kataSeamsOf, startProxy } from "./compose-agents-vm-socket.ts";
+import { warnAgentsRuntimeIgnored } from "./compose-agents-runtime-warn.ts";
 import { eachOwnTry } from "./compose-agents-vm-hooks.ts";
 import { composeMirrors } from "./compose-agents-vm-mirrors.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
-import { composeVmStatus, guardedLaunch, resourceHostOf } from "./compose-agents-vm-status.ts";
+import {
+  composeVmStatus,
+  guardedLaunch,
+  relayGateOf,
+  resourceHostOf,
+  skewOf,
+} from "./compose-agents-vm-status.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Logger } from "./kernel/logger.ts";
@@ -26,6 +34,7 @@ import {
   layoutOf,
   type MirrorHooks,
   relayListenOf,
+  type BundleSkew,
   type RelayChild,
   type RelayLink,
   type VmSpec,
@@ -45,9 +54,12 @@ export interface AgentsVmCore {
   readonly config: Pick<
     Config,
     | "home"
-    | "agentsRuntime"
+    | "agentsRuntimeSet"
     | "agentsMemoryMaxMb"
     | "testAgentRuntime"
+    | "testVmdSocket"
+    | "dev"
+    | "devVmd"
     | "testProviderScript"
     | "workerIdleMs"
     | "minFreeDiskMb"
@@ -67,7 +79,7 @@ export interface AgentsVmCore {
   readonly agentFiles?: AgentFilesPort | undefined;
 }
 
-/** What a test, or a later task, supplies to the composition; nothing is needed in host mode. */
+/** What a test, or a later task, supplies to the composition. */
 export interface AgentsVmSeams {
   /** `PAP_TEST_AGENT_RUNTIME=process`: how the guest starts (J1 wires the real entry). */
   readonly process?: { guestEntry: string; execArgv: readonly string[]; imageAgentSource: string };
@@ -92,6 +104,8 @@ export interface AgentsVmSeams {
   };
   /** Tests only: handed the composition once it is built (the int beds stop a VM or wait for the relay through it). */
   readonly expose?: (vm: AgentsVm) => void;
+  readonly bundleSkew?: BundleSkew; // tests only: replaces the stale-bundle check
+  readonly proxy?: VmProxySeams; // tests only: the VMs' proxy network seams
   /** The relay child's node flags (default: the workers'); a test whose workers carry the network guard gives its own. */
   readonly relayExecArgv?: readonly string[];
 }
@@ -103,19 +117,11 @@ export interface AgentsVm {
   readonly launch: VmLaunch;
   /** The shared VM predicate: a row's layout, null for a row that is not an agent's (R15). */
   vmLayoutOf(row: SessionRow): VmLayout | null;
-  /** By agent (the gate, the prompt chips): every agent runs in a VM in this mode. Not the agent port's `runsInVm`, which is by session. */
-  agentRunsInVm(ownerId: string, agentId: string): boolean;
   /** The mirrors of the VM session files (R23): `inputFor` is the launcher's. */
   readonly mirrors: MirrorInputs;
-  /**
-   * Where a mirror's notices and taints go (R14, R32): the sessions that post and taint are composed after this, so they are
-   * bound later. Until then a notice or a taint is logged, never lost silently.
-   */
+  /** Where a mirror's notices and taints go (R14, R32): composed after the sessions, so bound later; until then logged. */
   bindMirrorHooks(hooks: MirrorHooks): void;
-  /**
-   * What exists only after the sessions, the models and the agents (AVM-E21, T12): binds the mirror's notice and taint to the
-   * sessions, and the relay's per-agent policy to the models, the agents' pause and budget and the runs.
-   */
+  /** What exists only after the sessions, models and agents (AVM-E21, T12): the mirror's hooks, the proxy's taint, the relay's policy. */
   bindLate(late: AgentsVmLate): void;
   /** The relay link, or null when the composition runs without one (`relay: "off"`). Tests wait on `whenReady`. */
   readonly relay: RelayLink | null;
@@ -125,8 +131,9 @@ export interface AgentsVm {
   resourceHost(): { memoryCapMb: number; cores: number };
   /** At save, an agent's package picks (ids) must be ones the owner's Pi packages hold (AVM-E33); fails closed before the late binding. */
   checkPackages(ids: readonly string[]): Promise<void>;
-  /** Where the gateway listens (the process backend's loopback port). */
+  /** Where the gateway and the egress proxy listen (the process backend's loopback ports). */
   readonly gatewayPort: number;
+  readonly proxyPort: number;
   /** What the agents module asks of the VM runtime: stops, a delete's disk and mirrors, "Purge now", Resume (T15). */
   readonly agentLink: AgentVmLink;
   /** Where the runtime's crash pause goes (RT-40): the agents' registry and Inbox, which are built after this. Until then it is logged. */
@@ -141,17 +148,17 @@ const notBound = (): never => {
 };
 
 /**
- * `PAP_AGENTS_RUNTIME=vm` (T8a): the launch tokens, the gateway, the runtime and the agents' launcher. The gateway listens
- * before this returns, so before the daemon accepts a connection and no local user can take its port first (RT-35); the boot
- * `stopAll` runs before any spawn (RT-42), and a failure of it stops the boot. In `host` mode it composes nothing.
+ * Agents run in VMs (T8a): the launch tokens, the gateway, the runtime and the agents' launcher. The gateway listens before this
+ * returns (RT-35), and the boot `stopAll` runs before any spawn (RT-42). No usable stack (no pap-vmd, a held port): it composes on
+ * loopback with an unusable status, and nothing is stopped.
  */
 export async function composeAgentsVm(
   core: AgentsVmCore,
   closers: Array<{ readonly name: string; close(): void | Promise<void> }>,
   seams: AgentsVmSeams = {},
-): Promise<AgentsVm | null> {
+): Promise<AgentsVm> {
   const { config, clock, logger } = core;
-  if (config.agentsRuntime !== "vm") return null;
+  warnAgentsRuntimeIgnored(config, logger);
   // A test backend, else the test process backend, else Kata through pap-vmd.
   if (seams.backend === undefined && config.testAgentRuntime === "process") {
     if (seams.process === undefined) throw new Error("the process backend needs the guest seam");
@@ -173,25 +180,19 @@ export async function composeAgentsVm(
     seams.backend === undefined && config.testAgentRuntime !== "process"
       ? composeKata(
           { home: config.home, piAgentDir: config.piAgentDir, clock, logger: agentsLogger, ownerSecrets },
-          seams.kata ?? {},
+          kataSeamsOf(config, seams.kata),
           notice,
         )
       : null;
-  // R34: the gateway listens on the bridge's host address, which exists once pap-vmd has made pap0. No pap-vmd, no boot.
-  if (kata) await awaitBridge(kata, agentsLogger);
-  const bind = kata?.gatewayBind ?? { host: "127.0.0.1", port: 0 };
+  // R34: the gateway listens on pap0's address (pap-vmd makes it). No pap-vmd: loopback, an unusable status, no failed boot.
+  const bridgeSeen = kata ? await awaitBridge(kata, agentsLogger) : true;
   const tokens = createLaunchTokens();
   // AVM-P8: the gateway reads the image of a launch through the runtime, which exists after it (no cycle).
   let imageOf: AgentRuntime["imageOf"] = () => null;
   const gateway = createGateway({ tokens, clock, logger: agentsLogger, imageOf: (id) => imageOf(id) });
-  const { port } = await gateway.listen(bind.host, bind.port).catch((error: unknown) => {
-    if (kata === null) throw error;
-    // M9a: the bridge address belongs to pap0, which pap-vmd makes; another process may also hold the port.
-    throw new Error(
-      `the gateway cannot listen on ${bind.host}:${bind.port} (pap0 is made by pap-vmd: run \`sudo pap vm setup\`, start pap-vmd; or another process holds the port)`,
-      { cause: error },
-    );
-  });
+  const onBridge = (bridgeSeen && kata?.gatewayBind) || null;
+  const { bind, port, down: unbound } = await listenGateway(gateway, kata !== null, onBridge, agentsLogger);
+  let down = unbound;
   const address = () => ({ host: bind.host, port });
   let proxyPort = 0; // set once the proxy listens (process mode: loopback)
   try {
@@ -225,8 +226,9 @@ export async function composeAgentsVm(
     const proxy = composeVmProxy({
       clock,
       logger: agentsLogger,
-      bind: kata?.proxyBind,
-      hostsOf: (agentId) => lateHolder.late?.hostsOf(agentId) ?? null,
+      bind: down ? undefined : kata?.proxyBind,
+      late: () => lateHolder.late,
+      seams: seams.proxy,
       closers,
     });
     const relay = composeRelay({
@@ -239,8 +241,8 @@ export async function composeAgentsVm(
       testProviderScript: config.testProviderScript,
       claudeToken: core.claudeToken,
       ownerSecrets,
-      bridgeAddress: kata !== null,
-      relay: seams.relay,
+      bridgeAddress: kata !== null && !down,
+      relay: down ? "off" : seams.relay,
       relayExecArgv: seams.relayExecArgv,
       bridgeReady: seams.bridgeReady ?? (kata ? () => kata.bridgeReady() : undefined),
       late: () => lateHolder.late,
@@ -259,7 +261,6 @@ export async function composeAgentsVm(
       memoryCapMb: config.agentsMemoryMaxMb,
       idleMs: config.workerIdleMs,
       layout: (spec) => layoutOf(layoutBackend, config.home, spec),
-      // The capacity notice is T18's (the agents screen).
       // Each in its own try (M3): a throw of the relay must not leave the proxy with a stale address.
       onLaunch: (grant) =>
         eachOwnTry(agentsLogger, "agent_vm_launch_hook_failed", grant.launchId, [
@@ -279,9 +280,13 @@ export async function composeAgentsVm(
     });
     delivery.live(runtime);
     imageOf = runtime.imageOf;
-    const vmStatus = composeVmStatus(core, kata?.client ?? null, runtime);
-    await runtime.stopAll();
-    proxyPort = await proxy.start();
+    const vmStatus = composeVmStatus(core, kata?.client ?? null, runtime, {
+      ...seams.kata,
+      down: () => down,
+    });
+    if (!down) await runtime.stopAll();
+    proxyPort = await startProxy(proxy, kata !== null, agentsLogger);
+    down ||= proxyPort === 0; // a bound listener never answers port 0
     const { own, mirrors, bindHooks } = composeMirrors({
       mirrors: seams.mirrors,
       home: config.home,
@@ -291,7 +296,7 @@ export async function composeAgentsVm(
     });
     own?.start();
     if (own) closers.push({ name: "agent_mirrors", close: () => own.close() });
-    if (relay) {
+    if (relay && !down) {
       closers.push({ name: "agent_relay", close: () => relay.stop() });
       void relay.start().catch((error: unknown) =>
         agentsLogger.error("relay_start_failed", {
@@ -309,7 +314,7 @@ export async function composeAgentsVm(
       name: "agent_vm",
       close: async () => {
         try {
-          await runtime.stopAll();
+          if (!down) await runtime.stopAll();
         } finally {
           await gateway.close();
         }
@@ -318,6 +323,7 @@ export async function composeAgentsVm(
     const agentLink = composeAgentsLink({
       runtime,
       client: kata?.client ?? null,
+      require: () => vmStatus.status.require(),
       stopVm: (agentId, taskKey) => (kata ? kata.backend.stop(agentId, taskKey) : Promise.resolve()),
       papHome: config.home,
       clock,
@@ -335,6 +341,7 @@ export async function composeAgentsVm(
       runtime,
       papHome: config.home,
       layoutOf: vmLayoutOf,
+      joinLaunch: proxy.join,
       imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
       mirrors,
       recheck: (ownerId, agentId) =>
@@ -352,13 +359,8 @@ export async function composeAgentsVm(
       launch: guardedLaunch(
         baseLaunch,
         vmStatus.status,
-        kata && relay
-          ? {
-              ready: () => relay.port() === AGENT_NET.relayPort,
-              whenReady: (signal) => relay.whenReady(signal),
-              clock,
-            }
-          : undefined,
+        kata && relay && !down ? relayGateOf(relay, clock) : undefined,
+        seams.bundleSkew ?? (kata ? skewOf(kata.images, agentsLogger) : undefined),
       ),
       vmLayoutOf,
       mirrors,
@@ -374,16 +376,17 @@ export async function composeAgentsVm(
             claudeToken: core.claudeToken,
             readOnly: core.readOnly,
             bindMirrorHooks: bindHooks,
+            bindTaint: proxy.bindTaint,
           },
           late,
         );
       },
       relay,
-      agentRunsInVm: () => true,
       status: vmStatus.status,
       resourceHost: resourceHostOf(config),
       checkPackages: (ids) => (lateHolder.late ? lateHolder.late.checkPackages(ids) : notBound()),
       gatewayPort: port,
+      proxyPort,
       agentLink: agentLink.link,
       bindCrashPause: (handler) => void (crashPause = handler),
       bindRefusals: proxy.bindRefusals,

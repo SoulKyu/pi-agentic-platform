@@ -54,7 +54,7 @@ export interface PolicyConfig {
   shell?: () => ShellFacts;
   /** Redacts audit arguments; by default what `secrets` knows. */
   redact?: PipelineDeps["redact"];
-  /** The session's sandbox (`init.sandbox`): its network decides whether the sandboxed `bash` taints (M11R25). */
+  /** The VM session's sandbox: its network decides whether the sandboxed `bash` taints (M11R25). */
   sandbox?: { readonly network: boolean };
   /** A worker in an agent's VM: its layout and real file roots (`init.vm`). The VM file stage and the facts of `VM_FILES_SOURCE` tools read it. */
   vm?: PipelineDeps["vm"];

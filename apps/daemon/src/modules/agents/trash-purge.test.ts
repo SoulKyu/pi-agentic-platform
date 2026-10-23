@@ -14,6 +14,7 @@ afterEach(() => bed.dispose());
 
 const calls: string[] = [];
 const link = (fail = false): AgentVmLink => ({
+  require: async () => {},
   stop: async () => {},
   dispose: async () => {},
   purge: async (id) => {

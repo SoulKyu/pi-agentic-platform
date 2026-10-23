@@ -39,7 +39,6 @@ interface Options {
   args?: string[];
   rootName?: string;
   nodeFails?: boolean;
-  ownBwrap?: boolean;
 }
 
 function setup(options: Options = {}) {
@@ -83,8 +82,6 @@ function setup(options: Options = {}) {
   exe(join(tools, "systemctl"), options.systemctlFails ? "exit 1" : "exit 0");
   for (const tool of ["gcc", "g++", "make", "python3"]) exe(join(tools, tool), "exit 0");
   for (const name of options.missing ?? []) rmSync(join(tools, name));
-  const ownBwrap = join(root, "bwrap");
-  if (options.ownBwrap) exe(ownBwrap, "exit 0");
   const elsewhere = join(root, "elsewhere");
   mkdirSync(elsewhere);
   const run = () =>
@@ -94,7 +91,6 @@ function setup(options: Options = {}) {
         HOME: root,
         LOG: log,
         FAKE_NODE: options.nodeVersion ?? "24.14.1",
-        ...(options.ownBwrap ? { PAP_BWRAP: ownBwrap } : {}),
         ...options.env,
       },
       encoding: "utf8",
@@ -216,32 +212,11 @@ describe("scripts/install.sh", () => {
     expect(t.lines()).toEqual([]);
   });
 
-  const HINT =
-    "pap-install: warning: bubblewrap not found: agents that require the sandbox will not start (sudo apt install bubblewrap)";
-
-  it("warns, never refuses, when bubblewrap is missing", () => {
-    const result = setup({ env: { PAP_BWRAP: "/nonexistent/bwrap" } }).run();
-    expect(result.status).toBe(0);
-    expect(result.stderr).toBe(`${HINT}\n`);
-  });
-
-  it.skipIf(process.getuid?.() === 0)("warns, never refuses, when bubblewrap is not root-owned", () => {
-    const result = setup({ ownBwrap: true }).run();
-    expect(result.status).toBe(0);
-    expect(result.stderr).toBe(`${HINT}\n`);
-  });
-
-  it("does not warn when bubblewrap is an executable owned by root", () => {
-    const result = setup({ env: { PAP_BWRAP: "/usr/bin/true" } }).run();
+  it("needs no bubblewrap and no sudo: a clean install prints nothing on stderr", () => {
+    const result = setup().run();
     expect(result.status).toBe(0);
     expect(result.stderr).toBe("");
-  });
-
-  it("mentions sudo only inside the bubblewrap hint line", () => {
-    const sudoLines = readFileSync(SCRIPT, "utf8")
-      .split("\n")
-      .filter((line) => line.includes("sudo"));
-    expect(sudoLines).toHaveLength(1);
-    expect(sudoLines[0]).toContain("bubblewrap not found");
+    const source = readFileSync(SCRIPT, "utf8");
+    expect(source).not.toMatch(/bwrap|bubblewrap|sudo/i);
   });
 });

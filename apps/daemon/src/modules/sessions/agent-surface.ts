@@ -5,22 +5,18 @@ import {
   opsFor,
   PapError,
   type PlatformOp,
-  type PolicyRules,
-  type SandboxSpec,
   type ToolPreset,
   VaultUpdateRecord,
   type VmLayout,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import type { EgressScope } from "../egress/index.ts";
 import type { PlatformPort } from "../platform/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import {
   type AgentGateDeps,
   type AgentLaunch,
   agentGate,
-  agentPrecheckSandbox,
   type AgentProfile,
   type SessionsAgentDeps,
 } from "./agent-gate.ts";
@@ -30,7 +26,6 @@ import { narrowPreset } from "./preset-clamp.ts";
 import { type ApprovedCalls, createApprovedCalls, isPlatformTool } from "./approved-calls.ts";
 import { AUTOMATION_CREDENTIAL } from "./automation-port.ts";
 import type { ApprovedAnswer } from "./dialogs.ts";
-import { type EgressPort, egressScopeOf } from "./egress-link.ts";
 import { createHostGrants, type HostGrants } from "./host-grants.ts";
 import type { LiveSession } from "./live-session.ts";
 import { type SessionKind, sessionKind } from "./session-kind.ts";
@@ -45,7 +40,7 @@ export interface SessionsAgentPorts {
   platform?: PlatformPort | undefined;
   /** The row's folder is inside one of the owner's lane worktrees (the lanes module's records). */
   inLane?: ((ownerId: string, cwd: string) => boolean) | undefined;
-  /** The agents registry, the vault and the sandbox probe: the launch gate of every agent session (M11R53). */
+  /** The agents registry, the vault and the VM predicates: the launch gate of every agent session (M11R53). */
   agents?: SessionsAgentDeps | undefined;
 }
 
@@ -72,9 +67,9 @@ export interface AgentSurface {
   /** A worker started with this profile and keeps it until it exits (M11R47, W5-R26). */
   started(sessionId: string, profile: AgentProfile): void;
   ended(sessionId: string): void;
-  /** The worker of this session started with the sandbox on (its start-time profile requires it): the only workers a vault reaches. */
+  /** The session has a live worker started by the gate (every agent session is a VM one): the workers a vault reaches. */
   sandboxed(sessionId: string): boolean;
-  /** R38: the worker's shell is sandboxed: `sandboxed`, or a live VM session (its shell is pap's bwrap in the VM, whatever the profile says). */
+  /** R38: the worker's shell is pap's bwrap in the VM. */
   shellSandboxed(sessionId: string): boolean;
   /** Owner a5 (M11R213): an agent thread whose sandbox is on in the registry now and, while a worker runs, at that worker's start. */
   sandboxedThread(ownerId: string, sessionId: string): boolean;
@@ -86,14 +81,6 @@ export interface AgentSurface {
   presetFor(ownerPreset: ToolPreset | undefined, profilePreset: ToolPreset): ToolPreset;
   /** The gate of a launch (M11R53): null for a session without an agent; a throw refuses the start. */
   gate(row: SessionRow): Promise<AgentLaunch> | null;
-  /** The sandbox of an agent trigger's precheck (M11R68); a throw refuses the precheck. */
-  precheckSandbox(ownerId: string, agentId: string): Promise<SandboxSpec>;
-  /** A networked precheck's own proxy socket (M11R243): `sandbox_unavailable` when none can be opened; `release` ends it after the command. */
-  precheckEgress(ownerId: string, agentId: string): Promise<{ socket: string; release(): Promise<void> }>;
-  /** What a starting worker's commands are judged against (W5-R26), from the rules it starts with; null: no network through the proxy. */
-  egressScope(row: SessionRow, rules: PolicyRules, spec: SandboxSpec | undefined): EgressScope | null;
-  /** The egress proxy, once bound. */
-  egress(): EgressPort | undefined;
   /** The row runs in a VM (R15, R37): its layout, else null. */
   vmLayoutOf(row: SessionRow): VmLayout | null;
   /** The agent's part of the session's rules (M11R52); nothing for a session without an agent. */
@@ -122,7 +109,7 @@ export function createAgentSurface(deps: {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly worker: { readonly papHome: string; readonly agentDir: string };
-  /** Present under `PAP_AGENTS_RUNTIME=vm`: the agents ports must then carry the VM predicates (T8a). */
+  /** Present when the VM stack is composed: the agents ports must then carry the VM predicate (T8a). */
   readonly vmLaunch?: VmLaunch | undefined;
 }): AgentSurface {
   const ports: SessionsAgentPorts = {};
@@ -172,10 +159,7 @@ export function createAgentSurface(deps: {
     setAgentPorts(next) {
       // Fail closed at the hand-over: `agents` replaces the whole object, and an agent row would run on the host without these.
       const { agents } = next;
-      if (vmMode && agents && !(agents.vmLayoutOf && agents.agentRunsInVm))
-        throw new Error(
-          `PAP_AGENTS_RUNTIME=vm: the agents ports lack ${agents.vmLayoutOf ? "agentRunsInVm" : "vmLayoutOf"}`,
-        );
+      if (vmMode && agents && !agents.vmLayoutOf) throw new Error("the agents ports lack vmLayoutOf");
       Object.assign(ports, next);
     },
     kindOfRow: (row) => sessionKind(row, kindDeps),
@@ -188,13 +172,7 @@ export function createAgentSurface(deps: {
       // A read-only database runs no op: no dead tools (W5-R16 siblings, M10R150).
       if (!platform || deps.store.readOnly) return [];
       try {
-        // A thread started without the sandbox has no vault to ask for (ADR 0047): the tool would only refuse (review M5).
-        const unsandboxed = startTime.has(row.id) && startTime.get(row.id)?.input.sandbox.required !== true;
-        // R11: a VM session has no vault, so no tool to ask for a secret.
-        const noVault = unsandboxed || vmLayoutOf(row) !== null;
-        return opsFor(sessionKind(row, kindDeps).type).filter(
-          (op) => platform.available(op, row.ownerId) && !(noVault && op === "secret.request"),
-        );
+        return opsFor(sessionKind(row, kindDeps).type).filter((op) => platform.available(op, row.ownerId));
       } catch (error) {
         // Fail closed: a worker whose type cannot be read starts without platform tools.
         deps.logger.warn("platform_ops_failed", { sessionId: row.id, err: error });
@@ -203,8 +181,7 @@ export function createAgentSurface(deps: {
     },
     platform: () => ports.platform,
     vaultDrift(row, launch) {
-      // R11: nothing of the vault reaches a VM session.
-      if (!launch.vault || row.agentId === undefined || vmLayoutOf(row) !== null) return null;
+      if (!launch.vault || row.agentId === undefined) return null;
       const now = ports.agents?.vaultOf?.(row.ownerId, row.agentId) ?? {};
       const sent = launch.vault;
       const same =
@@ -236,14 +213,9 @@ export function createAgentSurface(deps: {
     profileOf,
     started: (sessionId, profile) => void startTime.set(sessionId, profile),
     ended: (sessionId) => void startTime.delete(sessionId),
-    sandboxed: (sessionId) => startTime.get(sessionId)?.input.sandbox.required === true,
-    shellSandboxed(sessionId) {
-      const row = startTime.has(sessionId) ? deps.store.get(sessionId) : undefined;
-      return (
-        startTime.get(sessionId)?.input.sandbox.required === true ||
-        (row !== undefined && vmLayoutOf(row) !== null)
-      );
-    },
+    // Every agent session runs in a VM with pap's own shell, whatever its profile's retired sandbox switch says (ADR 0081).
+    sandboxed: (sessionId) => startTime.has(sessionId),
+    shellSandboxed: (sessionId) => startTime.has(sessionId),
     sandboxedThread(ownerId, sessionId) {
       const row = deps.store.get(sessionId);
       if (row?.ownerId !== ownerId || row.agentRole !== "thread" || row.agentId === undefined) return false;
@@ -275,38 +247,6 @@ export function createAgentSurface(deps: {
       if (!ports.agents) return Promise.reject(new PapError("not_found"));
       return agentGate(row, gateDeps(ports.agents));
     },
-    precheckSandbox: async (ownerId, agentId) => {
-      if (!ports.agents) throw new PapError("not_found");
-      return agentPrecheckSandbox(gateDeps(ports.agents), ownerId, agentId);
-    },
-    async precheckEgress(ownerId, agentId) {
-      const egress = ports.agents?.egress;
-      const profile = profileOf(ownerId, agentId);
-      if (egress === undefined || profile === null) throw new PapError("sandbox_unavailable");
-      const { allowHosts, trustedSources } = profile.input;
-      // No grants, no session: a precheck is judged by the agent's list, else the owner's, and the agent's sources (M11R243).
-      const scope: EgressScope = {
-        ownerId,
-        agentId,
-        sessionId: null,
-        hosts: [...(allowHosts ?? ports.agents?.ownerHosts?.(ownerId) ?? [])],
-        trustedSources: [...trustedSources],
-        grants: () => [],
-      };
-      const opened = await egress.openCommand(scope).catch(() => ({ reason: "unavailable" as const }));
-      if ("reason" in opened) {
-        deps.logger.warn("agent_egress_refused", { agentId, reason: opened.reason });
-        throw new PapError("sandbox_unavailable");
-      }
-      return {
-        socket: opened.socket,
-        release: async () => void (await egress.closeCommand(scope, opened.id)),
-      };
-    },
-    // A VM row has no host egress socket, whatever its profile or a raw `egress_open` says (T8a).
-    egressScope: (row, rules, spec) =>
-      spec?.egress && vmLayoutOf(row) === null ? egressScopeOf(row, rules, hostGrants) : null,
-    egress: () => ports.agents?.egress,
     vmLayoutOf,
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,

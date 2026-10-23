@@ -1,6 +1,6 @@
 # ADR 0049: the vault and secret requests
 
-Status: accepted (M11a, Task 28)
+Status: accepted (M11a, Task 28). Note (ADR 0081, 2026-10-22): the vault's values now reach a VM agent's shell environment instead of a host bwrap one; the known limits below apply inside the VM, and "an agent without its sandbox" no longer exists (every agent is a VM agent).
 Date: 2026-10-16
 Spec: C §5.3, §5.5. Rulings: M11R83 to M11R88, M11R103 to M11R107, M11R165, M11R166, W5-R17, W5-R37, W5-R38, W5-R52. Owner answers m5, m6.
 

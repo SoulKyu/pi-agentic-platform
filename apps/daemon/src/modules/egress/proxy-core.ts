@@ -1,14 +1,31 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { EGRESS_LIMITS, type EgressHost } from "@pap/contracts";
+import { EGRESS_LIMITS, type EgressHost, type EgressReason } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
-import type { Decision } from "./judge.ts";
 import { BAD_GATEWAY, BAD_HEAD, HEAD_TOO_LARGE, rawRefusal, UNREADABLE_HOST } from "./refusal.ts";
 import { relayHttp } from "./relay-http.ts";
 import { type CommandReport, createReport } from "./report.ts";
+
+/** Why a VM's request was refused for its host list or address (sub-project 2, spec §3); the VM judge sets it. */
+export interface VmDetail {
+  readonly reason: "not_listed" | "private_wildcard" | "blocked_address";
+  readonly address: string | null;
+}
+
+export type Decision =
+  | { readonly ips: readonly string[]; readonly host: string }
+  | {
+      readonly reason: EgressReason;
+      readonly host: string;
+      /** The one-line body of the refusal, when the default sentence of `reason` is not the whole story. */
+      readonly message?: string;
+      /** 502 for a failure that is not a refusal (a listed name that does not resolve); the default status follows `reason`. */
+      readonly status?: 502;
+      readonly vm?: VmDetail;
+    };
 
 export type Limits = Record<keyof typeof EGRESS_LIMITS, number>;
 

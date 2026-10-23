@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createOnceSecrets, createVaultSink, withOnceSecrets } from "./once-secrets.ts";
 import { createSecretSource } from "./policy/secrets.ts";
-import { createSandboxEnvironment } from "./sandbox-env.ts";
+import { createShellEnvironment } from "./shell-env.ts";
 
 const TOKEN = "grafana-once-value-1a2b3c";
 const NOW = 1_000_000;
@@ -215,20 +215,17 @@ describe("each one-use value has its own id (N1, N2)", () => {
   });
 });
 
-describe("withOnceSecrets: the sandboxed shell's environment", () => {
-  const sandbox = { home: "/home/u/.pap/agents/atlas-1a2b", network: false };
-
+describe("withOnceSecrets: the VM shell's environment", () => {
   it("adds the value to the one command that names it and leaves the vault alone", () => {
     const { once } = build();
     const environment = withOnceSecrets(
-      createSandboxEnvironment({ PATH: "/usr/bin" }, sandbox, { VAULT_NAME: "vault-value-123456" }),
+      createShellEnvironment({ PATH: "/usr/bin" }, { VAULT_NAME: "vault-value-123456" }),
       once,
     );
     const first = environment.envFor("curl $GRAFANA_TOKEN");
     expect(first).toMatchObject({
       GRAFANA_TOKEN: TOKEN,
       VAULT_NAME: "vault-value-123456",
-      HOME: sandbox.home,
     });
     const second = environment.envFor("curl $GRAFANA_TOKEN");
     expect(second).not.toHaveProperty("GRAFANA_TOKEN");
@@ -238,7 +235,7 @@ describe("withOnceSecrets: the sandboxed shell's environment", () => {
   it("the one-use value wins over a vault entry of the same name, for that command only", () => {
     const { once } = build();
     const environment = withOnceSecrets(
-      createSandboxEnvironment({}, sandbox, { GRAFANA_TOKEN: "saved-value-12345678" }),
+      createShellEnvironment({}, { GRAFANA_TOKEN: "saved-value-12345678" }),
       once,
     );
     expect(environment.envFor("echo $GRAFANA_TOKEN").GRAFANA_TOKEN).toBe(TOKEN);
@@ -247,7 +244,7 @@ describe("withOnceSecrets: the sandboxed shell's environment", () => {
 
   it("passes setVault through", () => {
     const { once } = build();
-    const environment = withOnceSecrets(createSandboxEnvironment({}, sandbox, {}), once);
+    const environment = withOnceSecrets(createShellEnvironment({}, {}), once);
     environment.setVault({ NEW_NAME: "new-value-1234567" });
     expect(environment.envFor("ls")).toMatchObject({ NEW_NAME: "new-value-1234567" });
   });
@@ -258,14 +255,13 @@ describe("the vault sink: what a vault_update does in the worker (M11R105)", () 
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
-  const sandbox = { home: "/home/u/.pap/agents/atlas-1a2b", network: false };
   const open = () => {
     const agentDir = mkdtempSync(join(tmpdir(), "pap-once-"));
     dirs.push(agentDir);
     const source = createSecretSource({ env: {}, agentDir });
     const used = vi.fn();
     const once = createOnceSecrets({ used, now: () => NOW });
-    const environment = withOnceSecrets(createSandboxEnvironment({}, sandbox, {}), once);
+    const environment = withOnceSecrets(createShellEnvironment({}, {}), once);
     return { source, used, once, environment, sink: createVaultSink({ source, environment, once }) };
   };
   const redacted = (source: ReturnType<typeof open>["source"], text: string): string =>

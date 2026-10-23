@@ -2,7 +2,7 @@ import type { AgentLinks, AgentVmLink } from "./links.ts";
 
 /**
  * The delete's `vm` step (RT-40): every VM of the agent stops, then its disk goes to pap-vmd's trash and its mirrors to the
- * daemon's, and its imported files go to the files trash (spec 7; the credentials leave the live folder, host mode too). It runs
+ * daemon's, and its imported files go to the files trash (spec 7; the credentials leave the live folder). It runs
  * before the home moves, so a failure leaves the agent whole and a retry finds the rest undone.
  */
 export async function deleteVmStep(

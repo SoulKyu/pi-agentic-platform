@@ -1,4 +1,4 @@
-import { PapError, type SandboxSpec, type ThinkingLevel, type VaultUpdateRecord } from "@pap/contracts";
+import { PapError, type ThinkingLevel, type VaultUpdateRecord } from "@pap/contracts";
 import { agentHomePath } from "./agent-home.ts";
 import { automationCaller, type TaskSessionPolicy } from "./automation-port.ts";
 import type { AgentSurface } from "./agent-surface.ts";
@@ -28,10 +28,6 @@ export interface SessionsAgentPort {
     ownerId: string,
     sessionId: string,
   ): { running: boolean; needsInput: boolean; starting: boolean; archived: boolean } | null;
-  /** The sandbox of an agent trigger's precheck (M11R68): `sandbox_unavailable` and the gate's other codes refuse it. */
-  precheckSandbox(ownerId: string, agentId: string): Promise<SandboxSpec>;
-  /** A networked precheck's own proxy socket (M11R243) and its release; `sandbox_unavailable` when none can be opened. */
-  precheckEgress(ownerId: string, agentId: string): Promise<{ socket: string; release(): Promise<void> }>;
   /** The last assistant text of an agent's session, cut to `max` characters; null when there is none or it is not the owner's. */
   lastText(ownerId: string, sessionId: string, max: number, since?: number): Promise<string | null>;
   /** The folders the sessions of isolated agent tasks work in (M11R180: the sweep keeps these). */
@@ -49,7 +45,7 @@ export interface SessionsAgentPort {
     thinking?: ThinkingLevel;
   }): Promise<"applied" | "cold" | "busy">;
   /**
-   * Tells the live workers of the agent (thread and running tasks, sandbox on; never a child, RT-07) that its vault
+   * Tells the live workers of the agent (thread and running tasks, never a child, RT-07) that its vault
    * changed. A worker that cannot be told is stopped: its next start reads the current vault. Returns how many were told.
    * With `sessionId`, only that session's worker is told (a one-use value goes to the asking session alone).
    */
@@ -58,8 +54,6 @@ export interface SessionsAgentPort {
   activeTools(ownerId: string, sessionId: string): { tools: readonly string[]; truncated: boolean } | null;
   /** The session's worker started with the sandbox on (its start-time profile requires it); false for any other, or not the owner's. */
   sandboxed(ownerId: string, sessionId: string): boolean;
-  /** The session is the owner's and runs in a VM: no vault, no one-use value, no secret request (R11). */
-  runsInVm(ownerId: string, sessionId: string): boolean;
 }
 
 export interface AgentPortContext {
@@ -123,8 +117,6 @@ export function createAgentPort(ctx: AgentPortContext): SessionsAgentPort {
       return { sessionId: row.id };
     },
     taskFolders: () => deps.store.taskFolders(),
-    precheckSandbox: (ownerId, agentId) => ctx.agent.precheckSandbox(ownerId, agentId),
-    precheckEgress: (ownerId, agentId) => ctx.agent.precheckEgress(ownerId, agentId),
     async lastText(ownerId, sessionId, max, since) {
       const row = deps.store.get(sessionId);
       if (!row || row.ownerId !== ownerId || row.agentId === undefined) return null;
@@ -171,10 +163,6 @@ export function createAgentPort(ctx: AgentPortContext): SessionsAgentPort {
       const row = deps.store.get(sessionId);
       return row?.ownerId === ownerId && row.agentId !== undefined && ctx.agent.sandboxed(sessionId);
     },
-    runsInVm(ownerId, sessionId) {
-      const row = deps.store.get(sessionId);
-      return row?.ownerId === ownerId && ctx.agent.vmLayoutOf(row) !== null;
-    },
     sendToAgent(ownerId, agentId, record, sessionId) {
       let told = 0;
       for (const [id, session] of [...live]) {
@@ -183,8 +171,6 @@ export function createAgentPort(ctx: AgentPortContext): SessionsAgentPort {
         const mine = row?.ownerId === ownerId && row.agentId === agentId;
         if (!mine || (row.agentRole !== "thread" && row.agentRole !== "task") || !ctx.agent.sandboxed(id))
           continue;
-        // R11 (RT-11): a VM session never gets a vault value or a one-use value, whatever its profile's switch says.
-        if (ctx.agent.vmLayoutOf(row) !== null) continue;
         if (session.status() === "cold" || session.stopping()) continue;
         // Every record carries the session's full once list (W5-R37); a targeted send was built for that session already.
         const own = sessionId === undefined ? { ...record, once: [...ctx.agent.onceOf(id)] } : record;

@@ -12,7 +12,7 @@ interface TrashEntry {
 }
 
 /**
- * Settings › Agents › Deleted agents (J1b), for VM mode: a deleted VM agent's disk is kept 7 days (RT-40), and "Purge now"
+ * Settings › Agents › Deleted agents (J1b): a deleted agent's disk is kept 7 days (RT-40), and "Purge now"
  * stays here after the delete note is gone. Nothing is drawn while the trash is empty or cannot be read.
  */
 export function AgentTrash() {

@@ -4,7 +4,6 @@ import { Button, Select } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { type Translate, useLocale, useT } from "../../i18n/index.ts";
-import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { cutUnits, stripHidden } from "../../lib/untrusted-text.ts";
 import { MemoryList } from "./MemoryList.tsx";
@@ -29,7 +28,6 @@ export function MemorySettings({ initialScope }: { readonly initialScope?: Memor
   const t = useT();
   const locale = useLocale();
   const [now] = useState(() => Date.now());
-  const vm = useVmStatus().status?.runtime === "vm";
   const [picked, setPicked] = useState(initialScope === undefined ? "user" : scopeKey(initialScope));
   const status = useRpcRead(
     "status",
@@ -83,7 +81,7 @@ export function MemorySettings({ initialScope }: { readonly initialScope?: Memor
   return (
     <div data-memory-settings="" className="flex flex-col gap-s6">
       <p className="text-ui text-muted">{t("memory.intro")}</p>
-      {vm ? <p className="text-ui text-attn">{t("memory.vmNote")}</p> : null}
+      <p className="text-ui text-attn">{t("memory.vmNote")}</p>
       <section data-slot="memory-status" className="flex flex-col gap-s1">
         {state.installed ? (
           <>

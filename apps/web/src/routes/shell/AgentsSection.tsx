@@ -1,10 +1,12 @@
 import { Button, EmptyState } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
+import { NoVmState } from "../../features/agents/NoVmState.tsx";
 import { AgentAvatar } from "../../features/agents/AgentAvatar.tsx";
 import { agentTarget, railName, stateWords } from "../../features/agents/rail.vm.ts";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
 import { runCommand } from "../../features/commands/index.ts";
 import { pathOfItem } from "../../features/workspace/index.ts";
+import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { registerCatalog, useT } from "../../i18n/index.ts";
 import { agentsPhoneEn, agentsPhoneFr } from "../../i18n/catalog/agents-phone.ts";
 import { useAgents } from "../../stores/agents-store.ts";
@@ -21,7 +23,9 @@ export function AgentsSection() {
   const navigate = useNavigate();
   const agents = useAgents((view) => view.agents);
   const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
-  const create = (
+  const vm = useVmStatus().status;
+  const unusable = vm !== null && !vm.usable;
+  const create = unusable ? null : (
     <Button
       variant={agents.length === 0 ? "primary" : "secondary"}
       onClick={() => void runCommand("agents.new")}
@@ -29,18 +33,22 @@ export function AgentsSection() {
       {t("shell.rail.newAgent")}
     </Button>
   );
+  const noVm = unusable ? <NoVmState /> : null;
   if (agents.length === 0)
     return (
       <div className="p-s3">
-        <EmptyState
-          title={t("agentsPhone.emptyTitle")}
-          purpose={t("agentsPhone.emptyPurpose")}
-          action={create}
-        />
+        {noVm ?? (
+          <EmptyState
+            title={t("agentsPhone.emptyTitle")}
+            purpose={t("agentsPhone.emptyPurpose")}
+            action={create}
+          />
+        )}
       </div>
     );
   return (
     <div className="flex flex-col gap-s3 p-s3">
+      {noVm}
       <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
         {agents.map((agent) => {
           const name = railName(agent, t);
@@ -60,7 +68,7 @@ export function AgentsSection() {
           );
         })}
       </ul>
-      <div>{create}</div>
+      {create === null ? null : <div>{create}</div>}
     </div>
   );
 }

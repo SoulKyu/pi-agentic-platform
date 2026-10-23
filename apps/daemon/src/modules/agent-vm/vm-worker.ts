@@ -5,7 +5,7 @@ import {
   type SessionResync as SessionResyncSchema,
 } from "@pap/contracts";
 import type { z } from "zod";
-import type { Clock } from "../../kernel/clock.ts";
+import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { classifyExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import { killLadder, WORKER_SHUTDOWN_GRACE_MS } from "../../kernel/supervisor/kill-ladder.ts";
@@ -68,11 +68,16 @@ export interface VmWorker {
   readonly handle: VmWorkerHandle;
   /** One frame from the worker's connection (not a ping or pong). */
   receive(raw: unknown): void;
-  /** The worker's connection closed. */
+  /** The worker's connection closed: the exit waits `EXIT_TAIL_GRACE_MS` for the guest's `exited` frame. */
   wireClosed(): void;
+  /** The guest's own link is gone: no `exited` frame will come, a pending exit is reported at once. */
+  guestGone(): void;
   /** The guest reported the worker's process ended. */
   guestExited(exit: WorkerExit, tail: string): void;
 }
+
+/** How long a closed wire waits for the guest's `exited` frame, which carries the worker's last words. */
+export const EXIT_TAIL_GRACE_MS = 2000;
 
 export function createVmWorker(deps: {
   clock: Clock;
@@ -97,6 +102,8 @@ export function createVmWorker(deps: {
   let blocked = false;
   const held: unknown[] = [];
   let tail = "";
+  let guestLive = true;
+  let graceTimer: TimerHandle | undefined;
   let stopping: Promise<WorkerExit> | undefined;
   let resolveExited: (exit: WorkerExit) => void = () => {};
   const exited = new Promise<WorkerExit>((resolve) => {
@@ -106,6 +113,8 @@ export function createVmWorker(deps: {
   const finish = (exit: WorkerExit): void => {
     if (!alive) return;
     alive = false;
+    if (graceTimer) clock.clearTimeout(graceTimer);
+    graceTimer = undefined;
     held.length = 0;
     core.failPending();
     mirror?.close();
@@ -230,7 +239,15 @@ export function createVmWorker(deps: {
   return {
     handle,
     receive,
-    wireClosed: () => finish(classifyExit(null, null)),
+    wireClosed() {
+      if (!alive || graceTimer) return;
+      if (!guestLive) return finish(classifyExit(null, null));
+      graceTimer = clock.setTimeout(() => finish(classifyExit(null, null)), EXIT_TAIL_GRACE_MS);
+    },
+    guestGone() {
+      guestLive = false;
+      if (graceTimer) finish(classifyExit(null, null));
+    },
     guestExited(exit, text) {
       if (!alive) return;
       tail = text;

@@ -1,3 +1,4 @@
+import { DOCTOR_ONLY_NO_VM } from "./testing/doctor-only.ts";
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
@@ -132,7 +133,7 @@ describe("an update that cannot restart (T6, T8, T10, T11)", () => {
     expect(recovered.code, recovered.err).toBe(0);
     expect(readPending(papHome)).toBeNull();
 
-    const whole = doctor();
+    const whole = doctor("--only", DOCTOR_ONLY_NO_VM);
     expect([0, 2]).toContain(whole.status);
     expect(whole.stdout).not.toMatch(/^\[fail\]/m);
     expect(whole.stdout).toMatch(/^\[ok\] update_pending /m);

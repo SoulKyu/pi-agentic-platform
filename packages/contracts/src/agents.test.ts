@@ -164,10 +164,9 @@ describe("widensReach (M11R44)", () => {
     expect(widens({ preset: "none" }, { preset: "chat" })).toBe(false);
   });
 
-  it("the sandbox turned off or the network turned on widens; the reverse narrows", () => {
-    expect(widens({}, { sandbox: { required: false } })).toBe(true);
+  it("the network turned on widens, the reverse narrows; the retired required field changes nothing", () => {
+    expect(widens({}, { sandbox: { required: false } })).toBe(false);
     expect(widens({}, { sandbox: { network: true } })).toBe(true);
-    expect(widens({ sandbox: { required: false } }, { sandbox: { required: true } })).toBe(false);
     expect(widens({ sandbox: { network: true } }, { sandbox: { network: false } })).toBe(false);
     expect(widens({ sandbox: { network: true } }, { sandbox: { network: true } })).toBe(false);
   });

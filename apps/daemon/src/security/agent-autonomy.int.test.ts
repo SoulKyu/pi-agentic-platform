@@ -13,7 +13,7 @@ let owner: Owner;
 let plain: TestClient;
 
 beforeAll(async () => {
-  t = await startTestDaemon({ steps: [{ text: "ok" }] });
+  t = await startTestDaemon({ steps: [{ text: "ok" }] }, { vm: true });
   owner = await openOwner(t);
   // The same user, a browser session that never confirmed the password: no step-up.
   const reply = await httpRequest(`${t.base}/auth/login`, {

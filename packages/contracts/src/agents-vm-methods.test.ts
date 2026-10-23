@@ -74,7 +74,6 @@ describe("agentsVmMethods", () => {
   it("answers the VM status", () => {
     const result = agentsVmMethods["agents.vmStatus"].result;
     const view = {
-      runtime: "vm",
       usable: true,
       reason: null,
       vmdVersion: "1.0.0",
@@ -89,7 +88,7 @@ describe("agentsVmMethods", () => {
     expect(result.safeParse({ ...view, host: null }).success).toBe(true);
     expect(result.safeParse({ ...view, host: { ...host, cpus: 0 } }).success).toBe(false);
     expect(result.safeParse({ ...view, host: { ...host, path: "/x" } }).success).toBe(false);
-    expect(result.safeParse({ ...view, runtime: "kata" }).success).toBe(false);
+    expect(result.safeParse({ ...view, runtime: "vm" }).success).toBe(false);
     // AVM-E53: no agent is migrated, so the view has no such field (the entry is strict).
     expect(
       result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "running", migrated: false }] })

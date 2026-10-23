@@ -62,20 +62,8 @@ describe("the resources check at save (RT-30)", () => {
   });
 });
 
-describe("host entries by runtime (decision 119)", () => {
+describe("host entries (decision 119)", () => {
   const entries = ["k8s.lan:6443", "192.168.1.40", "[fd00::1]:443"];
-  it("host mode refuses a port or an IP on allowHosts, and says VM mode in its log", async () => {
-    bed = createAgentsBed();
-    for (const entry of entries)
-      expect(
-        await refusalOf(() => bed.agents.create(bed.owner(), agentInput({ allowHosts: [entry] }))),
-        entry,
-      ).toBe("bad_request");
-    expect(JSON.stringify(bed.logs)).toContain("VM mode");
-    expect(
-      await refusalOf(() => bed.agents.create(bed.owner(), agentInput({ allowHosts: ["a.example.com"] }))),
-    ).toBe("no error");
-  });
   it("VM mode stores them", async () => {
     open();
     const view = await bed.agents.create(bed.owner(), agentInput({ allowHosts: entries }));

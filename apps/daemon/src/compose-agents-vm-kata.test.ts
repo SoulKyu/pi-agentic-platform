@@ -75,9 +75,12 @@ const closers: Array<{ name: string; close(): void | Promise<void> }> = [];
 const core = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore => ({
   config: {
     home: join(root, "pap"),
-    agentsRuntime: "vm",
+    agentsRuntimeSet: false,
+    dev: false,
+    devVmd: false,
     agentsMemoryMaxMb: 8192,
     testAgentRuntime: null,
+    testVmdSocket: null,
     testProviderScript: null,
     workerIdleMs: 0,
     minFreeDiskMb: 0,
@@ -146,28 +149,19 @@ describe("the Kata backend through pap-vmd", () => {
     expect(vm.gatewayPort).toBe(freePort);
   });
 
-  it("gives up, naming pap-vmd, when pap's firewall table is not loaded (M5)", async () => {
+  it("boots unusable, not failed, when pap's firewall table is not loaded (M5)", async () => {
     fake.ruleset = false;
-    const failing = kata().then(
-      () => "up",
-      (error: Error) => error.message,
-    );
+    const booting = kata();
     await clock.advance(2_000 * 31);
-    await expect(failing).resolves.toMatch(/pap-vmd/);
-    expect(closers).toEqual([]);
+    const vm = await booting;
+    await expect(vm.status.require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
   });
 
-  it("names the address and pap-vmd when the gateway cannot bind it (M9a)", async () => {
-    const failing = kata({
-      kata: { ...seams().kata, gatewayBind: { host: "192.0.2.1", port: 7841 } },
-    }).then(
-      () => "up",
-      (error: Error) => error.message,
-    );
-    const message = await failing;
-    expect(message).toContain("192.0.2.1:7841");
-    expect(message).toMatch(/pap-vmd/);
-    expect(closers).toEqual([]);
+  it("boots unusable on loopback when the gateway cannot bind the bridge's address (M9a)", async () => {
+    const vm = await kata({ kata: { ...seams().kata, gatewayBind: { host: "192.0.2.1", port: 7841 } } });
+    expect(vm.gatewayPort).toBeGreaterThan(0);
+    expect(await dial("127.0.0.1", vm.gatewayPort)).toBe("open");
+    await expect(vm.status.require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
   });
 
   it("listens on the address its bind names, and by default on the bridge's host address (R34)", async () => {
@@ -183,32 +177,26 @@ describe("the Kata backend through pap-vmd", () => {
     expect(parts.proxyBind).toEqual({ host: AGENT_NET.host, port: AGENT_NET.proxyPort });
   });
 
-  it("waits while pap0 is being made, and gives up with a message that names pap-vmd", async () => {
+  it("waits while pap0 is being made, then boots unusable when it never comes", async () => {
     fake.bridge = false;
-    const booting = kata().then(
-      () => "up",
-      (error: Error) => error.message,
-    );
+    const booting = kata();
     await vi.waitFor(() => expect(fake.of("vmd.health")).toHaveLength(1));
     fake.bridge = true;
     await clock.advance(2_000);
-    await expect(booting).resolves.toBe("up");
+    await booting;
     for (const closer of closers.splice(0).reverse()) await closer.close();
     fake.bridge = false;
-    const failing = kata().then(
-      () => "up",
-      (error: Error) => error.message,
-    );
+    const failing = kata();
     await clock.advance(2_000 * 31);
-    await expect(failing).resolves.toMatch(/pap-vmd/);
-    expect(closers).toEqual([]);
+    await expect((await failing).status.require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
   });
 
-  it("stops the boot when pap-vmd is not there", async () => {
-    await expect(
-      composeAgentsVm(core(), closers, { relay: "off", kata: { socket: join(root, "none.sock") } }),
-    ).rejects.toThrow(/pap-vmd/);
-    expect(closers).toEqual([]);
+  it("boots unusable when pap-vmd is not there", async () => {
+    const vm = await composeAgentsVm(core(), closers, {
+      relay: "off",
+      kata: { socket: join(root, "none.sock") },
+    });
+    await expect(vm?.status.require()).rejects.toMatchObject({ code: "sandbox_unavailable" });
   });
 
   it("uses the Kata layout of the VM, the same for a thread and a task", async () => {

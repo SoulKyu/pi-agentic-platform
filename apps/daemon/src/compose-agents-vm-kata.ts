@@ -33,6 +33,8 @@ export interface KataSeams {
   readonly nodeImage?: string;
   /** Tests: replaces the collector of the owner's secrets (T15b) with a plain list. */
   readonly knownSecrets?: () => KnownSecrets;
+  /** `/dev/kvm` exists. Default: looks at the machine. */
+  readonly kvm?: () => boolean;
   /** Where the gateway listens (tests: loopback). Default: the bridge's host address (R34). */
   readonly gatewayBind?: { readonly host: string; readonly port: number };
 }
@@ -58,7 +60,7 @@ const refusedSecrets = async (): Promise<never> => {
 };
 
 /**
- * `PAP_AGENTS_RUNTIME=vm` outside tests: the Kata backend, over pap-vmd's socket. The pieces are built here, the composition of
+ * Outside tests: the Kata backend, over pap-vmd's socket. The pieces are built here, the composition of
  * the daemon (`compose-agents-vm.ts`) decides when to use them.
  */
 export function composeKata(
@@ -95,7 +97,7 @@ export function composeKata(
   let ready: Promise<void> | null = null;
   async function waitForBridge(): Promise<void> {
     for (let attempt = 1; ; attempt += 1) {
-      // A pap-vmd that is not there fails the boot at once (`unavailable`); only a bridge still being made is waited for.
+      // A pap-vmd that is not there throws at once (the boot goes on unusable); only a bridge still being made is waited for.
       const health = VmdHealth.safeParse(await client.request({ op: "vmd.health" }));
       if (health.success && health.data.bridge && health.data.ruleset) return;
       if (attempt >= BRIDGE_TRIES) throw new PapError("sandbox_unavailable");
@@ -139,15 +141,44 @@ export function composeKata(
   };
 }
 
-/** The boot waits for pap0 and pap's firewall table; a pap-vmd that is not there or never gets them ends it, naming the fix. */
-export async function awaitBridge(kata: Pick<KataParts, "bridgeReady">, logger: Logger): Promise<void> {
+/**
+ * The boot waits for pap0 and pap's firewall table. A pap-vmd that is not there or never gets them is not a boot failure: false,
+ * and the composition falls back to loopback with an unusable status (`sandbox_unavailable` on every agent call).
+ */
+export async function awaitBridge(kata: Pick<KataParts, "bridgeReady">, logger: Logger): Promise<boolean> {
   try {
     await kata.bridgeReady();
+    return true;
   } catch (error) {
-    logger.error("agent_vm_bridge_unavailable", { err: error });
-    throw new Error(
-      "PAP_AGENTS_RUNTIME=vm needs pap-vmd and its bridge: run `sudo pap vm setup`, then start pap-vmd",
-      { cause: error },
-    );
+    logger.warn("agent_vm_bridge_unavailable", {
+      err: error,
+      hint: "agents are unavailable: run `sudo pap vm setup`, start pap-vmd, then restart pap",
+    });
+    return false;
   }
+}
+
+/**
+ * R34: the gateway listens on pap0's address when there is one (`onBridge`). Without it, or when the port is held (pap0 is made by
+ * pap-vmd; another process may hold the port), it listens on loopback and `down` is true: the status is unusable, the boot goes on.
+ */
+export async function listenGateway(
+  gateway: { listen(host: string, port: number): Promise<{ port: number }> },
+  kata: boolean,
+  onBridge: { host: string; port: number } | null,
+  logger: Logger,
+): Promise<{ bind: { host: string; port: number }; port: number; down: boolean }> {
+  if (onBridge !== null) {
+    try {
+      return { bind: onBridge, ...(await gateway.listen(onBridge.host, onBridge.port)), down: false };
+    } catch (error) {
+      if (!kata) throw error;
+      logger.error("agent_vm_gateway_unavailable", {
+        err: error,
+        hint: `the gateway cannot listen on ${onBridge.host}:${onBridge.port}: run \`sudo pap vm setup\` and start pap-vmd, or stop the process that holds the port; agents are unavailable until pap restarts`,
+      });
+    }
+  }
+  const bind = { host: "127.0.0.1", port: 0 };
+  return { bind, ...(await gateway.listen(bind.host, bind.port)), down: kata };
 }

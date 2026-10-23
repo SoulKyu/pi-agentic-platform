@@ -3,7 +3,6 @@ import { type AgentRequestView, type AgentSummary, type ToolPreset } from "@pap/
 import { Button, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
-import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { agentById, requestsOf } from "../../stores/agents-reducer.ts";
 import { useAgents } from "../../stores/agents-store.ts";
@@ -137,9 +136,8 @@ function AgentSpace({
   // The setting says how the panel starts, in the column only; the toggle then decides until the layout changes.
   const [asked, setAsked] = useState<boolean | null>(null);
   const panelOpen = asked ?? (layout === "side" && statusPanel === "shown");
-  // Thread / Files (VM mode) / Settings (M11R126). Settings can land on the budget group; Quarantine and Delete open their dialogs.
+  // Thread / Files / Settings (M11R126). Settings can land on the budget group; Quarantine and Delete open their dialogs.
   const [tab, setTab] = useState<AgentTab>("thread");
-  const filesTab = useVmStatus().status?.runtime === "vm";
   const [focus, setFocus] = useState<"budget" | undefined>(undefined);
   const [dialog, setDialog] = useState<"quarantine" | "delete" | null>(null);
   const panelShown = panelOpen && tab === "thread";
@@ -195,7 +193,7 @@ function AgentSpace({
       onQueueTask={() => setQueueing(true)}
       onQuarantine={() => setDialog("quarantine")}
       onDelete={() => setDialog("delete")}
-      tab={{ value: tab, files: filesTab, onChange: openTab }}
+      tab={{ value: tab, files: true, onChange: openTab }}
       statusToggle={{ open: panelShown, onToggle: toggleStatus }}
       confirm={
         confirmingReset ? (

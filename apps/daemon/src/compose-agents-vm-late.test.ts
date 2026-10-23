@@ -101,6 +101,7 @@ function bed(
       claudeToken: { status: () => (state.token ? "set" : "missing") },
       readOnly: false,
       bindMirrorHooks: (next) => void (hooks.value = next),
+      bindTaint: () => {},
     },
     late,
   );
@@ -132,6 +133,7 @@ describe("the mirror hooks (AVM-E21, M-hooks)", () => {
         claudeToken: { status: () => "missing" },
         readOnly: true,
         bindMirrorHooks: (next) => void (hooks.value = next),
+        bindTaint: () => {},
       },
       bed().late,
     );
@@ -370,6 +372,7 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
         claudeToken: { status: () => "missing" },
         readOnly: false,
         bindMirrorHooks: () => {},
+        bindTaint: () => {},
       },
       late,
     );

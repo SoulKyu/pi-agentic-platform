@@ -47,11 +47,12 @@ export {
 export { readPiAuth } from "./pi-auth-values.ts";
 export { createStderrRedactor } from "./stderr-redactor.ts";
 export { createLaunchAddresses } from "./launch-addresses.ts";
+export { createLaunchTaint } from "./launch-taint.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
 export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";
 export {
   assessStack,
-  createHostStatus,
+  hasKvm,
   createVmStatus,
   STACK_REASONS,
   type StackAssessment,
@@ -72,3 +73,5 @@ export { mountAgentFilesRoute } from "./agent-files-http.ts";
 export { startFilesTrashSweep } from "./files-sweep.ts";
 export { createAgentFilesService } from "./agent-files-service.ts";
 export { type AgentFilesPort, createFilesDelivery } from "./deliver-files.ts";
+export { type BundleSkew, createBundleSkew, treeBundleOf } from "./bundle-skew.ts";
+export { treeDigest } from "./image-inputs.ts";

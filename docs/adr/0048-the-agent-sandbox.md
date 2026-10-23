@@ -1,6 +1,6 @@
 # ADR 0048: the agent sandbox
 
-Status: accepted (M11a, Task 28). A deviation from C §5 row 05 and §5.4. Limit 3 below is now enforced by the egress proxy (ADR 0047, decision 90); exfiltration to a reachable host remains.
+Status: superseded by 0081 (agents run only in microVMs; the host sandbox described here is deleted). Accepted in M11a, Task 28. A deviation from C §5 row 05 and §5.4. Limit 3 below is now enforced by the egress proxy (ADR 0047, decision 90); exfiltration to a reachable host remains.
 Date: 2026-10-16
 Spec: C §5, §5.3, §5.4. Rulings: M11R17 to M11R27, M11R30 to M11R34, M11R50 to M11R58, M11R162, M11R163, M11R167, M11R176, M11R177, M11R179, M11R181, M11R230 to M11R233, W5-R9, W5-R11, W5-R15, W5-R17, W5-R24, W5-R25, W5-R27, W5-R29, W5-R31. Owner answers m2, m3, m7, m16, m17.
 

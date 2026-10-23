@@ -2,33 +2,39 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { AgentInput } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { layoutOf } from "../agent-vm/index.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
-import type { SandboxProbe } from "../../kernel/sandbox/probe.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { initRecordOf } from "./testing/fake-policy.ts";
 import { codeOf } from "./testing/helpers.ts";
+import { fakeVmLaunch } from "./testing/fake-vm-launch.ts";
 import { type BedOptions, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
 const ID = "atlas-1a2b";
 const TASK = "0a1b2c3d-0000-4000-8000-0123456789ab";
+// Agents run in microVMs only: the launch goes through the VM launcher (its worker is the bed's fake one).
 const build = (options?: BedOptions) =>
-  createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader }, options);
+  createServiceBed(
+    { createSessionsStore, createSessionsService, loadTranscriptReader },
+    { ...options, vmLaunch: fakeVmLaunch },
+  );
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 
 interface World {
-  probe: SandboxProbe;
+  /** This machine's VM stack goes away. */
+  vmGone(): void;
+  /** How many launch gates ran to the end (the Claude Code environment is asked once per gate). */
   ensured: number;
   profile: { input: AgentInput; name: string; quarantined: boolean } | null;
 }
 function setup(options?: BedOptions): World {
   bed = build(options);
-  mkdirSync(join(bed.dir, "pap", "agents", ID), { recursive: true, mode: 0o700 });
   const world: World = {
-    probe: { usable: true, path: "/usr/bin/bwrap" },
+    vmGone: () => {},
     ensured: 0,
     profile: {
       input: AgentInput.parse({ name: "Atlas", role: "Be brief." }),
@@ -38,20 +44,24 @@ function setup(options?: BedOptions): World {
   };
   const agents: SessionsAgentDeps = {
     profileOf: (ownerId, agentId) => (ownerId === "u1" && agentId === ID ? world.profile : null),
-    vaultOf: () => ({ TOKEN: "v" }),
-    probe: {
-      ensure: async () => {
-        world.ensured += 1;
-        return world.probe;
-      },
+    claudeEnvOf: async () => {
+      world.ensured += 1;
+      return {};
     },
   };
   bed.service.agent.setAgentPorts({ agents });
+  world.vmGone = () =>
+    bed.service.agent.setAgentPorts({
+      agents: { ...agents, vmLayoutOf: () => null },
+    });
   return world;
 }
 const thread = () =>
   bed.service.agentSessions.createAgentSession({ ownerId: "u1", agentId: ID, role: "thread" });
 const home = () => join(bed.dir, "pap", "agents", ID);
+/** Where the VM's home is (the process backend's layout). */
+const vmHome = (taskKey: string | null = null) =>
+  layoutOf("process", join(bed.dir, "pap"), { agentId: ID, taskKey }).home;
 
 describe("createAgentSession (M11R50)", () => {
   it("stores the binding with the row and starts through launch: the gate runs once, the init carries the facts", async () => {
@@ -69,10 +79,9 @@ describe("createAgentSession (M11R50)", () => {
     expect(init).toMatchObject({
       cwd: home(),
       agent: { id: ID, name: "Atlas", role: "Be brief." },
-      sandbox: { view: "host", home: home(), writable: home(), network: false },
-      vault: { TOKEN: "v" },
-      policy: { profile: "agent-thread", agentHome: home(), sandbox: { required: true, network: false } },
+      policy: { profile: "agent-thread", agentHome: vmHome() },
     });
+    expect(init).not.toHaveProperty("sandbox");
   });
 
   it("an unknown or another owner's agent is not_found, and nothing starts", async () => {
@@ -86,14 +95,7 @@ describe("createAgentSession (M11R50)", () => {
     expect(bed.spawned).toHaveLength(0);
   });
 
-  it("never takes the owner's last worker (M10R154)", async () => {
-    setup({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
-    await bed.service.create(bed.work, OWNER);
-    expect(await codeOf(thread())).toBe("capacity");
-    expect(bed.spawned).toHaveLength(1);
-  });
-
-  it("a full pool answers capacity before the gate opens anything or probes", async () => {
+  it("never takes the owner's last worker (M10R154), and answers capacity before the gate opens anything", async () => {
     const world = setup({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
     await bed.service.create(bed.work, OWNER);
     expect(await codeOf(thread())).toBe("capacity");
@@ -126,7 +128,7 @@ describe("createAgentSession (M11R50)", () => {
     expect(world.ensured).toBe(4);
   });
 
-  it("a task session stores its policy and writes in its scratch folder", async () => {
+  it("a task session stores its policy and works in its own VM's home", async () => {
     const world = setup();
     const scratch = join(bed.dir, "pap", "agents", ".runs", ID, TASK);
     mkdirSync(scratch, { recursive: true, mode: 0o700 });
@@ -140,8 +142,11 @@ describe("createAgentSession (M11R50)", () => {
     expect(world.ensured).toBe(1);
     expect(bed.store.get(sessionId)).toMatchObject({ agentRole: "task", cwd: scratch });
     expect(initRecordOf(bed.spawned[0])).toMatchObject({
-      sandbox: { view: "system", home: home(), writable: scratch },
-      policy: { profile: "isolated-task", approvalMode: "supervised", agentScratch: scratch },
+      policy: {
+        profile: "isolated-task",
+        approvalMode: "supervised",
+        agentScratch: vmHome(sessionId.replaceAll("-", "")),
+      },
     });
   });
 
@@ -161,15 +166,15 @@ describe("createAgentSession (M11R50)", () => {
 });
 
 describe("every launch runs the gate (M11R53, RT-06)", () => {
-  it("a thread released while idle, then the sandbox gone: the prompt is sandbox_unavailable and nothing spawns", async () => {
+  it("a thread released while idle, then the VM stack gone: the prompt is sandbox_unavailable and nothing spawns", async () => {
     const world = setup();
     const { sessionId } = await thread();
     expect(bed.service.agentSessions.releaseIdle("u1", sessionId)).toBe("released");
     await bed.spawned[0]?.exited;
-    world.probe = { usable: false, reason: "missing" };
+    world.vmGone();
     expect(await codeOf(bed.service.prompt({ sessionId, text: "hi" }, OWNER))).toBe("sandbox_unavailable");
     expect(bed.spawned).toHaveLength(1);
-    expect(world.ensured).toBe(2);
+    expect(world.ensured).toBe(1);
   });
 
   it("an archived thread of a deleted agent, unarchived and prompted, is not_found", async () => {
@@ -201,12 +206,6 @@ describe("every launch runs the gate (M11R53, RT-06)", () => {
     await bed.service.reopen(sessionId, OWNER);
     expect(bed.spawned).toHaveLength(2);
     expect(world.ensured).toBe(2);
-  });
-
-  it("a plain session never asks the gate", async () => {
-    const world = setup();
-    await bed.service.create(bed.work, OWNER);
-    expect(world.ensured).toBe(0);
   });
 });
 

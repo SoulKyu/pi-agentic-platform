@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { FilePut, HomePut, HomeRemove, SessionResync, VmInit } from "./agents-vm.ts";
-import { EgressOpened, EgressReport } from "./egress.ts";
 import { ImageMime } from "./files.ts";
 import { InitChild, InitMemory } from "./pi-host-init.ts";
 import { AlwaysScope, ApprovalAnswer, ToolName } from "./policy.ts";
@@ -44,6 +43,8 @@ export const InitRecord = z
       })
       .optional(),
     ...INIT_PLATFORM_FIELDS,
+    /** Gone with the host sandbox: a stale daemon sending it refuses the init (the path is named, never the value). */
+    sandbox: z.undefined({ error: "the host sandbox is gone: a session's shell is its VM's" }).optional(),
     /** A subagent's child: the profile's prompt, appended to the system prompt once like the agent's (M11R136). */
     child: InitChild.optional(),
     /** Missing: pi-mem0 gets no entry and runs its ordinary session (M11R142). */
@@ -54,14 +55,10 @@ export const InitRecord = z
     /** A worker in an agent's VM (R2, R25, R28): where things are, its relay key and its slot. Never logged. */
     vm: VmInit.optional(),
   })
-  .refine(
-    (init) =>
-      init.vm === undefined ||
-      (init.vault === undefined && init.once === undefined && init.memory === undefined),
-    {
-      message: "a VM session carries no vault, one-use value or memory (R11, R17)",
-    },
-  );
+  .refine((init) => init.vm === undefined || init.memory === undefined, {
+    // ADR 0081: the vault and the one-use values do travel; pi-mem0 stays out of a VM (sub-project 5).
+    message: "a VM session carries no memory (R17)",
+  });
 /** What the daemon builds: `platform` may be left out (parsed, it is `{ ops: [] }`: see `ParsedInitRecord`). */
 export type InitRecord = z.input<typeof InitRecord>;
 export type ParsedInitRecord = z.output<typeof InitRecord>;
@@ -181,8 +178,6 @@ export const DaemonToWorker = z.discriminatedUnion("type", [
   PolicyUpdateRecord,
   PlatformResultRecord,
   VaultUpdateRecord,
-  EgressOpened,
-  EgressReport,
   SessionResync,
   FilePut,
   HomePut,

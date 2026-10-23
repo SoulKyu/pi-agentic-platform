@@ -1,12 +1,10 @@
-import type { EgressReport } from "@pap/contracts";
+import { cleansContent, type EgressReport } from "@pap/contracts";
 
 /** A networked command taints unless the proxy saw only CONNECT 443 to trusted sources (or nothing). No report, a cut one: taints. */
 export function commandTaints(report: EgressReport | null | undefined, trusted: readonly string[]): boolean {
   if (report === null || report === undefined || report.truncated) return true;
   return report.hosts.some(
-    (entry) =>
-      entry.verdict === "allowed" &&
-      !(entry.kind === "connect" && entry.port === 443 && trusted.includes(entry.host)),
+    (entry) => entry.verdict === "allowed" && !cleansContent(entry.kind, entry.port, entry.host, trusted),
   );
 }
 

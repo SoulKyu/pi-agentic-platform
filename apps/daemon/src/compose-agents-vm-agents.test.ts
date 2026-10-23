@@ -21,6 +21,7 @@ function bed() {
   const backend = createKataBackend({ client: fake, images, logger: silentLogger, notice: () => {} });
   const { link } = composeAgentsLink({
     runtime: { stop: async () => {}, resume: () => {} },
+    require: async () => {},
     client: fake,
     stopVm: (agentId, taskKey) => backend.stop(agentId, taskKey),
     papHome: "/nonexistent",

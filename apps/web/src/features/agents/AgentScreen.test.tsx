@@ -144,7 +144,7 @@ describe("the agent screen opens the thread (M11R118)", () => {
     };
     await load([atlas]);
     const { page, onOpenSettings } = await show();
-    expect(alerts(page.container).join(" ")).toContain("cannot run on this server");
+    expect(alerts(page.container).join(" ")).toContain("Agents run in microVMs");
     expect(text(page.container)).not.toContain("external content");
     expect(page.container.querySelector("[data-thread]")).toBeNull();
     expect(hasButton(page.container, "Queue task")).toBe(true);
@@ -366,10 +366,10 @@ describe("marking the thread read (pi-web's rule: 1 s of visibility)", () => {
   });
 });
 
-describe("the Files tab follows the runtime (sub-project 2)", () => {
-  const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+describe("the Files tab (sub-project 2)", () => {
+  const vm = { usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
 
-  it("is offered in VM mode and shows the agent's files", async () => {
+  it("is offered and shows the agent's files", async () => {
     bed.handlers["agents.vmStatus"] = () => vm;
     bed.handlers["agents.files.list"] = () => ({ files: [] });
     await load([atlas]);
@@ -380,13 +380,5 @@ describe("the Files tab follows the runtime (sub-project 2)", () => {
       expect.objectContaining({ params: { agentId: "atlas-1a2b" } }),
     ]);
     expect(text(page.container)).toContain("No file yet");
-  });
-
-  it("is not offered in host mode", async () => {
-    bed.handlers["agents.vmStatus"] = () => ({ ...vm, runtime: "host" });
-    await load([atlas]);
-    const { page } = await show();
-    expect(hasButton(page.container, "Files")).toBe(false);
-    expect(hasButton(page.container, "Settings")).toBe(true);
   });
 });

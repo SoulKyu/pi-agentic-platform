@@ -33,7 +33,7 @@ beforeAll(async () => {
       { toolCalls: [{ name: "write", args: { path: "x.txt", content: "x" }, id: "w1" }] },
       { text: "Written." },
     ]),
-    { deps: { clock } },
+    { deps: { clock }, vm: true },
   );
   owner = await openOwner(t);
 });

@@ -25,3 +25,5 @@ The staged production tree is the archive's (`stageTree`), built in a first stag
 ## Not covered
 
 SELinux hosts (no `:z` on mounts), rootful Docker, a registry push, the image build itself (built by hand, Appendix A step 9: the plan session had no network).
+
+Update (ADR 0081): `--security-opt systempaths=unconfined` is dropped. Its only user was the bubblewrap sandbox for agents in the container, which no longer exists; nothing else in the image reads the unmasked paths (the entrypoint, the daemon and its workers do not). The default masks apply.

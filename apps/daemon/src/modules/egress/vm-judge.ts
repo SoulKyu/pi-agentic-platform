@@ -3,7 +3,7 @@ import { type EgressHost, entryAllows, tryParseHostEntry } from "@pap/contracts"
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { normalizeHost } from "./allow.ts";
-import type { Decision, VmDetail } from "./judge.ts";
+import type { Decision, VmDetail } from "./proxy-core.ts";
 import { createLookup } from "./lookup.ts";
 import { displayHost } from "./refusal.ts";
 import { canonicalAddress, type vmAddressRefused } from "./vm-address.ts";
@@ -14,6 +14,8 @@ export interface VmScope {
   readonly launchId: string;
   readonly source: "thread" | { readonly task: string };
   readonly hosts: readonly string[];
+  /** The agent's trusted sources now: a CONNECT on 443 to one of them is the only allowed request that leaves content clean. */
+  readonly trustedSources: readonly string[];
 }
 
 export interface VmRefusal {
