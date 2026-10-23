@@ -125,6 +125,20 @@ it("an unknown code is skipped", () => {
   );
 });
 
+it("a listener that throws is logged and skipped", () => {
+  const clock = createFakeClock(1_000);
+  const { logger, lines } = loggerOf(clock);
+  const buffer = createHealthBuffer({ clock, logger });
+  const heard: HealthChange[] = [];
+  buffer.on(() => {
+    throw new Error("boom");
+  });
+  buffer.on((change) => void heard.push(change));
+  expect(() => buffer.record(input())).not.toThrow();
+  expect(heard).toHaveLength(1);
+  expect(lines).toContainEqual(expect.objectContaining({ level: "warn", msg: "health_listener_failed" }));
+});
+
 it("a fresh instance starts empty at seq 1", () => {
   const clock = createFakeClock(1_000);
   const first = createHealthBuffer({ clock, logger: loggerOf(clock).logger });

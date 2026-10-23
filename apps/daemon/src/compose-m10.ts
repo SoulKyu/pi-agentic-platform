@@ -21,6 +21,8 @@ import {
   type AutomationRpc,
   type FireResult,
 } from "./modules/automation/index.ts";
+import { composeHealth } from "./compose-health.ts";
+import type { HealthModule } from "./modules/health/index.ts";
 import { type Inbox, INBOX_MIGRATIONS, inboxRpc, type InboxRpc } from "./modules/inbox/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
 import type { SettingsModule } from "./modules/settings/index.ts";
@@ -53,6 +55,8 @@ export interface M10Early {
   readonly onCall: ComposedTrace["onCall"];
   /** `GET /metrics` and its families (Task 14). */
   readonly metrics: ComposedMetrics;
+  /** The health module (Task 4): the daemon's one bus, the `ops` stream and the outbox's failures. */
+  readonly health: HealthModule;
 }
 
 /** The modules `composeM10` is given once they exist; the tasks that need one read it from here. */
@@ -99,8 +103,12 @@ export function composeM10Early(core: M10Core, closers?: Closers): M10Early {
       trace.close();
     },
   });
+  const outbox = composeOutbox(core, trace.tracer);
+  const health = composeHealth(core, outbox);
+  closers?.push({ name: "health", close: () => health.stop() });
   return {
-    outbox: composeOutbox(core, trace.tracer),
+    outbox,
+    health,
     runs: runs.service,
     observer: runs.observer,
     trace,

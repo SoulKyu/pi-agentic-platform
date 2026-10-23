@@ -57,6 +57,8 @@ export function bindVmCrash(
     events: Pick<AgentEvents, "notify" | "write" | "update">;
     items: Pick<RequestItems, "upsertAgentItem">;
     clock: Pick<Clock, "now" | "setTimeout" | "clearTimeout">;
+    /** The daemon's health bus (Task 4): the crash pause the owner may page on; `createCrashPause` takes it through the spread. */
+    health?: Parameters<typeof createCrashPause>[0]["health"];
   },
 ): void {
   vm?.bindCrashPause(createCrashPause({ ...parts, logger }));

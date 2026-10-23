@@ -9,6 +9,7 @@ import type { AgentsVm } from "./compose-m11-vm.ts";
 import type { AgentLinks, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
 import type { AgentFiles } from "./modules/agent-vm/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
+import type { HealthEvents } from "./modules/health/index.ts";
 import type { M11RunsPort } from "./compose-subagents.ts";
 import type { AutomationModule } from "./modules/automation/index.ts";
 import type { Inbox } from "./modules/inbox/index.ts";
@@ -80,6 +81,8 @@ export interface M11Modules {
   readonly vm?: AgentsVm | undefined;
   /** The owner's automation time zone: the day an agent's budget and figures count in (M11R74, M11R76). */
   readonly settings: { readonly port: Pick<SettingsModule["port"], "automation" | "agents"> };
+  /** The daemon's one health bus (Task 4): a refused launch and a crash pause reach it; absent in a test bed. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 export interface M11 {

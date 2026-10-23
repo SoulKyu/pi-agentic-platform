@@ -10,6 +10,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { Outbox } from "../../kernel/outbox/index.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { AuditPort } from "../audit/index.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { RunsPort } from "../runs/index.ts";
@@ -108,6 +109,8 @@ export interface AutomationDeps {
     | "spentByTask"
     | "onResumeSkipped"
   >;
+  /** The daemon's one health bus (Task 4): absent and the engine makes its own. */
+  readonly health?: HealthEvents;
   readonly settings: { automation(ownerId: string): AutomationSettings };
   readonly outbox: Pick<
     Outbox,
@@ -212,6 +215,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     settings: deps.settings,
     outbox: deps.outbox,
     hub: deps.hub,
+    health: deps.health,
     readOnly: deps.readOnly,
     resumeKeys: (task) => (task.session_id === null ? [] : (deps.resume?.keysOf(task.session_id) ?? [])),
     resumeSending: (sessionId) => deps.resume?.sending(sessionId) ?? false,
@@ -222,6 +226,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     db: deps.db,
     clock: deps.clock,
     logger,
+    health: deps.health,
     triggers,
     settings: deps.settings,
     gates: built.gates,
@@ -233,6 +238,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
   deps.outbox.register("feed.poll", feeds.handler);
   const scheduler = createScheduler({
     outbox: deps.outbox,
+    health: deps.health,
     db: deps.db,
     clock: deps.clock,
     logger,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { composeOutbox } from "./compose-automation.ts";
+import { composeHealth } from "./compose-health.ts";
 import { claimEffect, enqueueEffect } from "./kernel/outbox/store.ts";
 import { openM10Core, type M10TestCore } from "./testing/m10-core.ts";
 
@@ -35,5 +36,18 @@ describe("composeOutbox", () => {
     outbox.start();
     expect(statusOf(open, id)).toBe("leased");
     expect(open.bed.clock.pending()).toBe(0);
+  });
+});
+
+describe("composeHealth", () => {
+  it("pages what the daemon bus emitted, over the composed outbox", async () => {
+    open = openM10Core();
+    const health = composeHealth(open.core, composeOutbox(open.core));
+    health.port.emit({ ownerId: "u1", kind: "sched", code: "missed", sourceRef: null });
+    const page = (await health.rpc["ops.events.list"]({}, {
+      caller: { userId: "u1", kind: "session" },
+    } as never)) as { events: unknown[]; hasMore: boolean };
+    expect(page).toMatchObject({ hasMore: false, events: [{ kind: "sched", code: "missed" }] });
+    health.stop();
   });
 });

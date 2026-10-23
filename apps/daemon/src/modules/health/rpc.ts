@@ -1,13 +1,18 @@
-import { PapError } from "@pap/contracts";
-import type { Handler, HandlerContext, ParamsOf } from "@pap/contracts";
+import type { HandlerTable, HealthEvent } from "@pap/contracts";
 
-// shortcut: the health console's real daemon RPC/stream is task 4 of the plan; these stubs keep
-// the handler table exhaustive so the contracts of task 1 typecheck. Upgrade when task 4 lands.
-export const healthRpc = {
-  "ops.events.list": (async () => {
-    throw new PapError("internal");
-  }) satisfies Handler<"ops.events.list">,
-  "subscribe.ops": (async ({ after }: ParamsOf<"subscribe.ops">, ctx: HandlerContext) => ({
-    sub: ctx.openSubscription("ops", ctx.caller.userId, after),
-  })) satisfies Handler<"subscribe.ops">,
-};
+export type HealthRpc = Pick<HandlerTable, "ops.events.list" | "subscribe.ops">;
+
+/** The owner is the caller the transport stamped, never a param; each handler is one service call. */
+export function healthRpc(service: {
+  page(
+    ownerId: string,
+    params: { before?: number; limit?: number },
+  ): { events: HealthEvent[]; hasMore: boolean };
+}): HealthRpc {
+  return {
+    "ops.events.list": async (params, ctx) => service.page(ctx.caller.userId, params),
+    "subscribe.ops": async (params, ctx) => ({
+      sub: ctx.openSubscription("ops", ctx.caller.userId, params.after),
+    }),
+  };
+}

@@ -74,6 +74,8 @@ const SAMPLES: Record<string, unknown> = {
   "models.logout": { provider: "anthropic" },
   "agents.vm.setClaudeToken": { token: "t" },
   "agents.vm.clearClaudeToken": {},
+  "ops.events.list": {},
+  "subscribe.ops": {},
 };
 
 const tokenCaller = (): Caller =>

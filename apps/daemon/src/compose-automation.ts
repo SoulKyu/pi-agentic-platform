@@ -6,6 +6,7 @@ import type { Tracer } from "./kernel/observability/tracer.ts";
 import { createOutbox, type Outbox } from "./kernel/outbox/index.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { AuditModule } from "./modules/audit/index.ts";
+import type { HealthModule } from "./modules/health/index.ts";
 import { createInbox, type Inbox } from "./modules/inbox/index.ts";
 import { requireStepUp } from "./modules/auth/index.ts";
 import {
@@ -57,12 +58,14 @@ export interface AutomationModules {
   readonly settings: Pick<SettingsModule, "port">;
 }
 
-/** What the daemon built before any module: the recovered outbox and the runs registry. */
+/** What the daemon built before any module: the recovered outbox, the runs registry, and the health module. */
 export interface AutomationEarly {
   readonly outbox: Outbox;
   readonly runs: Pick<RunsService, "port">;
   /** The trace file: the feed fetch's span. */
   readonly trace?: { readonly tracer: Tracer };
+  /** The daemon's one health bus (Task 4); absent and the engine makes its own. */
+  readonly health?: HealthModule;
 }
 
 /**
@@ -94,6 +97,7 @@ export function composeAutomation(
     settings: modules.settings.port,
     outbox: early.outbox,
     hub: core.hub,
+    health: early.health?.port,
     inboxRetention: () => late.inbox?.retention(),
     resume,
     feedSpan: early.trace && (() => (early.trace as { tracer: Tracer }).tracer.span("feed.fetch")),

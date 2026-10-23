@@ -153,6 +153,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     guard,
     clock: core.clock,
     logger: agentsLogger,
+    health: modules.health,
     links: agents.links,
     changed: stream.touch,
     audit: modules.audit.port,
@@ -167,7 +168,13 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   });
   const spend = createAgentSpend({ db: core.db, clock: core.clock });
   const items = modules.inbox.agentItems;
-  bindVmCrash(modules.vm, agentsLogger, { agents, events, items, clock: core.clock });
+  bindVmCrash(modules.vm, agentsLogger, {
+    agents,
+    events,
+    items,
+    clock: core.clock,
+    health: modules.health,
+  });
   const delegations = createDelegationBack({
     agents: agents.port,
     events,

@@ -58,7 +58,14 @@ export function createHealthBuffer(deps: { readonly clock: Clock; readonly logge
   let nextSeq = 1;
   const listeners = new Set<(change: HealthChange) => void>();
   const tell = (change: HealthChange) => {
-    for (const listener of [...listeners]) listener(change);
+    // same guard as createHealthEvents: one listener never stops the others nor the move that caused the change
+    for (const listener of [...listeners]) {
+      try {
+        listener(change);
+      } catch (error) {
+        deps.logger.warn("health_listener_failed", { kind: change.kind, err: error });
+      }
+    }
   };
 
   function record(input: HealthEventInput): void {
@@ -114,7 +121,8 @@ export function createHealthBuffer(deps: { readonly clock: Clock; readonly logge
       used += size;
       events.push(event);
     }
-    return { events, hasMore };
+    // a page that fit nothing (a single event over the frame budget) says hasMore: false, never an empty loop
+    return { events, hasMore: events.length > 0 && hasMore };
   }
 
   return {
