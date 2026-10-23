@@ -87,6 +87,12 @@ Project triggers keep everything above (ADR 0041). A trigger that runs as an age
 
 - A database written by a newer pap opens read-only: no recovery, no outbox worker, no scheduler, no housekeeping, no feed poll, no trace or stall file write, no OTLP timer; `/hooks` answers `503 read_only`; mutations answer `read_only`. Every timer callback runs through `guardTimer` (`<name>_failed`, once a minute per name).
 
+## Health
+
+- The daemon's failure console (`modules/health/`, its own note: `health.md`): every failure the fire path already logs also emits a health event — feed results (`feed_fetch`, `feed_poll_failed`), the scheduler's failed tick and missed fires, the precheck's `error`, the runner's task failures.
+- The outbox's handler failures and overdue handlers come from the kernel outbox itself (`onFailed` / `onOverdue`); an effect without an owner stays log-only.
+- Events land in a 500-row in-memory buffer, collapsed per identity, shown on the Health screen of Settings; see `health.md` for the buffer, the permission and the emission rule.
+
 ## Residuals
 
 - The draft Pi file adopted after a crash: a task session's row is inserted once its worker is ready; a crash before the commit can leave a Pi file the scanner adopts as an ordinary owner session (tainted, no list).

@@ -23,6 +23,10 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 - The process umask is 077 from then on, so any file the daemon creates later is private by default.
 - Workers do not inherit it (R114). `prepareHome` returns the umask the process had before its first call (module-level, captured once, R114b), the sessions module puts it in every `InitRecord.umask`, and pi-host applies it with `process.umask()` before it opens the Pi session. Files Pi's tools and bash children create in a project get the user's usual modes; state files stay 0600. A worker started without `umask`, or with one outside 0..0o777, refuses to start.
 
+## Health buffer
+
+- The health module (`modules/health/`, note `health.md`) keeps the daemon's failure console in memory: a buffer of 500 collapsed events per run, fed only where the daemon already logs a failure, routed per owner.
+- It holds no state to protect: no database table, no file, never in a backup; a restart empties it and `seq` restarts at 1.
 ## One daemon per home
 
 - `acquireInstanceLock` (R70) creates `pap.lock` in `$PAP_HOME` before migrating. The file holds `<pid> <start time>` and appears with its content already in it (hard link of a written temp file), so a second instance never reads an empty file. A second daemon exits with `pap is already running on <home> (pid N)`.
