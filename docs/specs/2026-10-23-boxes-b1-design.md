@@ -95,7 +95,7 @@ Facts from the code recon, which the plan must handle:
 
 - **Creating.** `sessions.create {cwd}` with a cwd at or under a box project's root makes a box session. It is resolved without touching the host file system. The row keeps that cwd and the project id, and has no agent id.
 - **Launching.** A launch gate (the project exists, is the owner's, is of kind `box` and is not being deleted), then the VM launch path agents use: runtime spawn, mirror, relay key, worker slot.
-- **Mirror.** Session files are mirrored under `$PAP_HOME/boxes/<projectId>/mirrors/` *(controller's call)*, with the mirror's checks and a quota of the project's disk size.
+- **Mirror.** Session files are mirrored under `$PAP_HOME/boxes/.mirrors/<projectId>/` (the agents' shape, so search watches it the same way) *(controller's call)*, with the mirror's checks and a quota of the project's disk size.
 - **Policy: a new profile `project`** *(controller's call)*:
   - pap's VM shell and VM file tools;
   - writable roots: `project/`, `home/` and `inbox/`;
