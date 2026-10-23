@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { HealthEvents } from "../health/index.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { createScheduler } from "./scheduler.ts";
 import { createTriggerStore } from "./store.ts";
@@ -13,7 +14,7 @@ beforeEach(() => {
 });
 afterEach(() => bed.dispose());
 
-function boot(rrule: string, catchUp: "skip" | "once", downFor: number) {
+function boot(rrule: string, catchUp: "skip" | "once", downFor: number, health?: Pick<HealthEvents, "emit">) {
   const { trigger } = bed.triggers.create(
     bed.owner(),
     parsedInput({
@@ -39,6 +40,7 @@ function boot(rrule: string, catchUp: "skip" | "once", downFor: number) {
     store,
     fire,
     readOnly: false,
+    health,
   });
   scheduler.start();
   scheduler.stop();
@@ -75,5 +77,12 @@ describe("a downtime longer than the counting cap (M10R62)", () => {
     const { calls, lines } = boot(`FREQ=DAILY;BYHOUR=${hour}`, "once", 1100 * DAY);
     expect(calls).toHaveLength(0);
     expect(lines).toEqual([{ verdict: "missed", detail: "1000+" }]);
+  });
+
+  it("emits a missed health event", () => {
+    const health = { emit: vi.fn() };
+    const { calls } = boot("FREQ=HOURLY", "skip", 2 * DAY, health);
+    expect(calls).toHaveLength(0);
+    expect(health.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: "sched", code: "missed" }));
   });
 });

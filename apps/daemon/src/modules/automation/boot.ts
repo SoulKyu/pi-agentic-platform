@@ -2,6 +2,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { enqueueEffect, type Outbox } from "../../kernel/outbox/index.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import type { Runner } from "./runner.ts";
@@ -24,6 +25,8 @@ export interface BootDeps {
   readonly sessions: Pick<SessionsAutomationPort, "archive">;
   readonly outbox: Pick<Outbox, "db">;
   readonly readOnly: boolean;
+  /** The health events (Task 3): an orphan session the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 const NOTHING: BootReport = { interrupted: 0, orphans: 0, retried: 0, requeued: 0 };
@@ -55,6 +58,7 @@ export function recoverTasks(deps: BootDeps): BootReport {
       deps.sessions.archive(ownerId, sessionId);
     } catch (error) {
       logger.warn("task_orphan_session_failed", { sessionId, err: error });
+      deps.health?.emit({ ownerId, kind: "task", code: "task_orphan_session", sourceRef: null });
     }
   }
 

@@ -1,6 +1,7 @@
 import { PRECHECK_REMOVED } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
+import type { HealthEvents } from "../health/index.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
@@ -9,7 +10,7 @@ import type { TriggerRecord } from "./triggers.ts";
  * collapses repeats, so a scheduled tick records one line per distinct cause) and nothing is ever spawned.
  */
 export function refuseStoredPrecheck(
-  deps: { readonly db: Db; readonly clock: Clock },
+  deps: { readonly db: Db; readonly clock: Clock; readonly health?: Pick<HealthEvents, "emit"> },
   record: TriggerRecord,
   source: "schedule" | "manual" | "feed" | "webhook" | "retry",
 ): boolean {
@@ -26,5 +27,12 @@ export function refuseStoredPrecheck(
       at: deps.clock.now(),
     }),
   );
+  // An errored precheck is pageable (Task 3); this refusal is the error verdict since B6 removed the runner.
+  deps.health?.emit({
+    ownerId: record.ownerId,
+    kind: "sched",
+    code: "precheck_failed",
+    sourceRef: { kind: "trigger", id: record.id, name: record.name },
+  });
   return true;
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { journal, ok, type Post, range, setup, START, state, tasks } from "./testing/feed-bed.ts";
 import { parsedInput } from "./testing/bed.ts";
 import { effectContext } from "./testing/runner-bed.ts";
@@ -132,6 +132,17 @@ describe("new entries (M10R76)", () => {
     posts = range(1, 3);
     await poll();
     expect(JSON.parse(tasks()[0]?.policy ?? "{}")).toMatchObject({ mode: "supervised" });
+  });
+});
+
+describe("the feed's health events (Task 3)", () => {
+  it("emits a health event when the fetch fails", async () => {
+    const health = { emit: vi.fn() };
+    const { poll } = setup(() => Promise.resolve({ ok: false, code: "not_a_feed", retry: false }), {
+      health,
+    });
+    expect(await poll()).toEqual({ outcome: "fail", code: "not_a_feed" });
+    expect(health.emit).toHaveBeenCalledWith(expect.objectContaining({ kind: "feed", code: "not_a_feed" }));
   });
 });
 

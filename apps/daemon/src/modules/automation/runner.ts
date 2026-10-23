@@ -4,6 +4,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { EffectContext, Outbox, Settlement } from "../../kernel/outbox/index.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { PolicyPort } from "../policy/index.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { RunEndEvent, RunsPort, RunStartEvent } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { createAbortNext } from "./abort-next.ts";
@@ -70,6 +71,8 @@ export interface RunnerDeps {
   readonly thread: Pick<ThreadStart, "start" | "runStarted" | "runEnded" | "mayAbort">;
   /** The commit of a start: the mark, the origin and the prompt (shared with the thread target). */
   readonly launch: Launch;
+  /** The health events (Task 3): a task failure the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 const done: Settlement = { outcome: "done" };
@@ -77,12 +80,21 @@ const done: Settlement = { outcome: "done" };
 /** The reason stored for a failure: a code of ours, never text from outside. */
 const reasonOf = (error: unknown): string => (error instanceof PapError ? error.code : "start_failed");
 
+const BUDGET_REASONS = new Set(["budget", "run_budget"]);
+/** The health code of a failure: the reason the row stores, in the closed table's terms. */
+const failureCode = (reason: string | null | undefined): string =>
+  reason === "deadline" ? "task_deadline" : BUDGET_REASONS.has(reason ?? "") ? "task_budget" : "task_failed";
 export function createRunner(deps: RunnerDeps) {
   const { db, clock, logger, store, starting } = deps;
   const timers = new Set<TimerHandle>();
   let stopped = false;
   const heldCancels = new Set<() => void>();
   const abortNext = createAbortNext({ ...deps, sending: deps.resumeSending });
+
+  /** The task health event: one line at each failure site, never inside a transaction (Task 3). */
+  function taskHealth(ownerId: string, code: string, id: string | null): void {
+    deps.health?.emit({ ownerId, kind: "task", code, sourceRef: id === null ? null : { kind: "task", id } });
+  }
 
   /** Tells the board and the end hook; the move is committed already, so a failing view never undoes or hides it. */
   function announce(id: string, previous: TaskState): void {
@@ -106,42 +118,39 @@ export function createRunner(deps: RunnerDeps) {
       timers.add(handle);
     } catch (error) {
       logger.warn("task_release_failed", { sessionId, err: error });
+      taskHealth(ownerId, "task_release_failed", null);
     }
   }
 
   /** One step of the end hook: a failing step is said and never stops the next one. */
-  function attempt(sessionId: string, step: () => void): void {
+  function attempt(row: TaskRow, sessionId: string, step: () => void): void {
     try {
       step();
     } catch (error) {
       logger.warn("task_end_step_failed", { sessionId, err: error });
+      taskHealth(row.owner_id, "task_end_failed", null);
     }
   }
 
-  /**
-   * The task's end (M10R154), for every terminal move, the boot's included: it is attended again, the origin the runs
-   * module waited for is forgotten, a task that finished is archived (owner m10q10) and its idle worker goes at once.
-   */
+  /** The task's end (M10R154), for every terminal move, the boot's included: attended again, the origin forgotten, a finished task archived (m10q10), its idle worker released. */
   function endHook(row: TaskRow, sessionId: string | null, state: TaskState, release = true): void {
     deps.limits.ended(row.id);
     if (sessionId === null) {
       // A delegation that never got a session still owes its requester an answer (M11R79).
-      attempt(row.id, () => deps.agents.ended(row, state));
+      attempt(row, row.id, () => deps.agents.ended(row, state));
       return;
     }
     // An agent's thread outlives the task that prompted it: its policy and its archive mark stay the thread's own (M11R71).
     const own = row.target !== "thread";
-    if (own) attempt(sessionId, () => deps.policy.endTaskPolicy(row.owner_id, sessionId));
-    attempt(sessionId, () => deps.runs.clearExpected(sessionId));
-    if (state === "done" && own) attempt(sessionId, () => deps.sessions.archive(row.owner_id, sessionId));
-    attempt(sessionId, () => deps.agents.ended(row, state));
+    if (own) attempt(row, sessionId, () => deps.policy.endTaskPolicy(row.owner_id, sessionId));
+    attempt(row, sessionId, () => deps.runs.clearExpected(sessionId));
+    if (state === "done" && own)
+      attempt(row, sessionId, () => deps.sessions.archive(row.owner_id, sessionId));
+    attempt(row, sessionId, () => deps.agents.ended(row, state));
     if (release) releaseLater(row.owner_id, sessionId);
   }
 
-  /**
-   * One state change (M10R35). Announces it and, for a terminal one, runs the end hook. `hold` leaves the hook to the
-   * caller, who has a run to abort first.
-   */
+  /** One state change (M10R35): announces it and, for a terminal one, runs the end hook; `hold` leaves the hook to the caller, who has a run to abort first. */
   function settle(
     row: TaskRow,
     from: readonly TaskState[],
@@ -152,6 +161,7 @@ export function createRunner(deps: RunnerDeps) {
     const terminal = isTerminal(to);
     const moved = store.move(row.id, from, to, terminal ? { ...change, endedAt: clock.now() } : change);
     if (!moved) return false;
+    if (to === "failed") taskHealth(row.owner_id, failureCode(change.reason), row.id);
     // A task waiting for a quota or over has no deadline and no question timer.
     if (terminal || to === "limited") deps.limits.ended(row.id);
     announce(row.id, row.state);
@@ -170,6 +180,7 @@ export function createRunner(deps: RunnerDeps) {
       if (deps.thread.mayAbort(row)) await deps.sessions.abort(row.owner_id, sessionId);
     } catch (error) {
       logger.warn("task_abort_failed", { taskId: row.id, err: error });
+      taskHealth(row.owner_id, "task_abort_failed", null);
     }
     endHook(row, sessionId, "failed");
   }
@@ -291,6 +302,7 @@ export function createRunner(deps: RunnerDeps) {
         if (deps.thread.mayAbort(row)) await deps.sessions.abort(ownerId, row.session_id);
       } catch (error) {
         logger.warn("task_abort_failed", { taskId, err: error });
+        taskHealth(ownerId, "task_abort_failed", null);
       }
     }
     endHook(row, row.session_id, "cancelled");

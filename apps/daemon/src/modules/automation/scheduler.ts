@@ -4,6 +4,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { enqueueEffect, type Outbox } from "../../kernel/outbox/index.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
+import type { HealthEvents } from "../health/index.ts";
 import { createDueTimer } from "./due-timer.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { writeJournal } from "./fire-journal.ts";
@@ -35,6 +36,8 @@ export interface SchedulerDeps {
   readonly readOnly: boolean;
   /** Feed triggers are polled as `feed.poll` effects (M10R73); none: they are not scheduled. */
   readonly outbox?: Pick<Outbox, "poke">;
+  /** The health events (Task 3): a missed fire or a failed trigger the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
   /** Tasks that wait for a time (M11R81): with the outbox, the scheduler also arms a timer for the earliest of them. */
   readonly tasks?: Pick<TaskStore, "dueQueued" | "nextNotBefore">;
 }
@@ -99,6 +102,16 @@ export function createScheduler(deps: SchedulerDeps) {
     });
   }
 
+  /** The health event of a trigger the scheduler lost or failed, next to its line or log. */
+  function schedHealth(record: TriggerRecord, code: string): void {
+    deps.health?.emit({
+      ownerId: record.ownerId,
+      kind: "sched",
+      code,
+      sourceRef: { kind: "trigger", id: record.id, name: record.name },
+    });
+  }
+
   /** A trigger that still holds a precheck is refused and journaled (the journal collapses repeats); nothing is spawned (B6). */
   function fireNow(record: TriggerRecord, detail: string | null): void {
     if (refuseStoredPrecheck(deps, record, "schedule")) return;
@@ -122,6 +135,7 @@ export function createScheduler(deps: SchedulerDeps) {
       dedupKey: null,
       at: now,
     });
+    schedHealth(record, "missed");
   }
 
   const feedOf = (record: TriggerRecord) =>
@@ -159,6 +173,7 @@ export function createScheduler(deps: SchedulerDeps) {
           pollFeed(record, feed.everyMinutes);
         } catch (error) {
           logger.warn("scheduler_trigger_failed", { err: error });
+          schedHealth(record, "scheduler_failed");
         }
         continue;
       }
@@ -174,6 +189,7 @@ export function createScheduler(deps: SchedulerDeps) {
         }
       } catch (error) {
         logger.warn("scheduler_trigger_failed", { err: error });
+        schedHealth(record, "scheduler_failed");
       }
     }
   }

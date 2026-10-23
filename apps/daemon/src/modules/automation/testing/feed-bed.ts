@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type { Settlement } from "../../../kernel/outbox/index.ts";
+import type { HealthEvents } from "../../health/index.ts";
 import { createFeedPoller, type FeedFetchResult } from "../index.ts";
 import { parsedInput } from "./bed.ts";
 import { createRunnerBed, effectContext, type RunnerBed } from "./runner-bed.ts";
@@ -42,6 +43,8 @@ interface Options {
   /** The trigger then holds a stored precheck command (refused since B6). */
   readonly storedPrecheck?: boolean;
   readonly enabled?: boolean;
+  /** The health events (Task 3): the poller's emissions land here. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 export function setup(fetch: Fetch, options: Options = {}) {
@@ -60,6 +63,7 @@ export function setup(fetch: Fetch, options: Options = {}) {
       gates: state.bed.engine.gates,
       fire: state.bed.engine.fire,
       fetch: fetcher,
+      health: options.health,
       span: () => ({ end: (outcome, attrs) => void spans.push({ outcome, attrs }) }),
     });
   const { trigger } = state.bed.triggers.create(

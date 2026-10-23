@@ -17,6 +17,23 @@ const cleanup = (ownerId: string | null) =>
     bed.clock.now(),
   ) as number;
 
+describe("onOverdue", () => {
+  it("notifies overdue listeners with the row's owner", async () => {
+    const heard: Array<{ id: number; kind: string; ownerId: string | null }> = [];
+    outbox.onOverdue((overdue) => void heard.push(overdue));
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    outbox.register("attachment.cleanup", () => gate.then(() => ({ outcome: "done" as const })));
+    const id = cleanup("u1");
+    const drained = outbox.drain();
+    await bed.clock.advance(30_000); // the deadline aborts the handler
+    await bed.clock.advance(15_000); // ... and it is overdue this long after
+    expect(heard).toEqual([{ id, kind: "attachment.cleanup", ownerId: "u1" }]);
+    release();
+    await drained;
+  });
+});
+
 describe("onFailed", () => {
   it("tells the listener when an effect settles as failed, with its owner and its short code", async () => {
     const heard: FailedEffect[] = [];

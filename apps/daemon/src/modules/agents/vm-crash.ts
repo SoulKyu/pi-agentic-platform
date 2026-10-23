@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Logger } from "../../kernel/logger.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { AgentEvents } from "./events.ts";
 import type { AgentsPort } from "./service.ts";
 import type { RequestItems } from "./requests.ts";
@@ -13,6 +14,8 @@ export interface CrashPauseDeps {
   readonly events: Pick<AgentEvents, "notify">;
   readonly items: Pick<RequestItems, "upsertAgentItem">;
   readonly logger: Pick<Logger, "warn">;
+  /** The health events (Task 3): the crash pause the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 /**
@@ -28,6 +31,12 @@ export function createCrashPause(deps: CrashPauseDeps): (agentId: string) => voi
       return;
     }
     deps.agents.setPaused(ownerId, agentId, true);
+    deps.health?.emit({
+      ownerId,
+      kind: "agent",
+      code: "agent_crash_paused",
+      sourceRef: { kind: "agent", id: agentId, name: record.name },
+    });
     const text = `${record.name} s'est arrêté trois fois en dix minutes ; il est en pause.`;
     const itemId = randomUUID();
     if (!deps.events.notify(ownerId, agentId, { text, itemId })) return;

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
+import type { HealthEvents } from "../health/index.ts";
 import { agentInput, type AgentsBed, createAgentsBed } from "./testing/bed.ts";
 import { createCrashPause } from "./vm-crash.ts";
 
@@ -12,12 +13,12 @@ afterEach(() => bed.dispose());
 
 const TEXT = "Atlas s'est arrêté trois fois en dix minutes ; il est en pause.";
 
-async function setup() {
+async function setup(health?: Pick<HealthEvents, "emit">) {
   bed = createAgentsBed();
   const { id } = await bed.agents.create(bed.owner(), agentInput({ name: "Atlas" }));
   const events = { notify: vi.fn(() => true) };
   const items = { upsertAgentItem: vi.fn(() => true) };
-  const crash = createCrashPause({ agents: bed.agents, events, items, logger: silentLogger });
+  const crash = createCrashPause({ agents: bed.agents, events, items, logger: silentLogger, health });
   return { id, events, items, crash };
 }
 
@@ -47,6 +48,15 @@ describe("three crashes in ten minutes (RT-40)", () => {
     crash(id);
     bed.agents.pause(bed.owner(), id, false);
     expect(bed.agents.port.get("u1", id)?.paused).toBe(false);
+  });
+
+  it("emits an agent health event when the crashes pause the agent", async () => {
+    const health = { emit: vi.fn() };
+    const { id, crash } = await setup(health);
+    crash(id);
+    expect(health.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "agent", code: "agent_crash_paused" }),
+    );
   });
 
   it("does nothing, and does not throw, for an agent that is gone", async () => {

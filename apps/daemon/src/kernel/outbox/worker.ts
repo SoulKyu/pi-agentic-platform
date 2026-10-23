@@ -74,6 +74,8 @@ export interface Outbox {
   failures(ownerId: string): Array<{ id: number; kind: string; lastError: string | null; settledAt: number }>;
   /** An effect just settled as `failed` (its owner's banner; `ownerId` is null for a system effect). A throwing listener is logged. */
   onFailed(listener: (failure: FailedEffect) => void): () => void;
+  /** An effect's handler is still running this long after its abort (its row stays leased). A throwing listener is logged. */
+  onOverdue(listener: (overdue: { id: number; kind: string; ownerId: string | null }) => void): () => void;
   dismiss(ownerId: string, id: number): boolean;
   cancel(dedupKey: string): "retired" | "marked" | "none";
   /** The effect behind a receipt (a resume's, for the limit chip); null when there is none. */
@@ -105,6 +107,7 @@ type AnyHandler = (payload: unknown, context: EffectContext) => Promise<Settleme
 
 interface InFlight {
   readonly kind: EffectKind;
+  readonly ownerId: string | null;
   readonly controller: AbortController;
   deadline: TimerHandle | null;
   overdue: TimerHandle | null;
@@ -128,6 +131,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
   let stopped = false;
   let launches = 0;
   const failedListeners = new Set<(failure: FailedEffect) => void>();
+  const overdueListeners = new Set<(overdue: { id: number; kind: string; ownerId: string | null }) => void>();
 
   const kinds = (): EffectKind[] => [...handlers.keys()];
   const guard = (name: string, work: () => void | Promise<void>): void =>
@@ -177,9 +181,16 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     entry.controller.abort();
     entry.overdue = clock.setTimeout(
       () =>
-        guard("outbox_overdue", () =>
-          logger.warn("outbox_handler_overdue", { kind: entry.kind, effectId: id }),
-        ),
+        guard("outbox_overdue", () => {
+          logger.warn("outbox_handler_overdue", { kind: entry.kind, effectId: id });
+          for (const listener of [...overdueListeners]) {
+            try {
+              listener({ id, kind: entry.kind, ownerId: entry.ownerId });
+            } catch (error) {
+              logger.warn("outbox_overdue_listener_error", { err: error });
+            }
+          }
+        }),
       OVERDUE_MS,
     );
   }
@@ -284,6 +295,7 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     launches++;
     const entry: InFlight = {
       kind,
+      ownerId: row.ownerId,
       controller: new AbortController(),
       deadline: null,
       overdue: null,
@@ -350,6 +362,10 @@ export function createOutbox(deps: OutboxDeps): Outbox {
     onFailed(listener) {
       failedListeners.add(listener);
       return () => void failedListeners.delete(listener);
+    },
+    onOverdue(listener) {
+      overdueListeners.add(listener);
+      return () => void overdueListeners.delete(listener);
     },
     dismiss: (ownerId, id) => !readOnly && dismissFailure(db, ownerId, id),
     cancel: (dedupKey) => (readOnly ? "none" : cancelEffect(db, dedupKey, clock.now())),

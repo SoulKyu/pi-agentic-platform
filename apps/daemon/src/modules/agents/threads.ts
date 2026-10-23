@@ -1,6 +1,7 @@
-import { type Caller, PapError } from "@pap/contracts";
+import { HEALTH_TABLE, type Caller, PapError } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { SessionsAgentPort } from "../sessions/index.ts";
 import type { AuditPort } from "../audit/index.ts";
 import type { AgentLinks } from "./links.ts";
@@ -37,6 +38,8 @@ export interface ThreadsDeps {
   /** The agent's rail entry may have changed. */
   changed(ownerId: string, agentId: string): void;
   readonly audit: Pick<AuditPort, "append">;
+  /** The health events (Task 3): a refused agent launch the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
 }
 
 /**
@@ -48,6 +51,18 @@ export function createThreads(deps: ThreadsDeps) {
   const { store, sessions, guard } = deps;
   // The tail of each agent's chain; an entry leaves when its tail ends.
   const tails = new Map<string, Promise<unknown>>();
+  // The refusal codes of the agent kind: a launch refused with one of them is pageable (Task 3).
+  const agentRefusals = new Set<string>(HEALTH_TABLE.filter((r) => r.kind === "agent").map((r) => r.code));
+
+  /** The health event of a refused launch: the refusal still happens, next to it. */
+  function agentHealth(ownerId: string, record: { id: string; name: string }, code: string): void {
+    deps.health?.emit({
+      ownerId,
+      kind: "agent",
+      code,
+      sourceRef: { kind: "agent", id: record.id, name: record.name },
+    });
+  }
 
   function serial<T>(agentId: string, work: () => Promise<T> | T): Promise<T> {
     const run = (tails.get(agentId) ?? Promise.resolve()).then(work);
@@ -65,7 +80,10 @@ export function createThreads(deps: ThreadsDeps) {
   async function openOnce(ownerId: string, agentId: string): Promise<{ sessionId: string }> {
     const record = store.get(ownerId, agentId);
     if (!record) throw new PapError("not_found");
-    if (record.quarantinedAt !== null) throw new PapError("agent_paused");
+    if (record.quarantinedAt !== null) {
+      agentHealth(ownerId, record, "agent_paused");
+      throw new PapError("agent_paused");
+    }
     if (guard.deleting.has(agentId)) throw new PapError("session_busy");
     if (record.threadSessionId !== null) {
       const state = sessions.threadState(ownerId, record.threadSessionId);
@@ -81,6 +99,10 @@ export function createThreads(deps: ThreadsDeps) {
       }
       deps.changed(ownerId, agentId);
       return { sessionId };
+    } catch (error) {
+      if (error instanceof PapError && agentRefusals.has(error.code))
+        agentHealth(ownerId, record, error.code);
+      throw error;
     } finally {
       guard.opening.delete(agentId);
     }

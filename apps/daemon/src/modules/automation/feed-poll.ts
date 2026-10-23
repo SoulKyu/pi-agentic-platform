@@ -10,6 +10,7 @@ import { hasBaseline, markSeen, seenKeys, takeBaseline } from "./feed-seen.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { Gates } from "./gates.ts";
+import type { HealthEvents } from "../health/index.ts";
 import { refuseStoredPrecheck } from "./precheck-refusal.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
@@ -28,6 +29,8 @@ export interface FeedPollDeps {
   fire(triggerId: string, revision: number, input: FireInput): FireResult;
   /** The signal destroys the socket (M10R73). */
   fetch(url: string, signal: AbortSignal): Promise<FeedFetchResult>;
+  /** The health events (Task 3): a feed failure the owner may page on. */
+  readonly health?: Pick<HealthEvents, "emit">;
   /** One `feed.fetch` span per poll that fetched; only closed values are given to it (numbers, `ok`, `error`). */
   readonly span?: () => Span;
 }
@@ -115,6 +118,16 @@ export function createFeedPoller(deps: FeedPollDeps) {
     return done;
   }
 
+  /** The health event of a failed poll: next to the log or the journal line, never instead of it. */
+  function feedHealth(record: TriggerRecord, code: string): void {
+    deps.health?.emit({
+      ownerId: record.ownerId,
+      kind: "feed",
+      code,
+      sourceRef: { kind: "trigger", id: record.id, name: record.name },
+    });
+  }
+
   async function poll(
     ownerId: string | null,
     triggerId: string,
@@ -148,6 +161,7 @@ export function createFeedPoller(deps: FeedPollDeps) {
         triggerId,
         errorName: error instanceof Error ? error.name : "unknown",
       });
+      feedHealth(record, "feed_network");
       span?.end("error");
       return { outcome: "retry", code: "feed_error" };
     }
@@ -173,6 +187,7 @@ export function createFeedPoller(deps: FeedPollDeps) {
     if (!fetched.ok) {
       closeSpan(0);
       journal(record, "error", fetched.code);
+      feedHealth(record, fetched.code);
       return fetched.retry
         ? { outcome: "retry", code: fetched.code }
         : { outcome: "fail", code: fetched.code };
@@ -181,6 +196,7 @@ export function createFeedPoller(deps: FeedPollDeps) {
     if (!parsed.ok) {
       closeSpan(0);
       journal(record, "error", parsed.code);
+      feedHealth(record, parsed.code);
       return { outcome: "fail", code: parsed.code };
     }
     closeSpan(parsed.entries.length);

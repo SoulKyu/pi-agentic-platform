@@ -1,6 +1,8 @@
 import { PapError } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import type { HealthEventInput } from "../health/index.ts";
 import { createRunnerBed, deferred, effectContext, fireInput, type RunnerBed } from "./testing/runner-bed.ts";
+import type { TaskRow } from "./tasks.ts";
 
 let bed: RunnerBed;
 afterEach(() => bed.dispose());
@@ -198,6 +200,36 @@ describe("the task.start handler", () => {
     expect(seen).toEqual([
       ["queued", null],
       ["running", "queued"],
+    ]);
+  });
+});
+
+describe("the runner's health events (Task 3)", () => {
+  const emitted = (): HealthEventInput[] => {
+    const heard: HealthEventInput[] = [];
+    bed.engine.health.on((input) => void heard.push(input));
+    return heard;
+  };
+
+  it("emits task_deadline when the deadline stops a run", async () => {
+    bed = createRunnerBed();
+    const { taskId } = queue();
+    await start();
+    const heard = emitted();
+    await bed.engine.runner.stopRun(bed.engine.store.get(taskId) as TaskRow, "deadline");
+    expect(heard).toEqual([
+      { ownerId: "u1", kind: "task", code: "task_deadline", sourceRef: { kind: "task", id: taskId } },
+    ]);
+  });
+
+  it("emits task_failed on a provider failure", async () => {
+    bed = createRunnerBed();
+    const { taskId } = queue();
+    await start();
+    const heard = emitted();
+    bed.runs.endRun({ sessionId: "s1", status: "failed", taskId });
+    expect(heard).toEqual([
+      { ownerId: "u1", kind: "task", code: "task_failed", sourceRef: { kind: "task", id: taskId } },
     ]);
   });
 });

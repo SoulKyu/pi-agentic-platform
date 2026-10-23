@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
+import type { HealthEvents } from "../health/index.ts";
 import type { AgentLinks } from "./links.ts";
 import { agentInput, createAgentsBed, type AgentsBed } from "./testing/bed.ts";
 import { bedHelpers } from "./testing/helpers.ts";
@@ -10,7 +11,7 @@ let bed: AgentsBed;
 afterEach(() => bed.dispose());
 const { refusalOf } = bedHelpers(() => bed);
 
-async function setup(links: AgentLinks = {}) {
+async function setup(links: AgentLinks = {}, health?: Pick<HealthEvents, "emit">) {
   bed = createAgentsBed();
   const { id } = await bed.agents.create(bed.owner(), agentInput());
   const sessions = fakeSessions();
@@ -24,6 +25,7 @@ async function setup(links: AgentLinks = {}) {
     links: () => links,
     changed,
     audit: bed.audit,
+    health,
   });
   const row = () =>
     bed.db.get<{ thread_session_id: string | null; unread: number; read_at: number | null }>(
@@ -74,6 +76,17 @@ describe("openThread (M11R59)", () => {
     bed.db.run("UPDATE agents SET thread_session_id = NULL");
     expect(await refusalOf(() => threads.open("u1", id))).toBe("agent_paused");
     expect(sessions.createAgentSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits an agent health event when the launch is refused", async () => {
+    const health = { emit: vi.fn() };
+    const { id, sessions, threads } = await setup({}, health);
+    bed.db.run("UPDATE agents SET quarantined_at = 1, paused = 1");
+    expect(await refusalOf(() => threads.open("u1", id))).toBe("agent_paused");
+    expect(sessions.createAgentSession).not.toHaveBeenCalled();
+    expect(health.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "agent", code: "agent_paused" }),
+    );
   });
 
   it("is not_found for an agent that is not the owner's, and refuses while a delete is in flight", async () => {

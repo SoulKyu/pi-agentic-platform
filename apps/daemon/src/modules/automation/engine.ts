@@ -5,6 +5,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { Outbox } from "../../kernel/outbox/index.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { createHealthEvents, type HealthEvents } from "../health/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
@@ -82,6 +83,8 @@ export interface EngineDeps {
   readonly holdCancel?: boolean;
   /** The agents' ports, bound late (M11); one is made when the caller has none. */
   readonly agents?: AgentBinding;
+  /** The health events (Task 3): the runner's failures; one is made when the caller has none. */
+  readonly health?: HealthEvents;
 }
 
 /**
@@ -95,6 +98,7 @@ export function createTaskEngine(deps: EngineDeps) {
   const events = createAutomationEvents(logger);
   const starting = new Map<string, string>();
   const agents = deps.agents ?? createAgentBinding();
+  const health = deps.health ?? createHealthEvents(logger);
   const views = createTaskViews({
     sessions: deps.sessions,
     runs: deps.runs,
@@ -205,6 +209,7 @@ export function createTaskEngine(deps: EngineDeps) {
     agents: agentStart,
     thread,
     launch,
+    health,
   });
   const stream = createTasksStream({
     clock,
@@ -234,6 +239,8 @@ export function createTaskEngine(deps: EngineDeps) {
     views,
     store,
     admission,
+    /** The health events the runner emits to (Task 3): the composition's, or this engine's own. */
+    health,
     /** The agents' ports (M11): bound once by the composition. */
     agents,
     /** The task makers and counts of the delegation and reminder ops (M11R78, M11R80). */
@@ -276,6 +283,7 @@ export function createTaskEngine(deps: EngineDeps) {
         sessions: deps.sessions,
         outbox: deps.outbox,
         readOnly: deps.readOnly,
+        health,
       }),
     stop(): void {
       limits.stop();
