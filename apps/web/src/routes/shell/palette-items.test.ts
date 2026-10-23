@@ -105,6 +105,7 @@ describe("buildPaletteItems", () => {
       "MCP servers",
       "Skills",
       "Automation",
+      "Health",
       "Agents",
 
       "Notifications",

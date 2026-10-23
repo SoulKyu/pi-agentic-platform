@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   "mcp",
   "skills",
   "automation",
+  "health",
   "agents",
   "notifications",
   "account",

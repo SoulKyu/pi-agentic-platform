@@ -22,6 +22,7 @@ import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
+import type { healthEn } from "./catalog/health.ts";
 import type { laneCommitEn } from "./catalog/lane-commit.ts";
 import type { laneCompareEn } from "./catalog/lane-compare.ts";
 import type { laneNewEn } from "./catalog/lane-new.ts";
@@ -122,7 +123,8 @@ export type MessageKey =
   | keyof typeof pwaEn
   | keyof typeof pushEn
   | keyof typeof notificationsEn
-  | keyof typeof landingEn;
+  | keyof typeof landingEn
+  | keyof typeof healthEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

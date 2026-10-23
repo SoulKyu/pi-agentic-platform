@@ -9,6 +9,7 @@ import { LanguageSection } from "./LanguageSection.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { ModelsSettings } from "./ModelsSettings.tsx";
 import { AutomationSettings } from "./AutomationSettings.tsx";
+import { HealthSettings } from "./HealthSettings.tsx";
 import { NotificationsSettings } from "./NotificationsSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 
@@ -21,6 +22,7 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   mcp: () => <McpSettings />,
   skills: () => <SkillsSettings />,
   automation: () => <AutomationSettings />,
+  health: () => <HealthSettings />,
   agents: () => <AgentsSettings />,
   notifications: () => <NotificationsSettings />,
   account: () => <AccountSection />,
