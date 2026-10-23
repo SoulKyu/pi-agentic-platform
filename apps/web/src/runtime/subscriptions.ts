@@ -57,6 +57,8 @@ const OPENERS: {
   usage: (rpc, _key, after) => rpc.call("subscribe.usage", after ? { after } : {}),
   // The caller's own agents, like `shell`: the key is a local name (M11R63).
   agents: (rpc, _key, after) => rpc.call("subscribe.agents", after ? { after } : {}),
+  // The daemon-wide ops stream, like `shell`: the key is a local name (spec §4).
+  ops: (rpc, _key, after) => rpc.call("subscribe.ops", after ? { after } : {}),
 };
 
 interface Listener {

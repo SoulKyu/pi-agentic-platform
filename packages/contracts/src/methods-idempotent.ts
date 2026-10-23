@@ -125,6 +125,8 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "policy.getSettings": true,
   "policy.listRules": true,
   "policy.revokeRule": false,
+  "ops.events.list": true,
+  "subscribe.ops": true,
   "policy.setSessionMode": false,
   "policy.setSettings": false,
   "projects.add": true,

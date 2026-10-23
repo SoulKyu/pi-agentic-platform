@@ -38,6 +38,7 @@ import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts
 import { composeKnowledge } from "./compose-knowledge.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
 import { createSearchModule } from "./modules/search/index.ts";
+import { healthRpc } from "./modules/health/index.ts";
 import { createSessionsModule, resolveSessionCwd, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
@@ -287,6 +288,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...vmRpc.rpc,
       ...push.rpc,
       ...fonts.rpc,
+      ...healthRpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
     const ws = createWsServer({

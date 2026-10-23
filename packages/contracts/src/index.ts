@@ -92,3 +92,5 @@ export * from "./files-rank.ts";
 export * from "./project-config.ts";
 export * from "./json-bytes.ts";
 export * from "./vcs-status.ts";
+export * from "./health.ts";
+export * from "./health-methods.ts";
