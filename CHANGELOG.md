@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.1.0](https://github.com/SoulKyu/pi-agentic-platform/compare/v1.0.0...v1.1.0) (2026-10-24)
+
+
+### Features
+
+* **agents-vm:** agent files, sub-project 2 part B (decision 121) ([f639cbb](https://github.com/SoulKyu/pi-agentic-platform/commit/f639cbbf2e692263ac77fefdb805bd77c1acde65))
+* **agents-vm:** agents run in Kata microVMs, sub-project 1 (decision 118) ([c97fa35](https://github.com/SoulKyu/pi-agentic-platform/commit/c97fa35de45a4707151d3c5fd58f987452996450))
+* **agents-vm:** Claude Code env for claude-bridge agents (IS_SANDBOX, CLAUDE_CONFIG_DIR) ([f843107](https://github.com/SoulKyu/pi-agentic-platform/commit/f84310799e2edcab92ae69827fe76589a1dac09b))
+* **agents-vm:** network for agent VMs, sub-project 2 part A (decision 120) ([c70b90a](https://github.com/SoulKyu/pi-agentic-platform/commit/c70b90a5b7ab63081fdff4e0f76b471a9e896194))
+* **agents-vm:** sub-project 3, the VM as the only agent runtime ([a46b2f0](https://github.com/SoulKyu/pi-agentic-platform/commit/a46b2f0e703c6fc6076c4a4440b6211ca8224b13))
+* **agents:** allow a 20000-character role ([b89d9bb](https://github.com/SoulKyu/pi-agentic-platform/commit/b89d9bbd9c1b565ec4aa1b631447a0db34c395fe))
+* **agents:** run button for triggers in status panel ([301429c](https://github.com/SoulKyu/pi-agentic-platform/commit/301429c554726715c489686dc1421be088ed0b07))
+* **boxes:** lot B1, projects and their sessions in a box ([84bcea2](https://github.com/SoulKyu/pi-agentic-platform/commit/84bcea21e8c7d013d75ee3bd3ca18a5f1ce2cfab))
+* **knowledge:** sub-project 5, OKF knowledge replaces pi-mem0 ([9200b3c](https://github.com/SoulKyu/pi-agentic-platform/commit/9200b3c66d8355a20fbbc49e6cb2d771258ca679))
+* **policy:** fewer approval cards, more trust in the audit (decision 117) ([b1eb34a](https://github.com/SoulKyu/pi-agentic-platform/commit/b1eb34af10066ec30d875c15c210a3821369ef77))
+* **ux:** one lifecycle for an agent's state ([ce57d96](https://github.com/SoulKyu/pi-agentic-platform/commit/ce57d968fa2cc47ae0e063423f7cb91ef82fa3cf))
+
+
+### Bug Fixes
+
+* **agents-vm:** IS_SANDBOX=1 in the VM image so pi-claude-bridge runs as guest root ([b387917](https://github.com/SoulKyu/pi-agentic-platform/commit/b387917fedd0a49cf1a70291f9ed240ca6bdbe33))
+* **agents-vm:** show unscoped npm package names in the agent packages list ([c50e448](https://github.com/SoulKyu/pi-agentic-platform/commit/c50e44895b857b49130b7923c587887aaf079841))
+* **agents:** allow 256 hosts in an agent's list, like the owner's list ([6900116](https://github.com/SoulKyu/pi-agentic-platform/commit/690011695acaaccca077e300d58e0e1c54427f9a))
+* **agents:** keep .claude/ out of an agent home's git ([9b47373](https://github.com/SoulKyu/pi-agentic-platform/commit/9b4737384177969c36b7a6c63cf7ae428c10d587))
+* **daemon:** stop reporting tool_name_collision as a failure, name the failing extension ([0484a69](https://github.com/SoulKyu/pi-agentic-platform/commit/0484a69e21679cad2801107a93ab8e164ff5217e))
+
 ## 1.0.0 (2026-10-18)
 
 
