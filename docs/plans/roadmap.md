@@ -130,6 +130,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 - **Lots:** B0 spike (terminal in the guest, git timings on a VM disk, the GitHub App manifest flow); B1 box identity, projects from a name, sessions and tasks in the box, Files and OKF through the guest, search over mirrors, the Scratch project; B2 terminal in the box, the GitHub App (clone, fork, tokens, signing key), push and PR; B3 lanes in the box; B4 host clean-up (host workers, git, node-pty, `gh`, scanner, pi-web coexistence, prechecks). Real work in boxes starts after B2.
 - **Status:** B0 done (83b40f3c). B1 merged 2026-10-24 as 84bcea21 (decision 125). B2 specified 2026-10-24 (spec `docs/specs/2026-10-24-boxes-b2-design.md`, decision 126: the whole GitHub integration, PR review comments in lanes move to B3), merged 2026-10-24 as 44fd3196 (ADR 0084, decision 127). B3 and B4 not started.
 - **Later:** disk backups (sub-project 4), GitHub accounts per user (M14).
+- **Box launch progress (owner, 2026-10-24):** a progress bar with live tracking while a box starts, so that opening a session or an agent on a box that is stopped or otherwise not ready shows each step (image build, disk, VM start, guest ready) instead of a bare wait.
 
 ## Hindsight memory trial (owner, 2026-10-23; maybe)
 - **Asked:** test [Hindsight](https://github.com/vectorize-io/hindsight) as an agent memory once sub-project 5's OKF `knowledge/` folder has run for a while, if an agent forgets too much or drowns in its notes.
