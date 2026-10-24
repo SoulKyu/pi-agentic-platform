@@ -1,0 +1,247 @@
+<title>Décisions M14</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Night Control (pap DESIGN.md): colour = role, mono uppercase HUD labels, sharp corners, faint grid, no gradient, no glow. Dark first. */
+:root {
+  color-scheme: dark;
+  --bg: #110F18; --bg-side: #14111D; --surface: #1A1724; --surface-2: #241F33;
+  --border: #2D2840; --border-strong: #3D3657; --control-border: #6B6485;
+  --text: #F2EFFA; --text-muted: #9C95B5; --text-dim: #6B6485; --grid: #FFFFFF06;
+  --agent: #A78BFA; --you: #FB923C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FB923C1A; --you-line: #FB923C66; --you-text: #FED7AA;
+  --attn: #EC4899; --ok: #34D399; --err: #F87171; --focus: #FB923C;
+  --ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm: 2px; --r-md: 3px;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+} }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg); color: var(--text); font: 13px/1.55 var(--ui);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 24px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+.hud { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+header { display: grid; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { font: 800 18px/1 var(--ui); letter-spacing: -.02em; }
+h1 { font: 800 28px/1.15 var(--ui); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--ui); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--text-muted); }
+code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--r-sm); }
+section.part { display: grid; gap: 14px; }
+.part-head { display: grid; gap: 6px; border-left: 2px solid var(--agent); padding-left: 12px; }
+.q { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.q-title { font: 700 14px/1.4 var(--ui); }
+.ctx { color: var(--text-muted); max-width: 72ch; }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); cursor: pointer; min-height: 44px; }
+.opt:hover { border-color: var(--control-border); }
+.opt input { margin: 3px 0 0; accent-color: var(--you-fill); width: 16px; height: 16px; }
+.opt:has(input:checked) { border-color: var(--you-line); background: var(--you-tint); }
+.opt-label { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opt-desc { color: var(--text-muted); grid-column: 2; }
+.chip { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid currentColor; }
+.chip.reco { color: var(--agent); }
+.chip.ok { color: var(--ok); }
+.chip.mut { color: var(--text-muted); }
+.chip.att { color: var(--attn); }
+textarea, input[type=text] { width: 100%; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 8px 10px; resize: vertical; min-height: 38px; }
+.bar { position: sticky; bottom: 0; background: var(--bg-side); border-top: 1px solid var(--border); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { max-width: 880px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; min-height: 36px; padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+.primary { background: var(--you-fill); color: var(--you-ink); border: 1px solid var(--you-fill); }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--control-border); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status { font: 12px var(--mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status.ok { color: var(--ok); } .status.err { color: var(--err); }
+@media (pointer: coarse) { button { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .opt { transition: border-color 120ms ease-out, background-color 120ms ease-out; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/></svg>
+      <b>pap</b><span class="hud">M14 · plusieurs utilisateurs</span>
+    </div>
+    <h1>Décisions M14</h1>
+    <p class="muted">Deux questions qui te reviennent, puis les choix que j'ai faits sans toi dans la spec M14. Chaque question a une option <span class="chip reco">reco</span> et une note libre. « Appliquer les recos » remplit ce qui reste vide, puis « Envoyer » m'enregistre tes réponses.</p>
+    <p class="muted">Spec complète : <code>docs/specs/2026-10-24-m14-multi-user-design.md</code>.</p>
+  </header>
+  <form id="form" novalidate></form>
+</div>
+<div class="bar">
+  <div class="bar-in">
+    <span id="status" class="status" role="status" aria-live="polite">Brouillon</span>
+    <div class="btns">
+      <button type="button" class="secondary" id="recos">Appliquer les recos</button>
+      <button type="submit" class="primary" id="send" form="form">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PARTS = [
+  { id: "m14", hud: "M14 · deux questions", title: "Ce qui te revient", intro: "Le relecteur de la spec M14 a trouvé deux points qui touchent ta sécurité ou ton abonnement. Le premier change aussi B2, en cours : une App GitHub privée ne peut être installée que par ton compte.",
+    questions: [
+      { id: "github_public", title: "GitHub App publique ou privée", ctx: "GitHub ne laisse installer une App privée que par le compte qui l'a créée. Pour qu'un membre l'installe sur son propre compte, elle doit être publique : elle apparaît sur GitHub (nom, client id), jamais sa clé ; chaque utilisateur GitHub doit consentir pour l'installer. Je règle B2 en conséquence.",
+        options: [
+          { v: "public", label: "Publique dès B2", desc: "Chaque membre installe la même App sur son compte, avec ses tokens et sa clé de signature.", reco: true },
+          { v: "private_owner", label: "Privée : les membres passent par tes installations", desc: "Ils n'atteignent que les repos où ton installation est posée, pas leur propre compte." },
+          { v: "app_each", label: "Une App par utilisateur", desc: "Chaque membre crée sa propre App ; plus de stockage et d'écrans." } ] },
+      { id: "oauth_providers", title: "Providers connectés par abonnement", ctx: "Un provider signé par login OAuth (un abonnement) consommerait ton abonnement quand un membre l'utilise ; un budget en dollars ne le mesure pas.",
+        options: [
+          { v: "api_only", label: "Partager les providers à clé API ; les abonnements restent à toi sauf partage explicite", desc: "Un réglage par provider dans Settings › Users.", reco: true },
+          { v: "all", label: "Tout partager", desc: "Les membres consomment aussi tes abonnements." },
+          { v: "none", label: "Rien partagé par défaut", desc: "Tu choisis provider par provider." } ] } ] },
+  { id: "calls", hud: "M14 · mes choix", title: "Choix que j'ai faits sans toi", intro: "À confirmer ou corriger. La spec complète : docs/specs/2026-10-24-m14-multi-user-design.md.",
+    questions: [
+      { id: "host_gate", title: "Accès au host pour un membre", ctx: "Les projets, terminaux et lanes du host tournent avec ton utilisateur unix : un membre y atteindrait tes fichiers.",
+        options: [
+          { v: "deny", label: "Refusé par défaut, à un seul endroit", desc: "Tout chemin hors des box du membre est refusé avant toute lecture du host ; un nouveau point d'entrée est couvert sans liste.", reco: true },
+          { v: "list", label: "Une vérification par point d'entrée", desc: "Plus fin, risque d'en oublier un." } ] },
+      { id: "pi_read", title: "Config Pi partagée vue par les membres", ctx: "pi:read expose ta config MCP, trust et models.json.",
+        options: [
+          { v: "none", label: "Aucun accès pi:* ; une liste des modèles partagés pour le sélecteur", desc: "", reco: true },
+          { v: "read", label: "Lecture seule de la config Pi", desc: "" } ] },
+      { id: "member_profile", title: "Tes extensions, skills et config MCP dans les box des membres", ctx: "Le profil Pi des images est celui de l'installation, filtré par le scan de secrets.",
+        options: [
+          { v: "shared", label: "Le même profil pour tous", desc: "Filtré par le scan qui refuse un fichier contenant un secret connu.", reco: true },
+          { v: "minimal", label: "Un profil minimal pour les membres", desc: "Sans tes extensions ni ta config MCP ; une image de plus." } ] },
+      { id: "remove_member", title: "Retirer un membre", ctx: "",
+        options: [
+          { v: "disable_delete", label: "Désactiver (données gardées) ou Supprimer (tout, avec mot de passe)", desc: "Désactiver révoque ses sessions et tokens, arrête ses box, met ses triggers en pause.", reco: true },
+          { v: "delete_only", label: "Supprimer seulement", desc: "" } ] },
+      { id: "claude_fallback", title: "Membre sans token Claude", ctx: "",
+        options: [
+          { v: "refuse", label: "Le pont Claude est refusé pour lui", desc: "Jamais ton token à sa place.", reco: true },
+          { v: "fallback", label: "Utiliser le tien", desc: "" } ] },
+      { id: "cli", title: "CLI", ctx: "",
+        options: [
+          { v: "username", label: "pap user add crée un membre ; pap passkey reset prend un nom (toi par défaut)", desc: "", reco: true },
+          { v: "owner_only", label: "La CLI ne gère que toi", desc: "" } ] },
+      { id: "owners", title: "Nombre d'owners", ctx: "",
+        options: [
+          { v: "one", label: "Un seul owner, pas de promotion en M14", desc: "", reco: true },
+          { v: "several", label: "Plusieurs owners possibles", desc: "" } ] },
+      { id: "m14_go", title: "La spec M14", ctx: "M14 touche le même module GitHub que B2 : je l'implémente après le merge de B2 et j'écris le plan pendant B2.",
+        options: [
+          { v: "go", label: "OK, plan pendant B2, exécution après son merge", desc: "", reco: true },
+          { v: "read_first", label: "Je relis d'abord le fichier", desc: "" } ] } ] } ];
+
+const KEY = "pap-decisions-m14-draft";
+const DOC = "answers/m14";
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+let state = { choices: {}, notes: {}, general: "" };
+
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const k of kids) n.append(k);
+  return n;
+}
+function render() {
+  form.replaceChildren();
+  for (const part of PARTS) {
+    const sec = el("section", { class: "part", "aria-labelledby": "h-" + part.id });
+    sec.append(el("div", { class: "part-head" }, [el("span", { class: "hud", text: part.hud }), el("h2", { id: "h-" + part.id, text: part.title }), el("p", { class: "muted", text: part.intro })]));
+    for (const q of part.questions) {
+      const qid = part.id + "." + q.id;
+      const box = el("fieldset", { class: "q" });
+      const answered = state.choices[qid];
+      const chip = el("span", { class: "chip " + (answered ? "ok" : "mut"), text: answered ? "répondu" : "à choisir" });
+      box.append(el("div", { class: "q-head" }, [el("legend", { class: "q-title", text: q.title }), chip]));
+      if (q.ctx) box.append(el("p", { class: "ctx", text: q.ctx }));
+      const opts = el("div", { class: "opts" });
+      for (const o of q.options) {
+        const id = qid + "." + o.v;
+        const input = el("input", { type: "radio", name: qid, id, value: o.v, checked: state.choices[qid] === o.v });
+        input.addEventListener("change", () => { state.choices[qid] = o.v; save(); chip.className = "chip ok"; chip.textContent = "répondu"; });
+        const label = el("span", { class: "opt-label" }, [o.label]);
+        if (o.reco) label.append(el("span", { class: "chip reco", text: "reco" }));
+        const row = el("label", { class: "opt", for: id }, [input, label]);
+        if (o.desc) row.append(el("span", { class: "opt-desc", text: o.desc }));
+        opts.append(row);
+      }
+      box.append(opts);
+      const note = el("textarea", { id: qid + ".note", rows: "1", placeholder: "Note (optionnelle)", "aria-label": "Note pour : " + q.title });
+      note.value = state.notes[qid] || "";
+      note.addEventListener("input", () => { state.notes[qid] = note.value; save(); });
+      box.append(note);
+      sec.append(box);
+    }
+    form.append(sec);
+  }
+  const g = el("fieldset", { class: "q" }, [el("legend", { class: "q-title", text: "Note générale" })]);
+  const gt = el("textarea", { id: "general", rows: "3", placeholder: "Tout ce que tu veux ajouter" });
+  gt.value = state.general || "";
+  gt.addEventListener("input", () => { state.general = gt.value; save(); });
+  g.append(gt);
+  form.append(g);
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.choices) state = s; } catch {} }
+function count() { return PARTS.reduce((n, p) => n + p.questions.length, 0); }
+function answeredCount() { return Object.keys(state.choices).length; }
+
+document.getElementById("recos").addEventListener("click", () => {
+  for (const p of PARTS) for (const q of p.questions) { const qid = p.id + "." + q.id; if (!state.choices[qid]) { const r = q.options.find((o) => o.reco); if (r) state.choices[qid] = r.v; } }
+  save(); render(); statusEl.className = "status"; statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+});
+
+let dbPromise = null;
+function db() { if (!dbPromise) dbPromise = (window.claude?.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null); return dbPromise; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const send = document.getElementById("send");
+  const missing = count() - answeredCount();
+  if (missing > 0) { statusEl.className = "status err"; statusEl.textContent = missing + " question(s) sans choix : choisis ou applique les recos."; return; }
+  send.disabled = true; statusEl.className = "status"; statusEl.textContent = "Envoi…";
+  const store = await db();
+  if (!store) { send.disabled = false; statusEl.className = "status err"; statusEl.textContent = "Envoi impossible ici : ouvre la page connecté à claude.ai. Tes choix restent dans ce navigateur."; return; }
+  try {
+    await store.doc(DOC).set({ choices: state.choices, notes: state.notes, general: state.general || "", sentAt: new Date().toISOString() });
+    statusEl.className = "status ok"; statusEl.textContent = "Envoyé : je lis tes réponses.";
+  } catch (err) {
+    statusEl.className = "status err"; statusEl.textContent = "Envoi refusé (" + (err?.code || "erreur") + "). Tes choix restent dans ce navigateur ; réessaie.";
+  } finally { send.disabled = false; }
+});
+
+load();
+render();
+statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+db().then(async (store) => {
+  if (!store) return;
+  try { const snap = await store.doc(DOC).get(); if (snap.exists && answeredCount() === 0) { const d = snap.data(); state = { choices: d.choices || {}, notes: d.notes || {}, general: d.general || "" }; render(); statusEl.textContent = "Réponses déjà envoyées · " + answeredCount() + " / " + count(); } } catch {}
+});
+</script>
