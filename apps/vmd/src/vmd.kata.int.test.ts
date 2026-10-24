@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { guestShellArgv } from "./argv.ts";
@@ -50,12 +50,14 @@ const MIB = 1024 * 1024;
 const SPARSE_DISK_MB = 8192;
 const diskFile = (agentId: string): string =>
   `/var/lib/pap-vm/${(JSON.parse(readFileSync("/etc/pap-vm/config.json", "utf8")) as { papUid: number }).papUid}/agents/${agentId}/disk.img`;
+/** Box disks and nerdctl's state are root-only: these local-only tests reach them through passwordless sudo. */
+const asRoot = (argv: readonly string[]): string =>
+  execFileSync("sudo", ["-n", ...argv], { encoding: "utf8" });
 /** What the host really holds for the file (stat blocks x 512), in MiB. */
-const allocatedMb = (file: string): number => (statSync(file).blocks * 512) / MIB;
-const inGuest = (agentId: string, command: string): string => {
-  const argv = guestShellArgv(vmName(boxOf(agentId), null), command);
-  return execFileSync(argv[0] as string, argv.slice(1), { encoding: "utf8" });
-};
+const allocatedMb = (file: string): number =>
+  (Number(asRoot(["/usr/bin/stat", "-c", "%b", file]).trim()) * 512) / MIB;
+const inGuest = (agentId: string, command: string): string =>
+  asRoot(guestShellArgv(vmName(boxOf(agentId), null), command));
 const fresh = (): string => {
   const id = testAgentId();
   agents.push(id);
@@ -241,7 +243,7 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
     const file = diskFile(agentId);
     await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: SPARSE_DISK_MB });
     // What Kata 4.2 left behind: every block allocated (the disk is not in use, so this root window may touch it).
-    execFileSync("/usr/bin/fallocate", ["-l", `${SPARSE_DISK_MB}M`, file]);
+    asRoot(["/usr/bin/fallocate", "-l", `${SPARSE_DISK_MB}M`, file]);
     expect(allocatedMb(file)).toBeGreaterThan(SPARSE_DISK_MB * 0.95);
     // No VM exists: the stop confirms that and answers at once; the reclaim runs as its own job after it.
     expect(await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null })).toEqual({ stopped: true });

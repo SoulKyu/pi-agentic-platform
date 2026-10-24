@@ -44,7 +44,7 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
       ["rm", "--force", "pap-helper-1a2b"],
       ["direct-volume", "remove", VOLUME(fx, "pap-helper-1a2b")],
       ["--all", "--format", "{{.Names}} {{.Status}}"],
-      ["/usr/bin/fallocate", "--dig-holes", disk],
+      ["--", disk, `${disk}.reclaim`],
     ]);
     expect(fx.net.events).toEqual(["detach pap-helper-1a2b"]);
     expect(existsSync(disk)).toBe(true);

@@ -21,7 +21,7 @@ const NERDCTL = [
 /** T0a: `kata-tools-static` installs it here. */
 const KATA_CTL = "/opt/kata/bin/kata-ctl";
 const MKFS = "/usr/sbin/mkfs.ext4";
-const FALLOCATE = "/usr/bin/fallocate";
+const CP = "/usr/bin/cp";
 
 /** Where a box's disk shows up in its VM: the agent's folder, or `/boxes/<project id>` (spec boxes). */
 export const mountOf = (box: BoxRef): string => (box.kind === "agent" ? "/agent" : `${BOX_MOUNT}/${box.id}`);
@@ -142,8 +142,15 @@ export const directVolumeRemoveArgv = (volume: string): string[] => [
 /** R31: only ever on a file pap-vmd just made. */
 export const mkfsArgv = (image: string): string[] => [MKFS, "-q", "-F", image];
 
-/** Punches a hole over every block of zeros in a stopped box's disk (util-linux): data is untouched, allocation shrinks. */
-export const digHolesArgv = (image: string): string[] => [FALLOCATE, "--dig-holes", image];
+/** A copy of a stopped box's disk with no zero block allocated (a pre-allocated disk's unwritten extents read as zeros). */
+export const sparseCopyArgv = (image: string, copy: string): string[] => [
+  CP,
+  "--sparse=always",
+  "--preserve=mode,ownership,timestamps",
+  "--",
+  image,
+  copy,
+];
 
 /** R7, RT-19, RT-33: the Dockerfile lives outside the context; a base build never reuses a cached `apt-get upgrade`. */
 export function buildArgv(request: ImageBuildRequest, contextDir: string, dockerfileDir: string): string[] {

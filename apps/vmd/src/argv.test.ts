@@ -5,7 +5,7 @@ import {
   directVolumeAddArgv,
   directVolumeRemoveArgv,
   imageRef,
-  digHolesArgv,
+  sparseCopyArgv,
   guestShellArgv,
   mkfsArgv,
   rmArgv,
@@ -194,8 +194,15 @@ describe("kata-ctl and mkfs command lines", () => {
     ]);
   });
 
-  it("digs holes in a file by its absolute path, with the util-linux flag", () => {
-    expect(digHolesArgv("/s/disk.img")).toEqual(["/usr/bin/fallocate", "--dig-holes", "/s/disk.img"]);
+  it("copies a disk sparsely by absolute paths, keeping mode, owner and times", () => {
+    expect(sparseCopyArgv("/s/disk.img", "/s/disk.img.reclaim")).toEqual([
+      "/usr/bin/cp",
+      "--sparse=always",
+      "--preserve=mode,ownership,timestamps",
+      "--",
+      "/s/disk.img",
+      "/s/disk.img.reclaim",
+    ]);
   });
 
   it("runs a guest shell command as root through pap's own nerdctl", () => {
