@@ -1,0 +1,228 @@
+<title>Red team M14</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Night Control (pap DESIGN.md): colour = role, mono uppercase HUD labels, sharp corners, faint grid, no gradient, no glow. Dark first. */
+:root {
+  color-scheme: dark;
+  --bg: #110F18; --bg-side: #14111D; --surface: #1A1724; --surface-2: #241F33;
+  --border: #2D2840; --border-strong: #3D3657; --control-border: #6B6485;
+  --text: #F2EFFA; --text-muted: #9C95B5; --text-dim: #6B6485; --grid: #FFFFFF06;
+  --agent: #A78BFA; --you: #FB923C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FB923C1A; --you-line: #FB923C66; --you-text: #FED7AA;
+  --attn: #EC4899; --ok: #34D399; --err: #F87171; --focus: #FB923C;
+  --ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm: 2px; --r-md: 3px;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+} }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg); color: var(--text); font: 13px/1.55 var(--ui);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 24px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+.hud { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+header { display: grid; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { font: 800 18px/1 var(--ui); letter-spacing: -.02em; }
+h1 { font: 800 28px/1.15 var(--ui); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--ui); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--text-muted); }
+code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--r-sm); }
+section.part { display: grid; gap: 14px; }
+.part-head { display: grid; gap: 6px; border-left: 2px solid var(--agent); padding-left: 12px; }
+.q { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.q-title { font: 700 14px/1.4 var(--ui); }
+.ctx { color: var(--text-muted); max-width: 72ch; }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); cursor: pointer; min-height: 44px; }
+.opt:hover { border-color: var(--control-border); }
+.opt input { margin: 3px 0 0; accent-color: var(--you-fill); width: 16px; height: 16px; }
+.opt:has(input:checked) { border-color: var(--you-line); background: var(--you-tint); }
+.opt-label { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opt-desc { color: var(--text-muted); grid-column: 2; }
+.chip { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid currentColor; }
+.chip.reco { color: var(--agent); }
+.chip.ok { color: var(--ok); }
+.chip.mut { color: var(--text-muted); }
+.chip.att { color: var(--attn); }
+textarea, input[type=text] { width: 100%; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 8px 10px; resize: vertical; min-height: 38px; }
+.bar { position: sticky; bottom: 0; background: var(--bg-side); border-top: 1px solid var(--border); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { max-width: 880px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; min-height: 36px; padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+.primary { background: var(--you-fill); color: var(--you-ink); border: 1px solid var(--you-fill); }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--control-border); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status { font: 12px var(--mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status.ok { color: var(--ok); } .status.err { color: var(--err); }
+@media (pointer: coarse) { button { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .opt { transition: border-color 120ms ease-out, background-color 120ms ease-out; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/></svg>
+      <b>pap</b><span class="hud">M14 · red team du plan</span>
+    </div>
+    <h1>Red team M14</h1>
+    <p class="muted">La red team Opus du plan M14 : 2 critiques, 10 importants, 15 mineurs, verdict « prêt après corrections ». Je corrige tout le reste du plan ; ces six points te reviennent. Chaque question a une option <span class="chip reco">reco</span> et une note libre. « Appliquer les recos » remplit ce qui reste vide, puis « Envoyer » m'enregistre tes réponses.</p>
+    <p class="muted">Spec complète : <code>docs/specs/2026-10-24-m14-multi-user-design.md</code>.</p>
+  </header>
+  <form id="form" novalidate></form>
+</div>
+<div class="bar">
+  <div class="bar-in">
+    <span id="status" class="status" role="status" aria-live="polite">Brouillon</span>
+    <div class="btns">
+      <button type="button" class="secondary" id="recos">Appliquer les recos</button>
+      <button type="submit" class="primary" id="send" form="form">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PARTS = [
+  { id: "rt", hud: "M14 · six questions", title: "Ce qui te revient", intro: "Le rapport complet : .superpowers/redteam-m14.md. Les deux critiques (dépôts GitHub du propriétaire atteignables par un membre, budget qui ignore le chat) sont corrigées quoi qu'il arrive ; ces questions fixent comment.",
+    questions: [
+      { id: "budget_scope", title: "Ce que couvre le budget d'un membre", ctx: "Aujourd'hui le budget quotidien ne compte que les runs automatiques (déclencheurs, reprises). Un membre qui chatte toute la journée dans sa box sur tes providers à clé API dépenserait sans limite.",
+        options: [
+          { v: "all_api", label: "Toutes ses dépenses API, chat compris", desc: "Chaque run du membre facturé à l'API (ou inconnu), interactif inclus, sur ton fuseau horaire ; le relay bloque quand c'est atteint. Ses runs via son propre token Claude ne comptent pas (ils ne te coûtent rien).", reco: true },
+          { v: "auto_only", label: "Runs automatiques seulement, comme ton budget à toi", desc: "Le chat reste sans limite." } ] },
+      { id: "delete_keep", title: "Suppression d'un membre : garder ses coûts et son audit ?", ctx: "Les runs (coûts de tes clés API) et l'audit ne contiennent aucun contenu, seulement des montants et des actions.",
+        options: [
+          { v: "keep", label: "Garder runs et audit, supprimer tout le reste", desc: "Tu gardes l'historique de coûts et la trace en cas d'abus.", reco: true },
+          { v: "delete_all", label: "Tout supprimer", desc: "Plus aucune trace du membre." } ] },
+      { id: "github_reach", title: "Dépôts qu'un membre peut lier", ctx: "Critique : l'App étant partagée, un membre pourrait cloner et pousser sur tes dépôts privés. Je vérifie désormais l'accès avec le propre token GitHub du membre (à la création, au lien et à chaque renouvellement).",
+        options: [
+          { v: "push_access", label: "Ceux où son propre compte GitHub a le droit push", desc: "GitHub décide : s'il est collaborateur de ton dépôt, il peut le lier ; sinon refusé.", reco: true },
+          { v: "own_install", label: "Seulement les dépôts où l'App est installée sur son propre compte", desc: "Plus strict : aucun dépôt partagé entre vous." } ] },
+      { id: "opus_reviews", title: "Revues Opus sur le cœur sécurité", ctx: "Prévu : implémenteurs et revues Sonnet, une seule revue finale Opus. La red team conseille des revues de tâche Opus pour les rôles et l'authentification (A1) avec le gate hôte (A3), et pour la vérification GitHub (A6).",
+        options: [
+          { v: "yes", label: "Oui, revues Opus pour A1+A3 et A6", desc: "Deux revues Opus de plus, ciblées sur la sécurité.", reco: true },
+          { v: "no", label: "Non, Sonnet partout sauf la revue finale", desc: "Ces trois tâches deviennent le premier focus de la revue finale." } ] },
+      { id: "root_budget", title: "Un membre est root dans sa box", ctx: "Dans sa box (terminal), un membre peut lire la clé de son worker vers le relay et sous-déclarer ses coûts : le budget protège contre les erreurs, pas contre un membre malveillant.",
+        options: [
+          { v: "accept_doc", label: "Accepter pour des personnes de confiance, documenter (ADR 0085)", desc: "Un comptage côté relay (tokens réels) viendra dans un lot plus tard.", reco: true },
+          { v: "metering_now", label: "Ajouter le comptage côté relay dans M14", desc: "Plus long : le relay mesure lui-même les tokens de chaque requête." } ] },
+      { id: "oauth_switch", title: "Providers par abonnement (OAuth)", ctx: "Tu as répondu « partage explicite possible ». Mais le relay ne sert jamais un provider OAuth à une box (déjà le cas) : l'interrupteur ne pourrait rien faire.",
+        options: [
+          { v: "disabled", label: "Interrupteur affiché désactivé ; les membres utilisent leur propre token Claude", desc: "Avec la phrase « Connexion par abonnement : jamais servie aux box ».", reco: true },
+          { v: "later_lot", label: "Je veux vraiment partager un abonnement : lot séparé plus tard", desc: "Même affichage dans M14, et un chantier relay noté dans la roadmap." } ] }
+    ] }
+];
+const KEY = "pap-decisions-m14-redteam-draft";
+const DOC = "answers/m14-redteam";
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+let state = { choices: {}, notes: {}, general: "" };
+
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const k of kids) n.append(k);
+  return n;
+}
+function render() {
+  form.replaceChildren();
+  for (const part of PARTS) {
+    const sec = el("section", { class: "part", "aria-labelledby": "h-" + part.id });
+    sec.append(el("div", { class: "part-head" }, [el("span", { class: "hud", text: part.hud }), el("h2", { id: "h-" + part.id, text: part.title }), el("p", { class: "muted", text: part.intro })]));
+    for (const q of part.questions) {
+      const qid = part.id + "." + q.id;
+      const box = el("fieldset", { class: "q" });
+      const answered = state.choices[qid];
+      const chip = el("span", { class: "chip " + (answered ? "ok" : "mut"), text: answered ? "répondu" : "à choisir" });
+      box.append(el("div", { class: "q-head" }, [el("legend", { class: "q-title", text: q.title }), chip]));
+      if (q.ctx) box.append(el("p", { class: "ctx", text: q.ctx }));
+      const opts = el("div", { class: "opts" });
+      for (const o of q.options) {
+        const id = qid + "." + o.v;
+        const input = el("input", { type: "radio", name: qid, id, value: o.v, checked: state.choices[qid] === o.v });
+        input.addEventListener("change", () => { state.choices[qid] = o.v; save(); chip.className = "chip ok"; chip.textContent = "répondu"; });
+        const label = el("span", { class: "opt-label" }, [o.label]);
+        if (o.reco) label.append(el("span", { class: "chip reco", text: "reco" }));
+        const row = el("label", { class: "opt", for: id }, [input, label]);
+        if (o.desc) row.append(el("span", { class: "opt-desc", text: o.desc }));
+        opts.append(row);
+      }
+      box.append(opts);
+      const note = el("textarea", { id: qid + ".note", rows: "1", placeholder: "Note (optionnelle)", "aria-label": "Note pour : " + q.title });
+      note.value = state.notes[qid] || "";
+      note.addEventListener("input", () => { state.notes[qid] = note.value; save(); });
+      box.append(note);
+      sec.append(box);
+    }
+    form.append(sec);
+  }
+  const g = el("fieldset", { class: "q" }, [el("legend", { class: "q-title", text: "Note générale" })]);
+  const gt = el("textarea", { id: "general", rows: "3", placeholder: "Tout ce que tu veux ajouter" });
+  gt.value = state.general || "";
+  gt.addEventListener("input", () => { state.general = gt.value; save(); });
+  g.append(gt);
+  form.append(g);
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.choices) state = s; } catch {} }
+function count() { return PARTS.reduce((n, p) => n + p.questions.length, 0); }
+function answeredCount() { return Object.keys(state.choices).length; }
+
+document.getElementById("recos").addEventListener("click", () => {
+  for (const p of PARTS) for (const q of p.questions) { const qid = p.id + "." + q.id; if (!state.choices[qid]) { const r = q.options.find((o) => o.reco); if (r) state.choices[qid] = r.v; } }
+  save(); render(); statusEl.className = "status"; statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+});
+
+let dbPromise = null;
+function db() { if (!dbPromise) dbPromise = (window.claude?.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null); return dbPromise; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const send = document.getElementById("send");
+  const missing = count() - answeredCount();
+  if (missing > 0) { statusEl.className = "status err"; statusEl.textContent = missing + " question(s) sans choix : choisis ou applique les recos."; return; }
+  send.disabled = true; statusEl.className = "status"; statusEl.textContent = "Envoi…";
+  const store = await db();
+  if (!store) { send.disabled = false; statusEl.className = "status err"; statusEl.textContent = "Envoi impossible ici : ouvre la page connecté à claude.ai. Tes choix restent dans ce navigateur."; return; }
+  try {
+    await store.doc(DOC).set({ choices: state.choices, notes: state.notes, general: state.general || "", sentAt: new Date().toISOString() });
+    statusEl.className = "status ok"; statusEl.textContent = "Envoyé : je lis tes réponses.";
+  } catch (err) {
+    statusEl.className = "status err"; statusEl.textContent = "Envoi refusé (" + (err?.code || "erreur") + "). Tes choix restent dans ce navigateur ; réessaie.";
+  } finally { send.disabled = false; }
+});
+
+load();
+render();
+statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+db().then(async (store) => {
+  if (!store) return;
+  try { const snap = await store.doc(DOC).get(); if (snap.exists && answeredCount() === 0) { const d = snap.data(); state = { choices: d.choices || {}, notes: d.notes || {}, general: d.general || "" }; render(); statusEl.textContent = "Réponses déjà envoyées · " + answeredCount() + " / " + count(); } } catch {}
+});
+</script>
