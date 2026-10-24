@@ -118,6 +118,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
   - The remote clone and fork paths reuse M9's push profile and target rules, the host binding and the repository-config scans.
 - **Depends on:** M9 (forge port), M11 (secrets). It pairs with the after-v1 multi-user work (teams and OIDC).
 - **Boxes (decision 124):** clone, fork and the per-project token move to the Boxes programme (lot B2, a pap GitHub App). M14 keeps GitHub accounts per user and user-scoped projects (owner, 2026-10-23: to discuss later).
+- **Directions (owner, 2026-10-24, decision 126):** trusted people with their own projects, agents and triggers; roles owner and member (the owner administers the install); invitations from Settings › Users (one-use link, then passkey; `pap user add` stays); shared providers and models with a daily budget per member; a Claude token per user; each user authorizes the same pap GitHub App on their own account; no project sharing in M14; the owner sees members' usage and costs, not their content; one global VM memory cap. The other M14 integrations (CI logs, issues, releases) moved to Boxes B2, PR review comments in the lane review to B3.
 
 ## Agents in microVMs (post-v1, decisions 106 to 115)
 - **Why:** an agent is a closed box: a Kata Containers microVM (Cloud Hypervisor) with bwrap and seccomp around its shell, its own block disk, CPU and memory, no credential inside (pap's relay and proxy inject them), no path to the host or another VM. It replaces today's host-bwrap agents.
@@ -127,7 +128,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 ## Boxes (decisions 115 and 124)
 - **Why (owner, 2026-10-23):** the host is only an orchestrator and an interface with the VMs; every component that runs code (sessions, lanes, trigger tasks, the terminal, MCP servers, package installs) runs in a microVM box, as agents do. Spec `docs/specs/2026-10-23-boxes-design.md`.
 - **Lots:** B0 spike (terminal in the guest, git timings on a VM disk, the GitHub App manifest flow); B1 box identity, projects from a name, sessions and tasks in the box, Files and OKF through the guest, search over mirrors, the Scratch project; B2 terminal in the box, the GitHub App (clone, fork, tokens, signing key), push and PR; B3 lanes in the box; B4 host clean-up (host workers, git, node-pty, `gh`, scanner, pi-web coexistence, prechecks). Real work in boxes starts after B2.
-- **Status:** B0 done (83b40f3c). B1 merged 2026-10-24 as 84bcea21 (decision 125). B2 to B4 not started.
+- **Status:** B0 done (83b40f3c). B1 merged 2026-10-24 as 84bcea21 (decision 125). B2 specified 2026-10-24 (spec `docs/specs/2026-10-24-boxes-b2-design.md`, decision 126: the whole GitHub integration, PR review comments in lanes move to B3), in progress. B3 and B4 not started.
 - **Later:** disk backups (sub-project 4), GitHub accounts per user (M14).
 
 ## Hindsight memory trial (owner, 2026-10-23; maybe)

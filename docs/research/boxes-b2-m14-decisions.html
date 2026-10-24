@@ -1,0 +1,281 @@
+<title>Décisions B2 et M14</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Night Control (pap DESIGN.md): colour = role, mono uppercase HUD labels, sharp corners, faint grid, no gradient, no glow. Dark first. */
+:root {
+  color-scheme: dark;
+  --bg: #110F18; --bg-side: #14111D; --surface: #1A1724; --surface-2: #241F33;
+  --border: #2D2840; --border-strong: #3D3657; --control-border: #6B6485;
+  --text: #F2EFFA; --text-muted: #9C95B5; --text-dim: #6B6485; --grid: #FFFFFF06;
+  --agent: #A78BFA; --you: #FB923C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FB923C1A; --you-line: #FB923C66; --you-text: #FED7AA;
+  --attn: #EC4899; --ok: #34D399; --err: #F87171; --focus: #FB923C;
+  --ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm: 2px; --r-md: 3px;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+} }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg); color: var(--text); font: 13px/1.55 var(--ui);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 24px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+.hud { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+header { display: grid; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { font: 800 18px/1 var(--ui); letter-spacing: -.02em; }
+h1 { font: 800 28px/1.15 var(--ui); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--ui); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--text-muted); }
+code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--r-sm); }
+section.part { display: grid; gap: 14px; }
+.part-head { display: grid; gap: 6px; border-left: 2px solid var(--agent); padding-left: 12px; }
+.q { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.q-title { font: 700 14px/1.4 var(--ui); }
+.ctx { color: var(--text-muted); max-width: 72ch; }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); cursor: pointer; min-height: 44px; }
+.opt:hover { border-color: var(--control-border); }
+.opt input { margin: 3px 0 0; accent-color: var(--you-fill); width: 16px; height: 16px; }
+.opt:has(input:checked) { border-color: var(--you-line); background: var(--you-tint); }
+.opt-label { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opt-desc { color: var(--text-muted); grid-column: 2; }
+.chip { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid currentColor; }
+.chip.reco { color: var(--agent); }
+.chip.ok { color: var(--ok); }
+.chip.mut { color: var(--text-muted); }
+.chip.att { color: var(--attn); }
+textarea, input[type=text] { width: 100%; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 8px 10px; resize: vertical; min-height: 38px; }
+.bar { position: sticky; bottom: 0; background: var(--bg-side); border-top: 1px solid var(--border); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { max-width: 880px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; min-height: 36px; padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+.primary { background: var(--you-fill); color: var(--you-ink); border: 1px solid var(--you-fill); }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--control-border); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status { font: 12px var(--mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status.ok { color: var(--ok); } .status.err { color: var(--err); }
+@media (pointer: coarse) { button { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .opt { transition: border-color 120ms ease-out, background-color 120ms ease-out; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/></svg>
+      <b>pap</b><span class="hud">Boxes · lot B2 · M14</span>
+    </div>
+    <h1>Décisions B2 et M14</h1>
+    <p class="muted">Partie 1 : les choix que j'ai faits dans la spec B2 (terminal et GitHub dans la box), à confirmer ou corriger. Partie 2 : M14, le multi-utilisateur, sous forme de propositions. Chaque question a une option <span class="chip reco">reco</span> et une note libre. « Appliquer les recos » remplit ce qui reste vide.</p>
+    <p class="muted">Spec complète : <code>docs/specs/2026-10-24-boxes-b2-design.md</code>.</p>
+  </header>
+  <form id="form" novalidate></form>
+</div>
+<div class="bar">
+  <div class="bar-in">
+    <span id="status" class="status" role="status" aria-live="polite">Brouillon</span>
+    <div class="btns">
+      <button type="button" class="secondary" id="recos">Appliquer les recos</button>
+      <button type="submit" class="primary" id="send" form="form">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const PARTS = [
+  { id: "b2", hud: "Partie 1 · spec B2", title: "Terminal et GitHub dans la box", intro: "B2 couvre le terminal dans la box, la GitHub App créée par pap, les projets créés par clone ou fork, un token d'une heure par box, une clé SSH de signature par projet, commit, push et PR depuis la box, et un onglet GitHub (PR et checks, logs CI, issues, releases). Voici les choix que j'ai faits sans toi.",
+    questions: [
+      { id: "fork_pr", title: "PR d'un fork vers le repo d'origine", ctx: "Le token de la box n'atteint que le fork, et l'App n'est pas installée chez le propriétaire du repo d'origine : l'API ne peut pas ouvrir cette PR.",
+        options: [
+          { v: "compare", label: "Ouvrir la page compare de GitHub", desc: "Après le push, le bouton ouvre github.com/<origine>/compare/… ; tu cliques Create pull request.", reco: true },
+          { v: "install", label: "Utiliser l'API quand l'App est installée sur l'origine", desc: "Sinon la page compare. Plus de cas à tester." },
+          { v: "none", label: "Pas de PR vers l'origine en B2", desc: "Les forks font push seulement." } ] },
+      { id: "taint_buttons", title: "Boutons push et PR quand la box a lu du contenu externe", ctx: "Le trafic GitHub passe par le proxy comme n'importe quel hôte : le premier clone marquerait déjà la box, donc une confirmation sonnerait à chaque push.",
+        options: [
+          { v: "no_ask", label: "Pas de confirmation", desc: "C'est ton action sur ton repo, après avoir vu le diff dans Changes.", reco: true },
+          { v: "ask", label: "Confirmation Refuser / Autoriser une fois", desc: "Nomme ce qui a marqué la box." } ] },
+      { id: "admin_perm", title: "Permission administration: write sur l'App", ctx: "L'endpoint fork de GitHub la demande. Seul le token user du host la porte ; les tokens des box sont fabriqués sans elle.",
+        options: [
+          { v: "yes", label: "Oui, sur le host uniquement", desc: "Le fork se fait depuis pap.", reco: true },
+          { v: "no", label: "Non", desc: "Tu forkes sur GitHub, puis Clone du fork dans pap." } ] },
+      { id: "terminal_idle", title: "Terminal ouvert et arrêt de la box", ctx: "Une box projet coûte 2 GB de RAM et 2 CPU.",
+        options: [
+          { v: "silent_detached", label: "Un terminal détaché et muet ne garde pas la box allumée", desc: "La box s'arrête après l'idle ; le terminal se ferme avec elle.", reco: true },
+          { v: "always", label: "Un terminal ouvert garde toujours la box", desc: "Simple, mais un onglet oublié bloque la RAM." },
+          { v: "kill", label: "Les terminaux détachés sont tués après l'idle", desc: "La box reste allumée tant qu'un terminal est attaché." } ] },
+      { id: "callback", title: "Adresse de callback de l'App", ctx: "Elle est fixée à la création ; GitHub n'a pas d'API pour la changer.",
+        options: [
+          { v: "origin", label: "L'adresse utilisée à la création, avec une aide si elle change", desc: "pap affiche l'URL exacte à coller dans les settings GitHub de l'App.", reco: true },
+          { v: "public_origin", label: "PAP_PUBLIC_ORIGIN obligatoire", desc: "Plus strict, une variable à poser avant." } ] },
+      { id: "orgs", title: "Repos d'organisations", ctx: "",
+        options: [
+          { v: "yes", label: "Oui, partout où l'App est installée", desc: "Le sélecteur liste les repos de chaque installation.", reco: true },
+          { v: "personal", label: "Compte personnel seulement", desc: "" } ] },
+      { id: "create_repo", title: "Créer un repo GitHub depuis pap", ctx: "Un projet vide peut se lier à un repo existant.",
+        options: [
+          { v: "no", label: "Non en B2", desc: "Tu crées le repo sur GitHub, puis Lier dans pap.", reco: true },
+          { v: "yes", label: "Oui", desc: "Un bouton Créer le repo (permission en plus)." } ] },
+      { id: "pr_comments", title: "Commentaires de PR dans la review de lane", ctx: "Les lanes n'arrivent dans les box qu'en B3.",
+        options: [
+          { v: "b3", label: "En B3, avec les lanes", desc: "", reco: true },
+          { v: "b2", label: "Dans B2 pour les lanes du host", desc: "Retiré en B4 avec le host." } ] },
+      { id: "b2_go", title: "La spec B2", ctx: "",
+        options: [
+          { v: "go", label: "OK, écris le plan et lance l'exécution", desc: "Même déroulé que B1 : deux lanes, Sonnet, une review Opus finale.", reco: true },
+          { v: "read_first", label: "Je relis d'abord le fichier", desc: "" } ] } ] },
+  { id: "m14", hud: "Partie 2 · M14", title: "Plusieurs utilisateurs", intro: "Aujourd'hui les données sont déjà séparées par utilisateur, mais pap ne sait pas créer un deuxième compte, chaque compte aurait tous les droits, et la config Pi, le token Claude et gh sont communs à l'installation. Voici ce que je propose.",
+    questions: [
+      { id: "who", title: "Qui sont les autres utilisateurs ?", ctx: "",
+        options: [
+          { v: "trusted", label: "Des proches ou collaborateurs de confiance", desc: "Chacun a ses projets, ses agents, ses triggers.", reco: true },
+          { v: "team", label: "Une équipe qui partage des projets", desc: "Projets communs dès M14." },
+          { v: "readonly", label: "Moi seul, plus des accès en lecture", desc: "" } ] },
+      { id: "roles", title: "Rôles", ctx: "",
+        options: [
+          { v: "owner_member", label: "Owner et membres", desc: "L'owner administre l'installation (modèles, providers, policy globale, VM, utilisateurs). Un membre gère ses projets, sessions, agents et triggers.", reco: true },
+          { v: "all_admin", label: "Tous administrateurs", desc: "" },
+          { v: "three", label: "Owner, membre et lecteur", desc: "Un rôle lecture seule en plus." } ] },
+      { id: "invites", title: "Création des comptes", ctx: "",
+        options: [
+          { v: "invite", label: "Invitation depuis Settings › Users", desc: "Lien à usage unique, puis passkey. La CLI pap user add reste.", reco: true },
+          { v: "cli", label: "CLI seulement", desc: "" } ] },
+      { id: "providers", title: "Providers et modèles", ctx: "La config Pi (clés, modèles) est commune à l'installation aujourd'hui.",
+        options: [
+          { v: "shared_budget", label: "Partagés, avec un budget journalier par membre", desc: "Tes clés et les modèles que tu actives ; chaque membre a son budget.", reco: true },
+          { v: "own_keys", label: "Chaque membre apporte ses clés", desc: "Une config Pi par utilisateur : gros chantier." } ] },
+      { id: "claude_token", title: "Token Claude (pi-claude-bridge)", ctx: "",
+        options: [
+          { v: "per_user", label: "Un par utilisateur", desc: "Chacun utilise son propre abonnement.", reco: true },
+          { v: "shared", label: "Le tien pour tout le monde", desc: "" } ] },
+      { id: "github", title: "GitHub par utilisateur", ctx: "",
+        options: [
+          { v: "same_app", label: "La même App pap, autorisée par chacun", desc: "Chacun l'installe sur son compte ; ses projets utilisent ses tokens et sa clé de signature.", reco: true },
+          { v: "app_each", label: "Une App par utilisateur", desc: "" } ] },
+      { id: "sharing", title: "Projets partagés entre utilisateurs", ctx: "",
+        options: [
+          { v: "later", label: "Pas dans M14", desc: "Chaque projet a un propriétaire ; le partage viendra plus tard.", reco: true },
+          { v: "now", label: "Oui dès M14", desc: "Lecture ou écriture, par projet." } ] },
+      { id: "visibility", title: "Ce que l'owner voit des membres", ctx: "",
+        options: [
+          { v: "usage", label: "Usage et coûts, pas le contenu", desc: "", reco: true },
+          { v: "all", label: "Tout, sessions comprises", desc: "" } ] },
+      { id: "vm_quota", title: "RAM des box", ctx: "Un plafond global existe déjà (moitié de la RAM).",
+        options: [
+          { v: "global", label: "Plafond global partagé", desc: "Premier arrivé ; quotas par utilisateur plus tard.", reco: true },
+          { v: "per_user", label: "Un quota de RAM par utilisateur dès M14", desc: "" } ] } ] } ];
+
+const KEY = "pap-decisions-b2-m14-draft";
+const DOC = "answers/b2-m14";
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+let state = { choices: {}, notes: {}, general: "" };
+
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const k of kids) n.append(k);
+  return n;
+}
+function render() {
+  form.replaceChildren();
+  for (const part of PARTS) {
+    const sec = el("section", { class: "part", "aria-labelledby": "h-" + part.id });
+    sec.append(el("div", { class: "part-head" }, [el("span", { class: "hud", text: part.hud }), el("h2", { id: "h-" + part.id, text: part.title }), el("p", { class: "muted", text: part.intro })]));
+    for (const q of part.questions) {
+      const qid = part.id + "." + q.id;
+      const box = el("fieldset", { class: "q" });
+      const answered = state.choices[qid];
+      const chip = el("span", { class: "chip " + (answered ? "ok" : "mut"), text: answered ? "répondu" : "à choisir" });
+      box.append(el("div", { class: "q-head" }, [el("legend", { class: "q-title", text: q.title }), chip]));
+      if (q.ctx) box.append(el("p", { class: "ctx", text: q.ctx }));
+      const opts = el("div", { class: "opts" });
+      for (const o of q.options) {
+        const id = qid + "." + o.v;
+        const input = el("input", { type: "radio", name: qid, id, value: o.v, checked: state.choices[qid] === o.v });
+        input.addEventListener("change", () => { state.choices[qid] = o.v; save(); chip.className = "chip ok"; chip.textContent = "répondu"; });
+        const label = el("span", { class: "opt-label" }, [o.label]);
+        if (o.reco) label.append(el("span", { class: "chip reco", text: "reco" }));
+        const row = el("label", { class: "opt", for: id }, [input, label]);
+        if (o.desc) row.append(el("span", { class: "opt-desc", text: o.desc }));
+        opts.append(row);
+      }
+      box.append(opts);
+      const note = el("textarea", { id: qid + ".note", rows: "1", placeholder: "Note (optionnelle)", "aria-label": "Note pour : " + q.title });
+      note.value = state.notes[qid] || "";
+      note.addEventListener("input", () => { state.notes[qid] = note.value; save(); });
+      box.append(note);
+      sec.append(box);
+    }
+    form.append(sec);
+  }
+  const g = el("fieldset", { class: "q" }, [el("legend", { class: "q-title", text: "Note générale" })]);
+  const gt = el("textarea", { id: "general", rows: "3", placeholder: "Tout ce que tu veux ajouter" });
+  gt.value = state.general || "";
+  gt.addEventListener("input", () => { state.general = gt.value; save(); });
+  g.append(gt);
+  form.append(g);
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.choices) state = s; } catch {} }
+function count() { return PARTS.reduce((n, p) => n + p.questions.length, 0); }
+function answeredCount() { return Object.keys(state.choices).length; }
+
+document.getElementById("recos").addEventListener("click", () => {
+  for (const p of PARTS) for (const q of p.questions) { const qid = p.id + "." + q.id; if (!state.choices[qid]) { const r = q.options.find((o) => o.reco); if (r) state.choices[qid] = r.v; } }
+  save(); render(); statusEl.className = "status"; statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+});
+
+let dbPromise = null;
+function db() { if (!dbPromise) dbPromise = (window.claude?.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null); return dbPromise; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const send = document.getElementById("send");
+  const missing = count() - answeredCount();
+  if (missing > 0) { statusEl.className = "status err"; statusEl.textContent = missing + " question(s) sans choix : choisis ou applique les recos."; return; }
+  send.disabled = true; statusEl.className = "status"; statusEl.textContent = "Envoi…";
+  const store = await db();
+  if (!store) { send.disabled = false; statusEl.className = "status err"; statusEl.textContent = "Envoi impossible ici : ouvre la page connecté à claude.ai. Tes choix restent dans ce navigateur."; return; }
+  try {
+    await store.doc(DOC).set({ choices: state.choices, notes: state.notes, general: state.general || "", sentAt: new Date().toISOString() });
+    statusEl.className = "status ok"; statusEl.textContent = "Envoyé : je lis tes réponses.";
+  } catch (err) {
+    statusEl.className = "status err"; statusEl.textContent = "Envoi refusé (" + (err?.code || "erreur") + "). Tes choix restent dans ce navigateur ; réessaie.";
+  } finally { send.disabled = false; }
+});
+
+load();
+render();
+statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+db().then(async (store) => {
+  if (!store) return;
+  try { const snap = await store.doc(DOC).get(); if (snap.exists && answeredCount() === 0) { const d = snap.data(); state = { choices: d.choices || {}, notes: d.notes || {}, general: d.general || "" }; render(); statusEl.textContent = "Réponses déjà envoyées · " + answeredCount() + " / " + count(); } } catch {}
+});
+</script>
