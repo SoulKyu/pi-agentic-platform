@@ -64,6 +64,8 @@ export interface OpsDeps {
   readonly unleased?: readonly string[];
   /** AVM-E62: removes the `cnitest-*` namespace files nobody mounts; run under the start lock after each `vm.stop`. */
   readonly sweepNetns?: () => number;
+  /** Whether a process has the file open (default: a scan of each process's open descriptors); tests inject their own. */
+  readonly holdsFile?: (file: string) => boolean;
 }
 
 export interface Ops {
@@ -71,6 +73,8 @@ export interface Ops {
   handle(request: VmdRequest): Promise<unknown>;
   /** The task VMs that exist and are not stopped: the start sweep keeps their disks. */
   runningTasks(): Promise<RunningTask[]>;
+  /** Resolves when no reclaim job is queued or running. */
+  idle(): Promise<void>;
 }
 
 export function createOps(deps: OpsDeps): Ops {
@@ -121,6 +125,7 @@ export function createOps(deps: OpsDeps): Ops {
 
   return {
     handle,
+    idle: vm.idle,
     async runningTasks() {
       const vms = await vm.list();
       return vms.flatMap((entry) =>

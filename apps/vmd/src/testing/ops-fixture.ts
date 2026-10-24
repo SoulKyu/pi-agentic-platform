@@ -26,6 +26,8 @@ export const MIB = 1024 * 1024;
 export interface FixtureOps {
   handle(request: unknown): Promise<unknown>;
   runningTasks: Ops["runningTasks"];
+  /** Waits for the background reclaim jobs. */
+  idle(): Promise<void>;
 }
 
 export interface Fixture {
@@ -75,7 +77,13 @@ function healthyHost(argv: readonly string[]): Partial<ExecResult> | undefined {
 
 export function createFixture(
   handler: ExecHandler = () => undefined,
-  options: { locks?: Locks; net?: NetPort; unleased?: readonly string[]; sweepNetns?: () => number } = {},
+  options: {
+    locks?: Locks;
+    net?: NetPort;
+    unleased?: readonly string[];
+    sweepNetns?: () => number;
+    holdsFile?: (file: string) => boolean;
+  } = {},
 ): Fixture {
   const work = mkdtempSync(path.join(tmpdir(), "pap-vmd-ops-"));
   const clock = createFakeClock();
@@ -141,12 +149,14 @@ export function createFixture(
     version: "1.2.3",
     unleased: options.unleased ?? [],
     ...(options.sweepNetns ? { sweepNetns: options.sweepNetns } : {}),
+    ...(options.holdsFile ? { holdsFile: options.holdsFile } : {}),
   });
   Object.assign(fixture, {
     exec,
     ops: {
       handle: (request: unknown) => ops.handle(VmdRequest.parse(request)),
       runningTasks: ops.runningTasks,
+      idle: ops.idle,
     },
   });
   return fixture;

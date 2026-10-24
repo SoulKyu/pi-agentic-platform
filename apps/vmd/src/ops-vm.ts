@@ -250,6 +250,36 @@ export function createVmOps(deps: OpsDeps) {
     return result;
   }
 
+  /** Reclaim jobs not yet finished; `idle` waits for them (tests, and an orderly drain). */
+  const reclaims = new Set<Promise<unknown>>();
+
+  /**
+   * A box's disk is sparse again once nothing holds it. Its own job, queued behind the stop under the box lock, so the stop
+   * answers at once (a dig of a pre-allocated disk takes minutes). Every gate is checked again inside the lock: no live VM of the
+   * box in `nerdctl ps`, no process holding the file. A start that arrives meanwhile waits for the dig. A job cut by a pap-vmd
+   * exit is harmless: each punched hole is atomic and nothing is tracked on disk.
+   */
+  function scheduleReclaim(box: BoxRef): void {
+    const job = locks
+      .withBox(box, () =>
+        step("reclaim", async () => {
+          const vms = await list();
+          const live = vms.some(
+            (vm) => sameBox(vm.box, box) && vm.taskKey === null && vm.state !== "stopped",
+          );
+          if (live) return;
+          await reclaimDisk(exec, log, state.diskPath(box, null), deps.holdsFile);
+        }),
+      )
+      .catch(() => undefined)
+      .finally(() => reclaims.delete(job));
+    reclaims.add(job);
+  }
+
+  const idle = async (): Promise<void> => {
+    while (reclaims.size > 0) await Promise.all([...reclaims]);
+  };
+
   function stop(request: Stop): Promise<unknown> {
     const name = vmName(request.box, request.taskKey);
     const volume = volumePath(deps.volumeRoot, name);
@@ -264,16 +294,7 @@ export function createVmOps(deps: OpsDeps) {
       if (removed && request.taskKey !== null) {
         removeTaskDir(state.diskPath(request.box, request.taskKey));
       }
-      // A box's disk is sparse again once nothing holds it; only after the VM is confirmed gone, never for a task disk (deleted above).
-      if (removed && request.taskKey === null) {
-        await step("reclaim", async () => {
-          const vms = await list();
-          const held = vms.some(
-            (vm) => sameBox(vm.box, request.box) && vm.taskKey === null && vm.state !== "stopped",
-          );
-          if (!held) await reclaimDisk(exec, log, state.diskPath(request.box, null));
-        });
-      }
+      if (removed && request.taskKey === null) scheduleReclaim(request.box);
       if (!removed || !detached) throw new VmdFailure("failed");
       return { stopped: true };
     });
@@ -293,5 +314,5 @@ export function createVmOps(deps: OpsDeps) {
     throw new VmdFailure("failed");
   }
 
-  return { start, stop, pause: control(pauseArgv), resume: control(unpauseArgv), status, list };
+  return { idle, start, stop, pause: control(pauseArgv), resume: control(unpauseArgv), status, list };
 }

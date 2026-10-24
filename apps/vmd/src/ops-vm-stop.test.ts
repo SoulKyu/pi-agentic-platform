@@ -39,6 +39,7 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
   it("stops a thread VM: rm --force, port, volume; the agent's disk stays", async () => {
     const disk = seedDisk(fx);
     await fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null });
+    await fx.ops.idle();
     expect(fx.exec.calls.map((argv) => argv.slice(-3))).toEqual([
       ["rm", "--force", "pap-helper-1a2b"],
       ["direct-volume", "remove", VOLUME(fx, "pap-helper-1a2b")],

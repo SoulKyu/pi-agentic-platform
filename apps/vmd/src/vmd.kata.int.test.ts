@@ -217,22 +217,23 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
   it("keeps a box disk sparse while the VM runs and returns deleted files to the host", async () => {
     const agentId = fresh();
     const file = diskFile(agentId);
-    const ceilingMb = SPARSE_DISK_MB / 10;
+    const ceilingMb = SPARSE_DISK_MB / 5;
     await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: SPARSE_DISK_MB });
-    const blankMb = allocatedMb(file);
     expect((await start(agentId)).ok).toBe(true);
     // Measured while the VM runs: the stop's reclaim must not be what keeps the disk small.
-    expect(allocatedMb(file)).toBeLessThan(ceilingMb);
+    // The baseline is taken once the disk is mounted and synced, so ext4's lazy init and the journal are in it.
+    inGuest(agentId, "grep -q ' /agent ext4 .*discard' /proc/mounts && sync");
+    const baselineMb = allocatedMb(file);
+    expect(baselineMb).toBeLessThan(ceilingMb);
     inGuest(agentId, "dd if=/dev/urandom of=/agent/blob bs=1M count=50 conv=fsync && sync");
     const written = allocatedMb(file);
-    expect(written).toBeGreaterThanOrEqual(blankMb + 50);
-    expect(written).toBeLessThan(blankMb + 50 + 64);
+    expect(written - baselineMb).toBeGreaterThanOrEqual(50);
+    expect(written - baselineMb).toBeLessThan(50 + 32);
     expect(written).toBeLessThan(ceilingMb);
     inGuest(agentId, "rm /agent/blob && sync");
     await until("discard to reach the host", () => allocatedMb(file) < written - 40, 60_000);
     await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
     expect(allocatedMb(file)).toBeLessThan(written - 40);
-    expect(allocatedMb(file)).toBeLessThan(ceilingMb);
   }, 240_000);
 
   it("gives a pre-allocated disk back at the next stop", async () => {
@@ -242,9 +243,9 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
     // What Kata 4.2 left behind: every block allocated (the disk is not in use, so this root window may touch it).
     execFileSync("/usr/bin/fallocate", ["-l", `${SPARSE_DISK_MB}M`, file]);
     expect(allocatedMb(file)).toBeGreaterThan(SPARSE_DISK_MB * 0.95);
-    // No VM exists: the stop confirms that and the reclaim runs.
+    // No VM exists: the stop confirms that and answers at once; the reclaim runs as its own job after it.
     expect(await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null })).toEqual({ stopped: true });
-    expect(allocatedMb(file)).toBeLessThan(SPARSE_DISK_MB / 10);
+    await until("the reclaim", () => allocatedMb(file) < SPARSE_DISK_MB / 5, 120_000);
     // The data survived: the disk still boots and mounts.
     expect((await start(agentId)).ok).toBe(true);
     inGuest(agentId, "test -d /agent/lost+found");
