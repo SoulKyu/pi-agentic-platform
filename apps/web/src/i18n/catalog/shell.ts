@@ -40,6 +40,7 @@ export const shellEn = {
   "shell.surface.term": "Term",
   "shell.surface.changes": "Changes",
   "shell.surface.terminal": "Terminal",
+  "shell.tab.terminalIn": "Terminal · {project}",
   "shell.surface.files": "Files",
   "shell.reload": "Reload",
   "shell.rail.label": "Agents",
@@ -128,6 +129,8 @@ export const shellEn = {
   "error.vm_bundle_stale":
     "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
   "error.box_stopped": "The project's box is stopped: start it from the project page.",
+  "error.github_unavailable":
+    "GitHub is not set up for pap: create or reconnect the App in Settings › GitHub.",
   "error.push_unavailable": "Notifications are not available on this server. See Settings › Notifications.",
   "error.push_revoked":
     "This device was removed from the notification list. Enable notifications again to add it back.",
@@ -183,6 +186,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.surface.term": "Term",
   "shell.surface.changes": "Modifications",
   "shell.surface.terminal": "Terminal",
+  "shell.tab.terminalIn": "Terminal · {project}",
   "shell.surface.files": "Fichiers",
   "shell.reload": "Recharger",
   "shell.rail.label": "Agents",
@@ -275,6 +279,8 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "error.vm_bundle_stale":
     "Le code dans la VM de cet agent est plus ancien que pap. Lancez `sudo pap vm setup`, puis rouvrez le fil. Rien n'est perdu.",
   "error.box_stopped": "La box du projet est arrêtée : démarrez-la depuis la page du projet.",
+  "error.github_unavailable":
+    "GitHub n'est pas configuré pour pap : créez ou reconnectez l'App dans Réglages › GitHub.",
   "error.push_unavailable":
     "Les notifications ne sont pas disponibles sur ce serveur. Voir Réglages › Notifications.",
   "error.push_revoked":

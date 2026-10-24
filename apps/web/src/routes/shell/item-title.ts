@@ -30,8 +30,11 @@ export function itemTitle(
       return t("shell.surface.files");
     case "changes":
       return t("shell.surface.changes");
-    case "terminal":
-      return t("shell.surface.terminal");
+    case "terminal": {
+      // A box terminal names its project (`terminal:<id>` → project name, from `useTriggerNames`).
+      const project = triggers.get(`terminal:${item.id}`);
+      return project === undefined ? t("shell.surface.terminal") : t("shell.tab.terminalIn", { project });
+    }
     case "lane":
       // A lane the store no longer holds was archived (or never existed): the pane says so; the tab keeps a word.
       return lanes.lanes.get(item.id)?.branch || t("shell.tab.lane");

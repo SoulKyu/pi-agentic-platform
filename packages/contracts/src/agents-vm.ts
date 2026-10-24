@@ -19,7 +19,7 @@ export const AGENT_NET = Object.freeze({
 });
 /** Where host-local keeps its reservations (the conflist's `dataDir`, under /run: no VM outlives a reboot); one folder per network below it. */
 export const CNI_IPAM_DIR = "/run/pap-vm/cni-ipam";
-export const AGENT_VM_PROTOCOL = 2;
+export const AGENT_VM_PROTOCOL = 3;
 /** The gateway frame bound. `frames.ts` has the WebSocket's `MAX_FRAME_BYTES` (1 MiB): a different bound. */
 export const AGENT_VM_MAX_FRAME_BYTES = 4 * 1024 * 1024;
 /** RT-27: what a connection may send before its hello is accepted, and the gateway's other bounds. */
@@ -117,7 +117,11 @@ export const WorkerHello = z
       .strict(),
   })
   .strict();
-export const Hello = z.discriminatedUnion("role", [GuestHello, WorkerHello]);
+/** A box terminal's own connection (lot B2): one per pty, named by its `slot`, carrying `pty-frames.ts` after the hello. */
+/** What the guest says when a pty's folder is not the project's; the daemon reads it from the `exited` tail as `not_found`. */
+export const PTY_FOLDER_REFUSAL = "the folder is not in the project";
+export const TerminalHello = z.object({ ...helloBase, role: z.literal("terminal"), slot: SlotId }).strict();
+export const Hello = z.discriminatedUnion("role", [GuestHello, WorkerHello, TerminalHello]);
 export type Hello = z.infer<typeof Hello>;
 
 /** Transport-level liveness, handled by both socket ends and never handed to the protocol layer. */
@@ -148,6 +152,16 @@ export const GuestCommand = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("signal"), slot: SlotId, signal: z.enum(["SIGTERM", "SIGKILL"]) }).strict(),
   z.object({ type: z.literal("shutdown") }).strict(),
+  /** Open a pty for a box terminal: the guest connects back with a `terminal` hello carrying the same `slot`. */
+  z
+    .object({
+      type: z.literal("pty_open"),
+      slot: SlotId,
+      cwd: AbsolutePath,
+      cols: z.number().int().min(2).max(500),
+      rows: z.number().int().min(2).max(200),
+    })
+    .strict(),
   /** One guest operation of a project box (spec boxes); `id` correlates the `op_result`. */
   z.object({ type: z.literal("op"), id: FileId, op: BoxOp }).strict(),
 ]);

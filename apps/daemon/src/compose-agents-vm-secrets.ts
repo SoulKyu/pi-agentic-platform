@@ -6,10 +6,11 @@ import {
   readPiAuth,
   secretsDirOf,
 } from "./modules/agent-vm/index.ts";
+import { githubAppSecretValues } from "./modules/github/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 
 /**
- * T15b: the collector of the owner's secrets (auth.json through Pi's storage, every value of the vault, the Claude token).
+ * T15b: the collector of the owner's secrets (auth.json through Pi's storage, every value of the vault, the Claude token, the GitHub App's key and client secret, the box tokens in use).
  * It keeps nothing: the image build and the relay's stderr redactor each call it when they need the values. The vault is a
  * second reader of the same files, without the start-up sweep of temporary files (that belongs to the daemon's own store). The
  * Claude token is read strictly (`$PAP_HOME/secrets/claude-token`): only "no file" is no token.
@@ -18,6 +19,7 @@ export function composeOwnerSecrets(core: {
   readonly home: string;
   readonly piAgentDir: string;
   readonly logger: Logger;
+  readonly githubLive?: () => readonly string[];
 }): OwnerSecretsCollector {
   const vault = createVaultStore(vaultRootOf(core.home), { sweep: false });
   return createOwnerSecrets({
@@ -25,5 +27,9 @@ export function composeOwnerSecrets(core: {
     auth: () => readPiAuth(core.piAgentDir),
     vault: () => vault.everyValue(),
     claudeToken: () => loadClaudeTokenStrict(secretsDirOf(core.home)),
+    extra: () => [
+      ...githubAppSecretValues(secretsDirOf(core.home), core.logger),
+      ...(core.githubLive?.() ?? []),
+    ],
   });
 }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AgentResources, SystemPackages } from "./agents-resources.ts";
 import { FILE_CHUNK_B64 } from "./file-chunk.ts";
+import { BOX_GITHUB_OPS, BOX_GITHUB_RESULTS, BOX_GITHUB_TIMEOUTS } from "./box-github-ops.ts";
 import { AGENT_LIMITS } from "./agents.ts";
 import { Etag, FILE_LIMITS, FilePath, FilesListResult, FilesReadResult, FilesSearchResult } from "./files.ts";
 import { AgentHostEntry } from "./host-entry.ts";
@@ -89,6 +90,7 @@ export const BoxOp = z.discriminatedUnion("name", [
   op("knowledge.state", {}),
   op("knowledge.enable", {}),
   op("project.config", {}),
+  ...BOX_GITHUB_OPS,
 ]);
 export type BoxOp = z.infer<typeof BoxOp>;
 export type BoxOpName = BoxOp["name"];
@@ -117,5 +119,29 @@ export const BOX_OP_RESULTS = {
       error: z.enum(["too_large", "invalid_yaml", "not_a_map", "bad_packages"]).nullable(),
     })
     .strict(),
+  ...BOX_GITHUB_RESULTS,
 } as const satisfies { readonly [N in BoxOpName]: z.ZodType };
+
+/** Milliseconds a guest op may take: the clone and the push are slower than the rest. */
+export const BOX_OP_TIMEOUTS: Record<BoxOpName, number> = {
+  "fs.list": BOX_OP_LIMITS.timeoutMs,
+  "fs.read": BOX_OP_LIMITS.timeoutMs,
+  "fs.write": BOX_OP_LIMITS.timeoutMs,
+  "fs.put": BOX_OP_LIMITS.timeoutMs,
+  "fs.get": BOX_OP_LIMITS.timeoutMs,
+  "fs.search": BOX_OP_LIMITS.timeoutMs,
+  "git.status": BOX_OP_LIMITS.timeoutMs,
+  "git.blob": BOX_OP_LIMITS.timeoutMs,
+  "knowledge.state": BOX_OP_LIMITS.timeoutMs,
+  "knowledge.enable": BOX_OP_LIMITS.timeoutMs,
+  "project.config": BOX_OP_LIMITS.timeoutMs,
+  "git.clone": BOX_GITHUB_TIMEOUTS["git.clone"],
+  "git.link": BOX_OP_LIMITS.timeoutMs,
+  "git.unlink": BOX_OP_LIMITS.timeoutMs,
+  "git.commit": BOX_OP_LIMITS.timeoutMs,
+  "git.push": BOX_GITHUB_TIMEOUTS["git.push"],
+  "github.token": BOX_OP_LIMITS.timeoutMs,
+  "github.identity": BOX_OP_LIMITS.timeoutMs,
+  "github.forgetKey": BOX_OP_LIMITS.timeoutMs,
+};
 export type BoxOpValue<N extends BoxOpName = BoxOpName> = z.output<(typeof BOX_OP_RESULTS)[N]>;

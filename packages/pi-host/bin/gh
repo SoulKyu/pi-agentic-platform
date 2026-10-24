@@ -1,0 +1,9 @@
+#!/bin/sh
+# gh of a pap box: the real gh, with GH_TOKEN from the token file on /run (the token never sits in the home folder).
+file="${PAP_GUEST_RUN_DIR:-/run}/pap-github/token"
+if [ -r "$file" ]; then
+  IFS= read -r token < "$file" || true
+  if [ -n "$token" ]; then GH_TOKEN="$token"; export GH_TOKEN; fi
+fi
+real=/usr/bin/gh
+exec "$real" "$@"

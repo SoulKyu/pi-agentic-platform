@@ -168,7 +168,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
    * `credential` is the cookie or bearer of the upgrade, kept for the life of the socket and used for nothing but the
    * re-checks below. It is never logged or sent anywhere.
    */
-  function attach(ws: WebSocket, credential: Credential | undefined): void {
+  function attach(ws: WebSocket, credential: Credential | undefined, origin: string | undefined): void {
     const connectionId = randomUUID();
     let nextSub = 0;
     let revoked = false;
@@ -241,6 +241,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
         const response = await options.dispatch(frame, {
           caller,
           connectionId,
+          origin,
           // The replay or snapshot is built here, inside the handler, so a failure becomes this
           // request's error response. Nothing reaches the client before the response does.
           openSubscription(stream: StreamName, key: string, after: Cursor | undefined) {
@@ -357,7 +358,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
         return reject(socket, 500);
       }
       if (!caller) return reject(socket, 401);
-      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, credential));
+      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, credential, origin));
     },
     close() {
       for (const closeAll of closers) closeAll();

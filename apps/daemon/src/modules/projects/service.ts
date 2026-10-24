@@ -243,6 +243,7 @@ export function createProjectsService(deps: {
   return {
     ensure,
     add,
+    hasRoom: (ownerId: string): boolean => deps.store.count(ownerId) < MAX_PROJECTS,
     bindBoxes: boxes.bind,
     create: boxes.create,
     scratch: boxes.scratch,

@@ -166,6 +166,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     testAgentRuntime: null,
     // A socket nobody listens on: a plain daemon boots with the agents unavailable and never dials the real pap-vmd.
     testVmdSocket: join(root, "no-vmd.sock"),
+    testGithubOrigin: null,
     staticRoot: null,
     logLevel: "warn",
     ...options.config,

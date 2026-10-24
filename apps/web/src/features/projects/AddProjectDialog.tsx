@@ -1,10 +1,13 @@
 import "./register-add-project-catalog.ts";
-import { Button, TextField, usePendingAction } from "@pap/ui";
+import "../../i18n/register-github.ts";
+import { Button, Segmented, TextField, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Fragment, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { holdProject } from "../../stores/shell-store.ts";
+import { RepositoryPicker } from "../github/RepositoryPicker.tsx";
+import { useCreateFromGithub } from "../github/use-create-from-github.ts";
 import { addProjectFailure, projectNameOf } from "./add-project.vm.ts";
 
 interface Props {
@@ -22,6 +25,10 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
   const [name, setName] = useState("");
   const [problem, setProblem] = useState<MessageKey | null>(null);
   const pending = usePendingAction();
+  const [source, setSource] = useState<"empty" | "github">("empty");
+  const [repository, setRepository] = useState("");
+  const fromGithub = useCreateFromGithub(onAdded);
+  const busy = pending.since !== null || fromGithub.since !== null;
 
   const create = () => {
     const clean = projectNameOf(name);
@@ -57,15 +64,35 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
       footer={
         <Fragment>
           <Button onClick={onClose}>{t("addProject.cancel")}</Button>
-          <Button
-            variant="primary"
-            remote={false}
-            disabled={pending.since !== null}
-            pendingSince={pending.since}
-            onClick={create}
-          >
-            {t("addProject.create")}
-          </Button>
+          {source === "github" ? (
+            <>
+              <Button
+                disabled={busy}
+                pendingSince={fromGithub.mode === "fork" ? fromGithub.since : null}
+                onClick={() => fromGithub.run(repository, "fork")}
+              >
+                {t("github.fork")}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={busy}
+                pendingSince={fromGithub.mode === "clone" ? fromGithub.since : null}
+                onClick={() => fromGithub.run(repository, "clone")}
+              >
+                {t("github.clone")}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="primary"
+              remote={false}
+              disabled={pending.since !== null}
+              pendingSince={pending.since}
+              onClick={create}
+            >
+              {t("addProject.create")}
+            </Button>
+          )}
         </Fragment>
       }
     >
@@ -74,21 +101,42 @@ export function AddProjectDialog({ onClose, onAdded }: Props) {
         className="flex flex-col gap-s3 p-s3"
         onSubmit={(event) => {
           event.preventDefault();
-          create();
+          if (source === "github") fromGithub.run(repository, "clone");
+          else create();
         }}
       >
-        <TextField
-          label={t("addProject.name")}
-          hint={t("addProject.nameHint")}
-          value={name}
-          name="name"
-          autoComplete="off"
-          error={problem === null ? null : t(problem)}
-          onChange={(next) => {
-            setName(next);
-            setProblem(null);
-          }}
+        <Segmented
+          label={t("github.source.label")}
+          value={source}
+          options={[
+            { value: "empty", label: t("github.source.empty") },
+            { value: "github", label: t("github.source.github") },
+          ]}
+          onChange={(next) => setSource(next === "github" ? "github" : "empty")}
         />
+        {source === "github" ? (
+          <RepositoryPicker
+            value={repository}
+            error={fromGithub.problem}
+            onChange={(next) => {
+              setRepository(next);
+              fromGithub.clear();
+            }}
+          />
+        ) : (
+          <TextField
+            label={t("addProject.name")}
+            hint={t("addProject.nameHint")}
+            value={name}
+            name="name"
+            autoComplete="off"
+            error={problem === null ? null : t(problem)}
+            onChange={(next) => {
+              setName(next);
+              setProblem(null);
+            }}
+          />
+        )}
       </form>
     </Dialog>
   );

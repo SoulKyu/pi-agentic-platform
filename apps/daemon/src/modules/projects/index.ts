@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import type { Caller } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
@@ -48,6 +49,10 @@ export interface ProjectsModule {
   readonly port: ProjectsPort;
   /** What the files, vcs and sessions modules ask of the owner's box projects (boxes B1). */
   readonly boxSource: ProjectBoxSource;
+  /** A new box project for the caller (`projects.create`'s service call): the GitHub module makes the projects it links. */
+  create(caller: Caller, name: string): ProjectView;
+  /** False when the owner has no room for another project (`create` would answer `capacity`). */
+  hasRoom(ownerId: string): boolean;
   /** The composition gives the real box control and the cleanups once they exist (late); until then the box methods answer `internal`. */
   bindBoxes(wiring: ProjectBoxWiring): void;
 }
@@ -79,6 +84,8 @@ export function createProjectsModule(deps: {
     rpc: projectsRpc(service),
     boxSource: createProjectBoxSource(boxes, deps.audit),
     bindBoxes: service.bindBoxes,
+    create: service.create,
+    hasRoom: service.hasRoom,
     port: {
       ensure: service.ensure,
       list: service.list,

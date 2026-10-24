@@ -87,8 +87,7 @@ export function ActionRow({ project, layout, actions, shortcuts }: Props) {
 
   const rootReason: MessageKey | null = root === null ? "home.reason.noProject" : access;
   // A box project has no host terminal yet: the control stays, disabled, with its reason (§3.2).
-  const terminalReason =
-    project?.kind === "box" ? t("boxes.off") : rootReason === null ? null : t(rootReason);
+  const terminalReason = rootReason === null ? null : t(rootReason);
   const terminalNotice = terminal !== null && terminal.root === root ? terminal.key : null;
   const openTerminal = () => {
     if (root === null || starting.current) return;

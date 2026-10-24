@@ -78,6 +78,7 @@ export function fakeGuest(order: string[]): FakeGuest {
       return Promise.resolve(handle);
     },
     shutdown,
+    openTerminal: () => Promise.reject(new Error("unused")),
     sendOp: () => false,
     onOpResult: () => () => undefined,
     closed,

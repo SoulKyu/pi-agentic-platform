@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import {
+  cpSync,
   existsSync,
   readdirSync,
   readFileSync,
@@ -18,13 +19,22 @@ import type { Runner } from "./build-archive-stage.ts";
 /** pi-host's `dist` plus a flat production `node_modules`: what the base image of the agent VMs is built from (T14b). */
 export const AGENT_BUNDLE = "packages/pi-host/dist-agent";
 /** What the guest and the relay start from; a bundle without them builds an image that cannot boot. */
-export const REQUIRED_FILES = ["dist/guest/main.js", "dist/relay/main.js", "package.json"] as const;
+export const REQUIRED_FILES = [
+  "dist/guest/main.js",
+  "dist/relay/main.js",
+  "package.json",
+  "bin/gh",
+  "bin/pap-git-credential",
+  "bin/pap-ssh-sign",
+] as const;
 /** `pnpm deploy` copies these beside `dist`; the image needs none of them. */
 const PRUNED = ["src", "dist-agent", "tsconfig.json", "tsconfig.build.json", "pnpm-lock.yaml"] as const;
 /** pnpm's own state: timestamps, the store dir and the builder's paths. The bundle is flat; nothing reads them. */
 const PNPM_STATE = [".modules.yaml", ".pnpm", ".pnpm-workspace-state-v1.json"] as const;
 /** The workspace copy of contracts keeps its sources and configs; only `dist` and `package.json` run. */
 const CONTRACTS_PRUNED = ["src", "tsconfig.json", "tsconfig.build.json"] as const;
+/** Native addons the image builds for its own Node (`apps/vmd/src/dockerfile.ts`): the host's build names the builder's paths. */
+const NATIVE_PRUNED = ["node-pty"] as const;
 const TEST_FILE = /\.(?:test|spec)\.[^/\\]*$/;
 const BUILDING = "packages/pi-host/.dist-agent-building";
 
@@ -78,6 +88,8 @@ export const finishAgentBundle = (folder: string): void => {
   for (const name of PNPM_STATE) rmSync(join(folder, "node_modules", name), { force: true, recursive: true });
   for (const name of CONTRACTS_PRUNED)
     rmSync(join(folder, "node_modules/@pap/contracts", name), { recursive: true, force: true });
+  for (const name of NATIVE_PRUNED)
+    rmSync(join(folder, "node_modules", name), { recursive: true, force: true });
   for (const entry of readdirSync(folder, { recursive: true, withFileTypes: true }))
     if (TEST_FILE.test(entry.name) && !entry.isDirectory())
       rmSync(join(entry.parentPath, entry.name), { force: true });
@@ -135,6 +147,14 @@ export const deployProd = async ({ repo, run, storeDir, filter, dest }: DeployPr
   }
 };
 
+/**
+ * `pnpm deploy` hardlinks the workspace's built files (contracts `dist`) into its output; a later build of the workspace
+ * would rewrite the bundle in place. A copy gets new inodes, so no bundle file shares one with the workspace.
+ */
+export const copyUnlinked = (from: string, to: string): void => {
+  cpSync(from, to, { recursive: true, verbatimSymlinks: true });
+};
+
 export interface BuildAgentBundleOptions {
   repo: string;
   run: Runner;
@@ -155,9 +175,12 @@ export const buildAgentBundle = async ({
 }: BuildAgentBundleOptions): Promise<string> => {
   const target = out ?? join(repo, AGENT_BUNDLE);
   const building = out === undefined ? join(repo, BUILDING) : `${out}.building`;
+  const deployed = `${building}.deploy`;
   rmSync(building, { recursive: true, force: true });
+  rmSync(deployed, { recursive: true, force: true });
   try {
-    await deployProd({ repo, run, storeDir, filter: "@pap/pi-host", dest: building });
+    await deployProd({ repo, run, storeDir, filter: "@pap/pi-host", dest: deployed });
+    copyUnlinked(deployed, building);
     finishAgentBundle(building);
     assertAgentBundle(building, [homedir(), repo, storeDir]);
     rmSync(target, { recursive: true, force: true });
@@ -165,14 +188,23 @@ export const buildAgentBundle = async ({
     return target;
   } finally {
     rmSync(building, { recursive: true, force: true });
+    rmSync(deployed, { recursive: true, force: true });
   }
 };
 
 const exec = promisify(execFile);
 
+/**
+ * `pnpm store path` answers the versioned store (`.../store/v11`) and `pnpm deploy --store-dir` appends the version again
+ * (`v10/`), so the offline deploy finds no tarball. The deploy is given the store root: one trailing `/v<digits>` goes.
+ */
+export const storeRootOf = (storePath: string): string => storePath.replace(/\/v\d+\/?$/, "");
+
 const main = async (): Promise<void> => {
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const storeDir = (await exec("pnpm", ["store", "path"], { cwd: repo, timeout: 30_000 })).stdout.trim();
+  const storeDir = storeRootOf(
+    (await exec("pnpm", ["store", "path"], { cwd: repo, timeout: 30_000 })).stdout.trim(),
+  );
   const run: Runner = async (cmd, args, cwd) => {
     await exec(cmd, [...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 600_000 });
   };

@@ -12,6 +12,7 @@ import { useAction } from "../sessions/use-action.ts";
 import { useKnowledgeStore } from "./knowledge-store.ts";
 
 const MARK = "\u0001";
+const FOLDER = "knowledge/";
 
 /** A catalog sentence with `{folder}` drawn as inline code: the sentence stays one string per language. */
 function withFolder(sentence: string) {
@@ -19,7 +20,7 @@ function withFolder(sentence: string) {
   return (
     <>
       {before}
-      <code className="font-mono">knowledge/</code>
+      <code className="font-mono">{FOLDER}</code>
       {after}
     </>
   );

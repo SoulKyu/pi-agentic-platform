@@ -84,6 +84,18 @@
     "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
   },
   {
+    "note": "docs/agents/install.md",
+    "rule": "method",
+    "token": "github.event",
+    "reason": "Code identifier or host name (github is now an RPC domain), not an RPC method"
+  },
+  {
+    "note": "docs/agents/install.md",
+    "rule": "method",
+    "token": "github.head_ref",
+    "reason": "Code identifier or host name (github is now an RPC domain), not an RPC method"
+  },
+  {
     "note": "docs/agents/lanes.md",
     "rule": "method",
     "token": "lanes.note",
@@ -124,6 +136,12 @@
     "rule": "method",
     "token": "models.classify",
     "reason": "Pi codemode API (the models object scripts would see; pap turns it off), not a pap RPC method"
+  },
+  {
+    "note": "docs/agents/release.md",
+    "rule": "method",
+    "token": "github.com",
+    "reason": "Code identifier or host name (github is now an RPC domain), not an RPC method"
   },
   {
     "note": "docs/agents/search.md",
@@ -190,6 +208,12 @@
     "rule": "method",
     "token": "sessions.parent_session_id",
     "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/skills.md",
+    "rule": "method",
+    "token": "github.com",
+    "reason": "Code identifier or host name (github is now an RPC domain), not an RPC method"
   },
   {
     "note": "docs/agents/web.md",

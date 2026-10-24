@@ -12,6 +12,14 @@ import { createTerminal, type Terminal, type TerminalState } from "./terminal.ts
 /** Exited terminals kept per owner for their output; the oldest one is dropped first (M8R60). */
 export const MAX_EXITED_KEPT = 8;
 
+/** A shell that lives in a box (lot B2): its pty is the guest's, so it has its own kill ladder and no host pid. */
+export interface RemoteShell {
+  readonly projectId: string;
+  readonly pty: PtyProcess;
+  kill(target: PtyTarget): Promise<void>;
+  alive(): boolean;
+}
+
 export type TerminalChange = { kind: "terminal"; view: TerminalState } | { kind: "closed"; id: string };
 
 export interface TerminalRegistry {
@@ -22,7 +30,13 @@ export interface TerminalRegistry {
     sessionId: string | null;
     cols: number;
     rows: number;
+    /** A box terminal: nothing is launched here and the host's free memory does not matter. */
+    remote?: RemoteShell;
   }): Terminal;
+  /** The box projects with a running terminal that has a browser stream attached or printed in the last `windowMs`. */
+  activeBoxes(windowMs: number): ReadonlySet<string>;
+  /** Running terminals that live in a box. */
+  boxShells(): number;
   /** Null for another owner's terminal. */
   get(ownerId: string, id: string): Terminal | null;
   list(ownerId: string): readonly Terminal[];
@@ -124,22 +138,26 @@ export function createTerminalRegistry(deps: TerminalRegistryDeps): TerminalRegi
       const owned = byOwner.get(input.ownerId);
       const running = [...(owned?.values() ?? [])].filter((t) => t.view().status === "running").length;
       if (running >= deps.maxTerminals) throw new PapError("capacity");
-      if (deps.freeMemMb() < deps.minFreeMemMb) throw new PapError("capacity");
-      const launched = deps.launch({ cwd: input.cwd, cols: input.cols, rows: input.rows });
+      const { remote } = input;
+      if (!remote && deps.freeMemMb() < deps.minFreeMemMb) throw new PapError("capacity");
+      const launched = remote
+        ? { pty: remote.pty, scope: null }
+        : deps.launch({ cwd: input.cwd, cols: input.cols, rows: input.rows });
       const id = randomBytes(16).toString("base64url");
       const terminal = createTerminal({
         id,
         ownerId: input.ownerId,
         cwd: input.cwd,
         sessionId: input.sessionId,
+        projectId: remote?.projectId ?? null,
         cols: input.cols,
         rows: input.rows,
         pty: launched.pty,
         scope: launched.scope,
         clock: deps.clock,
         logger,
-        kill,
-        alive: () => (deps.alive ?? shellAlive)(launched.pty),
+        kill: remote ? (target) => remote.kill(target) : kill,
+        alive: () => (remote ? remote.alive() : (deps.alive ?? shellAlive)(launched.pty)),
         changed: (view) => emit(input.ownerId, { kind: "terminal", view }),
         exited: () => {
           if (!byOwner.get(input.ownerId)?.has(id)) return;
@@ -160,6 +178,24 @@ export function createTerminalRegistry(deps: TerminalRegistryDeps): TerminalRegi
       [...(byOwner.get(ownerId)?.values() ?? [])].filter(
         (terminal) => terminal.view().status === "running" && within(folder, terminal.cwd),
       ).length,
+    boxShells: () =>
+      [...byOwner.values()]
+        .flatMap((owned) => [...owned.values()])
+        .filter((terminal) => terminal.view().projectId !== null && terminal.view().status === "running")
+        .length,
+    activeBoxes(windowMs) {
+      const now = deps.clock.now();
+      const active = new Set<string>();
+      for (const owned of byOwner.values()) {
+        for (const terminal of owned.values()) {
+          const { projectId } = terminal.view();
+          if (projectId === null || terminal.view().status !== "running") continue;
+          const { streams, lastOutputAt } = terminal.activity();
+          if (streams > 0 || now - lastOutputAt <= windowMs) active.add(projectId);
+        }
+      }
+      return active;
+    },
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

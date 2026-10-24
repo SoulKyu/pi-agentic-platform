@@ -7,6 +7,8 @@ import { errorClass } from "../bounded.ts";
 import { growFilesystem } from "./grow.ts";
 import { runGuest } from "./guest.ts";
 import { KATA_LAYOUT, KATA_PROJECT_LAYOUT } from "./kata-layout.ts";
+import { BUNDLE_BIN } from "./ops/github-env.ts";
+import { ensureSigningAgent } from "./ops/github-agent.ts";
 import { createGuestOps } from "./ops/index.ts";
 import { takeGatewayToken } from "./scrub.ts";
 import { pickPackages, seedAgentFolder } from "./seed.ts";
@@ -56,6 +58,19 @@ const execFileText = (file: string, args: string[]): Promise<string> =>
     );
   });
 
+const githubDeps = layout.project
+  ? {
+      home: layout.home,
+      runDir: process.env.PAP_GUEST_RUN_DIR ?? "/run",
+      binDir: BUNDLE_BIN,
+      env: process.env,
+    }
+  : null;
+// A box that already has a signing key gets its agent back at boot (the agent does not survive a VM stop).
+if (githubDeps) {
+  await ensureSigningAgent(githubDeps).catch(() => process.stderr.write("pap-guest: signing agent failed\n"));
+}
+
 await runGuest({
   env: process.env,
   token: token as string,
@@ -72,7 +87,9 @@ await runGuest({
       // Its own process group: `signal` reaches the worker and what it started.
       detached: true,
     }),
-  ...(layout.project ? { ops: createGuestOps(layout.project, () => Date.now()) } : {}),
+  ...(layout.project && githubDeps
+    ? { ops: createGuestOps(layout.project, () => Date.now(), githubDeps) }
+    : {}),
   clock: {
     now: () => Date.now(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),

@@ -35,6 +35,7 @@ export const terminalView = (n: number, overrides: Partial<TerminalView> = {}): 
   id: terminalId(n),
   cwd: "/work",
   sessionId: null,
+  projectId: null,
   cols: 80,
   rows: 24,
   status: "running",

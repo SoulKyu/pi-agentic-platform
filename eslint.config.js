@@ -156,8 +156,18 @@ export default defineConfig(
                 ["web-feature", { domain: "knowledge" }],
                 ["web-feature", { domain: "projects" }],
                 ["web-feature", { domain: "agents" }],
+                ["web-feature", { domain: "github" }],
               ],
               allow: [["web-feature", { domain: "boxes" }]],
+            },
+            // Boxes lot B2: the project page, Changes and the New project and project settings dialogs render the GitHub pieces (`features/github`).
+            {
+              from: [
+                ["web-feature", { domain: "home" }],
+                ["web-feature", { domain: "vcs" }],
+                ["web-feature", { domain: "projects" }],
+              ],
+              allow: [["web-feature", { domain: "github" }]],
             },
             {
               from: [["web-feature", { domain: "knowledge" }]],

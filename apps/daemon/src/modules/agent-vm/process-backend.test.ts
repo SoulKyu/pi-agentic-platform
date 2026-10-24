@@ -1,6 +1,6 @@
 import { type BoxRef, DEFAULT_AGENT_RESOURCES } from "@pap/contracts";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -23,7 +23,10 @@ const spec = (taskKey: string | null = null, box: BoxRef = agent): VmSpec => ({
 });
 const launch = { launchId: "l".repeat(32), token: "t".repeat(64) };
 
-function backend(testSwitch: string | null = "process") {
+function backend(
+  testSwitch: string | null = "process",
+  extra: { githubOrigin?: string | null; guestEnv?: Record<string, string> } = {},
+) {
   const image = join(root, "image");
   mkdirSync(join(image, "sub"), { recursive: true });
   writeFileSync(join(image, "settings.json"), "{}");
@@ -45,6 +48,7 @@ setInterval(() => {}, 1000);`,
     gatewayAddress: () => ({ host: "127.0.0.1", port: 4321 }),
     proxyAddress: () => ({ host: "127.0.0.1", port: 4322 }),
     providerScript: "/script.json",
+    ...extra,
     clock: createSystemClock(),
     logger: silentLogger,
   });
@@ -107,6 +111,34 @@ describe("process backend", () => {
     await expect(b.list()).resolves.toEqual([{ box: agent, taskKey: null }]);
     await b.stop(agent, null);
     await expect(b.list()).resolves.toEqual([]);
+  });
+
+  it("hands the guest the fake GitHub's origin from the config value only, never from the daemon's environment", async () => {
+    const seenEnv = async (extra: Parameters<typeof backend>[1]): Promise<Record<string, string>> => {
+      const b = backend("process", extra);
+      const layout = layoutOf("process", join(root, "pap"), { agentId: "a1", taskKey: null });
+      await b.start(spec(), launch);
+      const seen = join(layout.root, "run", "seen.json");
+      await expect
+        .poll(() => existsSync(seen) && readFileSync(seen, "utf8") !== "", { timeout: 10_000 })
+        .toBe(true);
+      const { env } = JSON.parse(readFileSync(seen, "utf8")) as { env: Record<string, string> };
+      await b.stop(agent, null);
+      rmSync(seen);
+      return env;
+    };
+    process.env.PAP_TEST_GITHUB_ORIGIN = "http://127.0.0.1:1";
+    try {
+      expect(await seenEnv({ githubOrigin: null })).not.toHaveProperty("PAP_TEST_GITHUB_ORIGIN");
+      expect(
+        await seenEnv({ githubOrigin: "http://127.0.0.1:2", guestEnv: { PAP_REAL_GH: "/x/gh" } }),
+      ).toMatchObject({
+        PAP_TEST_GITHUB_ORIGIN: "http://127.0.0.1:2",
+        PAP_REAL_GH: "/x/gh",
+      });
+    } finally {
+      delete process.env.PAP_TEST_GITHUB_ORIGIN;
+    }
   });
 
   it("starts a project box under tmp/boxes/<id> with PAP_BOX", async () => {

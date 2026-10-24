@@ -5,7 +5,8 @@ import { translate } from "../../i18n/index.ts";
 import { EMPTY_LANES } from "../../stores/lane-reducer.ts";
 import { itemTitle } from "./item-title.ts";
 
-const t = (key: Parameters<typeof translate>[1]) => translate("en", key);
+const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) =>
+  translate("en", key, vars);
 const store = (...sessions: ReturnType<typeof shellSession>[]) =>
   new Map(sessions.map((session) => [session.id, session]));
 const none = new Map<string, ReturnType<typeof shellSession>>();
@@ -56,6 +57,13 @@ describe("itemTitle", () => {
     expect(itemTitle({ kind: "files", root: "/w" }, none, {}, t)).toBe("Files");
     expect(itemTitle({ kind: "changes", root: "/w" }, none, {}, t)).toBe("Changes");
     expect(itemTitle({ kind: "terminal", id: "t" }, none, {}, t)).toBe("Terminal");
+  });
+  it("names a box terminal's tab after its project", () => {
+    const names = new Map([["terminal:t", "notes"]]);
+    expect(itemTitle({ kind: "terminal", id: "t" }, none, {}, t, EMPTY_LANES, names)).toBe(
+      "Terminal · notes",
+    );
+    expect(itemTitle({ kind: "terminal", id: "other" }, none, {}, t, EMPTY_LANES, names)).toBe("Terminal");
   });
   it("titles the Tasks tab, a trigger by its name, and an empty editor as a new trigger (M10R112)", () => {
     const names = new Map([["g1", "prod-alerts"]]);

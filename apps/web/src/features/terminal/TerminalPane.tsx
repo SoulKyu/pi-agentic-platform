@@ -6,6 +6,7 @@ import { useT, type Translate } from "../../i18n/index.ts";
 import { basename } from "../../lib/session-label.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { randomId } from "../../runtime/random-id.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { useTerminal } from "./use-terminal.ts";
 import type { TerminalPaneView } from "./terminal.vm.ts";
@@ -47,8 +48,12 @@ export function TerminalPane({ id, onClose, onOpen }: TerminalPaneProps) {
       );
   };
 
+  // A box terminal's cwd is a guest path: it names its project instead.
+  const projectName = useShellStore((state) =>
+    known?.projectId == null ? null : (state.view.projects.get(known.projectId)?.name ?? null),
+  );
   const title = known
-    ? t("terminal.pane.titleIn", { folder: basename(known.cwd) })
+    ? t("terminal.pane.titleIn", { folder: projectName ?? basename(known.cwd) })
     : t("terminal.pane.title");
   return (
     <div data-terminal-pane={id} className="flex min-h-0 flex-1 flex-col">

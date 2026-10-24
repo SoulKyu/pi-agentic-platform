@@ -149,7 +149,7 @@ describe("http app", () => {
 
   it("never lets a path under a reserved prefix fall through to the SPA", async () => {
     const app = build(web);
-    const reserved = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws", "/fonts"];
+    const reserved = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws", "/fonts", "/github"];
     for (const prefix of reserved) {
       for (const path of [prefix, `${prefix}/`, `${prefix}/nothing`, `${prefix}/a/b`]) {
         for (const method of ["GET", "HEAD"]) {

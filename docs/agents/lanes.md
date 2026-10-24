@@ -154,6 +154,7 @@ One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7'
 
 ## Forges
 
+- Host projects only (ADR 0084): a box project has no lanes before lot B3, and GitHub for a box goes through the pap GitHub App, not `gh` on the host (`agents-vm.md`, "The terminal and GitHub in a box"). Host projects keep `gh` and the owner's SSH agent as below until lot B4.
 - GitHub only (owner m9q5). `forgeFor` has one adapter. A GitLab or Gitea issue URL answers `unsupported_url`, shown as "not supported yet". GitLab, Gitea and Linear come later: Gitea and Linear need a token pap would hold, so they wait for M11's vault.
 - `gh` runs with `--repo=<host/owner/repo>` (built from a parsed remote only), every value joined to its flag with `=`, the PR body on stdin, from an empty folder (`$PAP_HOME/tmp/forge`, 0700) that is never a repository (`GIT_CEILING_DIRECTORIES` is its parent), with `forgeEnv`: the unattended environment plus `GH_CONFIG_DIR`, `NO_COLOR`, `GH_PROMPT_DISABLED=1`, no update notifier. Timeouts 30 s (create 60 s), stdout 4 MiB.
 - Outcomes: `forge_missing` (no `gh`), `not_signed_in` (`gh auth login` once), `not_found`, `timeout`, `too_large`, `failed`.

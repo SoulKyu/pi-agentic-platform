@@ -30,6 +30,16 @@ Terminal bytes travel as binary frames on `/ws` (spec C §4.2): a 16-byte header
 - **Hidden tab.** The web channel detaches a terminal's stream 5 s after the page becomes hidden (`HIDDEN_DETACH_MS`) and attaches again with `after` = the offset it finished writing as soon as the page is visible; a shorter hide keeps the stream. Reconnects attach again the same way, so a terminal survives a browser reconnect within one daemon lifetime (`terminal.reconnect.int.test.ts`).
 - Sizes: the last `terminal.resize` wins for every client; the pane throttles resizes to 100 ms.
 
+## A terminal in a box (lot B2, ADR 0084)
+
+A terminal whose folder is at or under a box project's root (`boxCwdOf`, judged as text like Files) runs in that box; every other folder keeps the host terminal described above until lot B4. Code: `modules/terminal/{remote-pty,box-activity}.ts`, `modules/agent-vm/{guest-ptys,box-terminals}.ts`, guest `packages/pi-host/src/guest/pty/`. Backend and limits: `agents-vm.md` ("The terminal and GitHub in a box").
+
+- **Same module, remote pty.** The registry, ring, replay, multi-client attach, flow control, `PAP_MAX_TERMINALS` and the binary frames are the ones above. Only the process differs: the guest opens a node-pty and connects back with a `terminal` hello for the slot the daemon asked for. Output is acknowledged cumulatively (`pty_ack`); the guest stops reading while more than 1 MiB is unacknowledged; one output frame carries at most 64 KiB raw. There is no pid, no `/proc` walk and no systemd scope: the host free-memory check does not apply (the box's own memory does).
+- **The shell.** The guest's root user, no bwrap (it is the owner's shell, as on the host), `HOME = home/`, the folder asked, the proxy variables, and the project's git identity and GitHub credential helper (`home/.gitconfig`), so `git push` and `gh` work from it. The terminal sees `/run/pap-github/token`: a token for one repository, one hour (see the limit in `agents-vm.md`).
+- **Opening.** Opening a terminal starts a stopped box. A box that cannot start answers its code (`capacity`, `vm_bundle_stale`, `agent_paused`, `sandbox_unavailable`, `disk_low`); a folder outside every root stays `not_found`; the per-owner terminal capacity is checked before the box starts. `TerminalView.projectId` names the project and the tab reads "Terminal · {project}".
+- **Close.** The kill ladder sends `pty_signal` SIGHUP, SIGKILL after 2 s, waits 5 s, then logs `pty_kill_timeout` and closes. Only the shell's own process group is signalled, so a `setsid` or background-group job survives a Close until the box stops (like `nohup` in a real terminal). Stopping or restarting the box, a lost gateway link or a daemon restart ends the box's terminals (`exited`, code null).
+- **Idle.** A box terminal counts as a worker for the box's idle stop only while a browser is attached or it printed within `PAP_WORKER_IDLE_MINUTES` (a new terminal counts as output for one window). While one counts, the module touches the box every min(idle/3, 60 s). A detached, silent terminal lets the box stop after up to about twice the idle time.
+
 ## Closing and the kill ladder
 
 `terminal.close` of a running terminal and a stop of the daemon run `ptyKill` (`kernel/pty/kill.ts:129`) on the shell (closing an exited terminal, or evicting the oldest one, only reaps its scope):

@@ -7,6 +7,7 @@ import { composeBoxWiring } from "./compose-boxes-wiring.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
 import { composeFonts } from "./compose-fonts.ts";
+import { composeGithub, createGithubCore } from "./compose-github.ts";
 import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
@@ -121,8 +122,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const env = deps.env ?? process.env;
     const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
     closers.push({ name: "agent_files_sweep", close: vmRpc.stopSweep });
+    const gh = createGithubCore(config, clock, logger);
     const core = { db, clock, logger, config, readOnly, hub, env, ...vmRpc.shared };
-    const agentsVm = await composeAgentsVm(core, closers, deps.agentsVm);
+    const agentsVm = await composeAgentsVm(
+      { ...core, githubLive: gh.tokens.liveValues },
+      closers,
+      deps.agentsVm,
+    );
     vmRpc.bindStatus(agentsVm.status.view);
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
@@ -256,6 +262,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     vmRpc.bindAgents(m11.agents);
     const boxesLate = boxes.bind({ sessions, automation: m10Late.automation, inbox: m10Late.inbox });
+    const github = composeGithub(gh, { ...core, audit, auth, projects, sessions, policy, boxes, closers });
     agentsVm.bindLate({
       sessions,
       pi,
@@ -288,6 +295,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...vmRpc.rpc,
       ...push.rpc,
       ...fonts.rpc,
+      ...github.rpc,
       ...m10.health.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
@@ -316,6 +324,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         m10Late.mount(hono);
         fonts.mount(hono);
         vmRpc.mount(hono, auth.authenticateCookieHeader);
+        github.mount(hono);
       },
       wsProbe,
     });

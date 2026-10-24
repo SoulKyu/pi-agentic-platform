@@ -1,4 +1,5 @@
 import {
+  AGENT_VM_PROTOCOL,
   boxKey,
   encodeSocketFrame,
   GUEST_BOOT_TIMEOUT_MS,
@@ -106,7 +107,7 @@ describe("the first frame", () => {
   it("refuses a protocol other than ours", () => {
     const launch = h.launch();
     const socket = h.connect();
-    socket.feed(guestHello(launch, { protocol: 3 }));
+    socket.feed(guestHello(launch, { protocol: AGENT_VM_PROTOCOL + 1 }));
     expect(socket.destroyed).toBe(true);
     expect(h.refusals()).toEqual([{ box: null, reason: "protocol" }]);
   });

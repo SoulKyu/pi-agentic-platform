@@ -8,7 +8,13 @@ import type { MirrorInputs } from "./modules/sessions/index.ts";
 /** What a test, or a later task, supplies to the composition. */
 export interface AgentsVmSeams {
   /** `PAP_TEST_AGENT_RUNTIME=process`: how the guest starts (J1 wires the real entry). */
-  readonly process?: { guestEntry: string; execArgv: readonly string[]; imageAgentSource: string };
+  readonly process?: {
+    guestEntry: string;
+    execArgv: readonly string[];
+    imageAgentSource: string;
+    /** More guest environment (the fake `gh` of a GitHub journey). */
+    env?: Readonly<Record<string, string>>;
+  };
   /** Tests only: replaces the process backend; it learns the gateway's address when asked. */
   readonly backend?: (gatewayAddress: () => { host: string; port: number }) => AgentRuntimeBackend;
   /** Tests only: replaces the daemon's mirrors of the VM session files (T9b). */

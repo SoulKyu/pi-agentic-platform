@@ -14,6 +14,7 @@ import { PhaseChip } from "../boxes/PhaseChip.tsx";
 import { ResourceFields } from "../boxes/ResourceFields.tsx";
 import { useBoxAction } from "../boxes/use-box-action.ts";
 import { packagesChanged, useProjectBox } from "../boxes/use-project-box.ts";
+import { ProjectGithubSettings } from "../github/ProjectGithubSettings.tsx";
 import { DeleteProjectDialog } from "./DeleteProjectDialog.tsx";
 import { draftOf, type SettingsDraft, toSetBox } from "./project-settings.vm.ts";
 
@@ -199,6 +200,9 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                   {rebuild.problem}
                 </p>
               )}
+            </Section>
+            <Section title={t("github.link.section")}>
+              <ProjectGithubSettings projectId={projectId} />
             </Section>
             {problem === null ? null : (
               <p role="status" className="text-ui text-err">

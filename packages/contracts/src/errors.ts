@@ -32,6 +32,7 @@ export const ERROR_CODES = [
   "agent_paused",
   "vm_bundle_stale",
   "box_stopped",
+  "github_unavailable",
   "push_unavailable",
   "push_revoked",
   "network",
@@ -88,6 +89,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   vm_bundle_stale:
     "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
   box_stopped: "The project's box is stopped: start it from the project page.",
+  github_unavailable: "GitHub is not set up for pap: create or reconnect the App in Settings › GitHub.",
   push_unavailable: "Notifications are not available on this server. See Settings › Notifications.",
   push_revoked:
     "This device was removed from the notification list. Enable notifications again to add it back.",

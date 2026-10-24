@@ -80,3 +80,31 @@ describe("PAP_TEST_AGENT_RUNTIME", () => {
 it("VM_OVERHEAD_MB is 512 until T20a measures it (R29)", () => {
   expect(VM_OVERHEAD_MB).toBe(512);
 });
+
+describe("PAP_TEST_GITHUB_ORIGIN", () => {
+  it("is off by default and read only beside the scripted provider", () => {
+    expect(loadConfig(input({})).testGithubOrigin).toBeNull();
+    expect(refusal({ PAP_TEST_GITHUB_ORIGIN: "http://127.0.0.1:9" })).toBe(
+      "PAP_TEST_GITHUB_ORIGIN needs PAP_TEST_PROVIDER_SCRIPT",
+    );
+    expect(
+      loadConfig(input({ ...SCRIPT, PAP_TEST_GITHUB_ORIGIN: "http://127.0.0.1:9" })).testGithubOrigin,
+    ).toBe("http://127.0.0.1:9");
+    expect(loadConfig(input({ ...SCRIPT, PAP_TEST_GITHUB_ORIGIN: "" })).testGithubOrigin).toBeNull();
+  });
+
+  it("accepts a loopback http origin only, and never echoes the value", () => {
+    for (const bad of [
+      "https://127.0.0.1:9",
+      "http://github.com",
+      "http://10.0.0.1:9",
+      "http://127.0.0.1",
+      "http://127.0.0.1:9/x",
+      "http://u:p@127.0.0.1:9",
+      "nonsense",
+    ])
+      expect(refusal({ ...SCRIPT, PAP_TEST_GITHUB_ORIGIN: bad })).toBe(
+        "PAP_TEST_GITHUB_ORIGIN must be a loopback http origin",
+      );
+  });
+});

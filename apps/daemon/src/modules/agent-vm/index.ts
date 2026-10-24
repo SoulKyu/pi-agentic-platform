@@ -17,6 +17,7 @@ export {
 export { vmInitOf } from "./vm-init.ts";
 export type { GuestLink } from "./guest-link.ts";
 export { createBoxOps } from "./box-ops.ts";
+export { createBoxTerminals } from "./box-terminals.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
 export { agentsVmTokenRpc } from "./rpc.ts";

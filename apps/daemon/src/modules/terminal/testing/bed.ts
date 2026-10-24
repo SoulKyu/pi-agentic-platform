@@ -21,6 +21,7 @@ export function makeBed(options: { withScope?: boolean } = {}) {
     ownerId: "u1",
     cwd: "/work",
     sessionId: null,
+    projectId: null,
     cols: 80,
     rows: 24,
     pty,

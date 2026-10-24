@@ -7,6 +7,7 @@ import { useShellStore } from "../../stores/shell-store.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { boxProject } from "../../testing/box-fixtures.ts";
 import { button, mount, settle, text } from "../../testing/dom.ts";
+import { githubView } from "../../testing/github-fixtures.ts";
 import { vcsStatus } from "../../testing/m8-fixtures.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { shellSnapshot } from "../../testing/shell-snapshot.ts";
@@ -24,6 +25,7 @@ let running = false;
 beforeEach(() => {
   useVcsStore.getState().reset();
   bed = fakeRuntime("open");
+  bed.handlers["projects.github"] = () => ({ github: githubView({ link: null }) });
   running = false;
   // The daemon refuses the subscription of a stopped box.
   bed.handlers["subscribe.vcs"] = () => {

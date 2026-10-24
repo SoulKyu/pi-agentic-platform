@@ -8,9 +8,11 @@ import {
   PapError,
   SessionFileName,
 } from "@pap/contracts";
+import type { BoxPtyChannel } from "../../kernel/boxes.ts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { classifyExit } from "../../kernel/supervisor/exit.ts";
+import { createGuestPtys, type TerminalConnection, type TerminalRefusal } from "./guest-ptys.ts";
 import {
   createVmWorker,
   type MirrorPort,
@@ -30,6 +32,8 @@ export interface GuestLink {
   shutdown(): void;
   /** Asks the guest for one operation on its project; false when the link is gone. The answer comes through {@link onOpResult}. */
   sendOp(id: string, op: BoxOp): boolean;
+  /** Asks the guest for a pty in a folder of the project; resolves once its terminal connection said hello (lot B2). */
+  openTerminal(input: { cwd: string; cols: number; rows: number }): Promise<BoxPtyChannel>;
   /** Every `op_result` the guest sends, until the returned function is called. */
   onOpResult(listener: (result: OpResult) => void): () => void;
   readonly closed: Promise<void>;
@@ -49,6 +53,11 @@ export interface GuestLinkInternals {
   readonly link: GuestLink;
   /** A worker's hello on a new connection of this launch: the connection's handlers, or why it is refused. */
   acceptWorker(hello: WorkerHello, wire: Wire): WorkerConnection | WorkerRefusal;
+  /** A terminal's hello on a new connection of this launch: the slot must have been asked by an `openTerminal`. */
+  acceptTerminal(
+    hello: Extract<Hello, { role: "terminal" }>,
+    wire: Wire,
+  ): TerminalConnection | TerminalRefusal;
   /** One frame from the guest's own connection (not a ping or pong). */
   frame(raw: unknown): void;
   /** The guest's connection closed. */
@@ -83,6 +92,7 @@ export function createGuestLink(deps: {
   const slots = new Map<string, Slot | typeof USED>();
   let isClosed = false;
   let dropped = 0;
+  const ptys = createGuestPtys({ clock, logger, box, wire });
   const opListeners = new Set<(result: OpResult) => void>();
   let markClosed: () => void = () => {};
   const closedPromise = new Promise<void>((resolve) => {
@@ -135,6 +145,7 @@ export function createGuestLink(deps: {
     shutdown() {
       wire.send({ type: "shutdown" } satisfies GuestCommand);
     },
+    openTerminal: (input) => ptys.open(input),
     sendOp: (id, op) => !isClosed && wire.send({ type: "op", id, op } satisfies GuestCommand),
     onOpResult(listener) {
       opListeners.add(listener);
@@ -194,6 +205,7 @@ export function createGuestLink(deps: {
       entry.resolve(worker.handle);
       return { frame: (raw) => worker.receive(raw), closed: () => worker.wireClosed() };
     },
+    acceptTerminal: (hello, terminalWire) => ptys.accept(hello, terminalWire),
     frame(raw) {
       const report = GuestReport.safeParse(raw);
       if (!report.success) {
@@ -206,6 +218,7 @@ export function createGuestLink(deps: {
         return;
       }
       if (report.data.type !== "exited") return;
+      if (ptys.refused(report.data.slot, report.data.tail)) return;
       const entry = slots.get(report.data.slot);
       if (entry === undefined || entry === USED) return;
       const { code, signal: name, tail } = report.data;
@@ -216,6 +229,7 @@ export function createGuestLink(deps: {
     closed() {
       if (isClosed) return;
       isClosed = true;
+      ptys.closed();
       for (const entry of slots.values()) {
         if (entry === USED) continue;
         entry.worker?.guestGone();

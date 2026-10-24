@@ -1,6 +1,7 @@
 import { closeSync } from "node:fs";
 import type { BoxOpError } from "@pap/contracts";
 import { closeQuietly, openDirAt, openRootDir } from "../../nofollow.ts";
+import type { GithubDeps } from "./github-env.ts";
 
 /** What a guest operation answers when it cannot: the daemon maps the code on, the message is never sent. */
 export class OpError extends Error {
@@ -16,6 +17,8 @@ export interface OpEnv {
   /** `layout.project`: every path an operation names is this folder or below it. */
   readonly project: string;
   readonly now: () => number;
+  /** The GitHub ops' share of the guest (home, `/run`, wrapper scripts, environment); absent where no op needs it. */
+  readonly github?: GithubDeps;
 }
 
 const REFUSED = new Set(["ENOENT", "ENOTDIR", "ELOOP", "EISDIR", "EACCES", "EPERM", "ENXIO", "ENAMETOOLONG"]);
@@ -89,4 +92,10 @@ export function withParent<T>(
   const name = segments.pop();
   if (name === undefined) throw new OpError("not_found");
   return withFolder(env.project, segments, (fd) => use(fd, name, [...segments, name]));
+}
+
+/** The GitHub ops' deps; a guest built without them (a test of another op) answers `failed`. */
+export function githubOf(env: OpEnv): GithubDeps {
+  if (env.github === undefined) throw new OpError("failed");
+  return env.github;
 }

@@ -20,19 +20,38 @@ const BASE_PACKAGES = [
   "fd-find",
   "ca-certificates",
   "e2fsprogs",
+  "gh",
+  "openssh-client",
 ] as const;
+/** The box terminal's pty (lot B2, B0 §1): built in a stage of the same Node base (same ABI), then copied beside the bundle. */
+const PTY_BUILD_PACKAGES = ["build-essential", "python3", "make", "g++"] as const;
+const NODE_PTY = "node-pty@1.1.0";
+const PTY_STAGE = "pty-builder";
 const apt = (names: readonly string[], upgrade: boolean): string =>
   `RUN apt-get update && ${upgrade ? "apt-get -y upgrade && " : ""}apt-get install -y --no-install-recommends ${names.join(" ")} && rm -rf /var/lib/apt/lists/*`;
 
 /** Rendered by pap-vmd from a checked `image.build`: the daemon never sends Dockerfile text. `from` is a digest or a pap tag. */
 export function renderDockerfile(request: ImageBuildRequest): string {
   const from = NODE_DIGEST.test(request.from) ? request.from : imageRef(request.from);
-  const lines = [`FROM ${from}`, "ENV DEBIAN_FRONTEND=noninteractive"];
+  const lines: string[] = [];
+  if (request.layer === "base") {
+    lines.push(`FROM ${from} AS ${PTY_STAGE}`, "ENV DEBIAN_FRONTEND=noninteractive");
+    lines.push(apt(PTY_BUILD_PACKAGES, false));
+    lines.push(`RUN mkdir /build && cd /build && npm install --no-audit --no-fund ${NODE_PTY}`);
+  }
+  lines.push(`FROM ${from}`, "ENV DEBIAN_FRONTEND=noninteractive");
   if (request.layer === "base") {
     lines.push(apt(BASE_PACKAGES, request.upgrade));
     // Debian names fd `fdfind`; Pi looks for `fd` and, offline, never downloads one.
     lines.push("RUN ln -s /usr/bin/fdfind /usr/local/bin/fd");
     lines.push(`COPY . ${BASE_BUNDLE_DIR}/`);
+    lines.push(
+      `COPY --from=${PTY_STAGE} /build/node_modules/node-pty ${BASE_BUNDLE_DIR}/node_modules/node-pty`,
+    );
+    // `gh` of the bundle (token from /run) precedes /usr/bin/gh in any login PATH: Debian's /etc/profile resets it.
+    lines.push(
+      `RUN chmod 0755 ${BASE_BUNDLE_DIR}/bin/* && ln -s ${BASE_BUNDLE_DIR}/bin/gh /usr/local/bin/gh && ln -s ${BASE_BUNDLE_DIR}/bin/pap-ssh-sign /usr/local/bin/pap-ssh-sign`,
+    );
     lines.push(
       "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
     );

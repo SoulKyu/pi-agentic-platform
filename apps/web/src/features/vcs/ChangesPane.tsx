@@ -8,6 +8,7 @@ import { useOnBoxRunning } from "../../stores/box-phase.ts";
 import { feedVcs } from "../../stores/vcs-feed.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { BoxStopped } from "../boxes/BoxStopped.tsx";
+import { PushBar } from "../github/PushBar.tsx";
 import { ChangeList } from "./ChangeList.tsx";
 import { displayPath } from "./changes.vm.ts";
 import { FileDiff } from "./FileDiff.tsx";
@@ -124,6 +125,7 @@ export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
       {!stopped && known && status?.repo === true ? (
         <Header status={status} refreshButton={refreshButton} refreshFailed={refreshFailed} />
       ) : null}
+      {!stopped && known && status?.repo === true ? <PushBar root={root} /> : null}
       {body}
     </div>
   );

@@ -126,7 +126,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   const buildOnce = (request: Build): Promise<void> => client.request(request).then(() => undefined);
 
   /** The digest of a bundle folder, salted like the base tag's: the installed one and the daemon's own compare under it. */
-  const bundleDigest = (dir: string): string => treeDigest(dir, `pap-base-1\0${deps.nodeImage}`);
+  const bundleDigest = (dir: string): string => treeDigest(dir, `pap-base-2\0${deps.nodeImage}`);
 
   function baseTagNow(fresh = false): string {
     if (!fresh && baseCache !== null && clock.now() - baseCache.at < BASE_TTL_MS) return baseCache.tag;

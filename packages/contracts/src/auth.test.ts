@@ -21,6 +21,7 @@ describe("token contract", () => {
       p === "automation:admin" ||
       p === "agents:admin" ||
       p === "sessions:admin" ||
+      p === "settings:admin" ||
       p.startsWith("secrets:");
     expect(TOKEN_PERMISSIONS).toEqual(ALL_PERMISSIONS.filter((p) => !neverForTokens(p)));
     for (const p of ["automation:read", "automation:operate", "usage:operate", "inbox:operate"])
@@ -29,6 +30,8 @@ describe("token contract", () => {
     expect(TokenPermission.safeParse("automation:admin").success).toBe(false);
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");
     expect(TOKEN_PERMISSIONS).not.toContain("pi:admin");
+    expect(TOKEN_PERMISSIONS).not.toContain("settings:admin");
+    expect(TokenPermission.safeParse("settings:admin").success).toBe(false);
     expect(TokenPermission.safeParse("pi:admin").success).toBe(false);
     expect(TokenPermission.safeParse("pi:read").success).toBe(true);
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("auth:"))).toBe(false);

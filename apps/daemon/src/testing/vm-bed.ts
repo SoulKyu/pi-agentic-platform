@@ -36,10 +36,11 @@ export async function startVmBed(
     seams?: Partial<AgentsVmSeams>;
     /** Files written into the image's Pi folder (`extensions/x.js`, `models.json`): the VM's Pi seeds from it (R28). */
     imageFiles?: Readonly<Record<string, string>>;
+    guestEnv?: Readonly<Record<string, string>>;
   } = {},
 ): Promise<VmBed> {
-  const { seams, imageFiles, ...rest } = options;
-  const plumbing = vmPlumbing({ config: rest.config, deps: rest.deps }, { seams, imageFiles });
+  const { seams, imageFiles, guestEnv, ...rest } = options;
+  const plumbing = vmPlumbing({ config: rest.config, deps: rest.deps }, { seams, imageFiles, guestEnv });
   const { vms } = plumbing;
   let t: TestDaemon;
   try {

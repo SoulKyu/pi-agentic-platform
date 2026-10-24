@@ -105,6 +105,7 @@ describe("buildPaletteItems", () => {
       "MCP servers",
       "Skills",
       "Automation",
+      "GitHub",
       "Health",
       "Agents",
 
@@ -121,6 +122,7 @@ describe("running terminals in the palette (M8R81)", () => {
     id,
     cwd,
     sessionId: null,
+    projectId: null,
     cols: 80,
     rows: 24,
     status,

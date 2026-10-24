@@ -82,6 +82,23 @@ describe("bwrapVmArgv", () => {
     expect(list.indexOf("/agent")).toBeLessThan(list.indexOf("--bind"));
   });
 
+  it("shows a project shell the box token folder read-only, after the tmpfs on /run; an agent shell never", () => {
+    const box = {
+      ...layout,
+      root: "/boxes/p",
+      project: "/boxes/p/project",
+      home: "/boxes/p/home",
+      inbox: "/boxes/p/inbox",
+      pi: "/boxes/p/.pi",
+      knowledge: "/boxes/p/project/knowledge",
+    };
+    const list = argv({ layout: box });
+    const at = list.indexOf("--ro-bind-try");
+    expect(list.slice(at, at + 3)).toEqual(["--ro-bind-try", "/run/pap-github", "/run/pap-github"]);
+    expect(list.indexOf("/run")).toBeLessThan(at);
+    expect(argv()).not.toContain("--ro-bind-try");
+  });
+
   it("binds the project trio", () => {
     const box = {
       ...layout,

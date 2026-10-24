@@ -13,12 +13,15 @@ export interface FakeBoxOps extends BoxOps {
   }>;
   /** The `poll`s, recorded like `calls` (they answer the same handlers). */
   readonly polls: FakeBoxOps["calls"];
+  /** Every `call` and `poll` in the order they came. */
+  readonly all: FakeBoxOps["calls"];
 }
 
 /** Answers each op with its handler; an op without a handler fails like a guest that does not know it (`bad_request`). */
 export function createFakeBoxOps(handlers: Handlers = {}): FakeBoxOps {
   const calls: FakeBoxOps["calls"] = [];
   const polls: FakeBoxOps["calls"] = [];
+  const all: FakeBoxOps["calls"] = [];
   const answer = async <N extends BoxOpName>(
     log: FakeBoxOps["calls"],
     projectId: string,
@@ -27,6 +30,7 @@ export function createFakeBoxOps(handlers: Handlers = {}): FakeBoxOps {
   ): Promise<BoxOpValue<N>> => {
     {
       log.push({ projectId, op, signal });
+      all.push({ projectId, op, signal });
       const handler = handlers[op.name] as
         ((op: BoxOpArgs<N>, projectId: string) => BoxOpValue<N> | Promise<BoxOpValue<N>>) | undefined;
       if (!handler) throw new PapError("bad_request");
@@ -36,6 +40,7 @@ export function createFakeBoxOps(handlers: Handlers = {}): FakeBoxOps {
   return {
     calls,
     polls,
+    all,
     call: (projectId, op, signal) => answer(calls, projectId, op, signal),
     poll: (projectId, op, signal) => answer(polls, projectId, op, signal),
   };

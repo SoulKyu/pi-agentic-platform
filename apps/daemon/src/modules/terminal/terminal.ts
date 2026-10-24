@@ -23,6 +23,8 @@ export interface TerminalState {
   readonly id: string;
   readonly cwd: string;
   readonly sessionId: string | null;
+  /** The box project the shell runs in (lot B2), null for a shell on this machine. */
+  readonly projectId: string | null;
   readonly cols: number;
   readonly rows: number;
   readonly status: "running" | "exited";
@@ -52,6 +54,8 @@ export interface Terminal {
   readonly sessionId: string | null;
   readonly createdAt: number;
   view(): TerminalState;
+  /** Whether a browser stream is attached and when the shell last printed: a box idles out when no terminal of it has either. */
+  activity(): { readonly streams: number; readonly lastOutputAt: number };
   /** The stream this connection already has here, if any (M8R58). */
   streamOf(connectionId: string): AttachInfo | null;
   /** `open` is the binary channel's: frames start at the sink's `onOpen` (M8R10). Throws `capacity` past 8 streams. */
@@ -71,6 +75,7 @@ export interface TerminalDeps {
   readonly ownerId: string;
   readonly cwd: string;
   readonly sessionId: string | null;
+  readonly projectId: string | null;
   readonly cols: number;
   readonly rows: number;
   readonly pty: PtyProcess;
@@ -108,6 +113,7 @@ export function createTerminal(deps: TerminalDeps): Terminal {
   /** One stream per connection (M8R58); stream ids repeat across connections, so the connection is the key. */
   const attached = new Map<string, Attached>();
   const createdAt = clock.now();
+  let lastOutputAt = createdAt;
   let cols = clampSize(deps.cols, PTY_COLS);
   let rows = clampSize(deps.rows, PTY_ROWS);
   let status: "running" | "exited" = "running";
@@ -132,6 +138,7 @@ export function createTerminal(deps: TerminalDeps): Terminal {
     id: deps.id,
     cwd: deps.cwd,
     sessionId: deps.sessionId,
+    projectId: deps.projectId,
     cols,
     rows,
     status,
@@ -234,6 +241,7 @@ export function createTerminal(deps: TerminalDeps): Terminal {
 
   pty.onData((chunk) => {
     if (closing || status === "exited") return;
+    lastOutputAt = clock.now();
     if (finishing) {
       clock.clearTimeout(finishing.quiet);
       finishing.quiet = clock.setTimeout(finishExit, EXIT_QUIET_MS);
@@ -271,6 +279,7 @@ export function createTerminal(deps: TerminalDeps): Terminal {
     sessionId: deps.sessionId,
     createdAt,
     view,
+    activity: () => ({ streams: attached.size, lastOutputAt }),
     streamOf(connectionId) {
       const entry = attached.get(connectionId);
       return entry ? info(entry.flow.streamId, entry.flow.next) : null;

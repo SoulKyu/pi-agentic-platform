@@ -14,7 +14,7 @@ describe("runGuest start", () => {
       box: { kind: "agent", id: "scout-ab12" },
       launchId: IDENTITY.PAP_LAUNCH_ID,
       token: TOKEN,
-      protocol: 2,
+      protocol: 3,
       imageTag: IDENTITY.PAP_IMAGE_TAG,
     });
     expect(run.exits).toEqual([]);

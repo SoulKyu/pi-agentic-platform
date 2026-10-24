@@ -68,9 +68,12 @@ export interface AgentsVmCore {
     | "piHostEntry"
     | "piHostExecArgv"
     | "piAgentDir"
-  >;
+  > &
+    Partial<Pick<Config, "testGithubOrigin">>;
   readonly clock: Clock;
   readonly logger: Logger;
+  /** The GitHub box tokens in use (`GithubTokens.liveValues`): masked by value like the owner's other secrets. */
+  readonly githubLive?: () => readonly string[];
   /** The daemon's environment: the relay child's allowlist is cut from it. */
   readonly env: NodeJS.ProcessEnv;
   /** The database is read-only: a mirror's notice and taint wait (RT-42). */
@@ -142,6 +145,7 @@ export async function composeAgentsVm(
     home: config.home,
     piAgentDir: config.piAgentDir,
     logger: agentsLogger,
+    ...(core.githubLive ? { githubLive: core.githubLive } : {}),
   });
   const lateHolder: { late: AgentsVmDerived | null } = { late: null };
   const notice = (agentId: string, text: string): void =>
@@ -181,6 +185,8 @@ export async function composeAgentsVm(
         gatewayAddress: address,
         proxyAddress: () => ({ host: "127.0.0.1", port: proxyPort }),
         providerScript: config.testProviderScript ?? "",
+        githubOrigin: config.testGithubOrigin ?? null,
+        ...(guest?.env ? { guestEnv: guest.env } : {}),
         clock,
         logger: agentsLogger,
       });

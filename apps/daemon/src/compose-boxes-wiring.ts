@@ -1,11 +1,12 @@
 import type { BoxRef, Caller } from "@pap/contracts";
-import type { BoxControl, BoxOps, ProjectBoxSource } from "./kernel/boxes.ts";
+import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { Boxes, BoxesLate } from "./compose-boxes.ts";
 import {
   createBoxControl,
   createBoxOps,
+  createBoxTerminals,
   type AgentRuntime,
   type VmdClient,
 } from "./modules/agent-vm/index.ts";
@@ -60,6 +61,7 @@ export interface WorkspaceBoxes {
   readonly boxes: () => ProjectBoxSource;
   readonly boxOps: () => BoxOps;
   readonly boxControl: () => BoxControl;
+  readonly boxTerminals: () => BoxTerminals;
 }
 
 export interface BoxWiring {
@@ -91,6 +93,7 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
   const { vm, projects, logger } = deps;
   const source = projects.boxSource;
   const ops = createBoxOps(vm.runtime, deps.clock);
+  const terminals = createBoxTerminals(vm.runtime);
   const control = createBoxControl({
     runtime: vm.runtime,
     ops,
@@ -126,7 +129,12 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
   return {
     ops,
     control,
-    workspace: { boxes: () => source, boxOps: () => ops, boxControl: () => control },
+    workspace: {
+      boxes: () => source,
+      boxOps: () => ops,
+      boxControl: () => control,
+      boxTerminals: () => terminals,
+    },
     bind({ sessions, automation, inbox }) {
       cleanup = sessions;
       projects.bindBoxes({

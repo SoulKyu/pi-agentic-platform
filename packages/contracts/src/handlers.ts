@@ -42,6 +42,8 @@ export interface BinaryChannel {
 export interface HandlerContext {
   readonly caller: Caller;
   readonly connectionId: string;
+  /** The `Origin` of the connection's upgrade (a browser always sends it); absent for a bearer that sent none. */
+  readonly origin?: string;
   openSubscription(stream: StreamName, key: string, after: Cursor | undefined): string;
   closeSubscription(sub: string): void;
   /** Set by the ws server; a handler that needs it and finds none answers `internal` (M8R4). */

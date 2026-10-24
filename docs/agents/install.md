@@ -246,6 +246,19 @@ Topic note: `agents-vm.md` (ADRs 0078 and 0081). Installs the root-owned stack t
 - `sudo pap vm uninstall [--purge]` reverts exactly what setup wrote and keeps `/var/lib/pap-vm` (the VM disks) unless `--purge`.
 - Release: `pnpm release:assets` also builds `pap-vmd-<version>.tar.gz` and `pap-agent-bundle-<version>.tar.gz` (same offline `pnpm deploy` as the agent bundle) and writes both hashes into the release's `vm-assets.json`.
 
+## GitHub (lot B2)
+
+Topic notes: `agents-vm.md` ("The terminal and GitHub in a box"), `auth.md` ("GitHub callbacks"); ADR 0084. GitHub works for box projects only, so it needs the Agent VMs setup above, run again after the update that brings lot B2 (protocol 3).
+
+1. Open Settings › GitHub and choose `CREATE THE GITHUB APP`. Do it from the address you will use every day: the callback URLs are that address (a plain `http://` LAN address works). pap creates a private App named `pap-<host>-<4 hex>` on your account, with webhooks off.
+2. On GitHub, open the App's permissions page (the link is shown; it is `https://github.com/settings/apps/<slug>/permissions`) and set "SSH signing keys: Read and write". A manifest cannot ask for it. If you installed the App first, GitHub asks you to accept the new permission on the installation; until then adding a signing key fails and Settings › GitHub says "accept the new permission on GitHub, then Reconnect".
+3. Install the App on your account (all repositories, or the ones you pick), then authorize it. Settings › GitHub reads "Connected as {login}.".
+4. A private App can be installed only by the account that owns it: other pap users cannot connect their own account before M14.
+
+If you reach pap from another address later, Settings › GitHub shows the callback URL to add in the App's settings on GitHub, next to the old one (GitHub has no API for it); once Reconnect from that address succeeds, the notice goes away. `DISCONNECT` forgets your tokens; `DELETE THE APP` forgets the App file and its secrets here, and you delete the App itself on GitHub from the link shown. Projects keep their files; GitHub actions answer `github_unavailable` until the App is set up again. `$PAP_HOME/secrets/github-app.json` and the vault hold the secrets, so a backup of the whole `$PAP_HOME` holds them.
+
+If `pnpm build` fails at the agent bundle with `ERR_PNPM_NO_OFFLINE_TARBALL`, update to a build that passes the pnpm store root to `deploy`; the script strips a trailing `/v<N>` from `pnpm store path`.
+
 ## Uninstall
 
 `pap service uninstall` (also through `~/.local/bin/pap`). Method 2 releases stay under `~/.local/share/pap`: `rm -rf ~/.local/share/pap` when you want them gone. Your data stays in `~/.pap` until you delete it.

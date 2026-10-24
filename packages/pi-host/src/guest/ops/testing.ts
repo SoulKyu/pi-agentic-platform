@@ -2,6 +2,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BoxOp, BoxOpError } from "@pap/contracts";
+import { BUNDLE_BIN } from "./github-env.ts";
+import { stopSigningAgent } from "./github-agent.ts";
 import { createGuestOps, type GuestOps } from "./index.ts";
 
 export interface OpsBed {
@@ -9,6 +11,11 @@ export interface OpsBed {
   readonly project: string;
   /** The folder holding the project (a place for links to point at, outside it). */
   readonly outside: string;
+  /** The folder holding the project, the home and the box's guest-only `.pap`. */
+  readonly base: string;
+  /** The box's home and the stand-in for `/run`, both beside the project. */
+  readonly home: string;
+  readonly run: string;
   call(op: BoxOp): ReturnType<GuestOps>;
   /** The value of a successful operation. */
   value(op: BoxOp): Promise<unknown>;
@@ -17,16 +24,24 @@ export interface OpsBed {
   clean(): void;
 }
 
-export function opsBed(now: () => number = () => Date.now()): OpsBed {
+export function opsBed(now: () => number = () => Date.now(), guestEnv: NodeJS.ProcessEnv = {}): OpsBed {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "pap-guest-ops-")));
   const project = join(base, "project");
   const outside = join(base, "outside");
   mkdirSync(project);
+  const home = join(base, "home");
+  const run = join(base, "run");
   mkdirSync(outside);
-  const ops = createGuestOps(project, now);
+  mkdirSync(home);
+  const env = { PATH: process.env.PATH, ...guestEnv };
+  const deps = { home, runDir: run, binDir: BUNDLE_BIN, env };
+  const ops = createGuestOps(project, now, deps);
   return {
+    base,
     project,
     outside,
+    home,
+    run,
     call: ops,
     async value(op) {
       const answer = await ops(op);
@@ -38,6 +53,9 @@ export function opsBed(now: () => number = () => Date.now()): OpsBed {
       if (answer.ok) throw new Error(`${op.name} was answered`);
       return answer.code;
     },
-    clean: () => rmSync(base, { recursive: true, force: true }),
+    clean: () => {
+      stopSigningAgent(deps);
+      rmSync(base, { recursive: true, force: true });
+    },
   };
 }

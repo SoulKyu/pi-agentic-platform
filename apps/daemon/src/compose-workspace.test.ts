@@ -17,7 +17,8 @@ import { boundaryConfigOf, createWorkspaceModules, denySourcesOf } from "./compo
 import { createFakeClock } from "./kernel/clock.ts";
 import { type Config, loadConfig } from "./kernel/config.ts";
 import { judgePath } from "./kernel/fs/boundary.ts";
-import { createFakeProjectBoxSource } from "./kernel/testing/fake-boxes.ts";
+import { createFakeBoxPty, createFakeBoxTerminals } from "./kernel/testing/fake-box-pty.ts";
+import { createFakeBoxControl, createFakeProjectBoxSource } from "./kernel/testing/fake-boxes.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import { NO_SCOPES } from "./kernel/supervisor/scope.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
@@ -255,7 +256,7 @@ describe("the workspace modules", () => {
     expect((await rpc["files.list"]({ path: two }, ctx())).entries.map((e) => e.name)).toEqual(["b.txt"]);
   });
 
-  it("opens no terminal in a box project's folder, which is not on this machine", async () => {
+  it("opens a box project's folder in its box, never on this machine", async () => {
     const host = join(base, "real", "host");
     const box = join(base, "real", "box", "project");
     mkdirSync(host, { recursive: true });
@@ -271,6 +272,9 @@ describe("the workspace modules", () => {
         deleting: false,
       },
     });
+    const control = createFakeBoxControl({ p1: "running" });
+    const pty = createFakeBoxPty();
+    const terminals = createFakeBoxTerminals([pty]);
     const { rpc, shutdown } = createWorkspaceModules(
       {
         roots: () => [host, box],
@@ -282,13 +286,15 @@ describe("the workspace modules", () => {
         readOnly: false,
         scopes: NO_SCOPES,
         boxes: () => boxes,
+        boxControl: () => control,
+        boxTerminals: () => terminals,
       },
       0o022,
     );
     const request = { requestId: "r".repeat(20), cols: 80, rows: 24 };
-    await expect(rpc["terminal.create"]({ ...request, cwd: box }, ctx())).rejects.toMatchObject({
-      code: "not_found",
-    });
+    await rpc["terminal.create"]({ ...request, cwd: box }, ctx());
+    expect(terminals.opened).toEqual([{ projectId: "p1", cwd: box, cols: 80, rows: 24 }]);
+    pty.exit(0);
     await shutdown();
   });
 

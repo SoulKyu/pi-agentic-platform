@@ -1,4 +1,4 @@
-import { BOX_OP_LIMITS, type BoxOp, PapError } from "@pap/contracts";
+import { BOX_OP_LIMITS, BOX_OP_TIMEOUTS, type BoxOp, PapError } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { createBoxOps } from "./index.ts";
@@ -19,6 +19,7 @@ function bed(phase: VmPhase = "running") {
   const link: GuestLink = {
     spawnWorker: () => Promise.reject(new Error("unused")),
     shutdown: () => undefined,
+    openTerminal: () => Promise.reject(new Error("unused")),
     sendOp: (id, op) => {
       sent.push({ id, op });
       return true;
@@ -111,6 +112,24 @@ describe("createBoxOps", () => {
     await clock.advance(BOX_OP_LIMITS.timeoutMs - 1);
     await clock.advance(1);
     expect(await call).toEqual({ error: new PapError("timeout") });
+  });
+
+  it("gives the clone and the push their own timeouts on the clock", async () => {
+    for (const [op, ms] of [
+      [{ name: "git.push" }, BOX_OP_TIMEOUTS["git.push"]],
+      [{ name: "git.clone", url: "file:///x/y.git", upstream: null }, BOX_OP_TIMEOUTS["git.clone"]],
+    ] as const) {
+      const { ops, clock } = bed();
+      const call = settled(ops.call(PROJECT, op as never));
+      await clock.advance(ms - 1);
+      let done = false;
+      void call.then(() => (done = true));
+      await Promise.resolve();
+      expect(done).toBe(false);
+      await clock.advance(1);
+      expect(await call).toEqual({ error: new PapError("timeout") });
+    }
+    expect(BOX_OP_TIMEOUTS["git.clone"]).toBe(600_000);
   });
 
   it("fails pending calls when the link closes", async () => {

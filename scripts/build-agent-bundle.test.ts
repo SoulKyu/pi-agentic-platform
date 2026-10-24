@@ -4,8 +4,10 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  linkSync,
   readlinkSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -14,7 +16,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { putAgentBundle } from "./agent-bundle-fixture.ts";
 import { createHash } from "node:crypto";
-import { AGENT_BUNDLE, assertAgentBundle, buildAgentBundle } from "./build-agent-bundle.ts";
+import {
+  AGENT_BUNDLE,
+  assertAgentBundle,
+  buildAgentBundle,
+  copyUnlinked,
+  storeRootOf,
+} from "./build-agent-bundle.ts";
 
 /*
  * Mutants, each run for real: the link check removed (the four "link" cases); the required-file check removed (the two
@@ -167,10 +175,24 @@ describe("buildAgentBundle", () => {
       run: t.run((dest) => putAgentBundle(dest, { deployed: true })),
     });
     expect(out).toBe(t.out);
-    expect(readdirSync(t.out).sort()).toEqual(["dist", "node_modules", "package.json"]);
+    expect(readdirSync(t.out).sort()).toEqual(["bin", "dist", "node_modules", "package.json"]);
     expect(existsSync(join(t.out, "dist/guest/main.js"))).toBe(true);
     expect(existsSync(join(t.out, "dist/relay/main.js"))).toBe(true);
     expect(readdirSync(join(t.repo, "packages/pi-host"))).toEqual(["dist-agent"]);
+  });
+
+  it("leaves node-pty to the image: the host's build names the repository", async () => {
+    const t = setup();
+    const out = await buildAgentBundle({
+      repo: t.repo,
+      storeDir: "/store",
+      run: t.run((dest) => {
+        putAgentBundle(dest, { deployed: true });
+        mkdirSync(join(dest, "node_modules/node-pty/build"), { recursive: true });
+        writeFileSync(join(dest, "node_modules/node-pty/build/Makefile"), `srcdir := ${t.repo}\n`);
+      }),
+    });
+    expect(existsSync(join(out, "node_modules/node-pty"))).toBe(false);
   });
 
   it("cleans pnpm state, sources, tests and builder paths, and two builds from other paths give the same bytes (reproducible)", async () => {
@@ -241,7 +263,40 @@ describe("buildAgentBundle", () => {
   });
 });
 
+describe("storeRootOf", () => {
+  it("strips one trailing version segment, so deploy does not append a second one", () => {
+    expect(storeRootOf("/home/u/.local/share/pnpm/store/v11")).toBe("/home/u/.local/share/pnpm/store");
+    expect(storeRootOf("/home/u/.local/share/pnpm/store/v3/")).toBe("/home/u/.local/share/pnpm/store");
+    expect(storeRootOf("/store/v10/v11")).toBe("/store/v10");
+  });
+  it("leaves a root without a version and a name that only looks like one", () => {
+    expect(storeRootOf("/home/u/.local/share/pnpm/store")).toBe("/home/u/.local/share/pnpm/store");
+    expect(storeRootOf("/data/v11x")).toBe("/data/v11x");
+    expect(storeRootOf("/data/vault")).toBe("/data/vault");
+  });
+});
+
 function writeMarker(out: string): void {
   mkdirSync(out, { recursive: true });
   writeFileSync(join(out, "marker"), "old");
 }
+
+describe("copyUnlinked", () => {
+  it("gives the bundle its own inode for a file the deploy hardlinked from the workspace", () => {
+    const root = tmp();
+    const workspaceFile = join(root, "contracts-index.js");
+    writeFileSync(workspaceFile, "export {};\n");
+    const deployed = join(root, "deployed");
+    mkdirSync(join(deployed, "node_modules/@pap/contracts/dist"), { recursive: true });
+    const inDeploy = join(deployed, "node_modules/@pap/contracts/dist/index.js");
+    linkSync(workspaceFile, inDeploy);
+    expect(statSync(inDeploy).ino).toBe(statSync(workspaceFile).ino);
+
+    const bundle = join(root, "bundle");
+    copyUnlinked(deployed, bundle);
+    const copied = join(bundle, "node_modules/@pap/contracts/dist/index.js");
+    expect(readFileSync(copied, "utf8")).toBe("export {};\n");
+    expect(statSync(copied).ino).not.toBe(statSync(workspaceFile).ino);
+    expect(statSync(copied).nlink).toBe(1);
+  });
+});

@@ -8,9 +8,14 @@ import {
   TERMINAL_LIMITS,
   type TerminalStreamEvent,
 } from "@pap/contracts";
+import type { BoxControl, BoxTerminals, ProjectBoxSource } from "../../kernel/boxes.ts";
+import type { Clock } from "../../kernel/clock.ts";
 import { type BoundaryConfig, judgePath, type Scope } from "../../kernel/fs/boundary.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { boxCwdOf } from "../sessions/index.ts";
+import type { BoxActivity } from "./box-activity.ts";
+import { createRemoteShell } from "./remote-pty.ts";
 import { MAX_EXITED_KEPT, type TerminalRegistry } from "./registry.ts";
 
 export interface TerminalServiceDeps {
@@ -22,6 +27,12 @@ export interface TerminalServiceDeps {
   readonly logger: Logger;
   /** `PAP_MAX_TERMINALS`: bounds the remembered request ids with the terminals they name. */
   readonly maxTerminals: number;
+  readonly clock: Clock;
+  /** The owner's box projects (lot B2): a cwd inside one opens a shell in its box, whatever the host says of that path. */
+  readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly boxControl?: () => BoxControl | undefined;
+  readonly boxTerminals?: () => BoxTerminals | undefined;
+  readonly boxActivity?: BoxActivity;
 }
 
 export interface TerminalService {
@@ -87,6 +98,45 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
     return judgement.real;
   }
 
+  /**
+   * A shell in a box (lot B2): the cwd is a guest path, kept as given (no realpath on this machine). A stopped box is started
+   * first, an explicit action of the owner's: its refusals are this call's. Nothing is launched here; the guest opens the pty.
+   */
+  async function createInBox(
+    owner: string,
+    params: ParamsOf<"terminal.create">,
+    boxed: { projectId: string; cwd: string },
+  ) {
+    const control = deps.boxControl?.();
+    const terminals = deps.boxTerminals?.();
+    if (!control || !terminals) throw new PapError("terminal_unavailable");
+    // The registry judges these again at create; asked first, a refused terminal never starts a stopped box.
+    const running = registry.list(owner).filter((entry) => entry.view().status === "running").length;
+    if (registry.closing || running >= deps.maxTerminals) throw new PapError("capacity");
+    if (control.phase(boxed.projectId) !== "running") await control.start(boxed.projectId);
+    const channel = await terminals.open(boxed.projectId, {
+      cwd: boxed.cwd,
+      cols: params.cols,
+      rows: params.rows,
+    });
+    const remote = createRemoteShell({ projectId: boxed.projectId, channel, clock: deps.clock, logger });
+    try {
+      const terminal = registry.create({
+        ownerId: owner,
+        cwd: boxed.cwd,
+        sessionId: params.sessionId ?? null,
+        cols: params.cols,
+        rows: params.rows,
+        remote,
+      });
+      deps.boxActivity?.ensure();
+      return terminal;
+    } catch (error) {
+      channel.close();
+      throw error;
+    }
+  }
+
   const mineOrNull = (caller: Caller, terminalId: string) => registry.get(caller.userId, terminalId);
 
   return {
@@ -103,14 +153,16 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
       requests.set(owner, mine);
       let started: string | null = null;
       const task = (async () => {
-        const cwd = await judgeFolder(caller, params.cwd);
-        const terminal = registry.create({
-          ownerId: owner,
-          cwd,
-          sessionId: params.sessionId ?? null,
-          cols: params.cols,
-          rows: params.rows,
-        });
+        const boxed = boxCwdOf(deps.boxes?.(), owner, params.cwd);
+        const terminal = boxed
+          ? await createInBox(owner, params, boxed)
+          : registry.create({
+              ownerId: owner,
+              cwd: await judgeFolder(caller, params.cwd),
+              sessionId: params.sessionId ?? null,
+              cols: params.cols,
+              rows: params.rows,
+            });
         started = terminal.id;
         return terminal.id;
       })();

@@ -78,6 +78,7 @@ describe("lazy catalog (Settings)", () => {
       "routes/settings/McpSettings.tsx",
       "routes/settings/SkillsSettings.tsx",
       "routes/settings/ModelsSettings.tsx",
+      "routes/settings/GithubSettings.tsx",
       "routes/settings/AutomationSettings.tsx",
       "routes/settings/HealthSettings.tsx",
       "routes/settings/NotificationsSettings.tsx",

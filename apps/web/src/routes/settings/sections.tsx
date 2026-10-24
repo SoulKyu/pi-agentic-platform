@@ -5,6 +5,7 @@ import { ShortcutsEditor } from "../../features/commands/editor/ShortcutsEditor.
 import { AccountSection } from "./AccountSection.tsx";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ApprovalsSection } from "./ApprovalsSection.tsx";
+import { GithubSettings } from "./GithubSettings.tsx";
 import { LanguageSection } from "./LanguageSection.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { ModelsSettings } from "./ModelsSettings.tsx";
@@ -22,6 +23,7 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   mcp: () => <McpSettings />,
   skills: () => <SkillsSettings />,
   automation: () => <AutomationSettings />,
+  github: () => <GithubSettings />,
   health: () => <HealthSettings />,
   agents: () => <AgentsSettings />,
   notifications: () => <NotificationsSettings />,

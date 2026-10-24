@@ -36,7 +36,7 @@ const reasonOf = (node: HTMLElement) =>
   document.getElementById(node.getAttribute("aria-describedby") ?? "")?.textContent;
 
 describe("a box project's page", () => {
-  it("a box project has Terminal, Lane and Fan-out off", async () => {
+  it("a box project has Lane and Fan-out off, and Terminal on", async () => {
     await showHome();
     // The host's git probe is never asked about a box root.
     expect(bed.called("lanes.preview")).toEqual([]);
@@ -56,8 +56,7 @@ describe("a box project's page", () => {
     );
     await settle();
     const terminal = button(page.container, "Terminal");
-    expect(terminal.disabled).toBe(true);
-    expect(reasonOf(terminal)).toBe("Not available in a box yet.");
+    expect(terminal.disabled).toBe(false);
     expect(button(page.container, "Files").disabled).toBe(false);
   });
 });

@@ -100,6 +100,14 @@ describe("box ops", () => {
       { name: "knowledge.state" },
       { name: "knowledge.enable" },
       { name: "project.config" },
+      { name: "git.clone", url: "https://github.com/o/r.git", upstream: null },
+      { name: "git.link", url: "https://github.com/o/r.git" },
+      { name: "git.unlink" },
+      { name: "git.commit", message: "m" },
+      { name: "git.push" },
+      { name: "github.token", token: "ghs_x", expiresAt: "2026-10-24T10:00:00Z" },
+      { name: "github.identity", login: "o", displayName: "o", email: "1+o@users.noreply.github.com" },
+      { name: "github.forgetKey" },
     ];
     expect(new Set(valid.map((op) => (op as { name: string }).name))).toEqual(
       new Set(Object.keys(BOX_OP_RESULTS)),

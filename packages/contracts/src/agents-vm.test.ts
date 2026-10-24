@@ -28,7 +28,7 @@ const guestHello = {
   box: { kind: "agent", id: "helper-1a2b" },
   launchId: hex(32),
   token: hex(64),
-  protocol: 2,
+  protocol: 3,
   imageTag: TAG,
 };
 const workerHello = {
@@ -117,7 +117,7 @@ describe("hello", () => {
       { token: hex(64, "A") },
       { imageTag: "pap-agent-agent-latest" },
       { imageTag: `other-agent-${hex(64)}` },
-      { protocol: 1 },
+      { protocol: 2 },
       { extra: 1 },
     ];
     for (const patch of bad)

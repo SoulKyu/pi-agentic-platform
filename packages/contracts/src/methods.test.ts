@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AGENT_GATE_ERRORS, ALL_PERMISSIONS, methods } from "./index.ts";
+import { AGENT_GATE_ERRORS, ALL_PERMISSIONS, githubMethods, methods } from "./index.ts";
 
 describe("method catalogue", () => {
   it("keys every method by its own name and declares a known permission", () => {
@@ -12,7 +12,7 @@ describe("method catalogue", () => {
 
   it("marks exactly the mutations as non-idempotent (they require a commandId)", () => {
     const mutations = Object.values(methods)
-      .filter((def) => !def.idempotent)
+      .filter((def) => !def.idempotent && !(def.name in githubMethods)) // github-methods.test.ts lists those
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([

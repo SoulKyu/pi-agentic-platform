@@ -3,7 +3,7 @@ import { basename, dirname, join } from "node:path";
 import type { Hono } from "hono";
 import type { Caller } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
-import type { BoxControl, BoxOps, ProjectBoxSource } from "./kernel/boxes.ts";
+import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Config } from "./kernel/config.ts";
 import type { BoundaryConfig } from "./kernel/fs/boundary.ts";
 import { createDenySet, type DenySet, type DenySources } from "./kernel/fs/deny-set.ts";
@@ -103,6 +103,7 @@ export interface WorkspaceDeps {
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
   readonly boxControl?: () => BoxControl | undefined;
+  readonly boxTerminals?: () => BoxTerminals | undefined;
 }
 
 export interface WorkspaceModules {
@@ -176,11 +177,8 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
     ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
   });
-  // A terminal is a shell on this machine: a box project is not here, so its root is no terminal's folder (off in a box, for now).
-  const hostRoots = (ownerId: string): readonly string[] =>
-    deps.roots(ownerId).filter((root) => deps.boxes?.()?.byPath(ownerId, root) == null);
   const terminal = createTerminalModule({
-    roots: hostRoots,
+    roots: deps.roots,
     boundary,
     hub: deps.hub,
     clock: deps.clock,
@@ -190,6 +188,10 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     workerUmask,
     maxTerminals: deps.config.maxTerminals,
     minFreeMemMb: deps.config.minFreeMemMb,
+    idleMs: deps.config.workerIdleMs,
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
+    ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
+    ...(deps.boxTerminals ? { boxTerminals: deps.boxTerminals } : {}),
   });
   // The deny set's first walk starts now, with its deadline: the first file read does not pay for it.
   deny.warm();

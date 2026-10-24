@@ -32,6 +32,8 @@ export function vmPlumbing(
   extra: {
     seams?: Partial<AgentsVmSeams>;
     imageFiles?: Readonly<Record<string, string>>;
+    /** More guest environment (the fake `gh` of a GitHub journey). */
+    guestEnv?: Readonly<Record<string, string>>;
   } = {},
 ): VmPlumbing {
   const image = mkdtempSync(join(tmpdir(), "pap-vm-image-"));
@@ -53,6 +55,7 @@ export function vmPlumbing(
             guestEntry: join(REPO, "packages/pi-host/src/guest/main.ts"),
             execArgv: VM_EXEC_ARGV,
             imageAgentSource: image,
+            ...(extra.guestEnv ? { env: extra.guestEnv } : {}),
           },
           relayExecArgv: VM_EXEC_ARGV,
           expose: (vm) => void (exposed = vm),

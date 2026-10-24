@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { FilePath } from "./files.ts";
+import { ProjectId } from "./box-ref.ts";
 import { Cursor } from "./frames.ts";
 
 /** `listed`: 64 running (the highest `PAP_MAX_TERMINALS`) plus 8 exited (M8R65). */
@@ -21,6 +22,8 @@ export const TerminalView = z.object({
   id: TerminalId,
   cwd: FilePath,
   sessionId: z.string().min(1).max(128).nullable(),
+  /** The box project the shell runs in (its cwd is a guest path), null for a shell on this machine. */
+  projectId: ProjectId.nullable(),
   cols: Cols,
   rows: Rows,
   status: z.enum(["running", "exited"]),
@@ -66,7 +69,19 @@ export const terminalMethods = {
       sessionId: z.string().min(1).max(128).optional(),
     }),
     result: z.object({ terminalId: TerminalId }),
-    errors: ["not_found", "capacity", "terminal_unavailable"],
+    // A box cwd starts a stopped box: its refusals (spec boxes §3) are this method's too.
+    errors: [
+      "not_found",
+      "capacity",
+      "terminal_unavailable",
+      "box_stopped",
+      "sandbox_unavailable",
+      "disk_low",
+      "command_failed",
+      "agent_paused",
+      "vm_bundle_stale",
+      "timeout",
+    ],
   }),
   "terminal.attach": defineMethod({
     name: "terminal.attach",

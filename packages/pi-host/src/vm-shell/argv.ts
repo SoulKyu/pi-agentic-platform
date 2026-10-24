@@ -22,6 +22,8 @@ export interface VmShellSpec {
   /** The agent's `sandbox.network`: the shell keeps the VM's network namespace (only the egress proxy answers there). */
   readonly network: boolean;
 }
+/** Where the guest writes the box token (`github.token`); a project-profile shell sees it read-only. */
+const GITHUB_RUN = "/run/pap-github";
 const SLOT = /^[0-9a-f]{32}$/;
 
 /** AVM-E19: `/agent/`, `/agent//.pi` and `/agent/a/../.pi` are the paths they land on, compared as such. */
@@ -72,6 +74,8 @@ export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: numbe
     "/tmp",
     "--tmpfs",
     "/run",
+    // A project box's box token (tmpfs of the guest): read-only, so `git push` and `gh` work in a session's shell. Absent until a token arrives.
+    ...(project === undefined ? [] : ["--ro-bind-try", GITHUB_RUN, GITHUB_RUN]),
     "--tmpfs",
     layout.root,
     ...binds.flatMap((dir) => ["--bind", dir, dir]),

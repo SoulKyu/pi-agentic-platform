@@ -22,6 +22,7 @@ import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
+import type { githubEn } from "./catalog/github.ts";
 import type { healthEn } from "./catalog/health.ts";
 import type { laneCommitEn } from "./catalog/lane-commit.ts";
 import type { laneCompareEn } from "./catalog/lane-compare.ts";
@@ -106,6 +107,7 @@ export type MessageKey =
   | keyof typeof homeEn
   | keyof typeof knowledgeEn
   | keyof typeof boxesEn
+  | keyof typeof githubEn
   | keyof typeof usageEn
   | keyof typeof modelsUsageEn
   | keyof typeof agentSettingsEn

@@ -26,6 +26,10 @@ export interface ProcessBackendOptions {
   proxyAddress(): { host: string; port: number };
   /** `PAP_TEST_PROVIDER_SCRIPT`, passed on to the workers the guest starts. */
   readonly providerScript: string;
+  /** `Config.testGithubOrigin`: the config value only, so a stray environment variable never reaches a guest. */
+  readonly githubOrigin?: string | null;
+  /** Test seam: more guest environment (the fake `gh` of a GitHub journey). Never read from the daemon's environment. */
+  readonly guestEnv?: Readonly<Record<string, string>>;
   readonly clock: Clock;
   readonly logger: Logger;
 }
@@ -123,6 +127,9 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           PAP_GUEST_LAYOUT: JSON.stringify(guestLayout),
           PAP_GUEST_RUN_DIR: run,
           PAP_TEST_PROVIDER_SCRIPT: options.providerScript,
+          // The fake GitHub's origin (tests only, this backend only): Kata's guest never gets it, so it refuses loopback and file URLs.
+          ...(options.githubOrigin == null ? {} : { PAP_TEST_GITHUB_ORIGIN: options.githubOrigin }),
+          ...options.guestEnv,
           // The scripted provider's worker needs these (ADR 0001); the init names the script's VM path (AVM-E15).
           PAP_TEST_PROVIDER: "1",
           PI_OFFLINE: "1",

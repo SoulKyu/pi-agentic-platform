@@ -57,6 +57,7 @@ describe("M10's migrations over a home M9 left (the preview's state.db)", () => 
       "agents/202610211200_agent_events_egress.sql",
       "inbox/202610231200_drop_memory_review.sql",
       "projects/202610231300_project_boxes.sql",
+      "projects/202610241200_project_github.sql",
     ]);
     expect(m10.db.all("SELECT path, state FROM worktrees")).toEqual([{ path: "/pap/wt/a", state: "ready" }]);
     const tables = m10.db

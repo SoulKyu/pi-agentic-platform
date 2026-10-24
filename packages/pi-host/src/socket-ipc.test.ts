@@ -10,7 +10,7 @@ const hello = WorkerHello.parse({
   box: { kind: "agent", id: "scout-ab12" },
   launchId: "a".repeat(32),
   token: "b".repeat(64),
-  protocol: 2,
+  protocol: 3,
   imageTag: `pap-agent-agent-${"c".repeat(64)}`,
   slot: "d".repeat(32),
   session: { file: null, lastEntryId: null, size: 0 },

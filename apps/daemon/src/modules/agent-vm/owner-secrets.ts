@@ -56,6 +56,8 @@ export interface OwnerSecretsDeps {
   readonly vault: () => readonly string[];
   /** The Claude token, or null. */
   readonly claudeToken: () => string | null;
+  /** Other values to mask by value (the GitHub App's key and client secret); the user's tokens are in the vault already. */
+  readonly extra?: () => readonly string[];
 }
 
 /**
@@ -77,9 +79,14 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
   const tolerant = <T>(name: string, read: () => T | Promise<T>, empty: T): Promise<T> =>
     source(name, read).catch(() => empty);
   /** The distinct values of 8 characters or more, within the caps. */
-  function distinctOf(auth: AuthValues, vault: readonly string[], claude: string | null): string[] {
+  function distinctOf(
+    auth: AuthValues,
+    vault: readonly string[],
+    claude: string | null,
+    extra: readonly string[],
+  ): string[] {
     const distinct = new Set<string>();
-    for (const value of [...auth.values, ...vault, ...(claude === null ? [] : [claude])])
+    for (const value of [...auth.values, ...vault, ...extra, ...(claude === null ? [] : [claude])])
       if (value.length >= MIN_SECRET_LENGTH) distinct.add(value);
     let bytes = 0;
     for (const value of distinct) bytes += Buffer.byteLength(value);
@@ -93,7 +100,8 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
     const auth = await source("auth", deps.auth);
     const vault = await source("vault", deps.vault);
     const claude = await source("claude", deps.claudeToken);
-    return { secrets: distinctOf(auth, vault, claude), providers: [...new Set(auth.providers)] };
+    const extra = await source("extra", deps.extra ?? (() => []));
+    return { secrets: distinctOf(auth, vault, claude, extra), providers: [...new Set(auth.providers)] };
   };
   return Object.assign(collect, {
     partial: async () => ({
@@ -101,6 +109,7 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
         await tolerant("auth", deps.auth, { values: [], providers: [] }),
         await tolerant("vault", deps.vault, []),
         await tolerant("claude", deps.claudeToken, null),
+        await tolerant("extra", deps.extra ?? (() => []), []),
       ),
     }),
   });

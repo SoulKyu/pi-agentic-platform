@@ -10,6 +10,12 @@ export interface GitOptions {
   readonly timeoutMs?: number;
   /** More output than this is `payload_too_large`. */
   readonly maxBytes?: number;
+  /** More `-c key=value` pairs, placed after the neutralising ones so they win (a signed commit's identity, a credential helper). */
+  readonly config?: readonly string[];
+  /** More environment variables, laid over the git environment (a signed commit's run folder). */
+  readonly env?: Readonly<Record<string, string>>;
+  /** A network call (clone, push): the daemon's `remote` profile, with `env` laid over the git environment. */
+  readonly remote?: { readonly protocols: string; readonly env: Readonly<Record<string, string>> };
 }
 
 export interface GitOutput {
@@ -23,20 +29,30 @@ const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const FILTERING = new Set(["status", "diff", "add", "commit"]);
 
 /** The environment of every git run here: the daemon's allowlist, and no user or system configuration (the VM's home is the agent's). */
-export function guestGitEnv(base: NodeJS.ProcessEnv, root: string): NodeJS.ProcessEnv {
+export function guestGitEnv(
+  base: NodeJS.ProcessEnv,
+  root: string,
+  remote?: GitOptions["remote"],
+): NodeJS.ProcessEnv {
   return {
-    ...gitEnv(base, root),
+    ...(remote ? gitEnv(base, root, "remote", remote.protocols) : gitEnv(base, root)),
     GIT_CONFIG_GLOBAL: "/dev/null",
     GIT_ATTR_NOSYSTEM: "1",
+    ...remote?.env,
   };
 }
 
 /** The neutralised command line of contracts, and the project named as safe (exactly, never `*`): the tree's owner may not be the guest's uid. */
-export const guestGitArgs = (root: string, args: readonly string[]): string[] => [
-  "-c",
-  `safe.directory=${root}`,
-  ...gitArgs(root, args),
-];
+export const guestGitArgs = (
+  root: string,
+  args: readonly string[],
+  options: Pick<GitOptions, "config" | "remote"> = {},
+): string[] => {
+  const full = gitArgs(root, args, undefined, options.remote ? "remote" : "local");
+  const extra = (options.config ?? []).flatMap((pair) => ["-c", pair]);
+  full.splice(full.length - args.length, 0, ...extra);
+  return ["-c", `safe.directory=${root}`, ...full];
+};
 
 function runRaw(
   root: string,
@@ -48,9 +64,9 @@ function runRaw(
   const okCodes = options.okCodes ?? [0];
   const maxBytes = options.maxBytes ?? MAX_OUTPUT_BYTES;
   return new Promise((resolve, reject) => {
-    const child = spawn("git", guestGitArgs(root, args), {
+    const child = spawn("git", guestGitArgs(root, args, options), {
       cwd: root,
-      env: { ...guestGitEnv(base, root), ...extraEnv },
+      env: { ...guestGitEnv(base, root, options.remote), ...extraEnv, ...options.env },
       stdio: ["pipe", "pipe", "ignore"],
     });
     const chunks: Buffer[] = [];

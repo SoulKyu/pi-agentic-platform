@@ -1,6 +1,7 @@
 import "../../i18n/register-home.ts";
 import type { HomeLayout, ProjectSummary } from "@pap/contracts";
 import { BoxFact } from "../boxes/BoxFact.tsx";
+import { GithubHomeEntry } from "../github/GithubHomeEntry.tsx";
 import { KnowledgeRow } from "../knowledge/KnowledgeRow.tsx";
 import { useProjectSettingsRequest } from "../../stores/project-settings-request.ts";
 import { ActionRow } from "./ActionRow.tsx";
@@ -24,6 +25,12 @@ export default function HomeBody({ project, layout, actions, shortcuts }: HomeBo
     <div data-home-body="" className="flex flex-col gap-s4">
       {project?.kind === "box" ? (
         <BoxFact project={project} onSettings={(id) => useProjectSettingsRequest.getState().ask(id)} />
+      ) : null}
+      {project?.kind === "box" ? (
+        <GithubHomeEntry
+          projectId={project.id}
+          onOpenSession={(id) => actions.open({ kind: "session", id })}
+        />
       ) : null}
       <ActionRow project={project} layout={layout} actions={actions} shortcuts={shortcuts} />
       {layout.status ? <StatusLine project={project} actions={actions} /> : null}

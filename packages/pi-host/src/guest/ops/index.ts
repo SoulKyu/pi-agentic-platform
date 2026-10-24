@@ -4,6 +4,9 @@ import { fsList } from "./fs-list.ts";
 import { createSearch } from "./fs-search.ts";
 import { createUploads, fsWrite } from "./fs-write.ts";
 import { gitBlob, gitStatus } from "./git.ts";
+import { gitClone, gitCommit, gitLink, gitPush, gitUnlink } from "./git-remote.ts";
+import { githubForgetKey, githubIdentity, githubToken } from "./github.ts";
+import type { GithubDeps } from "./github-env.ts";
 import { knowledgeEnable, knowledgeState } from "./knowledge.ts";
 import { type OpEnv, opErrorOf } from "./paths.ts";
 import { projectConfig } from "./project.ts";
@@ -18,8 +21,8 @@ export type GuestOps = (op: BoxOp) => Promise<OpAnswer>;
  * The guest's operations on its project folder (spec boxes). They run as the guest process: the VM is the boundary. Every path
  * is judged under `project` with no link followed; git always runs with the neutralised command line.
  */
-export function createGuestOps(project: string, now: () => number): GuestOps {
-  const env: OpEnv = { project, now };
+export function createGuestOps(project: string, now: () => number, github?: GithubDeps): GuestOps {
+  const env: OpEnv = { project, now, ...(github ? { github } : {}) };
   const uploads = createUploads();
   const search = createSearch();
 
@@ -47,6 +50,22 @@ export function createGuestOps(project: string, now: () => number): GuestOps {
         return knowledgeEnable(env);
       case "project.config":
         return projectConfig(env);
+      case "git.clone":
+        return gitClone(env, op);
+      case "git.link":
+        return gitLink(env, op);
+      case "git.unlink":
+        return gitUnlink(env);
+      case "git.commit":
+        return gitCommit(env, op);
+      case "git.push":
+        return gitPush(env);
+      case "github.token":
+        return githubToken(env, op);
+      case "github.identity":
+        return githubIdentity(env, op);
+      case "github.forgetKey":
+        return githubForgetKey(env);
     }
   };
 

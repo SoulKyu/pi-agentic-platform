@@ -16,6 +16,7 @@ import { lanesMethods } from "./lanes-methods.ts";
 import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
+import { githubMethods } from "./github-methods.ts";
 import { projectBoxMethods } from "./project-box-methods.ts";
 import { pushMethods } from "./push-methods.ts";
 import { secretsMethods } from "./secrets-methods.ts";
@@ -61,6 +62,7 @@ export const methods = catalogue({
   ...settingsMethods,
   ...shellMethods,
   ...projectBoxMethods,
+  ...githubMethods,
   ...auditMethods,
   ...authMethods,
   ...filesMethods,

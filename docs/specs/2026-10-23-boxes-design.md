@@ -117,6 +117,8 @@ B4 removes everything in the "Goes" column of §3, the host projects and session
 | B3 | Lanes in the box: worktrees, scripts, checkpoints, review, fan-out | The lane → commit → PR journey in a box |
 | B4 | Host clean-up (§11); ADR 0083 completed; docs | No code path left that runs or reads a project on the host |
 
+Status: B1 merged 84bcea21 (decision 125); B2 built (decision 127, ADR 0084). Lane review comments of a pull request go with B3; M14 keeps multi-user.
+
 Host projects keep working through B1 to B3. B1 alone is a step, not a place to work: existing work comes back only by a clone, so real work in boxes starts once B2 has landed, and B2 follows B1 at once *(controller's call)*.
 
 ## 14. Left to each lot's spec

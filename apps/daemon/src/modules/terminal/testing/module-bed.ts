@@ -18,7 +18,15 @@ export const REQUEST_ID = "r".repeat(16);
  * The terminal module over a fake `node-pty`, a fake clock and a real stream hub, with a project folder, a file, a
  * `$PAP_HOME` and an agent folder in a temporary directory. `kill` ends the fake shell like the kernel's ladder would.
  */
-export function makeModuleBed(options: { max?: number; pty?: boolean; scope?: boolean } = {}) {
+export function makeModuleBed(
+  options: {
+    max?: number;
+    pty?: boolean;
+    scope?: boolean;
+    /** Lot B2: the box ports and the idle time. */
+    module?: Partial<Parameters<typeof createTerminalModule>[0]>;
+  } = {},
+) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "pap-term-mod-")));
   const project = join(base, "project");
   const papHome = join(base, "pap-home");
@@ -65,6 +73,7 @@ export function makeModuleBed(options: { max?: number; pty?: boolean; scope?: bo
     freeMemMb: () => 10_000,
     kill,
     alive: () => true,
+    ...options.module,
   });
   const connection = createFakeConnection();
   const ctxOf = (caller: Caller = testCaller(), connectionId = "c1", withBinary = true): HandlerContext => ({

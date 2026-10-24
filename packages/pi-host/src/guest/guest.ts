@@ -17,6 +17,8 @@ import { errorClass, logLineOf } from "../bounded.ts";
 import { proxyEnv } from "../vm-shell/proxy-env.ts";
 import { allowedExtraEnv } from "./extra-env.ts";
 import type { GuestOps } from "./ops/index.ts";
+import { loadNodePty, type NodePty } from "./pty/load.ts";
+import { createPtyHost } from "./pty/pty.ts";
 
 /** Mirrors the daemon's kill-ladder grace (AVM-P6): pi-host cannot import the daemon. */
 export const GUEST_SHUTDOWN_GRACE_MS = 1500;
@@ -50,6 +52,8 @@ export interface GuestDeps {
   grow(): Promise<void>;
   /** A project box's operations on its project folder; absent in an agent's VM, which answers every `op` with `failed`. */
   ops?: GuestOps;
+  /** Loads node-pty for a box terminal (tests give a fake); the default loads the module beside the bundle, once needed. */
+  loadPty?: () => NodePty | null;
   /** Ends the guest; Kata stops the VM when its entrypoint exits. */
   exit(code: number): void;
   /** Signals a worker's whole process group. */
@@ -80,9 +84,21 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     finish = resolve;
   });
 
+  const ptys = createPtyHost({
+    env: deps.env,
+    token: deps.token,
+    layout,
+    clock,
+    connect: deps.connect,
+    load: deps.loadPty ?? loadNodePty,
+    refuse: (slot, why) => failSlot(slot, why),
+    log,
+  });
+
   const end = (code: number): void => {
     if (over) return;
     over = true;
+    ptys.closeAll();
     if (graceTimer !== undefined) clock.clearTimeout(graceTimer);
     socket?.end();
     deps.exit(code);
@@ -294,6 +310,7 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     if (command.type === "spawn") return startWorker(command);
     if (command.type === "shutdown") return shutdown();
     if (command.type === "op") return runOp(command);
+    if (command.type === "pty_open") return ptys.open(command);
     const worker = workers.get(command.slot);
     if (!worker) return log(`ignored a signal for slot ${command.slot}: no such worker`);
     deps.signalGroup(worker.child, command.signal);

@@ -17,6 +17,7 @@ const view = {
   id,
   cwd: "/work",
   sessionId: null,
+  projectId: null,
   cols: 80,
   rows: 24,
   status: "running",
@@ -97,6 +98,9 @@ describe("the terminal stream", () => {
     expect(TerminalStreamEvent.safeParse({ kind: "closed", id }).success).toBe(true);
     expect(TerminalStreamEvent.safeParse({ kind: "closed", id: "x" }).success).toBe(false);
     expect(TerminalView.safeParse({ ...view, status: "gone" }).success).toBe(false);
+    const project = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
+    expect(TerminalView.safeParse({ ...view, projectId: project }).success).toBe(true);
+    expect(TerminalView.safeParse({ ...view, projectId: "not-a-project" }).success).toBe(false);
     expect(TerminalExit.safeParse({ code: 0, signal: null }).success).toBe(true);
     expect(TerminalExit.safeParse({ code: null, signal: "SIGHUP" }).success).toBe(true);
   });

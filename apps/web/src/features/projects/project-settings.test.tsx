@@ -5,6 +5,7 @@ import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx"
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { boxProject, boxView } from "../../testing/box-fixtures.ts";
+import { githubView } from "../../testing/github-fixtures.ts";
 import { button, click, field, mount, settle, text, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { shellSnapshot } from "../../testing/shell-snapshot.ts";
@@ -40,6 +41,8 @@ beforeEach(() => {
   bed = fakeRuntime("open");
   current.runtime = bed.runtime;
   bed.handlers["projects.box"] = () => ({ box: boxView({ phase: "running" }) });
+  bed.handlers["projects.github"] = () => ({ github: githubView({ link: null }) });
+  bed.handlers["github.repositories"] = () => ({ repositories: [] });
   bed.handlers["projects.setBox"] = (params) => ({
     box: boxView({ phase: "running", ...(params as object) }),
   });

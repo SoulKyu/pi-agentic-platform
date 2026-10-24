@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import {
   BOX_OP_LIMITS,
   BOX_OP_RESULTS,
+  BOX_OP_TIMEOUTS,
   type BoxOpArgs,
   type BoxOpName,
   type BoxOpValue,
@@ -83,7 +84,7 @@ export function createBoxOps(
       state.pending.set(id, { settle });
       const timer: TimerHandle = clock.setTimeout(
         () => settle(new PapError("timeout")),
-        BOX_OP_LIMITS.timeoutMs,
+        BOX_OP_TIMEOUTS[op.name],
       );
       signal?.addEventListener("abort", onAbort, { once: true });
       if (!link.sendOp(id, op)) settle(new PapError("box_stopped"));

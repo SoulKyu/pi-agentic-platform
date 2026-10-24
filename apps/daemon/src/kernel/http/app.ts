@@ -11,6 +11,8 @@ declare module "hono" {
   interface ContextVariableMap {
     /** A route that answers with a Content-Security-Policy of its own (the export download, ADR 0006). */
     ownCsp?: string;
+    /** The policy also covers a non-2xx answer the route chose to send (a page of its own, not a thrown error). */
+    ownCspOnError?: boolean;
   }
 }
 
@@ -50,7 +52,17 @@ const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
 // Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
 // API path cannot be masked by the SPA fallback (R78).
-const RESERVED_PREFIXES = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws", "/fonts"];
+const RESERVED_PREFIXES = [
+  "/auth",
+  "/api",
+  "/files",
+  "/upload",
+  "/hooks",
+  "/metrics",
+  "/ws",
+  "/fonts",
+  "/github",
+];
 function isReserved(path: string): boolean {
   const forms = [path];
   try {
@@ -71,7 +83,8 @@ export function createHttpApp(options: HttpAppOptions): Hono {
   app.use("*", async (c, next) => {
     await next();
     const own = c.get("ownCsp");
-    if (own !== undefined && c.res.ok) c.res.headers.set("content-security-policy", own);
+    if (own !== undefined && (c.res.ok || c.get("ownCspOnError") === true))
+      c.res.headers.set("content-security-policy", own);
   });
   app.use(
     "*",

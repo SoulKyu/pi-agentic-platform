@@ -2,7 +2,7 @@
 
 One file per decision, numbered. A decision that deviates from a spec or changes a rule gets an ADR; the first line after the title is `Status:` and starts with `accepted` or `superseded by NNNN`.
 
-Next free number: 0084
+Next free number: 0085
 
 Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
 
@@ -93,3 +93,4 @@ Numbers marked "not used" were skipped and stay empty.
 | 0081 | [agents run only in microVMs](0081-agents-run-only-in-microvms.md) | accepted, sub-project 3 | 2026-10-22 |
 | 0082 | [OKF knowledge replaces pi-mem0](0082-okf-knowledge-replaces-pi-mem0.md) | accepted, sub-project 5 | 2026-10-23 |
 | 0083 | [the host is an orchestrator, every component that runs code runs in a box](0083-the-host-is-an-orchestrator.md) | accepted, lot B1 | 2026-10-23 |
+| 0084 | [GitHub through a pap GitHub App](0084-github-through-a-pap-github-app.md) | accepted, lot B2 | 2026-10-24 |
