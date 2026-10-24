@@ -5,6 +5,8 @@ import {
   directVolumeAddArgv,
   directVolumeRemoveArgv,
   imageRef,
+  digHolesArgv,
+  guestShellArgv,
   mkfsArgv,
   rmArgv,
   runArgv,
@@ -182,7 +184,7 @@ describe("kata-ctl and mkfs command lines", () => {
       "direct-volume",
       "add",
       "/run/pap-vm/vol/pap-helper-1a2b",
-      '{"volume-type":"directvol","device":"/var/lib/pap-vm/1000/agents/helper-1a2b/disk.img","fstype":"ext4","metadata":{},"options":[]}',
+      '{"volume-type":"directvol","device":"/var/lib/pap-vm/1000/agents/helper-1a2b/disk.img","fstype":"ext4","metadata":{},"options":["discard"]}',
     ]);
     expect(directVolumeRemoveArgv("/run/pap-vm/vol/pap-helper-1a2b")).toEqual([
       "/opt/kata/bin/kata-ctl",
@@ -190,6 +192,23 @@ describe("kata-ctl and mkfs command lines", () => {
       "remove",
       "/run/pap-vm/vol/pap-helper-1a2b",
     ]);
+  });
+
+  it("digs holes in a file by its absolute path, with the util-linux flag", () => {
+    expect(digHolesArgv("/s/disk.img")).toEqual(["/usr/bin/fallocate", "--dig-holes", "/s/disk.img"]);
+  });
+
+  it("runs a guest shell command as root through pap's own nerdctl", () => {
+    const argv = guestShellArgv("pap-helper-1a2b", "sync");
+    expect(argv.slice(0, 5)).toEqual([
+      "/opt/pap-vm/bin/nerdctl",
+      "--address",
+      "/run/pap-vm/containerd.sock",
+      "--namespace",
+      "pap",
+    ]);
+    expect(argv.slice(-6)).toEqual(["--user", "0", "pap-helper-1a2b", "sh", "-c", "sync"]);
+    expect(argv).toContain("exec");
   });
 
   it("mkfs.ext4 runs on a file and never populates it from a folder", () => {

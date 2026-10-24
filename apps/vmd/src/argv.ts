@@ -21,6 +21,7 @@ const NERDCTL = [
 /** T0a: `kata-tools-static` installs it here. */
 const KATA_CTL = "/opt/kata/bin/kata-ctl";
 const MKFS = "/usr/sbin/mkfs.ext4";
+const FALLOCATE = "/usr/bin/fallocate";
 
 /** Where a box's disk shows up in its VM: the agent's folder, or `/boxes/<project id>` (spec boxes). */
 export const mountOf = (box: BoxRef): string => (box.kind === "agent" ? "/agent" : `${BOX_MOUNT}/${box.id}`);
@@ -112,11 +113,23 @@ export const inspectArgv = (name: string): string[] => [
 export const psArgv = (): string[] => [...NERDCTL, "ps", "--all", "--format", "{{.Names}} {{.Status}}"];
 export const psImagesArgv = (): string[] => [...NERDCTL, "ps", "--all", "--format", "{{.Image}}"];
 export const imagesArgv = (): string[] => [...NERDCTL, "images", "--format", "{{.Repository}}:{{.Tag}}"];
+/** Kata tests only: one shell command as root in a running box's VM. */
+export const guestShellArgv = (name: string, command: string): string[] => [
+  ...NERDCTL,
+  "exec",
+  "--user",
+  "0",
+  name,
+  "sh",
+  "-c",
+  command,
+];
 export const rmiArgv = (ref: string): string[] => [...NERDCTL, "rmi", ref];
 
 /** T0a: a regular file as a direct-assigned block volume: no loop device, no host mount. */
 export function directVolumeAddArgv(volume: string, device: string): string[] {
-  const info = { "volume-type": "directvol", device, fstype: "ext4", metadata: {}, options: [] };
+  // `discard`: Kata passes the options on to the guest mount, so a deleted file punches a hole in the host file (CLH `sparse=on`, Kata 4.3).
+  const info = { "volume-type": "directvol", device, fstype: "ext4", metadata: {}, options: ["discard"] };
   return [KATA_CTL, "direct-volume", "add", volume, JSON.stringify(info)];
 }
 export const directVolumeRemoveArgv = (volume: string): string[] => [
@@ -128,6 +141,9 @@ export const directVolumeRemoveArgv = (volume: string): string[] => [
 
 /** R31: only ever on a file pap-vmd just made. */
 export const mkfsArgv = (image: string): string[] => [MKFS, "-q", "-F", image];
+
+/** Punches a hole over every block of zeros in a stopped box's disk (util-linux): data is untouched, allocation shrinks. */
+export const digHolesArgv = (image: string): string[] => [FALLOCATE, "--dig-holes", image];
 
 /** R7, RT-19, RT-33: the Dockerfile lives outside the context; a base build never reuses a cached `apt-get upgrade`. */
 export function buildArgv(request: ImageBuildRequest, contextDir: string, dockerfileDir: string): string[] {

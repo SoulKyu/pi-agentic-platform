@@ -2,15 +2,15 @@
   "assets": [
     {
       "name": "kata-static",
-      "version": "4.2.0",
-      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.2.0/kata-static-4.2.0-amd64.tar.zst",
-      "sha256": "b828904fa3f1e49ddd7dc799c72cb1503cd1e772d354c3987c8d4189b2a623a8"
+      "version": "4.3.1",
+      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-static-4.3.1-amd64.tar.zst",
+      "sha256": "1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97"
     },
     {
       "name": "kata-tools-static",
-      "version": "4.2.0",
-      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.2.0/kata-tools-static-4.2.0-amd64.tar.zst",
-      "sha256": "a4f8e1b6ee500b6e94d3925249e741c75bb4a89bf275b5d5066d6275c68e29ef"
+      "version": "4.3.1",
+      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.3.1/kata-tools-static-4.3.1-amd64.tar.zst",
+      "sha256": "511262aadef2a8596355733e448b65f7c871f4c6118b44ef7eb18afc19a5c0dd"
     },
     {
       "name": "nerdctl-full",

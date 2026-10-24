@@ -87,7 +87,7 @@ describe("vm.start", () => {
           device: disk,
           fstype: "ext4",
           metadata: {},
-          options: [],
+          options: ["discard"],
         }),
       ],
       [
@@ -304,7 +304,7 @@ describe("vm.start, isolated (R30)", () => {
         device: taskDisk,
         fstype: "ext4",
         metadata: {},
-        options: [],
+        options: ["discard"],
       }),
     );
     expect(atRun).toBe(true);

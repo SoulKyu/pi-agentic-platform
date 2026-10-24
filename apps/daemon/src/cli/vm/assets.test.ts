@@ -46,18 +46,21 @@ describe("nodeBaseImage (T15a)", () => {
 });
 
 describe("vm-assets.json", () => {
-  it("carries T0a's pins for Kata 4.2.0 and nerdctl-full 2.4.1", () => {
+  it("carries T0a's pins for Kata 4.3.1 and nerdctl-full 2.4.1", () => {
     const assets = bundledAssets();
     expect(assets["kata-static"].sha256).toBe(
-      "b828904fa3f1e49ddd7dc799c72cb1503cd1e772d354c3987c8d4189b2a623a8",
+      "1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97",
     );
     expect(assets["kata-tools-static"].sha256).toBe(
-      "a4f8e1b6ee500b6e94d3925249e741c75bb4a89bf275b5d5066d6275c68e29ef",
+      "511262aadef2a8596355733e448b65f7c871f4c6118b44ef7eb18afc19a5c0dd",
     );
     expect(assets["nerdctl-full"].sha256).toBe(
       "ff018f11ac2f1354bf7b3aaaca6e0b52d81139c746a89134744d0b7be3a0e62f",
     );
     expect(assets.node.sha256).toBe("84d38715d449447117d05c3e71acd78daa49d5b1bfa8aacf610303920c3322be");
+    // Kata 4.3: Cloud Hypervisor's `sparse` stays on for a direct volume (kata-containers#13864), so a box disk is not pre-allocated.
+    expect(assets["kata-static"].version).toBe("4.3.1");
+    expect(assets["kata-tools-static"].version).toBe("4.3.1");
     for (const name of ASSET_NAMES)
       expect(isPlaceholder(assets[name]), name).toBe(RELEASE_FILLED.includes(name));
     for (const name of ASSET_NAMES) expect(assets[name].url.startsWith("https://")).toBe(true);

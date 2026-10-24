@@ -78,7 +78,7 @@ describe("buildVmArtefacts", () => {
     );
     expect(by["pap-vmd"]?.version).toBe("1.2.3");
     expect(by["kata-static"]?.sha256).toBe(
-      "b828904fa3f1e49ddd7dc799c72cb1503cd1e772d354c3987c8d4189b2a623a8",
+      "1463a2b86845f4d3d8e87f2f764ec59856fc0fee3520967a79ade32762be2e97",
     );
   });
 
