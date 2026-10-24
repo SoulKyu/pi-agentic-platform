@@ -52,7 +52,7 @@ describe("GET /github/app/new", () => {
       redirect_url: `${PAP_ORIGIN}/github/app/created`,
       callback_urls: [`${PAP_ORIGIN}/github/app/authorized`],
       request_oauth_on_install: true,
-      public: false,
+      public: true,
       default_permissions: {
         contents: "write",
         pull_requests: "write",

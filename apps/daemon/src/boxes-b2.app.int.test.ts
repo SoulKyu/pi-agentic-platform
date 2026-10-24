@@ -29,7 +29,7 @@ describe("the GitHub App", () => {
     // The manifest GitHub received: private, no webhook, the callbacks on the address pap was reached at.
     const manifest = JSON.parse(bed.fake.state.manifests[0] ?? "{}") as Record<string, unknown>;
     expect(manifest).toMatchObject({
-      public: false,
+      public: true,
       hook_attributes: { active: false },
       redirect_url: `${bed.t.origin}/github/app/created`,
       callback_urls: [`${bed.t.origin}/github/app/authorized`],

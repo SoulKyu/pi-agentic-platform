@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 
-/** One switch for the App's visibility: `true` lets other accounts install it (members, M14). */
-export const APP_PUBLIC = false;
+/** Public (owner, 2026-10-24, M14): other GitHub accounts can install it, each with its own consent; GitHub lists its name, never its key. */
+export const APP_PUBLIC = true;
 
 /** The repository permissions the App declares; box tokens ask for less (see `BOX_PERMISSIONS`). */
 export const APP_PERMISSIONS = Object.freeze({
