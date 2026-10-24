@@ -1,15 +1,21 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guestShellArgv } from "./argv.ts";
+import { vmName } from "./box-name.ts";
 import { hex, listenGateway, skipKata, testAgentId, until, vmd, vmdOk } from "./testing/kata-rig.ts";
 
 /*
- * T20a: pap-vmd on the real stack (Kata 4.2 + Cloud Hypervisor on KVM). Skips with one warning without /dev/kvm or the socket,
+ * T20a: pap-vmd on the real stack (Kata 4.3 + Cloud Hypervisor on KVM). Skips with one warning without /dev/kvm or the socket,
  * fails under CI=1. Each VM runs the real base image, whose guest dials the gateway address; a listener on pap0's address
  * stands in for the daemon and records who connected. Mutants (RT-43), each run for real:
  *  - `vm.stop` not removing the container: killed by "runs a thread VM" (status is not `absent`).
  *  - `disk.grow` not refusing under a running VM: killed by "refuses a grow while the VM runs".
+ *  - the direct volume attached with `sparse=off` (Kata 4.2) or without `discard`: killed by "keeps a box disk sparse".
+ *  - `vm.stop` not digging holes: killed by "gives a pre-allocated disk back at the next stop".
+ * The sparse tests read the disk's blocks under /var/lib/pap-vm (root 0700): run them in the root window.
  */
 const skip = skipKata();
 const ASSETS = new URL("../../daemon/src/cli/vm/vm-assets.json", import.meta.url);
@@ -40,6 +46,16 @@ const start = (agentId: string, key: string | null = null) =>
   });
 const statusOf = async (agentId: string, key: string | null = null): Promise<string> =>
   ((await vmdOk({ op: "vm.status", box: boxOf(agentId), taskKey: key })) as { state: string }).state;
+const MIB = 1024 * 1024;
+const SPARSE_DISK_MB = 8192;
+const diskFile = (agentId: string): string =>
+  `/var/lib/pap-vm/${(JSON.parse(readFileSync("/etc/pap-vm/config.json", "utf8")) as { papUid: number }).papUid}/agents/${agentId}/disk.img`;
+/** What the host really holds for the file (stat blocks x 512), in MiB. */
+const allocatedMb = (file: string): number => (statSync(file).blocks * 512) / MIB;
+const inGuest = (agentId: string, command: string): string => {
+  const argv = guestShellArgv(vmName(boxOf(agentId), null), command);
+  return execFileSync(argv[0] as string, argv.slice(1), { encoding: "utf8" });
+};
 const fresh = (): string => {
   const id = testAgentId();
   agents.push(id);
@@ -196,5 +212,42 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
       ok: false,
       code: "conflict",
     });
+  }, 240_000);
+
+  it("keeps a box disk sparse while the VM runs and returns deleted files to the host", async () => {
+    const agentId = fresh();
+    const file = diskFile(agentId);
+    const ceilingMb = SPARSE_DISK_MB / 10;
+    await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: SPARSE_DISK_MB });
+    const blankMb = allocatedMb(file);
+    expect((await start(agentId)).ok).toBe(true);
+    // Measured while the VM runs: the stop's reclaim must not be what keeps the disk small.
+    expect(allocatedMb(file)).toBeLessThan(ceilingMb);
+    inGuest(agentId, "dd if=/dev/urandom of=/agent/blob bs=1M count=50 conv=fsync && sync");
+    const written = allocatedMb(file);
+    expect(written).toBeGreaterThanOrEqual(blankMb + 50);
+    expect(written).toBeLessThan(blankMb + 50 + 64);
+    expect(written).toBeLessThan(ceilingMb);
+    inGuest(agentId, "rm /agent/blob && sync");
+    await until("discard to reach the host", () => allocatedMb(file) < written - 40, 60_000);
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
+    expect(allocatedMb(file)).toBeLessThan(written - 40);
+    expect(allocatedMb(file)).toBeLessThan(ceilingMb);
+  }, 240_000);
+
+  it("gives a pre-allocated disk back at the next stop", async () => {
+    const agentId = fresh();
+    const file = diskFile(agentId);
+    await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: SPARSE_DISK_MB });
+    // What Kata 4.2 left behind: every block allocated (the disk is not in use, so this root window may touch it).
+    execFileSync("/usr/bin/fallocate", ["-l", `${SPARSE_DISK_MB}M`, file]);
+    expect(allocatedMb(file)).toBeGreaterThan(SPARSE_DISK_MB * 0.95);
+    // No VM exists: the stop confirms that and the reclaim runs.
+    expect(await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null })).toEqual({ stopped: true });
+    expect(allocatedMb(file)).toBeLessThan(SPARSE_DISK_MB / 10);
+    // The data survived: the disk still boots and mounts.
+    expect((await start(agentId)).ok).toBe(true);
+    inGuest(agentId, "test -d /agent/lost+found");
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
   }, 240_000);
 });

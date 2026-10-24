@@ -14,10 +14,11 @@ import {
   unpauseArgv,
   volumePath,
 } from "./argv.ts";
-import { parseVmName, vmName } from "./box-name.ts";
+import { parseVmName, sameBox, vmName } from "./box-name.ts";
 import { VmdFailure } from "./errors.ts";
 import { readNetFacts } from "./net-facts.ts";
 import { fileExists, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
+import { reclaimDisk } from "./ops-reclaim.ts";
 import type { OpsDeps, VmStartRequest } from "./ops.ts";
 
 export type VmStateName = ReturnType<(typeof VmState)["parse"]>;
@@ -262,6 +263,16 @@ export function createVmOps(deps: OpsDeps) {
       // R30: a task's disk goes with its VM, but never while the container may still hold it.
       if (removed && request.taskKey !== null) {
         removeTaskDir(state.diskPath(request.box, request.taskKey));
+      }
+      // A box's disk is sparse again once nothing holds it; only after the VM is confirmed gone, never for a task disk (deleted above).
+      if (removed && request.taskKey === null) {
+        await step("reclaim", async () => {
+          const vms = await list();
+          const held = vms.some(
+            (vm) => sameBox(vm.box, request.box) && vm.taskKey === null && vm.state !== "stopped",
+          );
+          if (!held) await reclaimDisk(exec, log, state.diskPath(request.box, null));
+        });
       }
       if (!removed || !detached) throw new VmdFailure("failed");
       return { stopped: true };
