@@ -67,6 +67,7 @@ afterEach(async () => {
 
 function make(
   options: {
+    root?: string;
     store?: SearchIndexStore;
     yieldNow?: () => Promise<void>;
     maxStats?: number;
@@ -74,7 +75,7 @@ function make(
   } = {},
 ): Scanner {
   scanner = createScanner({
-    root,
+    root: options.root ?? root,
     installedAt: 0,
     store: options.store ?? store,
     sessions: fakeScanPort().port,
@@ -174,6 +175,18 @@ describe("scanner reconcile and lifecycle", () => {
     await s.idle();
     expect(processed).toEqual([path]);
     expect(watch.open()).toContain(root);
+  });
+
+  it("a mirror root whose parent does not exist yet is listed by the next reconcile once it appears", async () => {
+    const mirrors = join(agentDir, "boxes", ".mirrors");
+    const s = make({ root: mirrors });
+    s.start();
+    await s.idle();
+    mkdirSync(join(mirrors, "box-1"), { recursive: true });
+    const path = file(join(mirrors, "box-1"), "vm.jsonl");
+    await clock.advance(60_000);
+    await s.idle();
+    expect(processed).toEqual([path]);
   });
 
   it("a watcher that failed is added back by the next reconcile", async () => {

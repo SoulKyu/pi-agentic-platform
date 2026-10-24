@@ -19,7 +19,7 @@ import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { piBuiltins, signInNotifier } from "./builtins.ts";
 import type { Outbound } from "./ipc.ts";
-import { knowledgePrompt } from "./knowledge-prompt.ts";
+import { knowledgePrompt, okfBundleAt } from "./knowledge-prompt.ts";
 import { createLoadoutWatcher, rememberProjectTrust } from "./loadout.ts";
 import { shellFactsOf } from "./shell-facts.ts";
 import { createPresetKeeper } from "./tool-preset-commands.ts";
@@ -87,7 +87,7 @@ function projectTrustResolver(
   let trusted = false;
   return {
     resolve: async (): Promise<boolean> => {
-      // W5-R29: an agent writes its own home, so no trust Pi's store holds (the CLI's, an ancestor's) opens its project resources.
+      // W5-R29: an agent writes its own home (a box project its repository), so no trust Pi's store holds (the CLI's, an ancestor's) opens its project resources.
       if (neverTrusted) return false;
       try {
         trusted = new ProjectTrustStore(agentDir).get(cwd) === true;
@@ -192,7 +192,14 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   const vmOrder = vm
     ? { files: vmFilesFirst(deps.onExtensionError), shell: vmShellFirst(deps.onExtensionError) }
     : undefined;
-  const trust = projectTrustResolver(agentDir, cwd, deps.onExtensionError, init.agent !== undefined);
+  // A project box's repository is agent-written like an agent's home: its `.pi/` resources never load (its AGENTS.md still does).
+  const projectBox = vm?.layout.project !== undefined || deps.rules()?.profile === "project";
+  const trust = projectTrustResolver(
+    agentDir,
+    cwd,
+    deps.onExtensionError,
+    init.agent !== undefined || projectBox,
+  );
   const services = await createAgentSessionServices({
     cwd,
     agentDir,
@@ -246,7 +253,11 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
           ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null, vmNetwork))]
           : []),
         ...(init.child ? [init.child.prompt] : []),
-        ...(init.knowledge ? [knowledgePrompt(init.knowledge.path)] : []),
+        // A box project always carries its knowledge path; the section is only for a bundle the owner enabled (OKF is opt-in there).
+        ...(init.knowledge &&
+        (vm?.layout.project === undefined || okfBundleAt(vm.layout.project, init.knowledge.path))
+          ? [knowledgePrompt(init.knowledge.path)]
+          : []),
       ],
     },
     resourceLoaderReloadOptions: {

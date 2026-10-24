@@ -171,7 +171,6 @@ describe("a tick", () => {
     expect(calls[0]?.input).toMatchObject({
       source: "schedule",
       payload: null,
-      precheck: null,
       detail: null,
       gated: true,
       gates: { exemptDisabled: false },

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { FILE_CHUNK_BYTES, type HomeResult, PapError } from "@pap/contracts";
+import { type BoxRef, FILE_CHUNK_BYTES, type HomeResult, PapError } from "@pap/contracts";
 import type { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -135,25 +135,31 @@ export function createFilesDelivery(deps: {
   };
   /** Agents whose thread VM missed a change (no worker to send it to, or a refused one): the next new worker gets everything. */
   const dirty = new Set<string>();
-  const full = (spec: VmSpec, handle: WorkerHandle): Promise<void> =>
-    inQueue(spec.agentId, async () => {
+  /** The owner's imported files belong to agents: a project box has none to deliver. */
+  const full = (spec: VmSpec, handle: WorkerHandle): Promise<void> => {
+    if (spec.box.kind !== "agent") return Promise.resolve();
+    const agentId = spec.box.id;
+    return inQueue(agentId, async () => {
       try {
-        await run(spec.agentId, handle, null, spec.kind === "thread");
+        await run(agentId, handle, null, spec.kind === "thread");
       } catch (error) {
-        if (spec.kind === "thread") dirty.add(spec.agentId);
+        if (spec.kind === "thread") dirty.add(agentId);
         throw error;
       }
-      if (spec.kind === "thread") dirty.delete(spec.agentId);
+      if (spec.kind === "thread") dirty.delete(agentId);
     });
+  };
   return {
     start: full,
     /** A later worker of a VM that had its start delivery: it gets the files only when a change was missed. */
     again: (spec: VmSpec, handle: WorkerHandle): Promise<void> =>
-      spec.kind === "thread" && dirty.has(spec.agentId) ? full(spec, handle) : Promise.resolve(),
-    live(runtime: { threadWorker(agentId: string): WorkerHandle | undefined }): void {
+      spec.kind === "thread" && spec.box.kind === "agent" && dirty.has(spec.box.id)
+        ? full(spec, handle)
+        : Promise.resolve(),
+    live(runtime: { threadWorker(box: BoxRef): WorkerHandle | undefined }): void {
       files?.onChange((agentId, path) => {
         void inQueue(agentId, async () => {
-          const handle = runtime.threadWorker(agentId);
+          const handle = runtime.threadWorker({ kind: "agent", id: agentId });
           if (handle === undefined) {
             dirty.add(agentId);
             return;

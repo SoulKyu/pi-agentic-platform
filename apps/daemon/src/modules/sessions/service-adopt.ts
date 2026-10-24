@@ -1,4 +1,5 @@
 import { lstatSync, statSync } from "node:fs";
+import { join } from "node:path";
 import { PapError, type ShellSession } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -16,6 +17,8 @@ export interface AdoptionContext {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly agentDir: string;
+  /** Pap's mirrors of VM session files live under it (agents', boxes'). */
+  readonly papHome: string;
   newId(): string;
   ownerId(): string | null;
   onAdopted?(sessionId: string): void;
@@ -43,6 +46,7 @@ export function createAdoption(ctx: AdoptionContext) {
   const scanPort = createScanPort({
     store: ctx.store,
     agentDir: ctx.agentDir,
+    mirrorRoots: [join(ctx.papHome, "agents", ".mirrors"), join(ctx.papHome, "boxes", ".mirrors")],
     clock: ctx.clock,
     logger: ctx.logger,
     newId: ctx.newId,

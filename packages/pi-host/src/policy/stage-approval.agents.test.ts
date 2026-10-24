@@ -344,3 +344,21 @@ describe("stage 03 in an isolated task (M11R32)", () => {
     });
   });
 });
+
+describe("a project profile without a VM", () => {
+  it("is blocked: rules naming a box that is not there open nothing", async () => {
+    const rules = PolicyRules.parse({
+      profile: "project",
+      approvalMode: "full-access",
+      agentHome: atlas,
+      agentScratch: null,
+      sandbox: { required: true, network: true },
+    });
+    const plan = await approvalStage(
+      sandboxedCall(rules, atlas),
+      { hasUI: true, cwd: atlas } as never,
+      bed.deps as unknown as PipelineDeps,
+    );
+    expect(plan).toMatchObject({ outcome: "block", reason: "a project session runs only in its box" });
+  });
+});

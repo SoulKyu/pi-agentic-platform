@@ -11,7 +11,8 @@ import {
 } from "node:fs";
 import { statfs as statfsOf } from "node:fs/promises";
 import path from "node:path";
-import { AgentId, LaunchId, TaskKey, type VmdRequest } from "@pap/contracts";
+import { AgentId, LaunchId, TaskKey, type BoxRef, type VmdRequest } from "@pap/contracts";
+import { boxFolder, boxOfTrashPrefix, sameBox, trashPrefix } from "./box-name.ts";
 import type { Clock } from "./clock.ts";
 import type { Logger } from "./log.ts";
 
@@ -24,7 +25,7 @@ const DAY_MS = 24 * 3600 * 1000;
 const MIB = 1024 * 1024;
 
 export interface RunningTask {
-  readonly agentId: string;
+  readonly box: BoxRef;
   readonly taskKey: string;
 }
 
@@ -47,8 +48,11 @@ export interface StateDeps {
 export interface VmdState {
   readonly root: string;
   ensure(): void;
-  agentDir(agentId: string): string;
-  diskPath(agentId: string, taskKey: string | null): string;
+  /** `agents/<id>` or `projects/<uuid>`. */
+  boxDir(box: BoxRef): string;
+  /** Where `disk.delete` moves a box folder: `trash/<prefix>-<stamp>`, the prefix telling the two kinds apart. */
+  trashPath(box: BoxRef, stamp: number): string;
+  diskPath(box: BoxRef, taskKey: string | null): string;
   envFile(launchId: string): string;
   buildDir(layer: ImageLayer): string;
   /** The folder holding `Dockerfile`, outside every build context (RT-33). */
@@ -58,8 +62,8 @@ export interface VmdState {
   freeMb(): Promise<number>;
   /** `running` null: the caller cannot say which VMs run, so no task disk is touched (fails closed). */
   sweepAtStart(running: readonly RunningTask[] | null): void;
-  /** Removes trash entries older than 7 days (`agentId` null) or every entry of one agent now. Returns the count. */
-  purgeTrash(agentId: string | null): number;
+  /** Removes trash entries older than 7 days (`box` null) or every entry of one box now. Returns the count. */
+  purgeTrash(box: BoxRef | null): number;
   /** Purges now and then once a day; the returned function stops it. */
   startDailyPurge(): () => void;
 }
@@ -71,7 +75,7 @@ export function createState(deps: StateDeps): VmdState {
   const statfs = deps.statfs ?? ((where: string) => statfsOf(where));
   const ownerUid = deps.ownerUid ?? process.getuid?.() ?? 0;
   const dir = (...parts: string[]): string => path.join(root, ...parts);
-  const agentDir = (agentId: string): string => dir("agents", AgentId.parse(agentId));
+  const boxDir = (box: BoxRef): string => dir(...boxFolder(box));
 
   function ensureDir(where: string): void {
     mkdirSync(where, { recursive: true, mode: 0o700 });
@@ -93,15 +97,14 @@ export function createState(deps: StateDeps): VmdState {
 
   const envFile = (launchId: string): string => dir("run", `${LaunchId.parse(launchId)}.env`);
 
-  function purgeTrash(agentId: string | null): number {
-    const target = agentId === null ? null : AgentId.parse(agentId);
+  function purgeTrash(box: BoxRef | null): number {
     let removed = 0;
     for (const name of names(dir("trash"))) {
       const match = TRASH_NAME.exec(name);
-      const id = match?.[1];
-      if (id === undefined || !AgentId.safeParse(id).success) continue;
+      const owner = boxOfTrashPrefix(match?.[1] ?? "");
+      if (owner === null) continue;
       const age = clock.now() - Number(match?.[2]);
-      const due = target === null ? age > TRASH_TTL_MS : id === target;
+      const due = box === null ? age > TRASH_TTL_MS : sameBox(owner, box);
       if (!due) continue;
       rmSync(dir("trash", name), { recursive: true, force: true });
       removed += 1;
@@ -111,15 +114,17 @@ export function createState(deps: StateDeps): VmdState {
 
   return {
     root,
-    agentDir,
+    boxDir,
+    trashPath: (box, stamp) => dir("trash", `${trashPrefix(box)}-${stamp}`),
     ensure() {
-      for (const sub of ["agents", "trash", "run", "build", "dockerfiles"]) ensureDir(dir(sub));
+      for (const sub of ["agents", "projects", "trash", "run", "build", "dockerfiles"]) ensureDir(dir(sub));
       ensureDir(root);
     },
-    diskPath: (agentId, taskKey) =>
-      taskKey === null
-        ? path.join(agentDir(agentId), "disk.img")
-        : path.join(agentDir(agentId), "tasks", TaskKey.parse(taskKey), "disk.img"),
+    diskPath(box, taskKey) {
+      if (taskKey === null) return path.join(boxDir(box), "disk.img");
+      if (box.kind !== "agent") throw new Error("state: a project box has no task disk");
+      return path.join(boxDir(box), "tasks", TaskKey.parse(taskKey), "disk.img");
+    },
     envFile,
     buildDir(layer) {
       if (!LAYERS.includes(layer)) throw new Error("state: unknown layer");
@@ -172,7 +177,7 @@ export function createState(deps: StateDeps): VmdState {
         log.info("vmd_sweep_skipped", { reason: "running_vms_unknown", envFiles });
         return;
       }
-      const alive = new Set(running.map((task) => `${task.agentId}/${task.taskKey}`));
+      const alive = new Set(running.map((task) => `${task.box.id}/${task.taskKey}`));
       let taskDisks = 0;
       for (const id of names(dir("agents"))) {
         if (!AgentId.safeParse(id).success) continue;

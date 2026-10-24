@@ -5,7 +5,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { createProvenance, promptHash, type Provenance, userTextOf } from "./mirror-line.ts";
 import { createKeepSweeper } from "./mirror-keep.ts";
 import { createLineParser, type LineParser } from "./mirror-parse.ts";
-import { mirrorFileOf, type MirrorRow, mirrorPathOf } from "./mirror-paths.ts";
+import { mirrorFileOf, type MirrorRow, mirrorPathOf, projectMirrorPathOf } from "./mirror-paths.ts";
 import { createQuota, QUOTA_NOTICE } from "./mirror-quota.ts";
 import { FILE_LOST_NOTICE, openMirror, REPLACED_NOTICE } from "./mirror.ts";
 import type { MirrorPort, WorkerSpawnInput } from "./vm-worker.ts";
@@ -96,7 +96,8 @@ export function createMirrorInputs(deps: MirrorInputsDeps): MirrorInputs {
     inputFor(row, resources) {
       flush();
       const sessionFile = mirrorFileOf(papHome, row);
-      const agentId = row.agentId;
+      // The quota and the logs are keyed by the box's id: an agent's or a project's (they never share a spelling).
+      const agentId = row.agentId ?? row.projectId;
       const limitBytes = (resources?.diskMb ?? DEFAULT_AGENT_RESOURCES.diskMb) * MIB;
       const provenance = provenanceOf(row.id);
       const announce = (kind: "replaced" | "quota"): void =>
@@ -119,7 +120,11 @@ export function createMirrorInputs(deps: MirrorInputsDeps): MirrorInputs {
           try {
             if (agentId === undefined || (sessionFile !== null && file !== sessionFile))
               throw new Error("not this file");
-            const port = openMirror(mirrorPathOf(papHome, agentId, file), {
+            const path =
+              row.agentId === undefined
+                ? projectMirrorPathOf(papHome, agentId, file)
+                : mirrorPathOf(papHome, agentId, file);
+            const port = openMirror(path, {
               clock,
               logger,
               agentId,

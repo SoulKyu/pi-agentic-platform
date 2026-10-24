@@ -1,4 +1,4 @@
-import { AGENT_VM_MAX_FRAME_BYTES, GATEWAY_LIMITS, encodeSocketFrame } from "@pap/contracts";
+import { AGENT_VM_MAX_FRAME_BYTES, boxKey, GATEWAY_LIMITS, encodeSocketFrame } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 import { EXIT_TAIL_GRACE_MS } from "./vm-worker.ts";
 import { REFUSAL_QUIET_MS } from "./gateway.ts";
@@ -15,7 +15,7 @@ describe("connections waiting for a hello", () => {
     const extra = h.connect("10.213.2.1");
     expect(extra.destroyed).toBe(true);
     expect(waiting.every((socket) => !socket.destroyed)).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "busy" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "busy" }]);
     const launch = h.launch();
     waiting[0]?.feed(guestHello(launch));
     expect(waiting[0]?.destroyed).toBe(false);
@@ -29,7 +29,7 @@ describe("connections waiting for a hello", () => {
     expect(fifth.destroyed).toBe(true);
     expect(same.every((socket) => !socket.destroyed)).toBe(true);
     expect(h.connect("10.213.1.10").destroyed).toBe(false);
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "busy" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "busy" }]);
   });
 
   it("frees the place of a connection that closed or was refused", () => {
@@ -122,7 +122,7 @@ describe("the refusal log", () => {
     ]);
     const launch = h.launch();
     h.connect("10.213.3.50").feed(guestHello(launch, { token: "0".repeat(64) }));
-    expect(h.refusals().at(-1)).toEqual({ agentId: launch.agentId, reason: "token" });
+    expect(h.refusals().at(-1)).toEqual({ box: boxKey(launch.box), reason: "token" });
   });
 
   // S2 m2. Mutant: the count never resets -> after a burst, a later refusal of the reason is not logged until the next power of two.

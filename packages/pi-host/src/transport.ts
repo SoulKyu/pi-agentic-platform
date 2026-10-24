@@ -1,7 +1,7 @@
 import { closeSync, fstatSync, openSync, readFileSync, readSync } from "node:fs";
 import net from "node:net";
 import { basename } from "node:path";
-import { AGENT_VM_PROTOCOL, GatewayToken, SessionFileName, WorkerHello } from "@pap/contracts";
+import { AGENT_VM_PROTOCOL, GatewayToken, parseBoxKey, SessionFileName, WorkerHello } from "@pap/contracts";
 import { createIpc, type Ipc } from "./ipc.ts";
 import { createSocketIpc } from "./socket-ipc.ts";
 
@@ -10,7 +10,7 @@ export const TOKEN_FD = 3;
 const HELLO_ENV = [
   "PAP_GATEWAY",
   "PAP_LAUNCH_ID",
-  "PAP_AGENT_ID",
+  "PAP_BOX",
   "PAP_WORKER_SLOT",
   "PAP_IMAGE_TAG",
   "PAP_SESSION_FILE",
@@ -106,7 +106,7 @@ export async function transportFromEnv(
   const hello = WorkerHello.safeParse({
     type: "hello",
     role: "worker",
-    agentId: values.PAP_AGENT_ID,
+    box: parseBoxKey(values.PAP_BOX ?? ""),
     launchId: values.PAP_LAUNCH_ID,
     token: checked.data,
     protocol: AGENT_VM_PROTOCOL,

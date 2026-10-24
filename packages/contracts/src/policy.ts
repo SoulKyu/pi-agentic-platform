@@ -226,8 +226,8 @@ const LocalTools = z
   )
   .default([]);
 
-/** Who the session is to the policy (M11R7): the owner's own sessions, an agent's pinned thread, or an isolated agent task. */
-export const POLICY_PROFILES = ["interactive", "agent-thread", "isolated-task"] as const;
+/** Who the session is to the policy (M11R7): the owner's own sessions, an agent's pinned thread, an isolated agent task, or a session in a project's box. */
+export const POLICY_PROFILES = ["interactive", "agent-thread", "isolated-task", "project"] as const;
 export const PolicyProfile = z.enum(POLICY_PROFILES);
 export type PolicyProfile = z.infer<typeof PolicyProfile>;
 const RulePath = z

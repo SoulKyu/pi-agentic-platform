@@ -44,7 +44,7 @@ async function bed(over: Partial<Limits>) {
   });
   const serve = async (): Promise<number> => {
     const core = cores.create({
-      scope: { agentId: "atlas-1a2b", sessionId: "s1" },
+      scope: { box: { kind: "agent", id: "atlas-1a2b" }, sessionId: "s1" },
       decide: async () => ({ ips: ["127.7.0.1"], host: "api.example.test" }),
     });
     const server = createServer();

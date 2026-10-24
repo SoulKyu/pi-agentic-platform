@@ -11,7 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_AGENT_RESOURCES, type InitRecord, PolicyRules } from "@pap/contracts";
+import { type BoxRef, DEFAULT_AGENT_RESOURCES, type InitRecord, PolicyRules } from "@pap/contracts";
 import { createSystemClock } from "../../../kernel/clock.ts";
 import { silentLogger } from "../../../kernel/logger.ts";
 import {
@@ -21,9 +21,9 @@ import {
   createAgentRuntime,
   createGateway,
   createLaunchTokens,
+  layoutOfSpec,
   createProcessBackend,
   type Gateway,
-  layoutOf,
   type LaunchTokens,
   vmInitOf,
   type VmSpec,
@@ -76,7 +76,7 @@ export interface RuntimeBed {
   readonly launches: Array<{ launchId: string; token: string; agentId: string }>;
   readonly stops: Array<{ agentId: string; taskKey: string | null }>;
   /** The relay grants the runtime handed out (J1's relay link is not part of this bed). */
-  readonly grants: Array<{ launchId: string; agentId: string; relayKey: string; address: string }>;
+  readonly grants: Array<{ launchId: string; box: BoxRef; relayKey: string; address: string }>;
   readonly ended: string[];
   /** Spawns a worker in `agentId`'s VM (started if needed). `sessionFile`: a reopen. */
   spawn(
@@ -133,8 +133,8 @@ export async function startRuntimeBed(
   const launches: RuntimeBed["launches"] = [];
   const stops: RuntimeBed["stops"] = [];
   const backend: AgentRuntimeBackend = {
-    start: (spec, launch) => (launches.push({ ...launch, agentId: spec.agentId }), real.start(spec, launch)),
-    stop: (agentId, taskKey) => (stops.push({ agentId, taskKey }), real.stop(agentId, taskKey)),
+    start: (spec, launch) => (launches.push({ ...launch, agentId: spec.box.id }), real.start(spec, launch)),
+    stop: (box, taskKey) => (stops.push({ agentId: box.id, taskKey }), real.stop(box, taskKey)),
     list: () => real.list(),
   };
   const grants: RuntimeBed["grants"] = [];
@@ -147,7 +147,7 @@ export async function startRuntimeBed(
     logger: silentLogger,
     memoryCapMb: options.memoryCapMb ?? 8192,
     idleMs: options.idleMs ?? 0,
-    layout: (spec) => layoutOf("process", papHome, spec),
+    layout: (spec) => layoutOfSpec("process", papHome, spec),
     onLaunch: (grant) => void grants.push(grant),
     onLaunchEnd: (launchId) => void ended.push(launchId),
     onCrashPause: () => {},
@@ -158,7 +158,7 @@ export async function startRuntimeBed(
   await runtime.stopAll();
 
   const specOf = (agentId: string, taskKey?: string): VmSpec => ({
-    agentId,
+    box: { kind: "agent", id: agentId },
     kind: taskKey === undefined ? "thread" : "isolated",
     taskKey: taskKey ?? null,
     image: IMAGE,

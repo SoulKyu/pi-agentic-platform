@@ -1,5 +1,6 @@
 import { PapError } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { type SessionsAutomationPort, type TaskSessionPolicy } from "./automation-port.ts";
 import { createSessionsService } from "./service.ts";
@@ -44,6 +45,27 @@ const confirm = {
 const sentTo = (index: number, type: string) => bed.spawned[index]?.sent.filter((r) => r.type === type) ?? [];
 
 describe("createTaskSession", () => {
+  it("a task session for a box cwd lands in the project, with the cwd as given", async () => {
+    const root = "/boxes/p1/project";
+    bed = build({
+      boxes: createFakeProjectBoxSource({
+        p1: {
+          ownerId: "u1",
+          root,
+          resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
+          hosts: [],
+          deleting: false,
+        },
+      }),
+    });
+    const { sessionId } = await task(`${root}/docs`);
+    expect(bed.store.get(sessionId)?.cwd).toBe(`${root}/docs`);
+    expect(bed.store.marks.row(sessionId)?.projectId).toBe("p1");
+    await expect(task(`${root}/../x`)).rejects.toThrow(
+      expect.objectContaining({ code: "invalid_cwd" }) as Error,
+    );
+  });
+
   it("puts the list, the mode, unattended and the taint in the first init, with the preset of the list", async () => {
     bed = build();
     const { sessionId } = await task();

@@ -23,10 +23,12 @@ import {
 import { type AgentRuleParts, createAgentRules, type OwnerLists } from "./agent-rules.ts";
 import { childModeOf } from "./child-port.ts";
 import { narrowPreset } from "./preset-clamp.ts";
+import { type ProjectLaunch, projectGate } from "./project-gate.ts";
 import { type ApprovedCalls, createApprovedCalls, isPlatformTool } from "./approved-calls.ts";
 import { AUTOMATION_CREDENTIAL } from "./automation-port.ts";
 import type { ApprovedAnswer } from "./dialogs.ts";
 import { createHostGrants, type HostGrants } from "./host-grants.ts";
+import { allowProjectHost } from "./project-host.ts";
 import type { LiveSession } from "./live-session.ts";
 import { type SessionKind, sessionKind } from "./session-kind.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
@@ -81,6 +83,13 @@ export interface AgentSurface {
   presetFor(ownerPreset: ToolPreset | undefined, profilePreset: ToolPreset): ToolPreset;
   /** The gate of a launch (M11R53): null for a session without an agent; a throw refuses the start. */
   gate(row: SessionRow): Promise<AgentLaunch> | null;
+  /** The gate of a launch in a project's box (task A3): null for a row that is not in one; a throw (`not_found`) refuses the start. */
+  projectGate(row: SessionRow): ProjectLaunch | null;
+  /**
+   * ADR 0080 for a box: the launch with the bridge's Claude Code environment (`IS_SANDBOX`, `CLAUDE_CONFIG_DIR` under the box's
+   * home) when the owner's token is set and the bridge is in the owner's packages: the agents' own rule (`claudeEnvOf`).
+   */
+  projectEnv(launch: ProjectLaunch): Promise<ProjectLaunch>;
   /** The row runs in a VM (R15, R37): its layout, else null. */
   vmLayoutOf(row: SessionRow): VmLayout | null;
   /** The agent's part of the session's rules (M11R52); nothing for a session without an agent. */
@@ -88,6 +97,10 @@ export interface AgentSurface {
   readonly approvedCalls: ApprovedCalls;
   /** The hosts the owner allowed for the rest of an agent thread (owner a2): daemon memory, dropped when the thread is archived. */
   readonly hostGrants: HostGrants;
+  /** The project box a session with no agent runs in, with its list now; null for any other session (task A7). */
+  projectBoxOfSession(
+    sessionId: string,
+  ): { readonly projectId: string; readonly hosts: readonly string[] } | null;
   /**
    * Before an answer reaches the worker: only the owner's browser answers the card of a platform tool, and only a browser
    * session answers `host`, on an agent thread's `network_request` card (M11R209).
@@ -121,6 +134,12 @@ export function createAgentSurface(deps: {
     startTime.get(sessionId) ?? profileOf(ownerId, agentId);
   const vmLayoutOf = (row: SessionRow): VmLayout | null => ports.agents?.vmLayoutOf?.(row) ?? null;
   const vmMode = deps.vmLaunch !== undefined;
+  const projectRefOf = (row: SessionRow) => {
+    const id = ports.agents?.boxes?.projectOf(row) ?? null;
+    const box = id === null ? null : (ports.agents?.boxes?.box(id) ?? null);
+    return id === null || box === null ? null : { projectId: id, box };
+  };
+  const projectBoxOf = (row: SessionRow) => projectRefOf(row)?.box ?? null;
   const hostGrants = createHostGrants(deps.logger);
   const agentRules = createAgentRules({
     papHome: deps.worker.papHome,
@@ -128,6 +147,7 @@ export function createAgentSurface(deps: {
     hostGrants: hostGrants.of,
     logger: deps.logger,
     vmLayoutOf,
+    projectBoxOf,
   });
   const gateDeps = (agents: SessionsAgentDeps): AgentGateDeps => ({
     ...agents,
@@ -138,7 +158,11 @@ export function createAgentSurface(deps: {
   const approvedCalls = createApprovedCalls(deps);
   const kindDeps = {
     policy: deps.policy,
-    inLane: (ownerId: string, cwd: string) => ports.inLane?.(ownerId, cwd) ?? false,
+    // A box folder is no lane's: the lane index would realpath a path that is the box's, not the host's.
+    inLane: (ownerId: string, cwd: string) =>
+      ports.agents?.boxes?.projectOf({ ownerId, cwd }) != null
+        ? false
+        : (ports.inLane?.(ownerId, cwd) ?? false),
   };
   /** Owner a6 (ii), M11R220: on in the start-time profile and in the registry; no worker, no autonomy. */
   const autonomousOf = (row: SessionRow): boolean =>
@@ -151,11 +175,18 @@ export function createAgentSurface(deps: {
     if (caller.kind !== "session" || caller.credentialId === AUTOMATION_CREDENTIAL) return false;
     const row = deps.store.get(sessionId);
     return (
-      tool === "network_request" && row !== undefined && sessionKind(row, kindDeps).type === "agent-thread"
+      tool === "network_request" &&
+      row !== undefined &&
+      (sessionKind(row, kindDeps).type === "agent-thread" || projectRefOf(row) !== null)
     );
   };
   return {
     hostGrants,
+    projectBoxOfSession(sessionId) {
+      const row = deps.store.get(sessionId);
+      const ref = row === undefined ? null : projectRefOf(row);
+      return ref === null ? null : { projectId: ref.projectId, hosts: ref.box.hosts };
+    },
     setAgentPorts(next) {
       // Fail closed at the hand-over: `agents` replaces the whole object, and an agent row would run on the host without these.
       const { agents } = next;
@@ -172,7 +203,14 @@ export function createAgentSurface(deps: {
       // A read-only database runs no op: no dead tools (W5-R16 siblings, M10R150).
       if (!platform || deps.store.readOnly) return [];
       try {
-        return opsFor(sessionKind(row, kindDeps).type).filter((op) => platform.available(op, row.ownerId));
+        const { type } = sessionKind(row, kindDeps);
+        const inBox = projectRefOf(row) !== null;
+        // `network.request` is open to the sessions of a project box and to agent threads, never to a host row.
+        return opsFor(type).filter(
+          (op) =>
+            platform.available(op, row.ownerId) &&
+            (op !== "network.request" || type === "agent-thread" || inBox),
+        );
       } catch (error) {
         // Fail closed: a worker whose type cannot be read starts without platform tools.
         deps.logger.warn("platform_ops_failed", { sessionId: row.id, err: error });
@@ -247,6 +285,19 @@ export function createAgentSurface(deps: {
       if (!ports.agents) return Promise.reject(new PapError("not_found"));
       return agentGate(row, gateDeps(ports.agents));
     },
+    projectGate: (row) =>
+      ports.agents?.boxes === undefined
+        ? null
+        : projectGate(row, { boxes: ports.agents.boxes, vmLayoutOf, papHome: deps.worker.papHome }),
+    async projectEnv(launch) {
+      const agents = ports.agents;
+      if (!agents?.boxes?.claudeTokenSet() || !agents.claudeEnvOf) return launch;
+      const claudeEnv = await agents.claudeEnvOf({ model: null, packages: null } as never, {
+        vm: true,
+        home: launch.home,
+      });
+      return Object.keys(claudeEnv).length > 0 ? { ...launch, claudeEnv } : launch;
+    },
     vmLayoutOf,
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,
@@ -268,7 +319,16 @@ export function createAgentSurface(deps: {
       const { grant } = approved ?? {};
       if (approved?.answer === "host") {
         // The host is the one the worker's card named, kept beside the dialog; the client's frame is never read.
-        if (grant?.host !== undefined && mayGrantHost(sessionId, grant.tool, caller))
+        if (grant?.host === undefined || !mayGrantHost(sessionId, grant.tool, caller)) return;
+        const row = deps.store.get(sessionId);
+        const ref = row === undefined ? null : projectRefOf(row);
+        // A box session's host joins its project's list (kept and audited); an agent thread's lasts until the thread resets.
+        const boxes = ports.agents?.boxes;
+        if (
+          ref === null ||
+          (boxes !== undefined &&
+            allowProjectHost({ boxes, logger: deps.logger }, ref.projectId, grant.host, caller))
+        )
           hostGrants.note(sessionId, grant.host);
         return;
       }

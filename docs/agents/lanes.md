@@ -119,7 +119,7 @@ The file is `.pi/project.yaml` of the owner's main checkout (not of the base bra
 
 ### The unattended environment and its friction
 
-One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7's `npx`, `npm` and `git` installs, and M10's precheck. Names that never pass, even when a caller lists them: the SSH agent (`SSH_AUTH_SOCK`), `GIT_*`, `LD_*`, the model providers' families, anything credential-shaped (`*_TOKEN`, `*_API_KEY`, `*SECRET*`, `*PASSWORD*`), pap's daemon-only keys. What the owner notices:
+One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7's `npx`, `npm` and `git` installs (M10's precheck is gone since lot B1). Names that never pass, even when a caller lists them: the SSH agent (`SSH_AUTH_SOCK`), `GIT_*`, `LD_*`, the model providers' families, anything credential-shaped (`*_TOKEN`, `*_API_KEY`, `*SECRET*`, `*PASSWORD*`), pap's daemon-only keys. What the owner notices:
 
 - No SSH agent, but the keys on disk are readable: a script runs as the owner, with `HOME` kept, and there is no sandbox: agents' shells run in their microVMs, lane scripts do not. `ssh` reads `~/.ssh/id_*` itself, so a key without a passphrase works, and the agent socket is still reachable by its path. pap keeps your SSH agent and tokens, among others, out of its environment. A script that clones a private repository over ssh may therefore succeed; do not approve what you would not run yourself. Scripts run when the owner starts them, and a fan-out's test script also runs once after each lane's first run (ADR 0034).
 - Tokens in the environment are dropped. Registry token: put it in `~/.npmrc`. Forge: `gh auth login` once (gh answers from its own login, never from `GH_TOKEN`).

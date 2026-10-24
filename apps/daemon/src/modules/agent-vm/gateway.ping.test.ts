@@ -20,7 +20,7 @@ describe("liveness", () => {
     socket.feed({ type: "pong" });
     await h.clock.advance(GATEWAY_PING_MS);
     expect(socket.frames()).toEqual([{ type: "ping" }, { type: "ping" }]);
-    expect(launch.agentId).toBeDefined();
+    expect(launch.box).toBeDefined();
   });
 
   // Mutant "ping misses never close": the connection survives three missed pongs.

@@ -250,8 +250,9 @@ describe("createVmLaunch (T8a)", () => {
       const r = bed.use(row({ agentRole }));
       await bed.vmLaunch.spawn(r, launch({ role: agentRole }), hostInit(r));
       expect(bed.specs).toEqual([
-        { agentId: ID, kind: "thread", taskKey: null, image: IMAGE, resources: input.resources },
+        { ...bed.specs[0], box: { kind: "agent", id: ID }, kind: "thread", taskKey: null },
       ]);
+      expect(bed.specs[0]).toMatchObject({ image: IMAGE, resources: input.resources });
     }
   });
   it("spawns an isolated task as kind isolated with its id without dashes", async () => {

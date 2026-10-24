@@ -7,7 +7,7 @@ import { guardTimer } from "../../kernel/timer-guard.ts";
 import { createDueTimer } from "./due-timer.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { writeJournal } from "./fire-journal.ts";
-import type { PrecheckRunner } from "./precheck-step.ts";
+import { refuseStoredPrecheck } from "./precheck-refusal.ts";
 import type { createTriggerStore } from "./store.ts";
 import type { TaskStore } from "./tasks.ts";
 import type { TriggerRecord } from "./triggers.ts";
@@ -33,8 +33,6 @@ export interface SchedulerDeps {
   fire(triggerId: string, revision: number, input: FireInput): FireResult;
   /** A database written by a newer pap: nothing is armed (M10R150). */
   readonly readOnly: boolean;
-  /** The precheck before a fire (Task 9); none: a trigger's precheck is not run. */
-  readonly precheck?: Pick<PrecheckRunner, "run">;
   /** Feed triggers are polled as `feed.poll` effects (M10R73); none: they are not scheduled. */
   readonly outbox?: Pick<Outbox, "poke">;
   /** Tasks that wait for a time (M11R81): with the outbox, the scheduler also arms a timer for the earliest of them. */
@@ -87,12 +85,11 @@ export function createScheduler(deps: SchedulerDeps) {
     return parsed.ok ? { source, rule: parsed.rule } : null;
   }
 
-  function send(record: TriggerRecord, detail: string | null, precheck: string | null): void {
+  function send(record: TriggerRecord, detail: string | null): void {
     deps.fire(record.id, record.revision, {
       ownerId: record.ownerId,
       source: "schedule",
       payload: null,
-      precheck,
       dedupKey: null,
       title: record.name,
       detail,
@@ -102,17 +99,10 @@ export function createScheduler(deps: SchedulerDeps) {
     });
   }
 
-  /** A trigger with a precheck fires once it answered (M10R68); the next occurrence is already stored, so a wait loses nothing. */
+  /** A trigger that still holds a precheck is refused and journaled (the journal collapses repeats); nothing is spawned (B6). */
   function fireNow(record: TriggerRecord, detail: string | null): void {
-    const { precheck } = deps;
-    if (!precheck || record.input?.execution.precheck == null) return send(record, detail, null);
-    precheck
-      .run(record, { source: "schedule", gated: true, origin: "scheduler" })
-      .then((step) => {
-        // `stop()` aborted the precheck: the daemon is ending, nothing more is written.
-        if (running && step.kind === "go") send(record, detail, step.precheck);
-      })
-      .catch((error: unknown) => logger.warn("scheduler_trigger_failed", { err: error }));
+    if (refuseStoredPrecheck(deps, record, "schedule")) return;
+    send(record, detail);
   }
 
   function handleDue(record: TriggerRecord, source: ScheduleSource, rule: ParsedRrule, due: number): void {

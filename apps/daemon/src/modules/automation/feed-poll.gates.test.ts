@@ -2,75 +2,29 @@ import { AutomationSettings } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { FeedFetchResult } from "./feed-fetch.ts";
 import { FEED_SEEN_MAX, markSeen, seenKeys } from "./feed-seen.ts";
-import type { PrecheckPort } from "./precheck-step.ts";
 import { parsedInput } from "./testing/bed.ts";
 import { journal, ok, range, setup, state, tasks } from "./testing/feed-bed.ts";
 import { deferred } from "./testing/runner-bed.ts";
 
 afterEach(() => state.bed.dispose());
 
-describe("the gates and the precheck (M10R68, M10R73)", () => {
-  const pass: PrecheckPort["run"] = async () => ({
-    verdict: "pass",
-    exitCode: 0,
-    durationMs: 1,
-    output: "all green",
-  });
-
-  it("runs the precheck in the scheduler queue, gated, and fences its output next to the entries", async () => {
-    const run = vi.fn<PrecheckPort["run"]>(pass);
+describe("the gates and the removed precheck (M10R68, M10R73, B6)", () => {
+  it("refuses a stored precheck as a feed line, starts no task and keeps the entries new", async () => {
     let posts = range(1, 2);
-    const { poll } = setup(async () => ok(posts), { precheck: run });
-    await poll();
-    expect(run).not.toHaveBeenCalled();
-    posts = range(1, 3);
-    await poll();
-    expect(run).toHaveBeenCalledTimes(1);
-    expect(run.mock.calls[0]?.[0]).toMatchObject({ origin: "scheduler", command: "check.sh" });
-    expect(run.mock.calls[0]?.[0].signal).toBeInstanceOf(AbortSignal);
-    expect(tasks()[0]?.prompt).toContain("title: Post 3");
-    expect(tasks()[0]?.tainted).toBe(1);
-  });
-
-  it("journals a precheck skip as a feed line, starts no task and keeps the entries new", async () => {
-    let skip = true;
-    const run: PrecheckPort["run"] = async () =>
-      skip
-        ? { verdict: "skip", exitCode: 1, durationMs: 1, output: "", detail: "nothing to do" }
-        : pass({ command: "", cwd: "", env: [], triggerId: "", origin: "scheduler" });
-    let posts = range(1, 2);
-    const { poll } = setup(async () => ok(posts), { precheck: run });
+    const { poll } = setup(async () => ok(posts), { storedPrecheck: true });
     await poll();
     posts = range(1, 3);
     expect(await poll()).toEqual({ outcome: "done" });
     expect(journal().map((line) => [line.verdict, line.detail, line.source])).toEqual([
       ["dedup", "first poll \u00b7 2 entries", "feed"],
-      ["precheck", "nothing to do", "feed"],
+      ["error", "precheck_removed", "feed"],
     ]);
     expect(tasks()).toEqual([]);
-    skip = false;
-    await poll();
-    expect(tasks()).toHaveLength(1);
   });
 
-  it("is retried, with nothing marked, when the signal aborts during the precheck", async () => {
-    const controller = new AbortController();
-    const run: PrecheckPort["run"] = async () => {
-      controller.abort();
-      return { verdict: "error", exitCode: null, durationMs: 0, output: "", detail: "precheck aborted" };
-    };
+  it("does not look at the precheck for a first poll, a pause or the budget", async () => {
     let posts = range(1, 2);
-    const { poll } = setup(async () => ok(posts), { precheck: run });
-    await poll();
-    posts = range(1, 3);
-    expect(await poll(controller.signal)).toEqual({ outcome: "retry", code: "deadline" });
-    expect(tasks()).toEqual([]);
-  });
-
-  it("never runs the precheck for a first poll, a pause or the budget", async () => {
-    const run = vi.fn<PrecheckPort["run"]>(pass);
-    let posts = range(1, 2);
-    const { poll, fetcher } = setup(async () => ok(posts), { precheck: run });
+    const { poll, fetcher } = setup(async () => ok(posts), { storedPrecheck: true });
     await poll();
     posts = range(1, 3);
     state.bed.settings.value = AutomationSettings.parse({ paused: true });
@@ -78,7 +32,6 @@ describe("the gates and the precheck (M10R68, M10R73)", () => {
     state.bed.settings.value = AutomationSettings.parse({ dailyBudgetUsd: 5 });
     state.bed.runs.spent.value = 5;
     await poll();
-    expect(run).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(journal().map((line) => line.verdict)).toEqual(["dedup", "paused", "budget"]);
   });

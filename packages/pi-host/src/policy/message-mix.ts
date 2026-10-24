@@ -18,7 +18,9 @@ export interface MessageMix {
 }
 
 const concerned = (call: CallFacts): boolean =>
-  call.rules.profile === "agent-thread" || call.rules.profile === "isolated-task";
+  call.rules.profile === "agent-thread" ||
+  call.rules.profile === "isolated-task" ||
+  call.rules.profile === "project";
 
 /** Pi's read, write, edit, grep, find and ls, and any other tool whose input names a `path`. */
 function namesPath(call: CallFacts): boolean {

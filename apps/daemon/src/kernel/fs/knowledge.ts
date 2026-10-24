@@ -9,15 +9,13 @@ import {
   writeSync,
 } from "node:fs";
 import { join } from "node:path";
-import { OKF_INDEX_TEXT, okfLogText, PapError } from "@pap/contracts";
+import { isOkfIndex, OKF_HEAD_BYTES, OKF_INDEX_TEXT, okfLogText, PapError } from "@pap/contracts";
 
 const FOLDER = "knowledge";
-const HEAD_BYTES = 512;
 const MAX_CONCEPTS = 10_000;
 const MAX_DEPTH = 16;
 /** Directory entries one count may visit, concept or not. */
 const MAX_ENTRIES = 50_000;
-const VERSION_LINE = /^okf_version:[ \t]*"0\.\d+"[ \t]*$/m;
 const NOFOLLOW = constants.O_NOFOLLOW | constants.O_NOCTTY;
 const OPEN_FILE = constants.O_RDONLY | NOFOLLOW | constants.O_NONBLOCK;
 const OPEN_FOLDER = constants.O_RDONLY | NOFOLLOW | constants.O_DIRECTORY;
@@ -48,14 +46,14 @@ function headOf(path: string): string | null {
   }
   try {
     if (!fstatSync(fd).isFile()) return null;
-    const buffer = Buffer.alloc(HEAD_BYTES);
-    return buffer.toString("utf8", 0, readSync(fd, buffer, 0, HEAD_BYTES, 0));
+    const buffer = Buffer.alloc(OKF_HEAD_BYTES);
+    return buffer.toString("utf8", 0, readSync(fd, buffer, 0, OKF_HEAD_BYTES, 0));
   } finally {
     closeSync(fd);
   }
 }
 
-const isOkf = (head: string | null): boolean => head !== null && VERSION_LINE.test(head);
+const isOkf = (head: string | null): boolean => head !== null && isOkfIndex(head);
 
 function countConcepts(path: string, depth: number, budget: { concepts: number; entries: number }): void {
   for (const entry of readdirSync(path, { withFileTypes: true })) {

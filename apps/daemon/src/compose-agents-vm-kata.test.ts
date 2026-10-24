@@ -142,10 +142,14 @@ afterEach(async () => {
 
 describe("the Kata backend through pap-vmd", () => {
   it("waits for pap0, then stops what pap-vmd lists (the boot, RT-42), then listens", async () => {
-    fake.running.add("old-9z9z");
+    fake.running.add("agent:old-9a9a");
     const vm = await kata();
     expect(fake.ops().slice(0, 3)).toEqual(["vmd.health", "vm.list", "vm.stop"]);
-    expect(fake.of("vm.stop")[0]).toEqual({ op: "vm.stop", agentId: "old-9z9z", taskKey: null });
+    expect(fake.of("vm.stop")[0]).toEqual({
+      op: "vm.stop",
+      box: { kind: "agent", id: "old-9a9a" },
+      taskKey: null,
+    });
     expect(vm.gatewayPort).toBe(freePort);
   });
 
@@ -298,16 +302,18 @@ describe("what the agents module is given (T15)", () => {
     expect(toImage(ID, tag, ["npm:a"])).toEqual([]);
     mkdirSync(join(root, "pap", "agents", ".mirrors", ID), { recursive: true });
     writeFileSync(join(root, "pap", "agents", ".mirrors", ID, "s.jsonl"), "x");
-    fake.disks.set(ID, 4096);
+    fake.disks.set(`agent:${ID}`, 4096);
     await vm.agentLink.stop(ID);
     await vm.agentLink.dispose(ID, 1_760_000_000_000);
     expect(() => toImage(ID, tag, ["npm:a"])).toThrow(
       expect.objectContaining({ code: "worker_failed" }) as Error,
     );
-    expect(fake.of("disk.delete")).toEqual([{ op: "disk.delete", agentId: ID, taskKey: null, purge: false }]);
+    expect(fake.of("disk.delete")).toEqual([
+      { op: "disk.delete", box: { kind: "agent", id: ID }, taskKey: null, purge: false },
+    ]);
     expect(readdirSync(join(root, "pap", "agents", ".trash"))).toEqual([`${ID}-1760000000000.mirrors`]);
     await vm.agentLink.purge(ID);
-    expect(fake.of("trash.purge")).toEqual([{ op: "trash.purge", agentId: ID }]);
+    expect(fake.of("trash.purge")).toEqual([{ op: "trash.purge", box: { kind: "agent", id: ID } }]);
     expect(readdirSync(join(root, "pap", "agents", ".trash"))).toEqual([]);
   });
 
@@ -316,15 +322,15 @@ describe("what the agents module is given (T15)", () => {
     "stop fails, and can be asked again, when pap-vmd answers %s",
     async (code) => {
       const vm = await kata();
-      fake.running.add(ID);
-      fake.running.add(`${ID}/${"c".repeat(32)}`);
-      fake.running.add("other-0002");
+      fake.running.add(`agent:${ID}`);
+      fake.running.add(`agent:${ID}/${"c".repeat(32)}`);
+      fake.running.add("agent:other-0002");
       fake.failNext("vm.stop", code);
       await expect(vm.agentLink.stop(ID)).rejects.toBeDefined();
       // The task's VM was still tried; only the one that failed is left (and the other agent's, untouched).
-      expect([...fake.running].sort()).toEqual(["other-0002", ID]);
+      expect([...fake.running].sort()).toEqual(["agent:other-0002", `agent:${ID}`]);
       await vm.agentLink.stop(ID);
-      expect([...fake.running]).toEqual(["other-0002"]);
+      expect([...fake.running]).toEqual(["agent:other-0002"]);
     },
   );
 
@@ -366,14 +372,14 @@ describe("what the agents module is given (T15)", () => {
   // RT-40: the runtime's crash pause goes to the registry's handler, bound once the registry exists; Resume reaches the runtime.
   it("hands the runtime's crash pause to the registry once it is bound, and Resume to the runtime", async () => {
     const vm = await kata();
-    const runtimeDeps = runtimes[0] as { onCrashPause(agentId: string): void };
+    const runtimeDeps = runtimes[0] as { onCrashPause(box: { kind: "agent"; id: string }): void };
     const resume = vi.spyOn(vm.runtime, "resume");
-    expect(() => runtimeDeps.onCrashPause(ID)).not.toThrow();
+    expect(() => runtimeDeps.onCrashPause({ kind: "agent", id: ID })).not.toThrow();
     const paused: string[] = [];
     vm.bindCrashPause((agentId) => void paused.push(agentId));
-    runtimeDeps.onCrashPause(ID);
+    runtimeDeps.onCrashPause({ kind: "agent", id: ID });
     expect(paused).toEqual([ID]);
     vm.agentLink.resume(ID);
-    expect(resume).toHaveBeenCalledWith(ID);
+    expect(resume).toHaveBeenCalledWith({ kind: "agent", id: ID });
   });
 });

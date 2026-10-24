@@ -165,10 +165,9 @@ describe("TriggerEditor: Save", () => {
     const page = await showWithStepUp(<TriggerEditor triggerId="g1" {...props()} />);
     await settle();
     await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "Result {{precheck}}");
-    await typeInto(field(page.container, "Precheck · exit 0 = fire") as HTMLTextAreaElement, "");
     await click(button(page.container, "Save"));
     await settle();
-    expect(text(page.container)).toContain("{{precheck}} needs a precheck command");
+    expect(text(page.container)).toContain("Prechecks were removed: take {{precheck}} out of the prompt.");
     expect(bed.called("automation.triggers.update")).toHaveLength(0);
 
     await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "Fixed");

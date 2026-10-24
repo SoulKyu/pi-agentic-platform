@@ -42,6 +42,8 @@ export interface CreateBedOptions {
   readonly readOnly?: boolean;
   /** Extra service deps (Task 14: the audit port, the push seam and the forge adapter). */
   readonly deps?: Partial<LanesServiceDeps>;
+  /** Late-bound box source of the config (a root it matches is a box project's folder). */
+  readonly boxes?: Parameters<typeof createLaneConfig>[0]["boxes"];
 }
 
 /** `lanes.create` over a real repository and database, a real script runner on fake processes, and fakes for the rest. */
@@ -52,7 +54,7 @@ export function createCreateBed(options: CreateBedOptions = {}) {
   const published: Array<{ key: string; event: { kind: string; lane?: LaneView } }> = [];
   const fakes = createFakes();
   const git = options.git ? options.git(lb.git, order) : lb.git;
-  const config = createLaneConfig({ ...lb.deps, git });
+  const config = createLaneConfig({ ...lb.deps, git, ...(options.boxes ? { boxes: options.boxes } : {}) });
 
   /** What the fakes do; a test replaces one to make a step wait or fail. */
   const behaviour: {

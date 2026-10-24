@@ -127,6 +127,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 ## Boxes (decisions 115 and 124)
 - **Why (owner, 2026-10-23):** the host is only an orchestrator and an interface with the VMs; every component that runs code (sessions, lanes, trigger tasks, the terminal, MCP servers, package installs) runs in a microVM box, as agents do. Spec `docs/specs/2026-10-23-boxes-design.md`.
 - **Lots:** B0 spike (terminal in the guest, git timings on a VM disk, the GitHub App manifest flow); B1 box identity, projects from a name, sessions and tasks in the box, Files and OKF through the guest, search over mirrors, the Scratch project; B2 terminal in the box, the GitHub App (clone, fork, tokens, signing key), push and PR; B3 lanes in the box; B4 host clean-up (host workers, git, node-pty, `gh`, scanner, pi-web coexistence, prechecks). Real work in boxes starts after B2.
+- **Status:** B0 done (83b40f3c). B1 built, merging (decision 125; the merge sha is added after the merge). B2 to B4 not started.
 - **Later:** disk backups (sub-project 4), GitHub accounts per user (M14).
 
 ## Hindsight memory trial (owner, 2026-10-23; maybe)

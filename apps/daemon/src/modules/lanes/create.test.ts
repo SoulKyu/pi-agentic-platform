@@ -38,6 +38,35 @@ describe("lanes.create: refusals (phase 1, nothing written)", () => {
     expect(b.order).toEqual([]);
   });
 
+  it("refuses a box root that is a real host folder before any git runs, for create and fan-out alike", async () => {
+    const calls: string[] = [];
+    const throwing = (() => {
+      const refuse = () => {
+        calls.push("git");
+        throw new Error("host git was called");
+      };
+      return { run: refuse } as never;
+    }) as never;
+    let root = "";
+    const b = make({
+      git: () => throwing,
+      boxes: () => ({
+        box: () => null,
+        addHost: () => undefined,
+        byPath: (_owner, path) => (path === root ? { projectId: "p", root } : null),
+      }),
+    });
+    root = b.gb.root;
+    const models = b.params().models;
+    expect(await codeOf(b.service.create(b.browser(), b.params()))).toBe("not_found");
+    expect(await codeOf(b.service.create(b.browser(), b.params({ models: [...models, ...models] })))).toBe(
+      "not_found",
+    );
+    expect(calls).toEqual([]);
+    expect(lanes(b)).toEqual([]);
+    expect(b.order).toEqual([]);
+  });
+
   it("answers bad_request for an issue on another host", async () => {
     const b = make();
     expect(

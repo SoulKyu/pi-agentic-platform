@@ -2,6 +2,7 @@ import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { testCaller } from "../../testing/caller.ts";
 import { createProjectsService, MAX_PROJECTS } from "./service.ts";
+import { createBoxStore } from "./box-store.ts";
 import { createProjectsStore } from "./store.ts";
 import { createProjectsBed } from "./testing/bed.ts";
 
@@ -13,6 +14,7 @@ let changes: Array<[string, unknown]>;
 beforeEach(() => {
   bed = createProjectsBed();
   service = createProjectsService({
+    boxes: createBoxStore(bed.db),
     store: createProjectsStore(bed.db),
     clock: bed.clock,
     logger: bed.logger,
@@ -41,6 +43,7 @@ describe("projects in read-only mode", () => {
       throw new Error("attempt to write a readonly database");
     };
     const readOnly = createProjectsService({
+      boxes: createBoxStore(bed.db),
       store: { ...store, rename: refuse, setPosition: refuse, renumber: refuse },
       clock: bed.clock,
       logger: bed.logger,
@@ -208,5 +211,41 @@ describe("covers", () => {
   it("holds for a project at the filesystem root", () => {
     service.ensure("u1", "/");
     expect(service.covers("u1", "/etc")).toBe(true);
+  });
+});
+
+describe("coversHost (what Pi's helpers may open)", () => {
+  const BOX = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
+  const boxRoot = `/boxes/${BOX}/project`;
+  const insertBox = (root: string) => {
+    createProjectsStore(bed.db).insert({
+      id: BOX,
+      ownerId: "u1",
+      root,
+      name: "box",
+      position: 1,
+      createdAt: 0,
+      kind: "box",
+    });
+  };
+
+  it("answers like covers for a host project", () => {
+    service.ensure("u1", "/w/api");
+    expect(service.coversHost("u1", "/w/api/src")).toBe(true);
+    expect(service.coversHost("u2", "/w/api")).toBe(false);
+  });
+
+  it("is false for a box project's root and anything under it, though covers is true", () => {
+    insertBox(boxRoot);
+    expect(service.covers("u1", `${boxRoot}/src`)).toBe(true);
+    expect(service.coversHost("u1", boxRoot)).toBe(false);
+    expect(service.coversHost("u1", `${boxRoot}/src`)).toBe(false);
+  });
+
+  it("is false for a box path even when a host project root encloses it", () => {
+    service.ensure("u1", "/");
+    insertBox(boxRoot);
+    expect(service.coversHost("u1", "/etc")).toBe(true);
+    expect(service.coversHost("u1", `${boxRoot}/src`)).toBe(false);
   });
 });

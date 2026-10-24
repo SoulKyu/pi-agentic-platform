@@ -10,6 +10,7 @@ import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
 import { bridgePlatform } from "./platform-bridge.ts";
+import type { ProjectLaunch } from "./project-gate.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
@@ -94,6 +95,9 @@ export function createLaunch(ctx: LaunchContext) {
     // can fall between; a VM row awaits its VM too, and `start` reads again what the boot may have changed.
     const gating = ctx.agent.gate(row);
     const agentLaunch = gating ? await gating : null;
+    // A row in a project's box (no agent) has its own gate: `not_found` for a box that is gone, deleting or another owner's.
+    const gatedBox = agentLaunch === null ? ctx.agent.projectGate(row) : null;
+    const projectLaunch = gatedBox && (await ctx.agent.projectEnv(gatedBox));
     // An agent thread runs with its profile's preset narrowed by the owner's choice, read at each start (M11R47, W5-R28).
     // The choice is read from the store, after the gate: the row was read before the waits of `ensureLive` and `prompt`.
     if (agentLaunch?.role === "thread" && !isNew) {
@@ -114,9 +118,9 @@ export function createLaunch(ctx: LaunchContext) {
     try {
       // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox
       // (R38: a VM worker is one).
-      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.vm !== true)
+      if (ctx.sandboxedOnly.has(row.id) && (agentLaunch ?? projectLaunch)?.vm !== true)
         throw new PapError("sandbox_unavailable");
-      return await start(row, isNew, agentLaunch);
+      return await start(row, isNew, agentLaunch, projectLaunch);
     } catch (error) {
       // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).
       ctx.agent.ended(row.id);
@@ -128,10 +132,15 @@ export function createLaunch(ctx: LaunchContext) {
     row: SessionRow,
     isNew: boolean,
     agentLaunch: AgentLaunch | null,
+    projectLaunch: ProjectLaunch | null,
   ): Promise<LiveSession> {
-    deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
+    if (projectLaunch === null) deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
     // The one VM predicate (`vmLayoutOf(row) !== null`), checked against the gate's answer: a mismatch refuses the launch.
-    const vmLaunch = vmBranchOf(ctx.agent.vmLayoutOf(row) !== null, agentLaunch, deps.vmLaunch);
+    const vmLaunch = vmBranchOf(
+      ctx.agent.vmLayoutOf(row) !== null,
+      agentLaunch ?? projectLaunch,
+      deps.vmLaunch,
+    );
     ctx.checkCapacity(vmLaunch !== null);
     if (ctx.keepFreeFor.delete(row.id)) ctx.keepOneFree();
     if (!isNew) ctx.beforeStart?.(row);
@@ -147,12 +156,13 @@ export function createLaunch(ctx: LaunchContext) {
       });
     // The scope, the rules and `init` are composed in one synchronous step; a VM start composes them again after its wait.
     const compose = () => {
-      const scope = grants.scopeOf(row.cwd);
+      // A box row's scope is its project folder in the box: the host's `scopeOf` would realpath and stat a path that is not here.
+      const scope = projectLaunch?.scope ?? grants.scopeOf(row.cwd);
       const rules = policyLink.compose(row, scope);
       const childPrompt = ctx.childPrompt?.(row);
       // An agent's knowledge is its own (task B2); a plain session sees its lane's worktree or its project's folder.
       const knowledgeRoot =
-        agentLaunch === null && row.agentId === undefined
+        agentLaunch === null && projectLaunch === null && row.agentId === undefined
           ? deps.projects.knowledgeRootOf?.({ ownerId: row.ownerId, cwd: row.cwd }, scope)
           : undefined;
       const init: InitRecord = {
@@ -185,20 +195,23 @@ export function createLaunch(ctx: LaunchContext) {
       ctx.onPublished?.(row.id, starting);
     }
     let handle: WorkerHandle;
-    if (vmLaunch && agentLaunch) {
+    const vmGated = agentLaunch ?? projectLaunch;
+    if (vmLaunch && vmGated) {
       // The VM may take a while to boot: it counts as a worker meanwhile (R29).
       ctx.booting.add(row.id);
       let started: VmStarted;
       try {
-        started = await vmLaunch.spawn(row, agentLaunch, composed.init);
+        started = await vmLaunch.spawn(row, vmGated, composed.init);
       } finally {
         ctx.booting.delete(row.id);
       }
       // The gate's facts and the capacity check are older than the boot: read again, and a refusal stops the worker.
       composed = started.bind(() => {
-        const profile = ctx.agent.profileOf(row.ownerId, agentLaunch.agent.id);
-        if (profile === null) throw new PapError("not_found");
-        if (profile.quarantined) throw new PapError("agent_paused");
+        if (agentLaunch) {
+          const profile = ctx.agent.profileOf(row.ownerId, agentLaunch.agent.id);
+          if (profile === null) throw new PapError("not_found");
+          if (profile.quarantined) throw new PapError("agent_paused");
+        } else ctx.agent.projectGate(row);
         if (ctx.closing()) throw new PapError("capacity");
         return compose();
       });

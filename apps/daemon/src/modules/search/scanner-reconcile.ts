@@ -1,6 +1,6 @@
 import { lstatSync, type Stats } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import type { FileCursor, SearchIndexStore } from "./index-store.ts";
 import type { ScanEngine } from "./scanner-engine.ts";
 
@@ -46,6 +46,9 @@ export async function reconcilePass(deps: {
   readonly state: ReconcileState;
   readonly maxStats?: number;
 }): Promise<void> {
+  /** Several scanners share one index: a pass only judges the files under its own root. */
+  const own = `${resolve(deps.root)}${sep}`;
+  const ownPaths = (): string[] => deps.store.paths().filter((path) => path.startsWith(own));
   let folders: string[];
   try {
     folders = (await readdir(deps.root, { withFileTypes: true }))
@@ -59,7 +62,7 @@ export async function reconcilePass(deps: {
     deps.engine.watchRoot();
     // `sessions/` is gone: every cursor is of a vanished file, and the gone pass lets its rows go (M4R72). Any other
     // error says nothing about the files.
-    if (codeOf(error) === "ENOENT") for (const path of deps.store.paths()) deps.engine.enqueue(path);
+    if (codeOf(error) === "ENOENT") for (const path of ownPaths()) deps.engine.enqueue(path);
     return;
   }
   if (deps.stopped()) return;
@@ -116,6 +119,6 @@ export async function reconcilePass(deps: {
   }
   deps.state.at = start + max;
   if (deps.stopped()) return;
-  for (const path of deps.store.paths())
+  for (const path of ownPaths())
     if (!listed.has(path) && !unlisted.has(dirname(path))) deps.engine.enqueue(path);
 }

@@ -1,6 +1,6 @@
 import { createServer, type Server } from "node:http";
 import type { Socket } from "node:net";
-import { cleansContent, EGRESS_LIMITS } from "@pap/contracts";
+import { type BoxRef, boxKey, cleansContent, EGRESS_LIMITS } from "@pap/contracts";
 import type { TimerHandle } from "../../kernel/clock.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
 import { type Limits, createCores, type ProxyCore, sendAndClose } from "./proxy-core.ts";
@@ -19,7 +19,7 @@ export interface VmEgressDeps extends Pick<
   scopeOf(address: string): VmScope | null;
   onRefusal(refusal: VmRefusal): void;
   /** A request was allowed and did not leave content clean (spec §4): the launch's sessions are tainted. A refused one never calls it. */
-  onTaint?(launch: { readonly agentId: string; readonly launchId: string }): void;
+  onTaint?(launch: { readonly box: BoxRef; readonly launchId: string }): void;
 }
 
 /** A VM's tunnels live as long as the VM: the per-command byte cap of host mode would cut a long transfer. */
@@ -69,7 +69,7 @@ export function createVmEgress(deps: VmEgressDeps) {
     const requests = taken.allowed + taken.refused;
     if (requests === 0 && taken.report.up === 0 && taken.report.down === 0) return;
     logger.info("egress_vm_usage", {
-      agentId: entry.scope.agentId,
+      box: boxKey(entry.scope.box),
       launchId: entry.launchId,
       requests,
       refused: taken.refused,
@@ -107,7 +107,7 @@ export function createVmEgress(deps: VmEgressDeps) {
       address,
       scope,
       core: cores.create({
-        scope: { agentId: scope.agentId, sessionId: scope.launchId },
+        scope: { box: scope.box, sessionId: scope.launchId },
         async decide(kind, rawHost, port) {
           // The host list is read at each request, so an add takes effect at the next one.
           const now = deps.scopeOf(address);
@@ -122,7 +122,7 @@ export function createVmEgress(deps: VmEgressDeps) {
           if ("reason" in decision && decision.vm) {
             try {
               deps.onRefusal({
-                agentId: now.agentId,
+                box: now.box,
                 launchId: now.launchId,
                 source: now.source,
                 host: decision.host,
@@ -135,7 +135,7 @@ export function createVmEgress(deps: VmEgressDeps) {
             }
           } else if ("ips" in decision && !cleansContent(kind, port, decision.host, now.trustedSources)) {
             try {
-              deps.onTaint?.({ agentId: now.agentId, launchId: now.launchId });
+              deps.onTaint?.({ box: now.box, launchId: now.launchId });
             } catch (error) {
               logger.warn("egress_vm_taint_sink_failed", { err: error });
             }

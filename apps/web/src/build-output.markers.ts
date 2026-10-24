@@ -23,8 +23,12 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
     markers: [/data-slot":\W*new-lane/, /Fetch issue/, /Récupérer l'issue/],
   },
   {
-    title: "keeps the Add project dialog and its strings out of the initial assets (decision 85)",
-    markers: [/data-add-project/, /Project folder: /, /Dossier du projet : /],
+    title: "keeps the New project dialog and its strings out of the initial assets (decision 85)",
+    markers: [/data-add-project/, /Its files live in its own box/, /Ses fichiers vivent dans sa propre box/],
+  },
+  {
+    title: "keeps the box project settings and their strings out of the initial assets (boxes lot B1)",
+    markers: [/data-project-settings/, /Reading the box settings/, /Lecture des réglages de la box/],
   },
   {
     title:

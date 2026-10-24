@@ -7,6 +7,7 @@ export interface ProjectRow {
   readonly name: string;
   readonly position: number;
   readonly createdAt: number;
+  readonly kind: "host" | "box";
 }
 
 export interface ProjectsStore {
@@ -20,14 +21,16 @@ export interface ProjectsStore {
   count(ownerId: string): number;
   /** The lowest position, null without projects. */
   firstPosition(ownerId: string): number | null;
-  insert(row: ProjectRow): void;
+  /** `kind` defaults to a host project. */
+  insert(row: Omit<ProjectRow, "kind"> & { readonly kind?: ProjectRow["kind"] }): void;
   rename(ownerId: string, id: string, name: string): void;
   setPosition(ownerId: string, id: string, position: number): void;
   /** Positions 1..n in this order, in one transaction. */
   renumber(ownerId: string, orderedIds: readonly string[]): void;
+  transaction<T>(fn: () => T): T;
 }
 
-const COLUMNS = "id, owner_id AS ownerId, root, name, position, created_at AS createdAt";
+const COLUMNS = "id, owner_id AS ownerId, root, name, position, created_at AS createdAt, kind";
 
 export function createProjectsStore(db: Db): ProjectsStore {
   const setPosition = (ownerId: string, id: string, position: number) => {
@@ -75,8 +78,8 @@ export function createProjectsStore(db: Db): ProjectsStore {
       })?.p ?? null,
     insert: (row) => {
       db.run(
-        "INSERT INTO projects (id, owner_id, root, name, position, created_at) VALUES ($id, $ownerId, $root, $name, $position, $createdAt)",
-        { ...row },
+        "INSERT INTO projects (id, owner_id, root, name, position, created_at, kind) VALUES ($id, $ownerId, $root, $name, $position, $createdAt, $kind)",
+        { ...row, kind: row.kind ?? "host" },
       );
     },
     rename: (ownerId, id, name) => {
@@ -87,6 +90,7 @@ export function createProjectsStore(db: Db): ProjectsStore {
       });
     },
     setPosition,
+    transaction: (fn) => db.transaction(fn),
     renumber: (ownerId, orderedIds) =>
       db.transaction(() => orderedIds.forEach((id, index) => setPosition(ownerId, id, index + 1))),
   };

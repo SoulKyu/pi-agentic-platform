@@ -1,5 +1,7 @@
 export { createGateway, type Gateway } from "./gateway.ts";
-export { layoutOf } from "./layouts.ts";
+export { layoutOf, layoutOfSpec } from "./layouts.ts";
+export { projectLayoutOf } from "./project-layout.ts";
+export { observedBackend } from "./observed-backend.ts";
 export { removeMirrorFiles, unverifiedIds } from "./mirror-facts.ts";
 export { createMirrorInputs, type MirrorHooks } from "./mirror-inputs.ts";
 export { mirrorFileOf } from "./mirror-paths.ts";
@@ -14,6 +16,7 @@ export {
 } from "./runtime.ts";
 export { vmInitOf } from "./vm-init.ts";
 export type { GuestLink } from "./guest-link.ts";
+export { createBoxOps } from "./box-ops.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
 export { agentsVmTokenRpc } from "./rpc.ts";
@@ -36,7 +39,16 @@ export {
   VmdError,
   type VmdErrorCode,
 } from "./vmd-client.ts";
-export { disposeAgent, purgeAgent, startTrashSweep, type TrashDeps } from "./trash.ts";
+export {
+  disposeAgent,
+  disposeProject,
+  purgeAgent,
+  purgeProject,
+  startTrashSweep,
+  type TrashDeps,
+} from "./trash.ts";
+export { type BoxControlDeps, createBoxControl } from "./box-control.ts";
+export { createProjectImages, type ProjectImages } from "./project-images.ts";
 export {
   createOwnerSecrets,
   OWNER_SECRETS_CAP_NOTICE,

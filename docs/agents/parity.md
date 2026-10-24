@@ -174,7 +174,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P13-13 | Pause | `apps/daemon/src/modules/automation/gates.test.ts`, `apps/daemon/src/modules/automation/manual.test.ts` | green |
 | P13-14 | Free-memory floor before a worker starts | `apps/daemon/src/kernel/config.test.ts`, `apps/daemon/src/modules/sessions/service.test.ts` | green |
 | P13-15 | Health gauges: tasks, effects, event loop | `apps/daemon/src/modules/automation/metrics.test.ts`, `apps/daemon/src/kernel/observability/sampler.test.ts`, `apps/daemon/src/kernel/observability/stall.test.ts` | green |
-| P13-16 | Precheck gate on triggers (spec A 5.2) | `apps/daemon/src/modules/automation/precheck.test.ts`, `apps/daemon/src/modules/automation/precheck.int.test.ts`, `apps/daemon/src/modules/automation/precheck-agent.test.ts`, `apps/daemon/src/modules/automation/precheck.env.test.ts` | green |
+| P13-16 | Precheck gate on triggers, removed in boxes B1: a stored one is refused `precheck_removed` (spec A 5.2) | `apps/daemon/src/modules/automation/scheduler.precheck.test.ts`, `apps/daemon/src/modules/automation/manual.test.ts` | green |
 | P13-17 | Auto-resume when a provider quota resets (spec A 5.2) | `apps/daemon/src/modules/runs/resume.test.ts`, `apps/daemon/src/modules/runs/resume.int.test.ts`, `apps/daemon/src/daemon.push.resume.int.test.ts` | green |
 | P13-18 | Inbox and the tasks board | `apps/daemon/src/modules/inbox/service.test.ts`, `apps/web/src/features/inbox/InboxPanel.test.tsx`, `apps/web/src/features/automation/TasksBoard.test.tsx`, `scripts/e2e/j14-automation.e2e.ts` | green |
 | P13-19 | Inbox digest row (owner q9) | `docs/plans/2026-10-18-m13-v1-hardening.md` | after v1 (owner q9, M13R20) |

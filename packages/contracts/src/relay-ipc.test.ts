@@ -1,16 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { RELAY_USAGE_MAX_AGENTS, RelayCommand, RelayReport } from "./relay-ipc.ts";
+import { RELAY_USAGE_MAX_BOXES, RelayCommand, RelayReport } from "./relay-ipc.ts";
 
+const AGENT_BOX = { kind: "agent", id: "helper-1a2b" } as const;
+const PROJECT_BOX = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" } as const;
 const grant = {
   type: "relay_grant",
   launchId: "a".repeat(32),
-  agentId: "helper-1a2b",
+  box: AGENT_BOX,
   key: "b".repeat(64),
   address: "10.213.0.7",
 };
 const policy = {
-  type: "agent_policy",
-  agentId: "helper-1a2b",
+  type: "box_policy",
+  box: AGENT_BOX,
   models: [{ provider: "anthropic", id: "claude-x" }],
   claude: false,
   blocked: null,
@@ -54,19 +56,30 @@ describe("RelayCommand", () => {
   });
 });
 
+describe("box identity", () => {
+  it("carries an agent or a project box in the grant, the policy and the usage", () => {
+    for (const box of [AGENT_BOX, PROJECT_BOX]) {
+      expect(RelayCommand.safeParse({ ...grant, box }).success).toBe(true);
+      expect(RelayCommand.safeParse({ ...policy, box }).success).toBe(true);
+      const row = { box, requests: 1, refused: 0, bytesIn: 0, bytesOut: 0 };
+      expect(RelayReport.safeParse({ type: "relay_usage", boxes: [row] }).success).toBe(true);
+    }
+    expect(RelayCommand.safeParse({ ...grant, box: undefined, agentId: "helper-1a2b" }).success).toBe(false);
+    expect(RelayCommand.safeParse({ ...policy, type: "agent_policy" }).success).toBe(false);
+  });
+});
+
 describe("RelayReport", () => {
   it("parses a usage report and the ready report", () => {
     const usage = {
       type: "relay_usage",
-      agents: [{ agentId: "helper-1a2b", requests: 3, refused: 1, bytesIn: 10, bytesOut: 20 }],
+      boxes: [{ box: AGENT_BOX, requests: 3, refused: 1, bytesIn: 10, bytesOut: 20 }],
     };
     expect(RelayReport.safeParse(usage).success).toBe(true);
     expect(RelayReport.safeParse({ type: "relay_ready", port: 7842 }).success).toBe(true);
-    const agents = (count: number) => Array.from({ length: count }, () => usage.agents[0]);
-    expect(RelayReport.safeParse({ ...usage, agents: agents(RELAY_USAGE_MAX_AGENTS) }).success).toBe(true);
-    expect(RelayReport.safeParse({ ...usage, agents: agents(RELAY_USAGE_MAX_AGENTS + 1) }).success).toBe(
-      false,
-    );
+    const boxes = (count: number) => Array.from({ length: count }, () => usage.boxes[0]);
+    expect(RelayReport.safeParse({ ...usage, boxes: boxes(RELAY_USAGE_MAX_BOXES) }).success).toBe(true);
+    expect(RelayReport.safeParse({ ...usage, boxes: boxes(RELAY_USAGE_MAX_BOXES + 1) }).success).toBe(false);
     expect(RelayReport.safeParse({ type: "relay_ready", port: 0 }).success).toBe(false);
   });
 });

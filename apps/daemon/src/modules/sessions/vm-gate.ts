@@ -11,7 +11,7 @@ export interface VmGateFs {
   mkdir(path: string, mode: number): void;
 }
 
-const realFs: VmGateFs = {
+export const realFs: VmGateFs = {
   lstat(path) {
     try {
       return lstatSync(path);
@@ -24,7 +24,7 @@ const realFs: VmGateFs = {
 };
 
 /** A folder of the daemon's user, not a link; made 0700 when missing. Anything else is `invalid_cwd`. */
-function privateFolder(fs: VmGateFs, path: string): void {
+export function privateFolder(fs: VmGateFs, path: string): void {
   const found = fs.lstat(path);
   if (found === null) return fs.mkdir(path, 0o700);
   if (found.isSymbolicLink() || !found.isDirectory() || found.uid !== process.getuid?.())

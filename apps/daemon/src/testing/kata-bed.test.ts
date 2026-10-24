@@ -42,7 +42,9 @@ describe("removeAgents", () => {
       request: (request: { op: string; agentId?: string }) => {
         asked.push(request.op);
         if (request.op === "vm.list")
-          return Promise.resolve({ vms: [{ agentId: "a-0001", taskKey: null, state: "running" }] });
+          return Promise.resolve({
+            vms: [{ box: { kind: "agent", id: "a-0001" }, taskKey: null, state: "running" }],
+          });
         return Promise.reject(new Error("pap-vmd said no"));
       },
     };

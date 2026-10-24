@@ -176,4 +176,26 @@ describe("reconcile pass and what is gone", () => {
     expect(engine.unwatch).toHaveBeenCalledWith(folder);
     expect(say).not.toHaveBeenCalled();
   });
+
+  it("judges only the files under its own root: another root's cursors are left alone", async () => {
+    const other = join(dir, "other", "box");
+    mkdirSync(other, { recursive: true });
+    const foreign = join(other, "f.jsonl");
+    writeFileSync(foreign, "x\n");
+    store.commit(indexedCursor(foreign, 1), []);
+    files(1);
+    await pass();
+    expect(engine.enqueue).not.toHaveBeenCalledWith(foreign);
+    rmSync(root, { recursive: true });
+    await pass();
+    expect(engine.enqueue).not.toHaveBeenCalledWith(foreign);
+  });
+
+  it("does not list a mirror's replaced/ subfolder", async () => {
+    mkdirSync(join(folder, "replaced"));
+    writeFileSync(join(folder, "replaced", "old.jsonl"), "x\n");
+    const [live] = files(1);
+    await pass();
+    expect(engine.enqueue.mock.calls.map(([path]) => path)).toEqual([live]);
+  });
 });

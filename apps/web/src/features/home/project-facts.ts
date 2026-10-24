@@ -32,8 +32,11 @@ export function useGitFact(root: string | null): boolean | null {
 export function modeReasons(facts: {
   readonly git: boolean | null;
   readonly counts: TasksCounts | null;
+  /** A box project: lanes and fan-outs are not there yet. */
+  readonly box?: boolean;
 }): Partial<Record<HomeMode, MessageKey>> {
-  const lanes: MessageKey | null = facts.git === false ? "home.reason.notGit" : null;
+  const lanes: MessageKey | null =
+    facts.box === true ? "boxes.off" : facts.git === false ? "home.reason.notGit" : null;
   const trigger: MessageKey | null =
     facts.counts?.paused === true
       ? "home.reason.paused"

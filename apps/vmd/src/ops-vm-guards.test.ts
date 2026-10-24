@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { ExecHandler } from "./testing/fake-exec.ts";
-import { createFixture, OTHER_AGENT, seedDisk, startRequest, type Fixture } from "./testing/ops-fixture.ts";
+import { createFixture, OTHER_BOX, seedDisk, startRequest, type Fixture } from "./testing/ops-fixture.ts";
 
 /*
  * S1 mutants (RT-43), each run for real:
@@ -22,7 +22,7 @@ const isRm = (argv: readonly string[]): boolean => argv.includes("rm");
 const isRun = (argv: readonly string[]): boolean => argv.includes("run");
 const isInspect = (argv: readonly string[]): boolean => argv.includes("inspect");
 const runs = (fx: Fixture): number => fx.exec.calls.filter(isRun).length;
-const other = (): Record<string, unknown> => startRequest({ agentId: OTHER_AGENT, launchId: "b".repeat(32) });
+const other = (): Record<string, unknown> => startRequest({ box: OTHER_BOX, launchId: "b".repeat(32) });
 
 let fx: Fixture;
 afterEach(() => fx.cleanup());
@@ -40,7 +40,7 @@ describe("a container whose removal failed", () => {
     };
     fx = createFixture(handler, { unleased });
     seedDisk(fx);
-    seedDisk(fx, OTHER_AGENT);
+    seedDisk(fx, OTHER_BOX);
     return state;
   };
 

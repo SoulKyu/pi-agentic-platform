@@ -19,7 +19,7 @@ function hostsOf(input: { allowHosts: string[] | null } | null, ownerHosts?: Age
     },
     ...(ownerHosts ? { ownerHosts } : {}),
     runs: { port: { onLiveCost: () => () => {}, onRunEnd: () => () => {} } },
-    automation: { agentTasks: { overBudget: () => false } },
+    automation: { agentTasks: { overBudget: () => false, ownerOverBudget: () => false } },
   } as unknown as AgentsVmLate;
   return bindAgentsVmLate(
     {

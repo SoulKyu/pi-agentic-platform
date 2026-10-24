@@ -1,9 +1,10 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import type { BoxRef } from "@pap/contracts";
 
-/** What the daemon hands the relay at a VM's start (RT-03): the launch's relay key, its agent and the VM's bridge address. */
+/** What the daemon hands the relay at a VM's start (RT-03): the launch's relay key, its box and the VM's bridge address. */
 export interface RelayGrant {
   readonly launchId: string;
-  readonly agentId: string;
+  readonly box: BoxRef;
   /** 32 random bytes; the worker presents them as 64 hex characters in the provider's own credential header. */
   readonly key: Buffer;
   readonly address: string;
@@ -67,19 +68,19 @@ export function createRelayKeys() {
       digestOf.set(grant.launchId, digest(hex));
     },
     remove,
-    /** The launch and agent a request speaks for, or null: unknown or revoked key, or a key presented from another address. */
+    /** The launch and box a request speaks for, or null: unknown or revoked key, or a key presented from another address. */
     grantOf(
       key: string | null,
       address: string | undefined,
-    ): { readonly launchId: string; readonly agentId: string } | null {
+    ): { readonly launchId: string; readonly box: BoxRef } | null {
       if (key === null || address === undefined || !KEY.test(key)) return null;
       const grant = byDigest.get(digest(key));
       if (grant === undefined) return null;
       const same = timingSafeEqual(Buffer.from(key, "hex"), grant.key);
-      return same && grant.address === address ? { launchId: grant.launchId, agentId: grant.agentId } : null;
+      return same && grant.address === address ? { launchId: grant.launchId, box: grant.box } : null;
     },
-    agentOf(key: string | null, address: string | undefined): string | null {
-      return this.grantOf(key, address)?.agentId ?? null;
+    boxOf(key: string | null, address: string | undefined): BoxRef | null {
+      return this.grantOf(key, address)?.box ?? null;
     },
   };
 }

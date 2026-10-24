@@ -161,6 +161,13 @@ export async function approvalStage(
     const refusal = await vmFileRefusal(call, ctx, deps.vm);
     if (refusal) return refusal;
   }
+  // A project session's boundary is its box: rules that name it without a VM to hold it open nothing (fail closed).
+  if (profile === "project" && !deps.vm)
+    return {
+      outcome: "block",
+      reason: "a project session runs only in its box",
+      modelReason: "pap-policy blocked this call.",
+    };
   // An isolated task is unattended: its own table, nothing a grant or a person's habit can loosen (M11R32).
   if (profile === "isolated-task") return isolatedPlan(call, ctx, deps);
   const { category, external } = judgedAs(call, deps.vm !== undefined);
@@ -171,7 +178,7 @@ export async function approvalStage(
       reason: "no agent folder for the shell",
       modelReason: "pap-policy blocked this shell call.",
     };
-  const attended = profile === "interactive" || profile === "agent-thread";
+  const attended = profile === "interactive" || profile === "agent-thread" || profile === "project";
   // AVM-E20: kept for pap's VM shell too: it runs in bwrap with `.pi` out of view and, when the agent's network is on, only the egress proxy to reach, like the host sandboxed shell.
   if (attended && (await readOnlyCommand(call, ctx, deps))) {
     // M7R12: a read, never external: taint asks only for what can carry data out.

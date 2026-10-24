@@ -32,11 +32,20 @@ export function networkRequestPlan(call: CallFacts): ApprovalPlan {
   const host = parsed.data;
   if (call.rules.hostGrants.includes(host))
     return { outcome: "allow", reason: "host already allowed for this thread" };
+  // A project box's list is the project's: the host stays on it for every later session, not only until a reset.
+  const lasts =
+    call.rules.profile === "project"
+      ? "this project's box can reach that host from now on, in every session of the project, and can send it data."
+      : "this agent's shell can reach that host until the thread is reset, and can send it data.";
+  const asks = (shown: string): string => `network_request asks for ${shown}. If you allow it, ${lasts}`;
   return {
     outcome: "ask",
-    title: "pap: allow a host for this thread?",
-    reason: `network_request asks for ${host}. If you allow it, this agent's shell can reach that host until the thread is reset, and can send it data.`,
-    auditReason: `network_request asks for ${hostLabel(host)}. If you allow it, this agent's shell can reach that host until the thread is reset, and can send it data.`,
+    title:
+      call.rules.profile === "project"
+        ? "pap: allow a host for this project?"
+        : "pap: allow a host for this thread?",
+    reason: asks(host),
+    auditReason: asks(hostLabel(host)),
     answers: ["deny", "host"],
     host,
     grantable: false,

@@ -9,12 +9,14 @@ import {
   GuestCommand,
   GuestHello,
   AGENT_VM_PROTOCOL,
+  parseBoxKey,
   type GuestReport,
   type VmLayout,
 } from "@pap/contracts";
 import { errorClass, logLineOf } from "../bounded.ts";
 import { proxyEnv } from "../vm-shell/proxy-env.ts";
 import { allowedExtraEnv } from "./extra-env.ts";
+import type { GuestOps } from "./ops/index.ts";
 
 /** Mirrors the daemon's kill-ladder grace (AVM-P6): pi-host cannot import the daemon. */
 export const GUEST_SHUTDOWN_GRACE_MS = 1500;
@@ -46,6 +48,8 @@ export interface GuestDeps {
   seed(): void;
   pick(packages: string[] | null): void;
   grow(): Promise<void>;
+  /** A project box's operations on its project folder; absent in an agent's VM, which answers every `op` with `failed`. */
+  ops?: GuestOps;
   /** Ends the guest; Kata stops the VM when its entrypoint exits. */
   exit(code: number): void;
   /** Signals a worker's whole process group. */
@@ -96,7 +100,7 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
   const hello = GuestHello.safeParse({
     type: "hello",
     role: "guest",
-    agentId: deps.env.PAP_AGENT_ID,
+    box: parseBoxKey(deps.env.PAP_BOX ?? ""),
     launchId: deps.env.PAP_LAUNCH_ID,
     token: deps.token,
     protocol: AGENT_VM_PROTOCOL,
@@ -252,6 +256,25 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     }, GUEST_SHUTDOWN_GRACE_MS);
   };
 
+  const runOp = (command: Extract<GuestCommand, { type: "op" }>): void => {
+    const { id } = command;
+    const refuse = (code: "failed" | "payload_too_large"): void =>
+      send({ type: "op_result", id, ok: false, code });
+    if (!deps.ops) return refuse("failed");
+    void deps.ops(command.op).then((answer) => {
+      try {
+        send(
+          answer.ok
+            ? { type: "op_result", id, ok: true, value: answer.value }
+            : { type: "op_result", id, ok: false, code: answer.code },
+        );
+      } catch {
+        // a value over the frame bound cannot go out: the op says so, the link stays
+        refuse("payload_too_large");
+      }
+    });
+  };
+
   const handle = (raw: unknown): void => {
     // A transport ping is answered before the command schema sees it (AVM-P4).
     if (typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "ping") {
@@ -270,6 +293,7 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     if (shuttingDown && command.type !== "shutdown") return;
     if (command.type === "spawn") return startWorker(command);
     if (command.type === "shutdown") return shutdown();
+    if (command.type === "op") return runOp(command);
     const worker = workers.get(command.slot);
     if (!worker) return log(`ignored a signal for slot ${command.slot}: no such worker`);
     deps.signalGroup(worker.child, command.signal);

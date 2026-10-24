@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import type { BoxRef } from "@pap/contracts";
 import { vi } from "vitest";
 import { createFakeClock } from "../../../kernel/clock.ts";
 import { captureLogger } from "../../../testing/capture-logger.ts";
@@ -6,9 +7,9 @@ import { createRelayLink, type PolicyView, type RelayChild } from "../index.ts";
 
 export const KEY = "ab".repeat(32);
 export const TOKEN = "sk-ant-oat01-OWNER-TOKEN-0123456789";
-export const grant = (n: number, agentId = "scout-0001") => ({
+export const grant = (n: number, agent: string | BoxRef = "scout-0001") => ({
   launchId: String(n).repeat(32).slice(0, 32),
-  agentId,
+  box: typeof agent === "string" ? ({ kind: "agent", id: agent } as const) : agent,
   relayKey: String(n)
     .repeat(64)
     .slice(0, 64)
@@ -42,10 +43,10 @@ export class FakeChild extends EventEmitter implements RelayChild {
 
 export function bed(
   over: {
-    policyOf?: (agentId: string) => Promise<PolicyView>;
+    policyOf?: (box: BoxRef) => Promise<PolicyView>;
     token?: string | null;
     bridgeReady?: () => Promise<void>;
-    turns?: (agentId: string) => number;
+    turns?: (box: BoxRef) => number;
     windowEnded?: () => void;
     listenerFault?: (child: RelayChild) => string | null;
   } = {},

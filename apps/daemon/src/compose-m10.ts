@@ -141,7 +141,6 @@ export function composeM10(core: M10Core, early: M10Early, modules: M10Modules):
         ownerId,
         source: "manual",
         payload: null,
-        precheck: null,
         dedupKey: null,
         title: trigger.name,
         detail: null,

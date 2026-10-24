@@ -29,7 +29,7 @@ const connectLine = (target: string): string => `CONNECT ${target} HTTP/1.1\r\nH
 describe("the VM egress listener tells the launch when content is not clean (spec 4)", () => {
   let echo: Server;
   let sockets: Set<Socket>;
-  let tainted: Array<{ agentId: string; launchId: string }>;
+  let tainted: Array<{ box: unknown; launchId: string }>;
   let egress: ReturnType<typeof createVmEgress>;
   let port: number;
 
@@ -50,7 +50,7 @@ describe("the VM egress listener tells the launch when content is not clean (spe
       "feed.example.test": { 443: echoPort },
     });
     const scope: VmScope = {
-      agentId: "atlas-1a2b",
+      box: { kind: "agent", id: "atlas-1a2b" },
       launchId: "launch-a",
       source: "thread",
       hosts: ["docs.example.test", "docs.example.test:8443", "feed.example.test"],
@@ -80,8 +80,8 @@ describe("the VM egress listener tells the launch when content is not clean (spe
       socket.destroy();
     }
     expect(tainted).toEqual([
-      { agentId: "atlas-1a2b", launchId: "launch-a" },
-      { agentId: "atlas-1a2b", launchId: "launch-a" },
+      { box: { kind: "agent", id: "atlas-1a2b" }, launchId: "launch-a" },
+      { box: { kind: "agent", id: "atlas-1a2b" }, launchId: "launch-a" },
     ]);
   });
 

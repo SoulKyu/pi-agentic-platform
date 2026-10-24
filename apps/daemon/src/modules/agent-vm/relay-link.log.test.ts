@@ -15,7 +15,7 @@ import { bed, grant, KEY, TOKEN } from "./testing/relay-link-bed.ts";
 describe("the relay link: what it logs", () => {
   const usage = (agentId: string, requests: number) => ({
     type: "relay_usage",
-    agents: [{ agentId, requests, refused: 0, bytesIn: 1, bytesOut: 2 }],
+    boxes: [{ box: { kind: "agent", id: agentId }, requests, refused: 0, bytesIn: 1, bytesOut: 2 }],
   });
 
   it("logs each relay_usage, and no mismatch while the requests match the turns the workers reported (I4)", async () => {
@@ -35,27 +35,27 @@ describe("the relay link: what it logs", () => {
       ["scout-0001", 5],
       ["busy-0002", 5],
     ]);
-    const { link, last, lines } = bed({ turns: (agentId) => turns.get(agentId) ?? 0 });
+    const { link, last, lines } = bed({ turns: (box) => turns.get(box.id) ?? 0 });
     await link.start();
     last().ready();
     last().emit("message", {
       type: "relay_usage",
-      agents: [
-        { agentId: "scout-0001", requests: 15, refused: 1, bytesIn: 10, bytesOut: 20 },
-        { agentId: "busy-0002", requests: 16, refused: 0, bytesIn: 1, bytesOut: 2 },
+      boxes: [
+        { box: { kind: "agent", id: "scout-0001" }, requests: 15, refused: 1, bytesIn: 10, bytesOut: 20 },
+        { box: { kind: "agent", id: "busy-0002" }, requests: 16, refused: 0, bytesIn: 1, bytesOut: 2 },
       ],
     });
     const logged = lines.filter((line) => line.msg === "agent_relay_usage");
     expect(logged).toHaveLength(2);
     expect(logged[0]).toMatchObject({
-      agentId: "scout-0001",
+      box: "agent:scout-0001",
       requests: 15,
       refused: 1,
       bytesIn: 10,
       bytesOut: 20,
     });
     expect(logged[1]).toMatchObject({
-      agentId: "busy-0002",
+      box: "agent:busy-0002",
       requests: 16,
       refused: 0,
       bytesIn: 1,
@@ -63,12 +63,32 @@ describe("the relay link: what it logs", () => {
     });
     const mismatches = lines.filter((line) => line.msg === "agent_relay_mismatch");
     expect(mismatches).toHaveLength(1);
-    expect(mismatches[0]).toMatchObject({ agentId: "busy-0002", requests: 16, turns: 5 });
+    expect(mismatches[0]).toMatchObject({ box: "agent:busy-0002", requests: 16, turns: 5 });
+  });
+
+  it("logs a project box's usage and never a mismatch for it (it reports no turns)", async () => {
+    const { link, last, lines } = bed({ turns: () => 0 });
+    await link.start();
+    last().ready();
+    last().emit("message", {
+      type: "relay_usage",
+      boxes: [
+        {
+          box: { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" },
+          requests: 40,
+          refused: 0,
+          bytesIn: 1,
+          bytesOut: 2,
+        },
+      ],
+    });
+    expect(lines.filter((line) => line.msg === "agent_relay_usage")).toHaveLength(1);
+    expect(lines.filter((line) => line.msg === "agent_relay_mismatch")).toEqual([]);
   });
 
   it("logs a mismatch once when requests exceed the reported turns by more than 10 (M-mismatch)", async () => {
     const turns = new Map([["scout-0001", 5]]);
-    const { link, last, lines } = bed({ turns: (agentId) => turns.get(agentId) ?? 0 });
+    const { link, last, lines } = bed({ turns: (box) => turns.get(box.id) ?? 0 });
     await link.start();
     last().ready();
     last().emit("message", usage("scout-0001", 15));
@@ -76,7 +96,7 @@ describe("the relay link: what it logs", () => {
     last().emit("message", usage("scout-0001", 16));
     const mismatches = lines.filter((line) => line.msg === "agent_relay_mismatch");
     expect(mismatches).toHaveLength(1);
-    expect(mismatches[0]).toMatchObject({ agentId: "scout-0001", requests: 16, turns: 5 });
+    expect(mismatches[0]).toMatchObject({ box: "agent:scout-0001", requests: 16, turns: 5 });
   });
 
   it("requests with no turns at all are a mismatch", async () => {
@@ -93,7 +113,7 @@ describe("the relay link: what it logs", () => {
     await link.start();
     last().ready();
     last().emit("message", usage("scout-0001", 1));
-    last().emit("message", { type: "relay_usage", agents: "malformed" });
+    last().emit("message", { type: "relay_usage", boxes: "malformed" });
     expect(windowEnded).toHaveBeenCalledTimes(1);
   });
 
@@ -105,7 +125,7 @@ describe("the relay link: what it logs", () => {
     link.setClaudeToken(TOKEN);
     await settle();
     // A malformed report and a child that prints a key on stderr never reach the log.
-    last().emit("message", { type: "relay_usage", agents: "no", key: KEY });
+    last().emit("message", { type: "relay_usage", boxes: "no", key: KEY });
     last().emit("message", { token: TOKEN });
     children[0]?.die();
     await clock.advance(1000);

@@ -1,3 +1,4 @@
+import { dirname, resolve } from "node:path";
 import { SHELL_LIMITS, type ShellSession } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -51,6 +52,11 @@ export function createScanPort(deps: {
   /** The sessions table, its marks and whether it may be written (M4R124). */
   readonly store: SessionsStore;
   readonly agentDir: string;
+  /**
+   * `<papHome>/agents/.mirrors` and `<papHome>/boxes/.mirrors`: pap's own copies of VM sessions' files, one folder per
+   * box. A file there belongs to the row that already holds its path; it is never adopted and never an outside write.
+   */
+  readonly mirrorRoots?: readonly string[];
   readonly clock: Clock;
   readonly logger: Logger;
   newId(): string;
@@ -78,6 +84,9 @@ export function createScanPort(deps: {
   settleOwed(sessionId: string): void;
 } {
   const { store } = deps;
+  const mirrorRoots = (deps.mirrorRoots ?? []).map((root) => resolve(root));
+  const isMirrorFile = (path: string | null): boolean =>
+    path !== null && mirrorRoots.includes(dirname(dirname(resolve(path))));
   const limiter = createRateLimiter(deps.clock, 60_000);
   const say = (event: string, fields: Record<string, unknown>) => {
     const said = limiter.check(event);
@@ -120,6 +129,8 @@ export function createScanPort(deps: {
   const decide = (path: string, header: PiFileHeader): Claim | Adopted => {
     const byPath = store.marks.findByPiPath(path);
     if (byPath) return { kind: "session", sessionId: byPath.id, ownerId: byPath.ownerId };
+    // Pap's own copy: its row binds the path, maybe a moment later. Never adopted; tried again at the next pass.
+    if (isMirrorFile(path)) return { kind: "wait" };
     if (store.marks.findByPiSessionId(header.id)) return duplicate();
     if (!isPiSessionFile(deps.agentDir, path)) return { kind: "skip", reason: "not_pi_file" };
     const live = deps.livePiSession(header.id);
@@ -169,7 +180,8 @@ export function createScanPort(deps: {
       return { kind: "session", sessionId: row.id, ownerId: row.ownerId };
     },
     touched(sessionId, at, active, toolResults) {
-      const noted = noteOutside(sessionId, Math.trunc(at));
+      const mirrored = isMirrorFile(store.get(sessionId)?.piPath ?? null);
+      const noted = !mirrored && noteOutside(sessionId, Math.trunc(at));
       if (store.readOnly) return;
       const row = store.get(sessionId);
       if (!row) return;
@@ -177,6 +189,7 @@ export function createScanPort(deps: {
       // the table, so a write made while pap was down is outside, and a restart does not make pap's own tail outside (MC19).
       const wrote = store.papWrote(sessionId);
       const outsideForTaint =
+        !mirrored &&
         !deps.isLive(sessionId) &&
         Math.trunc(at) > Math.max(deps.workerEndedAt(sessionId) ?? 0, wrote.at ?? 0);
       // A tool result a second app wrote while pap holds the session taints at once: the worker's exit stamp would absorb

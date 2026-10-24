@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
 import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
@@ -106,5 +107,35 @@ describe("project link", () => {
     };
     expect(linkWith(throwing, logger).projectOf("u1", "/w/a")).toBeNull();
     expect(lines.filter((line) => line["msg"] === "session_project_failed")).toHaveLength(1);
+  });
+});
+
+describe("a box cwd", () => {
+  it("links to its project without scopeOf or ensure", () => {
+    const ensured: string[] = [];
+    const projects = {
+      ...fakeProjectsPort(),
+      ensure: (_o: string, root: string) => (ensured.push(root), null),
+    };
+    const boxes = createFakeProjectBoxSource({
+      p1: {
+        ownerId: "u1",
+        root: "/boxes/p1/project",
+        resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
+        hosts: [],
+        deleting: false,
+      },
+    });
+    const link = createProjectLink({
+      store: store.marks,
+      projects,
+      scopeOf,
+      logger: silentLogger,
+      boxes: () => boxes,
+    });
+    add("s1", "/boxes/p1/project/src");
+    expect(link.assign("s1", "u1", "/boxes/p1/project/src")).toBe("p1");
+    expect(link.projectOf("u1", "/boxes/p1/projectX")).toBeNull();
+    expect(ensured).toEqual(["/boxes/p1/projectX"]);
   });
 });

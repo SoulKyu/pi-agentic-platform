@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import {
   AGENT_VM_MAX_FRAME_BYTES,
   AGENT_VM_PROTOCOL,
+  type BoxRef,
   createFrameDecoder,
   encodeSocketFrame,
 } from "@pap/contracts";
@@ -13,8 +14,9 @@ import { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 import type { MirrorPort, PackagePicks, WorkerSpawnInput } from "./vm-worker.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 
-export const AGENT = "reviewer-0a1b";
-export const OTHER_AGENT = "writer-2c3d";
+export const AGENT: BoxRef = { kind: "agent", id: "reviewer-0a1b" };
+export const OTHER_AGENT: BoxRef = { kind: "agent", id: "writer-2c3d" };
+export const PROJECT: BoxRef = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" };
 
 /** The gateway's end of a connection, with the guest's end driven by the test. */
 export class FakeSocket extends EventEmitter implements GatewaySocket {
@@ -72,7 +74,7 @@ export class FakeSocket extends EventEmitter implements GatewaySocket {
 }
 
 export interface Launch {
-  readonly agentId: string;
+  readonly box: BoxRef;
   readonly launchId: string;
   readonly token: string;
   readonly relayKey: string;
@@ -87,9 +89,9 @@ export interface Harness {
   readonly gateway: Gateway & { accept(socket: GatewaySocket): void };
   readonly images: Map<string, string>;
   readonly lines: Array<Record<string, unknown>>;
-  launch(agentId?: string, digit?: string): Launch;
+  launch(box?: BoxRef, digit?: string): Launch;
   connect(source?: string): FakeSocket;
-  refusals(): Array<{ agentId: unknown; reason: unknown }>;
+  refusals(): Array<{ box: unknown; reason: unknown }>;
 }
 
 export function harness(): Harness {
@@ -109,11 +111,11 @@ export function harness(): Harness {
     gateway,
     images,
     lines,
-    launch(agentId = AGENT, digit = "a") {
-      const issued = tokens.issue(agentId);
+    launch(box = AGENT, digit = "a") {
+      const issued = tokens.issue(box);
       const imageTag = imageTagOf(digit);
       images.set(issued.launchId, imageTag);
-      return { agentId, ...issued, imageTag };
+      return { box, ...issued, imageTag };
     },
     connect(source) {
       const socket = new FakeSocket(source);
@@ -123,14 +125,14 @@ export function harness(): Harness {
     refusals: () =>
       lines
         .filter((line) => line.msg === "agent_gateway_refused")
-        .map((line) => ({ agentId: line.agentId, reason: line.reason })),
+        .map((line) => ({ box: line.box, reason: line.reason })),
   };
 }
 
 export const guestHello = (launch: Launch, overrides: Record<string, unknown> = {}) => ({
   type: "hello",
   role: "guest",
-  agentId: launch.agentId,
+  box: launch.box,
   launchId: launch.launchId,
   token: launch.token,
   protocol: AGENT_VM_PROTOCOL,

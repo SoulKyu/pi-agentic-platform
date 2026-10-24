@@ -36,6 +36,13 @@ Both live in `budgets.json` and are measured headless by `pnpm test:budget` (`PA
 - Caveat: the mix has no very common single word or prefix. The slowest queries are the three-letter prefixes (240 to 440 ms single-pass); the p95 is the third slowest of 50. A user typing `the` or `con` on a real corpus is not covered by this number.
 - **CLI session latency (`scannerLatencyMs` = 2500).** `scanner.exit.int.test.ts` writes a session with Pi's own `SessionManager` under the test daemon's agent folder and times it to the `session` event on the `shell` stream over a real `fs.watch` (about 1008 ms). The reconcile finds a lost event within 60 s. `pnpm smoke` repeats it on the build: a Pi file written by hand reaches the stream within 10 s and the smoke session's own reply is found by search.
 
+## Mirror roots (lot B1)
+
+- Three scanners share one index: `<agentDir>/sessions`, `$PAP_HOME/agents/.mirrors` and `$PAP_HOME/boxes/.mirrors`. `start()` creates the two mirror parents (0700) so the first box session after boot is indexed at once. A pass judges only the store paths under its own root.
+- **No adoption.** `SessionsScanPort.claim` answers `wait` for a file at `<mirror root>/<id>/<file>` that no session row names yet: the scanner marks it `waiting` and the reconcile re-queues it, so a row that binds the path later gets it indexed (from after the header). An unknown mirror file is never adopted as a session.
+- **A mirror append is not an outside write.** `touched` records no outside write and no outside-write taint when the row's `pi_path` is a mirror file. The mirror's `replaced/` subfolder is never indexed (the reconcile lists only files directly in `<id>/`).
+- A VM agent's and a box project's conversations are found by search like any session's.
+
 ## Outside-write notice (Task 29, owner Q13)
 
 The scanner's `touched` feeds the sessions module, which remembers the latest write it saw that pap did not make, and for a live worker the quiet time since its last activity. The session screen shows a notice when that write is under 2 minutes old. See `docs/agents/sessions.md`, "Outside writes" and "Coexistence with pi-web and a live worker's file".

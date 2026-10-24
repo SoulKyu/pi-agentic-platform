@@ -107,6 +107,7 @@ describe("api tokens", () => {
       "auth:read",
       "auth:operate",
       "auth:admin",
+      "sessions:admin",
       "policy:admin",
       "terminal:read",
       "terminal:operate",

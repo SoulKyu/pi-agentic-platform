@@ -17,6 +17,7 @@ import { boundaryConfigOf, createWorkspaceModules, denySourcesOf } from "./compo
 import { createFakeClock } from "./kernel/clock.ts";
 import { type Config, loadConfig } from "./kernel/config.ts";
 import { judgePath } from "./kernel/fs/boundary.ts";
+import { createFakeProjectBoxSource } from "./kernel/testing/fake-boxes.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import { NO_SCOPES } from "./kernel/supervisor/scope.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
@@ -252,6 +253,43 @@ describe("the workspace modules", () => {
     await expect(rpc["files.list"]({ path: two }, ctx())).rejects.toMatchObject({ code: "not_found" });
     roots = [two];
     expect((await rpc["files.list"]({ path: two }, ctx())).entries.map((e) => e.name)).toEqual(["b.txt"]);
+  });
+
+  it("opens no terminal in a box project's folder, which is not on this machine", async () => {
+    const host = join(base, "real", "host");
+    const box = join(base, "real", "box", "project");
+    mkdirSync(host, { recursive: true });
+    mkdirSync(box, { recursive: true });
+    const config = configOf(join(base, "real"));
+    mkdirSync(config.home, { recursive: true });
+    const boxes = createFakeProjectBoxSource({
+      p1: {
+        ownerId: "u1",
+        root: box,
+        resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
+        hosts: [],
+        deleting: false,
+      },
+    });
+    const { rpc, shutdown } = createWorkspaceModules(
+      {
+        roots: () => [host, box],
+        config,
+        clock: createFakeClock(Date.now() + 3_600_000),
+        logger: silentLogger,
+        env: { PATH: process.env.PATH },
+        hub: createStreamHub(),
+        readOnly: false,
+        scopes: NO_SCOPES,
+        boxes: () => boxes,
+      },
+      0o022,
+    );
+    const request = { requestId: "r".repeat(20), cols: 80, rows: 24 };
+    await expect(rpc["terminal.create"]({ ...request, cwd: box }, ctx())).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await shutdown();
   });
 
   it("refuses Pi's auth.json created after the first deny walk, when ~ is a link and Pi's folder was missing at boot (I1)", async () => {

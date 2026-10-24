@@ -1,4 +1,4 @@
-import { VmdRequest } from "@pap/contracts";
+import { VmdRequest, type BoxRef } from "@pap/contracts";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,6 +12,10 @@ import { createFakeNet, type FakeNet } from "./fake-net.ts";
 
 export const AGENT = "helper-1a2b";
 export const OTHER_AGENT = "writer-3c4d";
+export const PROJECT_ID = "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0";
+export const AGENT_BOX: BoxRef = { kind: "agent", id: AGENT };
+export const OTHER_BOX: BoxRef = { kind: "agent", id: OTHER_AGENT };
+export const PROJECT: BoxRef = { kind: "project", id: PROJECT_ID };
 export const TASK = "e".repeat(32);
 export const TOKEN = "c".repeat(64);
 export const LAUNCH = "a".repeat(32);
@@ -51,7 +55,7 @@ export interface Fixture {
 export function startRequest(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     op: "vm.start",
-    agentId: AGENT,
+    box: AGENT_BOX,
     kind: "thread",
     taskKey: null,
     image: IMAGE,
@@ -148,9 +152,9 @@ export function createFixture(
   return fixture;
 }
 
-/** An agent's disk as a file with some bytes (pap-vmd never reads it). */
-export function seedDisk(fx: Fixture, agentId = AGENT, bytes = "agent disk"): string {
-  const file = fx.state.diskPath(agentId, null);
+/** A box's disk as a file with some bytes (pap-vmd never reads it). */
+export function seedDisk(fx: Fixture, box: BoxRef = AGENT_BOX, bytes = "agent disk"): string {
+  const file = fx.state.diskPath(box, null);
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, bytes);
   return file;

@@ -3,9 +3,11 @@ import { Banner, Button, EmptyState, Icon, IconBack, IconRefresh, Spinner, useIs
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import "../../i18n/register-changes.ts";
 import { useT } from "../../i18n/index.ts";
-import { getRuntime } from "../../runtime/index.ts";
+import { getRuntime, RpcError } from "../../runtime/index.ts";
+import { useOnBoxRunning } from "../../stores/box-phase.ts";
 import { feedVcs } from "../../stores/vcs-feed.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
+import { BoxStopped } from "../boxes/BoxStopped.tsx";
 import { ChangeList } from "./ChangeList.tsx";
 import { displayPath } from "./changes.vm.ts";
 import { FileDiff } from "./FileDiff.tsx";
@@ -36,15 +38,33 @@ export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
   const [showList, setShowList] = useState(true);
   const [watchFailed, setWatchFailed] = useState(false);
   const [refreshFailed, setRefreshFailed] = useState(false);
+  // A box project's `vcs` answers `box_stopped` while the box is stopped; it is watched again once the box runs (R3).
+  const [stopped, setStopped] = useState(false);
+  const [watch, setWatch] = useState(0);
+  useOnBoxRunning(root, () => {
+    setStopped(false);
+    setWatchFailed(false);
+    setWatch((count) => count + 1);
+  });
 
-  useEffect(() => feedVcs(getRuntime().subscriptions, root, () => setWatchFailed(true)), [root]);
+  useEffect(
+    () =>
+      feedVcs(getRuntime().subscriptions, root, (code) => {
+        if (code === "box_stopped") setStopped(true);
+        else setWatchFailed(true);
+      }),
+    [root, watch],
+  );
 
   const refresh = useCallback(() => {
     getRuntime()
       .rpc.call("vcs.refresh", { root })
       .then(
         () => setRefreshFailed(false),
-        () => setRefreshFailed(true),
+        (failure: unknown) => {
+          if (failure instanceof RpcError && failure.code === "box_stopped") setStopped(true);
+          else setRefreshFailed(true);
+        },
       );
   }, [root]);
   useRefreshTriggers(root, refresh, now ?? Date.now);
@@ -57,7 +77,9 @@ export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
   );
 
   let body;
-  if (watchFailed && !known) {
+  if (stopped) {
+    body = <BoxStopped path={root} />;
+  } else if (watchFailed && !known) {
     body = (
       <div className="p-s3">
         <Banner tone="capacity" title={t("changes.state.watchFailed")} />
@@ -99,7 +121,7 @@ export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
 
   return (
     <div data-changes-pane={root} className="flex min-h-0 flex-1 flex-col">
-      {known && status?.repo === true ? (
+      {!stopped && known && status?.repo === true ? (
         <Header status={status} refreshButton={refreshButton} refreshFailed={refreshFailed} />
       ) : null}
       {body}

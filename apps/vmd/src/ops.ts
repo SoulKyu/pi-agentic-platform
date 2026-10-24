@@ -100,8 +100,9 @@ export function createOps(deps: OpsDeps): Ops {
       case "disk.delete":
         return disk.remove(request);
       case "trash.purge": {
-        const purge = (): Promise<unknown> => Promise.resolve({ removed: state.purgeTrash(request.agentId) });
-        return request.agentId === null ? purge() : locks.withAgent(request.agentId, purge);
+        const { box } = request;
+        const purge = (): Promise<unknown> => Promise.resolve({ removed: state.purgeTrash(box) });
+        return box === null ? purge() : locks.withBox(box, purge);
       }
       case "image.build":
         return image.build(request);
@@ -124,7 +125,7 @@ export function createOps(deps: OpsDeps): Ops {
       const vms = await vm.list();
       return vms.flatMap((entry) =>
         entry.taskKey !== null && entry.state !== "stopped"
-          ? [{ agentId: entry.agentId, taskKey: entry.taskKey }]
+          ? [{ box: entry.box, taskKey: entry.taskKey }]
           : [],
       );
     },

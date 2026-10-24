@@ -189,3 +189,44 @@ describe("runGuest commands", () => {
     expect(run.exits).toEqual([]);
   });
 });
+
+describe("runGuest operations", () => {
+  const ID = "cd".repeat(16);
+
+  it("runs an op through its handler and answers by id; a value too large for a frame becomes payload_too_large", async () => {
+    const seen: string[] = [];
+    const run = await start({
+      ops: async (op) => {
+        seen.push(op.name);
+        if (op.name === "project.config") return { ok: true, value: "x".repeat(5 * 1024 * 1024) };
+        return op.name === "git.status"
+          ? { ok: true, value: { repo: false } }
+          : { ok: false, code: "not_found" };
+      },
+    });
+    await run.hello();
+    run.gateway.send({ type: "op", id: ID, op: { name: "git.status" } });
+    run.gateway.send({ type: "op", id: "ef".repeat(16), op: { name: "knowledge.state" } });
+    run.gateway.send({ type: "op", id: "01".repeat(16), op: { name: "project.config" } });
+    await vi.waitFor(() =>
+      expect(run.gateway.frames.filter((f) => (f as { type: string }).type === "op_result")).toHaveLength(3),
+    );
+    expect(run.gateway.frames).toEqual(
+      expect.arrayContaining([
+        { type: "op_result", id: ID, ok: true, value: { repo: false } },
+        { type: "op_result", id: "ef".repeat(16), ok: false, code: "not_found" },
+        { type: "op_result", id: "01".repeat(16), ok: false, code: "payload_too_large" },
+      ]),
+    );
+    expect(seen).toEqual(["git.status", "knowledge.state", "project.config"]);
+  });
+
+  it("answers failed when the VM has no project (an agent's guest)", async () => {
+    const run = await start();
+    await run.hello();
+    run.gateway.send({ type: "op", id: ID, op: { name: "git.status" } });
+    await vi.waitFor(() =>
+      expect(run.gateway.frames).toContainEqual({ type: "op_result", id: ID, ok: false, code: "failed" }),
+    );
+  });
+});

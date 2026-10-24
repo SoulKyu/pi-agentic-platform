@@ -1,8 +1,7 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { MethodName, ParamsOf, ResponseFrame } from "@pap/contracts";
-import type { TestDaemon, TestDaemonOptions } from "../../testing/harness.ts";
+import type { TestDaemon } from "../../testing/harness.ts";
 import { httpRequest } from "../../testing/http-client.ts";
 import type { TestClient } from "../../testing/ws-client.ts";
 import { result, rows } from "./automation-bed.ts";
@@ -118,27 +117,3 @@ export async function reopenOwner(t: TestDaemon): Promise<{ cookie: string; clie
   await t.confirmStepUp(cookie);
   return { cookie, client: await t.connect(cookie) };
 }
-
-const GUARD = fileURLToPath(
-  new URL("../../../../../packages/pi-host/src/testing/network-guard.ts", import.meta.url),
-);
-const COUNTER = fileURLToPath(new URL("./spawn-counter.ts", import.meta.url));
-
-/** The daemon options that make every worker log its start to `file`: the supervisor's spawn count, seen from outside. */
-export const spawnCounting = (file: string): Pick<TestDaemonOptions, "config" | "workerEnv"> => ({
-  config: {
-    piHostExecArgv: [
-      "--conditions=development",
-      "--disable-warning=ExperimentalWarning",
-      "--import",
-      GUARD,
-      "--import",
-      COUNTER,
-    ],
-  },
-  workerEnv: { TEST_SPAWN_LOG: file },
-});
-
-/** How many workers started so far. */
-export const spawnsOf = (file: string): number =>
-  existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean).length : 0;

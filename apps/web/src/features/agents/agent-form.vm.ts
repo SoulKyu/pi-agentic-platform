@@ -112,7 +112,7 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   role: "agentForm.error.role",
   "budget.usdPerDay": "agentForm.error.budget.usdPerDay",
   "budget.tokensPerDay": "agentForm.error.budget.tokensPerDay",
-  allowHosts: "agentForm.error.allowHosts",
+  allowHosts: "boxes.hosts.error",
   trustedSources: "agentForm.error.trustedSources",
   denylist: "agentForm.error.denylist",
   "resources.memoryMb": "agentVm.error.number",

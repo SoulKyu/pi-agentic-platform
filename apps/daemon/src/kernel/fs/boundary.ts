@@ -27,6 +27,27 @@ export interface BoundaryConfig {
   readonly runtimeDirs: readonly string[];
 }
 
+/**
+ * The boundary of a box: none of the host's folders is in it (pap's home, Pi's, the daemon's home), so the pure name rules
+ * judge a box path as a name alone, relative to the project folder. A host path must never decide for a box path: in the
+ * process backend (tests) the box sits under `$PAP_HOME` on this machine, and the host's judge would refuse all of it.
+ */
+export const NO_HOST_BOUNDARY: BoundaryConfig = {
+  papHome: [],
+  agentDir: [],
+  home: [],
+  papHomeOpen: [],
+  runtimeDirs: [],
+};
+
+/**
+ * A box path's name alone (`rooted`: relative to the project folder, with its leading slash), judged under a neutral prefix: the
+ * host-only names (`/dev`, `/run`, `/proc`, `/sys`) guard the host's root, so a project's own `dev/` or `run/` folder is not one of them.
+ */
+export function judgeBoxName(rooted: string, caller: CallerKind): NameRefusal | null {
+  return judgeName(`/project${rooted}`, { roots: [], config: NO_HOST_BOUNDARY, caller });
+}
+
 export type Intent = "list" | "read" | "write";
 export type CallerKind = "session" | "token";
 /** What a write needs (M8R16, M8R101): nothing, the "Save anyway?" confirmation, or the confirmation and a live step-up. */

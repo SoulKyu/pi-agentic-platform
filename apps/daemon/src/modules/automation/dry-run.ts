@@ -5,15 +5,15 @@ import {
   type DryRunResult,
   PapError,
   presetOfTools,
+  PRECHECK_REMOVED,
   type TriggerInput,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { Gates } from "./gates.ts";
-import { type PrecheckPort, runPrecheck } from "./precheck-step.ts";
 import { type FenceSource, RENDERED_PROMPT_MAX, renderPrompt } from "./prompt.ts";
 import type { TaskStore } from "./tasks.ts";
-import { type AgentBinding, PRECHECK_AGENT, resolveExecution } from "./trigger-agent.ts";
+import { type AgentBinding, resolveExecution } from "./trigger-agent.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 export interface DryRunDeps {
@@ -21,13 +21,12 @@ export interface DryRunDeps {
   readonly logger: Logger;
   readonly triggers: {
     get(ownerId: string, id: string): TriggerRecord | null;
-    resolveFolder(cwd: string): string;
+    resolveFolder(cwd: string, ownerId: string): string;
   };
   readonly store: Pick<TaskStore, "queuedOfTrigger">;
   readonly gates: Pick<Gates, "over" | "spentToday">;
   readonly settings: { automation(ownerId: string): AutomationSettings };
-  readonly precheck?: PrecheckPort;
-  /** The agents' ports (M11): an agent trigger's folder is its home, and its precheck runs in its sandbox. */
+  /** The agents' ports (M11): an agent trigger's folder is its home. */
   readonly agents?: AgentBinding;
 }
 
@@ -39,56 +38,12 @@ export interface DryRunParams {
 
 type Reason = DryRunResult["reasons"][number];
 
-const sameNames = (left: readonly string[], right: readonly string[]): boolean =>
-  left.length === right.length && [...left].sort().join("\0") === [...right].sort().join("\0");
-
 /**
  * `automation.dryRun` (M10R64): what a fire would do, with nothing written and nothing started: no row, no effect, no
  * session, no tokens, no request (a feed is not fetched; the sample payload stands in). A draft stands in for the saved
- * config. The precheck, the one thing that runs code, runs only for a browser caller and only when the draft keeps the
- * saved trigger's command, resolved folder and variable names (RT-05); a command saved for another folder is never run.
+ * config. A precheck in the config is answered as an error with the word a fire journals: nothing runs (B6).
  */
 export function createDryRun(deps: DryRunDeps) {
-  async function precheckOf(
-    caller: Caller,
-    saved: TriggerRecord | null,
-    config: TriggerInput,
-    folder: string | null,
-    notRun: "paused" | "budget" | null,
-  ): Promise<DryRunResult["precheck"]> {
-    const command = config.execution.precheck;
-    if (command === null) return null;
-    if (caller.kind === "token") return "not_run_token";
-    // A paused owner fires nothing, so the command that would gate the fire does not run either (ruling 3).
-    if (notRun === "paused") return "not_run_paused";
-    // The same for a fire the budget would refuse (the owner's own manual fire is exempt and has no `budget` reason).
-    if (notRun === "budget") return "not_run_budget";
-    const keeps =
-      saved !== null &&
-      folder !== null &&
-      saved.cwd === folder &&
-      saved.input?.execution.precheck === command &&
-      sameNames(saved.input.execution.env, config.execution.env);
-    if (!keeps) return "not_run_unsaved";
-    // Agents run in microVMs: a stored precheck is refused, with the word a fire journals.
-    if (saved.agentId !== null)
-      return { verdict: "error", exitCode: null, durationMs: 0, output: PRECHECK_AGENT };
-    const outcome = await runPrecheck(deps, {
-      command,
-      cwd: saved.cwd,
-      env: config.execution.env,
-      triggerId: saved.id,
-      origin: "manual",
-    });
-    if (outcome === null) return null;
-    return {
-      verdict: outcome.verdict,
-      exitCode: outcome.exitCode,
-      durationMs: outcome.durationMs,
-      output: outcome.output,
-    };
-  }
-
   return {
     async run(caller: Caller, params: DryRunParams): Promise<DryRunResult> {
       const ownerId = caller.userId;
@@ -122,24 +77,17 @@ export function createDryRun(deps: DryRunDeps) {
       if (saved !== null && deps.store.queuedOfTrigger(saved.id) >= AUTOMATION_LIMITS.queuedPerTrigger)
         reasons.push("queue_full");
 
-      const precheck = await precheckOf(
-        caller,
-        saved,
-        config,
-        folder,
-        reasons.includes("paused") ? "paused" : reasons.includes("budget") ? "budget" : null,
-      );
-      if (typeof precheck === "object" && precheck !== null) {
-        if (precheck.verdict === "skip") reasons.push("precheck");
-        if (precheck.verdict === "error") reasons.push("precheck_error");
-      }
+      const precheck: DryRunResult["precheck"] =
+        config.execution.precheck === null
+          ? null
+          : { verdict: "error", exitCode: null, durationMs: 0, output: PRECHECK_REMOVED };
+      if (precheck !== null) reasons.push("precheck_error");
 
       const kind = config.source.type;
       const fenceSource: FenceSource = kind === "webhook" ? "webhook" : kind === "feed" ? "feed" : "manual";
       const sample = params.payload === undefined || params.payload === "" ? null : params.payload;
       const rendered = renderPrompt(config.prompt, {
         payload: sample === null ? null : { text: sample, source: fenceSource },
-        precheck: typeof precheck === "object" && precheck?.verdict === "pass" ? precheck.output : null,
         trigger: saved?.name ?? config.name,
         firedAt: new Date(deps.clock.now()).toISOString(),
       });

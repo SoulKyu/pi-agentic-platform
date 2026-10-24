@@ -5,6 +5,7 @@ import type { Context, Hono } from "hono";
 import type { HttpCaller } from "../../kernel/http/caller.ts";
 import { attachmentDisposition } from "../../kernel/http/content-disposition.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { BoxRaw } from "./box-backend.ts";
 import type { FilesService } from "./service.ts";
 
 const INLINE_IMAGES: Readonly<Record<string, string>> = {
@@ -38,6 +39,23 @@ export function rawContent(
   return { type: "application/octet-stream", disposition: attachmentDisposition(basename(path), RAW_NAME) };
 }
 
+function boxRaw(c: Context, path: string, boxed: BoxRaw): Response {
+  const { type, disposition } = rawContent(path, boxed.size, c.req.query("download") === "1");
+  const headers: Record<string, string> = {
+    ...RAW_HEADERS,
+    "content-type": type,
+    "content-length": String(boxed.size),
+    "content-security-policy": RAW_CSP,
+  };
+  if (disposition !== null) headers["content-disposition"] = disposition;
+  c.set("ownCsp", RAW_CSP);
+  if (c.req.method === "HEAD" || boxed.size === 0) {
+    void boxed.body.cancel();
+    return new Response(null, { status: 200, headers });
+  }
+  return new Response(boxed.body, { status: 200, headers });
+}
+
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
 /**
@@ -48,7 +66,7 @@ export function mountRawRoute(
   app: Hono,
   deps: {
     readonly caller: HttpCaller;
-    readonly service: Pick<FilesService, "openRaw">;
+    readonly service: Pick<FilesService, "openRaw" | "openBoxRaw">;
     readonly logger: Logger;
   },
 ): void {
@@ -59,9 +77,13 @@ export function mountRawRoute(
     if (path === undefined) return notFound(c);
     let opened;
     try {
+      const boxed = await deps.service.openBoxRaw(caller, path);
+      if (boxed !== null) return boxRaw(c, path, boxed);
       opened = await deps.service.openRaw(caller, path);
     } catch (error) {
       if (error instanceof PapError && error.code === "not_found") return notFound(c);
+      if (error instanceof PapError && error.code === "box_stopped")
+        return c.json({ error: { code: "box_stopped" } }, 409);
       throw error;
     }
     const { handle, size } = opened;

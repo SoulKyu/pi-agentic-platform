@@ -303,7 +303,6 @@ describe("the isolated run's card (M11R69)", () => {
       ownerId: "u1",
       source: "manual",
       payload: null,
-      precheck: null,
       dedupKey: null,
       title: "t",
       detail: null,

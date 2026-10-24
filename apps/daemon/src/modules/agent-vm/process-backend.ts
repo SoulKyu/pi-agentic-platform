@@ -1,10 +1,12 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { type BoxRef, boxKey, type VmLayout } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { layoutOf } from "./layouts.ts";
-import type { AgentRuntimeBackend } from "./runtime.ts";
+import { projectLayoutOf as vmProjectLayoutOf } from "./project-layout.ts";
+import type { AgentRuntimeBackend, VmSpec } from "./runtime.ts";
 
 /** How long a guest has to leave after SIGTERM before its group gets SIGKILL. */
 export const PROCESS_STOP_GRACE_MS = 5000;
@@ -28,8 +30,8 @@ export interface ProcessBackendOptions {
   readonly logger: Logger;
 }
 
-const keyOf = (agentId: string, taskKey: string | null): string =>
-  taskKey === null ? agentId : `${agentId}\u0000${taskKey}`;
+const keyOf = (box: BoxRef, taskKey: string | null): string =>
+  taskKey === null ? boxKey(box) : `${boxKey(box)}\u0000${taskKey}`;
 
 /** Folders 0555 and files 0444 (`writable`: 0755 and 0644 again, so the folder can be replaced): a write Pi would make there fails, as on Kata's read-only root (RT-07). */
 function setMode(dir: string, writable: boolean): void {
@@ -50,7 +52,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
   const { clock, logger } = options;
   const running = new Map<
     string,
-    { agentId: string; taskKey: string | null; child: ChildProcess; gone: Promise<void> }
+    { box: BoxRef; taskKey: string | null; child: ChildProcess; gone: Promise<void> }
   >();
 
   const killGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
@@ -63,8 +65,8 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
     }
   };
 
-  async function stop(agentId: string, taskKey: string | null): Promise<void> {
-    const entry = running.get(keyOf(agentId, taskKey));
+  async function stop(box: BoxRef, taskKey: string | null): Promise<void> {
+    const entry = running.get(keyOf(box, taskKey));
     if (!entry) return;
     killGroup(entry.child, "SIGTERM");
     const timer = clock.setTimeout(() => killGroup(entry.child, "SIGKILL"), PROCESS_STOP_GRACE_MS);
@@ -72,40 +74,53 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
     clock.clearTimeout(timer);
   }
 
+  /** Makes the box's folders, and gives the box a read-only copy of the test image's Pi folder (RT-07), as an agent's. */
+  function prepare(spec: VmSpec): { root: string; home: string; guestLayout: VmLayout } {
+    const guestLayout =
+      spec.box.kind === "project"
+        ? vmProjectLayoutOf("process", options.papHome, spec.box.id)
+        : layoutOf("process", options.papHome, { agentId: spec.box.id, taskKey: spec.taskKey });
+    const folders =
+      guestLayout.project === undefined
+        ? [guestLayout.home, guestLayout.knowledge, guestLayout.inbox]
+        : [guestLayout.project, guestLayout.home, guestLayout.inbox];
+    for (const dir of [...folders, guestLayout.sessions, guestLayout.piAgentDir]) {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+    }
+    if (existsSync(guestLayout.imageAgentDir)) {
+      chmodSync(guestLayout.imageAgentDir, 0o755);
+      setMode(guestLayout.imageAgentDir, true);
+      rmSync(guestLayout.imageAgentDir, { recursive: true, force: true });
+    }
+    cpSync(options.imageAgentSource, guestLayout.imageAgentDir, { recursive: true });
+    setMode(guestLayout.imageAgentDir, false);
+    chmodSync(guestLayout.imageAgentDir, 0o555);
+    return { root: guestLayout.root, home: guestLayout.home, guestLayout };
+  }
+
   return {
     start(spec, launch) {
-      const layout = layoutOf("process", options.papHome, spec);
-      for (const dir of [layout.home, layout.knowledge, layout.inbox, layout.sessions, layout.piAgentDir]) {
-        mkdirSync(dir, { recursive: true, mode: 0o700 });
-      }
-      const run = join(layout.root, "run");
+      const { root, home, guestLayout } = prepare(spec);
+      const run = join(root, "run");
       mkdirSync(run, { recursive: true, mode: 0o700 });
-      if (existsSync(layout.imageAgentDir)) {
-        chmodSync(layout.imageAgentDir, 0o755);
-        setMode(layout.imageAgentDir, true);
-        rmSync(layout.imageAgentDir, { recursive: true, force: true });
-      }
-      cpSync(options.imageAgentSource, layout.imageAgentDir, { recursive: true });
-      setMode(layout.imageAgentDir, false);
-      chmodSync(layout.imageAgentDir, 0o555);
       const gateway = options.gatewayAddress();
       const proxy = options.proxyAddress();
-      const key = keyOf(spec.agentId, spec.taskKey);
+      const key = keyOf(spec.box, spec.taskKey);
       const child = spawn(process.execPath, [...options.execArgv, options.guestEntry], {
-        cwd: layout.home,
+        cwd: home,
         detached: true,
         stdio: ["ignore", "pipe", "pipe"],
         env: {
           PATH: process.env.PATH ?? "",
-          HOME: layout.home,
+          HOME: home,
           PAP_GATEWAY: `${gateway.host}:${gateway.port}`,
           PAP_GUEST_PROXY: `${proxy.host}:${proxy.port}`,
           PAP_GATEWAY_TOKEN: launch.token,
           PAP_LAUNCH_ID: launch.launchId,
-          PAP_AGENT_ID: spec.agentId,
+          PAP_BOX: boxKey(spec.box),
           PAP_IMAGE_TAG: spec.image,
           // AVM-E11: what `pap-guest` reads instead of Kata's fixed `/agent` and `/run`.
-          PAP_GUEST_LAYOUT: JSON.stringify(layout),
+          PAP_GUEST_LAYOUT: JSON.stringify(guestLayout),
           PAP_GUEST_RUN_DIR: run,
           PAP_TEST_PROVIDER_SCRIPT: options.providerScript,
           // The scripted provider's worker needs these (ADR 0001); the init names the script's VM path (AVM-E15).
@@ -121,15 +136,15 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           resolve();
         });
         child.once("error", (error) => {
-          logger.warn("agent_vm_process_error", { agentId: spec.agentId, err: error });
+          logger.warn("agent_vm_process_error", { box: boxKey(spec.box), err: error });
           if (running.get(key)?.child === child) running.delete(key);
           resolve();
         });
       });
-      running.set(key, { agentId: spec.agentId, taskKey: spec.taskKey, child, gone });
+      running.set(key, { box: spec.box, taskKey: spec.taskKey, child, gone });
       return Promise.resolve({ address: "127.0.0.1" });
     },
     stop,
-    list: () => Promise.resolve([...running.values()].map(({ agentId, taskKey }) => ({ agentId, taskKey }))),
+    list: () => Promise.resolve([...running.values()].map(({ box, taskKey }) => ({ box, taskKey }))),
   };
 }

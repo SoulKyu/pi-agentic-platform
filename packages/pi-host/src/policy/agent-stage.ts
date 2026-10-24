@@ -24,15 +24,15 @@ export function autonomous(call: Pick<CallFacts, "kind" | "rules">): boolean {
   );
 }
 
-/** The one folder the rules let the session edit as its own: an agent thread's home, an isolated task's scratch folder. */
+/** The one folder the rules let the session edit as its own: an agent thread's home, a project session's project folder, an isolated task's scratch folder. */
 export function agentOwnOf(rules: PolicyRules): string | null {
-  if (rules.profile === "agent-thread") return rules.agentHome;
+  if (rules.profile === "agent-thread" || rules.profile === "project") return rules.agentHome;
   return rules.profile === "isolated-task" ? rules.agentScratch : null;
 }
 
-/** In a VM the folder the rules name for the session's shell is the VM's own home (the host has no agent folder to check). */
+/** In a VM the folder the rules name for the session's shell is the VM's own: its home, or a project box's project folder (the host has no agent folder to check). */
 export const vmOwnFolder = (rules: PolicyRules, vm: NonNullable<PipelineDeps["vm"]>): boolean =>
-  agentOwnOf(rules) === vm.layout.home;
+  agentOwnOf(rules) === (rules.profile === "project" ? vm.layout.project : vm.layout.home);
 
 /**
  * Without a `sandbox` in the rules a sandboxed shell is judged as if it had network: the stricter reading. In a VM

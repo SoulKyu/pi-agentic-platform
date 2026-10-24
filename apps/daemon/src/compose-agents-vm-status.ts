@@ -1,4 +1,4 @@
-import { AGENT_NET, PapError } from "@pap/contracts";
+import { AGENT_NET, type BoxRef, PapError } from "@pap/contracts";
 import type { VmLaunch } from "./modules/sessions/index.ts";
 import { availableParallelism } from "node:os";
 import { VERSION } from "./kernel/version.ts";
@@ -62,7 +62,7 @@ export function composeVmStatus(
     },
     claudeToken: core.claudeToken,
     agentsOf: (ownerId) => agents?.list(ownerId) ?? [],
-    phaseOf: runtime.phase,
+    phaseOf: (agentId) => runtime.phase({ kind: "agent", id: agentId }),
     host: resourceHostOf(core.config),
     minFreeDiskMb: core.config.minFreeDiskMb,
   });
@@ -118,22 +118,34 @@ async function relayIsReady(gate: RelayGate): Promise<boolean> {
 }
 
 /**
- * A launch of an unusable stack is refused `sandbox_unavailable` before anything is built or spawned. So is one while the relay
- * has not reported ready (S1, AVM-E49 M9b): a relay that could not bind the bridge's port (another process holds it) never
- * becomes ready, and a VM started meanwhile would talk to whoever does listen there. A launch in the seconds after boot waits
- * for the relay, bounded by `RELAY_READY_WAIT_MS`. `relay` is absent without a relay.
+ * What a launch checks before it starts a VM, and a box's start checks too: an unusable stack is `sandbox_unavailable`, and so is
+ * a relay that has not reported ready (S1, AVM-E49 M9b: one that could not bind the bridge's port never becomes ready, and a VM
+ * started meanwhile would talk to whoever does listen there; a launch in the seconds after boot waits for it, bounded by
+ * `RELAY_READY_WAIT_MS`); an installed bundle older than the one built with this daemon is `vm_bundle_stale`. `relay` is absent
+ * without a relay, `box` null for a launch that is in no box.
  */
+export const launchGate =
+  (status: Pick<VmStatus, "require">, relay?: RelayGate, skew?: Pick<BundleSkew, "check">) =>
+  async (box: BoxRef | null): Promise<void> => {
+    if (relay !== undefined && !(await relayIsReady(relay))) throw new PapError("sandbox_unavailable");
+    await status.require();
+    if (skew !== undefined && box !== null && (await skew.check(box)) === "stale")
+      throw new PapError("vm_bundle_stale");
+  };
+
+/** A launch goes through `launchGate` of its own box (an agent's, or a project's) before anything is built or spawned. */
 export const guardedLaunch = (
   launch: VmLaunch,
   status: Pick<VmStatus, "require">,
   relay?: RelayGate,
   skew?: Pick<BundleSkew, "check">,
-): VmLaunch => ({
-  async spawn(row, agentLaunch, init) {
-    if (relay !== undefined && !(await relayIsReady(relay))) throw new PapError("sandbox_unavailable");
-    await status.require();
-    if (skew !== undefined && row.agentId !== undefined && (await skew.check(row.agentId)) === "stale")
-      throw new PapError("vm_bundle_stale");
-    return launch.spawn(row, agentLaunch, init);
-  },
-});
+): VmLaunch => {
+  const gate = launchGate(status, relay, skew);
+  return {
+    async spawn(row, agentLaunch, init) {
+      if ("project" in agentLaunch) await gate({ kind: "project", id: agentLaunch.project.id });
+      else await gate(row.agentId === undefined ? null : { kind: "agent", id: row.agentId });
+      return launch.spawn(row, agentLaunch, init);
+    },
+  };
+};

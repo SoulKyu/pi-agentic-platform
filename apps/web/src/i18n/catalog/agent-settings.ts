@@ -35,7 +35,6 @@ export const agentSettingsEn = {
   "agentForm.hosts": "Allowed hosts",
   "agentForm.hosts.own": "Your list",
   "agentForm.hosts.only": "Only these",
-  "agentForm.hosts.field": "Hosts, one per line",
   "agentForm.hosts.hint":
     "Its URL tools reach only these. *.example.com covers subdomains. Also host:port (default 80 and 443) and IPs, e.g. k8s.lan:6443.",
   "agentForm.hosts.risk":
@@ -81,8 +80,6 @@ export const agentSettingsEn = {
   "agentForm.error.role": "Visible text only, 20000 characters at most.",
   "agentForm.error.budget.usdPerDay": "A number between 0 and 1000.",
   "agentForm.error.budget.tokensPerDay": "A whole number between 0 and 1000000000.",
-  "agentForm.error.allowHosts":
-    "Host names (api.example.com or *.example.com), or host:port and IPs, 256 at most.",
   "agentForm.error.denylist": "One visible pattern per line, 50 at most.",
   "agentForm.error.field": "This value is not accepted.",
   "agentForm.error.conflict": "Another agent has this name, or this one changed since you opened it.",
@@ -134,7 +131,6 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.hosts": "Hôtes autorisés",
   "agentForm.hosts.own": "Votre liste",
   "agentForm.hosts.only": "Seulement ceux-ci",
-  "agentForm.hosts.field": "Hôtes, un par ligne",
   "agentForm.hosts.hint":
     "Ses outils d'URL ne joignent que ceux-ci. *.exemple.com couvre les sous-domaines. Aussi host:port (80 et 443 par défaut) et IP, ex. k8s.lan:6443.",
   "agentForm.hosts.risk":
@@ -180,8 +176,6 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.error.role": "Texte visible seulement, 20000 caractères au plus.",
   "agentForm.error.budget.usdPerDay": "Un nombre entre 0 et 1000.",
   "agentForm.error.budget.tokensPerDay": "Un nombre entier entre 0 et 1000000000.",
-  "agentForm.error.allowHosts":
-    "Des noms d'hôte (api.exemple.com ou *.exemple.com), ou host:port et IP, 256 au plus.",
   "agentForm.error.denylist": "Un motif visible par ligne, 50 au plus.",
   "agentForm.error.field": "Cette valeur n'est pas acceptée.",
   "agentForm.error.conflict":

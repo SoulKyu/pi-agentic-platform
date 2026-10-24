@@ -1,7 +1,18 @@
-import { DEFAULT_AGENT_RESOURCES } from "@pap/contracts";
+import { type BoxRef, boxKey, DEFAULT_AGENT_RESOURCES } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 import { layoutOf } from "./layouts.ts";
-import { type Bed, bed, IMAGE, settle, specOf, workerInput } from "./runtime-fixtures.ts";
+import {
+  agentBox,
+  type Bed,
+  bed,
+  IMAGE,
+  PROJECT_ID,
+  settle,
+  specOf,
+  workerInput,
+} from "./runtime-fixtures.ts";
+
+const A1 = { kind: "agent", id: "a1" } as const;
 
 let b: Bed;
 beforeEach(async () => {
@@ -19,7 +30,7 @@ describe("spawn", () => {
     expect(b.guestAt(0).handles).toHaveLength(2);
     expect(one.slot).toBe("slot-0");
     expect(two.slot).toBe("slot-1");
-    expect(b.runtime.phase("a1")).toBe("running");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("running");
   });
 
   it("starts the VM once when two spawns arrive together", async () => {
@@ -39,10 +50,10 @@ describe("spawn", () => {
       ["thread", null],
       ["isolated", "t1"],
     ]);
-    await b.runtime.stop("a1");
+    await b.runtime.stop(agentBox("a1"));
     expect(b.backend.stop.mock.calls).toEqual([
-      ["a1", null, expect.any(String)],
-      ["a1", "t1", expect.any(String)],
+      [A1, null, expect.any(String)],
+      [A1, "t1", expect.any(String)],
     ]);
   });
 
@@ -68,13 +79,13 @@ describe("spawn", () => {
     expect(b.grants).toEqual([
       {
         launchId: b.launchAt(0).launchId,
-        agentId: "a1",
+        box: agentBox("a1"),
         relayKey: b.grantAt(0).relayKey,
         address: "10.213.0.9",
         taskKey: null,
       },
     ]);
-    expect(b.tokens.check("a1", b.launchAt(0).launchId, b.launchAt(0).token)).toBe(true);
+    expect(b.tokens.check(agentBox("a1"), b.launchAt(0).launchId, b.launchAt(0).token)).toBe(true);
   });
 
   it("binds the launch's image for the gateway (AVM-P8) until the VM ends", async () => {
@@ -82,7 +93,7 @@ describe("spawn", () => {
     const { launchId } = b.launchAt(0);
     expect(b.runtime.imageOf(launchId)).toBe(IMAGE);
     expect(b.runtime.imageOf("0".repeat(32))).toBeNull();
-    await b.runtime.stop("a1");
+    await b.runtime.stop(agentBox("a1"));
     expect(b.runtime.imageOf(launchId)).toBeNull();
   });
 });
@@ -94,7 +105,7 @@ describe("capacity (R29)", () => {
     await expect(b.runtime.spawn(specOf("a3"), workerInput(), null)).rejects.toMatchObject({
       code: "capacity",
     });
-    expect(b.capacity).toEqual([["a1", "a2"]]);
+    expect(b.capacity).toEqual([["agent:a1", "agent:a2"]]);
     expect(b.starts).toHaveLength(2);
   });
 
@@ -116,13 +127,13 @@ describe("capacity (R29)", () => {
       b.runtime.spawn(specOf("a2"), workerInput(), null),
       b.runtime.spawn(specOf("a3"), workerInput(), null).catch((error: unknown) => error),
     ]);
-    expect(b.starts.map((s) => s.spec.agentId)).toEqual(["a1", "a2"]);
+    expect(b.starts.map((s) => boxKey(s.spec.box))).toEqual(["agent:a1", "agent:a2"]);
   });
 
   it("frees the room when a VM stops", async () => {
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
     await b.runtime.spawn(specOf("a2"), workerInput(), null);
-    await b.runtime.stop("a1");
+    await b.runtime.stop(agentBox("a1"));
     await b.runtime.spawn(specOf("a3"), workerInput(), null);
     expect(b.starts).toHaveLength(3);
   });
@@ -131,15 +142,15 @@ describe("capacity (R29)", () => {
 describe("boot (RT-42)", () => {
   it("makes a spawn wait for stopAll, which stops every listed VM including ones this daemon never started", async () => {
     const fresh = bed();
-    let release: (value: Array<{ agentId: string; taskKey: string | null }>) => void = () => {};
+    let release: (value: Array<{ box: BoxRef; taskKey: string | null }>) => void = () => {};
     fresh.backend.list.mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
     const booting = fresh.runtime.stopAll();
     const spawning = fresh.runtime.spawn(specOf("a1"), workerInput(), null);
     await settle();
     expect(fresh.backend.start).not.toHaveBeenCalled();
     release([
-      { agentId: "old", taskKey: null },
-      { agentId: "old2", taskKey: "t9" },
+      { box: { kind: "agent", id: "old" }, taskKey: null },
+      { box: { kind: "agent", id: "old2" }, taskKey: "t9" },
     ]);
     await booting;
     await spawning;
@@ -170,10 +181,44 @@ describe("boot (RT-42)", () => {
 
   it("stopAll also stops the VMs this runtime runs", async () => {
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
-    b.listed.push({ agentId: "a1", taskKey: null });
+    b.listed.push({ box: { kind: "agent", id: "a1" }, taskKey: null });
     await b.runtime.stopAll();
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
-    expect(b.runtime.phase("a1")).toBe("stopped");
+    expect(b.backend.stop).toHaveBeenCalledWith({ kind: "agent", id: "a1" }, null, expect.any(String));
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
     expect(b.ended).toEqual([b.launchAt(0).launchId]);
+  });
+});
+
+describe("boxes", () => {
+  const PROJECT: BoxRef = { kind: "project", id: PROJECT_ID };
+  const withProject = () =>
+    bed({
+      layout: (spec) =>
+        layoutOf("process", "/pap", { agentId: boxKey(spec.box).replace(/\W/g, "-"), taskKey: null }),
+    });
+
+  it("keys each VM by its box and hands the backend, the grant and the token the box", async () => {
+    const p = withProject();
+    await p.runtime.stopAll();
+    await p.runtime.spawn(specOf("a1"), workerInput(), null);
+    await p.runtime.spawn({ ...specOf("a1"), box: PROJECT }, workerInput(), null);
+    expect(p.starts.map((s) => boxKey(s.spec.box))).toEqual(["agent:a1", `project:${PROJECT_ID}`]);
+    expect(p.grants.map((g) => boxKey(g.box))).toEqual(["agent:a1", `project:${PROJECT_ID}`]);
+    expect(p.tokens.check(PROJECT, p.launchAt(1).launchId, p.launchAt(1).token)).toBe(true);
+    expect(p.tokens.check(agentBox("a1"), p.launchAt(1).launchId, p.launchAt(1).token)).toBe(false);
+    expect(p.runtime.phase(PROJECT)).toBe("running");
+    await p.runtime.stop(PROJECT);
+    expect(p.runtime.phase(PROJECT)).toBe("stopped");
+    expect(p.runtime.phase(agentBox("a1"))).toBe("running");
+  });
+
+  it("leaves no token behind for a box without a layout (a project box before its guest exists)", async () => {
+    await expect(
+      b.runtime.spawn({ ...specOf("a1"), box: PROJECT }, workerInput(), null),
+    ).rejects.toMatchObject({
+      code: "sandbox_unavailable",
+    });
+    expect(b.starts).toHaveLength(0);
+    expect(b.runtime.phase(PROJECT)).toBe("stopped");
   });
 });

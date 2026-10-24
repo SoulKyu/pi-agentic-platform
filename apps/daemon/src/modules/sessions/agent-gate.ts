@@ -10,6 +10,7 @@ import {
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { LiveSession } from "./live-types.ts";
+import type { SessionBoxes } from "./project-gate.ts";
 import type { SessionRow } from "./store.ts";
 import { vmGate } from "./vm-gate.ts";
 
@@ -39,6 +40,8 @@ export interface SessionsAgentDeps {
   onceUsed?(sessionId: string, id: string): void;
   /** The VM layout of a session row that runs in a VM, else null (R15, R37). */
   vmLayoutOf?(row: SessionRow): VmLayout | null;
+  /** The project boxes (task A3): which box a row with no agent runs in, and that box now. Absent: no row is in a box. */
+  readonly boxes?: SessionBoxes;
   /**
    * ADR 0080: the Claude Code environment of an agent that uses pi-claude-bridge (`{}` for any other): `home` is the VM layout's
    * home or the agent's host home. Never logged.

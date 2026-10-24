@@ -3,6 +3,7 @@ import { basename, dirname, join } from "node:path";
 import type { Hono } from "hono";
 import type { Caller } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
+import type { BoxControl, BoxOps, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Config } from "./kernel/config.ts";
 import type { BoundaryConfig } from "./kernel/fs/boundary.ts";
 import { createDenySet, type DenySet, type DenySources } from "./kernel/fs/deny-set.ts";
@@ -98,6 +99,10 @@ export interface WorkspaceDeps {
   readonly readOnly: boolean;
   /** Each terminal runs in a scope of its own when there are scopes (M8R54). */
   readonly scopes: Pick<WorkerScopes, "next">;
+  /** The owner's box projects and their guest (boxes B1): a box path goes to the guest, never to this machine. */
+  readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly boxOps?: () => BoxOps | undefined;
+  readonly boxControl?: () => BoxControl | undefined;
 }
 
 export interface WorkspaceModules {
@@ -156,6 +161,8 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     readOnly: deps.readOnly,
     workerUmask,
     attachmentsDir: join(deps.config.home, ATTACHMENTS),
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
+    ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
   });
   const vcs = createVcsModule({
     roots: deps.roots,
@@ -165,9 +172,15 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     hub: deps.hub,
     clock: deps.clock,
     logger: deps.logger,
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
+    ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
+    ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
   });
+  // A terminal is a shell on this machine: a box project is not here, so its root is no terminal's folder (off in a box, for now).
+  const hostRoots = (ownerId: string): readonly string[] =>
+    deps.roots(ownerId).filter((root) => deps.boxes?.()?.byPath(ownerId, root) == null);
   const terminal = createTerminalModule({
-    roots: deps.roots,
+    roots: hostRoots,
     boundary,
     hub: deps.hub,
     clock: deps.clock,

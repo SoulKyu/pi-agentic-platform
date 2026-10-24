@@ -1,5 +1,6 @@
 import { lstatSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { mirrorFolderOf } from "./mirror-paths.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import { diskFloor, type Statfs } from "../../kernel/disk.ts";
 
@@ -60,7 +61,7 @@ export function createQuota(deps: {
   const usedOf = (agentId: string): number => {
     let known = used.get(agentId);
     if (known === undefined) {
-      known = usedIn(join(deps.papHome, "agents", ".mirrors", agentId));
+      known = usedIn(mirrorFolderOf(deps.papHome, agentId));
       used.set(agentId, known);
     }
     return known;

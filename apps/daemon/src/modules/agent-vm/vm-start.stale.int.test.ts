@@ -14,7 +14,7 @@ describe("a VM start against a stale bundle", () => {
     const asked: string[] = [];
     bed = await startVmBed(
       { steps: [{ text: "hi" }] },
-      { seams: { bundleSkew: { check: async (agentId) => (asked.push(agentId), verdict) } } },
+      { seams: { bundleSkew: { check: async (box) => (asked.push(box.id), verdict) } } },
     );
     const agentId = await bed.createAgent();
     await expect(bed.call("agents.openThread", { agentId })).rejects.toThrow("vm_bundle_stale");

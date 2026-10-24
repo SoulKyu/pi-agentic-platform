@@ -19,7 +19,7 @@ import { pathAllowed, routeOf } from "./routes.ts";
  */
 const MAIN = fileURLToPath(new URL("./main.ts", import.meta.url));
 const KEY = "ab".repeat(32);
-const AGENT = "scout-0001";
+const AGENT = { kind: "agent", id: "scout-0001" } as const;
 const REAL = "sk-REAL-PROVIDER-KEY-FROM-MODELS-JSON";
 const MODEL = "m-1";
 const tmp: string[] = [];
@@ -214,14 +214,14 @@ const grant = (bed: Bed, launch: { launchId?: string; key?: string; address?: st
   bed.child.send({
     type: "relay_grant",
     launchId: launch.launchId ?? "a".repeat(32),
-    agentId: AGENT,
+    box: AGENT,
     key: launch.key ?? KEY,
     address: launch.address ?? "127.0.0.1",
   });
 const policy = (bed: Bed, model = MODEL) =>
   bed.child.send({
-    type: "agent_policy",
-    agentId: AGENT,
+    type: "box_policy",
+    box: AGENT,
     models: [{ provider: "acme", id: model }],
     claude: false,
     blocked: null,
@@ -279,8 +279,8 @@ describe("the relay process", () => {
     );
     expect(revoked.status).toBe(403);
     expect(bed.upstream).toHaveLength(1);
-    expect(bed.stderr()).toContain('agent_relay_refused {"agentId":"scout-0001","reason":"model"}');
-    expect(bed.stderr()).toContain('agent_relay_refused {"agentId":null,"reason":"key"}');
+    expect(bed.stderr()).toContain('agent_relay_refused {"box":"agent:scout-0001","reason":"model"}');
+    expect(bed.stderr()).toContain('agent_relay_refused {"box":null,"reason":"key"}');
     expect(bed.stderr()).not.toContain(KEY);
     expect(bed.stderr()).not.toContain(OTHER);
   });
@@ -303,7 +303,7 @@ describe("the relay process", () => {
   it("drops a command that does not parse and logs its type only", async () => {
     const bed = await startRelay();
     await ready(bed);
-    bed.child.send({ type: "relay_grant", launchId: "short", agentId: AGENT, key: KEY, address: "0.0.0.0" });
+    bed.child.send({ type: "relay_grant", launchId: "short", box: AGENT, key: KEY, address: "0.0.0.0" });
     bed.child.send({ type: "claude_token", token: 12 });
     bed.child.send("not an object");
     await until(

@@ -17,7 +17,7 @@ const ALLOWED: Record<PlatformOp, readonly SessionType[]> = {
   "agent.remind": ["agent-thread"],
   "lane.note": ["lane"],
   "secret.request": ["agent-thread"],
-  "network.request": ["agent-thread"],
+  "network.request": ["agent-thread", "plain", "task", "child"],
   "subagent.run": ["plain", "lane", "agent-thread"],
 };
 

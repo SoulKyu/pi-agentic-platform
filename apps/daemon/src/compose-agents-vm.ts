@@ -1,10 +1,15 @@
 import { PapError, type VmLayout } from "@pap/contracts";
+import type { BoxStack } from "./compose-boxes-wiring.ts";
+import { type Boxes, composeBoxes, TEST_IMAGE_TAG } from "./compose-boxes.ts";
 import { scriptCopier } from "./compose-agents-vm-script.ts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
-import { composeVmProxy, type VmProxySeams } from "./compose-agents-vm-proxy.ts";
+import { composeVmProxy } from "./compose-agents-vm-proxy.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
+import type { AgentsVmSeams } from "./compose-agents-vm-seams.ts";
+
+export type { AgentsVmSeams } from "./compose-agents-vm-seams.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
-import { awaitBridge, composeKata, listenGateway, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { awaitBridge, composeKata, listenGateway } from "./compose-agents-vm-kata.ts";
 import { kataSeamsOf, startProxy } from "./compose-agents-vm-socket.ts";
 import { warnAgentsRuntimeIgnored } from "./compose-agents-runtime-warn.ts";
 import { eachOwnTry } from "./compose-agents-vm-hooks.ts";
@@ -13,6 +18,7 @@ import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import {
   composeVmStatus,
   guardedLaunch,
+  launchGate,
   relayGateOf,
   resourceHostOf,
   skewOf,
@@ -31,13 +37,10 @@ import {
   createGateway,
   createLaunchTokens,
   createProcessBackend,
-  layoutOf,
+  observedBackend,
   type MirrorHooks,
   relayListenOf,
-  type BundleSkew,
-  type RelayChild,
   type RelayLink,
-  type VmSpec,
   type VmStatus,
 } from "./modules/agent-vm/index.ts";
 import type { AgentVmLink } from "./modules/agents/index.ts";
@@ -45,7 +48,6 @@ import {
   createVmLaunch,
   type MirrorInputs,
   type SessionRow,
-  taskKeyOf,
   type VmLaunch,
 } from "./modules/sessions/index.ts";
 
@@ -79,43 +81,15 @@ export interface AgentsVmCore {
   readonly agentFiles?: AgentFilesPort | undefined;
 }
 
-/** What a test, or a later task, supplies to the composition. */
-export interface AgentsVmSeams {
-  /** `PAP_TEST_AGENT_RUNTIME=process`: how the guest starts (J1 wires the real entry). */
-  readonly process?: { guestEntry: string; execArgv: readonly string[]; imageAgentSource: string };
-  /** Tests only: replaces the process backend; it learns the gateway's address when asked. */
-  readonly backend?: (gatewayAddress: () => { host: string; port: number }) => AgentRuntimeBackend;
-  /** Tests only: replaces the daemon's mirrors of the VM session files (T9b). */
-  readonly mirrors?: MirrorInputs;
-  /** The image tag an agent's VM starts with (T14b's image policy replaces the test tag). */
-  readonly imageTagOf?: (agentId: string) => string;
-  /** `"off"`: no relay child (unit tests of other things); a `fork`: the test's own child, told where the relay would listen. Default: the real `pap-relay`. */
-  readonly relay?: "off" | { fork(listen: string): RelayChild };
-  /** The Kata backend's seams (a fake pap-vmd, T17's migration flag); the Kata backend is used when no test backend is. */
-  readonly kata?: KataSeams;
-  /** Resolves when the bridge address exists (pap0): the relay is started after it (AVM-P10). Default: at once. */
-  readonly bridgeReady?: () => Promise<void>;
-  /** Tests only: told of every VM the backend starts and stops (a second open reuses the VM; a crash restarts it). */
-  readonly observe?: {
-    started?(spec: VmSpec): void;
-    stopped?(agentId: string, taskKey: string | null): void;
-    /** Every launch's grant (the Kata bed looks for its relay key inside the VM). */
-    granted?(grant: { launchId: string; agentId: string; relayKey: string }): void;
-  };
-  /** Tests only: handed the composition once it is built (the int beds stop a VM or wait for the relay through it). */
-  readonly expose?: (vm: AgentsVm) => void;
-  readonly bundleSkew?: BundleSkew; // tests only: replaces the stale-bundle check
-  readonly proxy?: VmProxySeams; // tests only: the VMs' proxy network seams
-  /** The relay child's node flags (default: the workers'); a test whose workers carry the network guard gives its own. */
-  readonly relayExecArgv?: readonly string[];
-}
-
 /** What the daemon's other compositions are handed in `vm` mode. */
 export interface AgentsVm {
   readonly runtime: AgentRuntime;
   /** The sessions' launcher (`SessionsModuleDeps.vmLaunch`). */
   readonly launch: VmLaunch;
-  /** The shared VM predicate: a row's layout, null for a row that is not an agent's (R15). */
+  readonly boxes: Boxes; // the project boxes: bound with `late.boxes`, read by the sessions and the box crash pause
+  /** What the box control needs of the stack (Kata's client, the launch gate): `composeBoxWiring` builds the control from it. */
+  readonly boxStack: BoxStack;
+  /** The shared VM predicate: a row's layout (an agent's, or a project box's), null for any other row (R15). */
   vmLayoutOf(row: SessionRow): VmLayout | null;
   /** The mirrors of the VM session files (R23): `inputFor` is the launcher's. */
   readonly mirrors: MirrorInputs;
@@ -140,8 +114,6 @@ export interface AgentsVm {
   bindCrashPause(handler: (agentId: string) => void): void;
   bindRefusals: ReturnType<typeof composeVmProxy>["bindRefusals"];
 }
-
-const TEST_IMAGE_TAG = `pap-agent-agent-${"0".repeat(64)}`;
 
 const notBound = (): never => {
   throw new PapError("internal");
@@ -212,17 +184,7 @@ export async function composeAgentsVm(
         clock,
         logger: agentsLogger,
       });
-    const backend: AgentRuntimeBackend =
-      seams.observe === undefined
-        ? real
-        : {
-            ...real,
-            start: (spec, launch) => (seams.observe?.started?.(spec), real.start(spec, launch)),
-            stop: (agentId, taskKey) => (
-              seams.observe?.stopped?.(agentId, taskKey),
-              real.stop(agentId, taskKey)
-            ),
-          };
+    const backend: AgentRuntimeBackend = observedBackend(real, seams.observe);
     const proxy = composeVmProxy({
       clock,
       logger: agentsLogger,
@@ -248,7 +210,13 @@ export async function composeAgentsVm(
       late: () => lateHolder.late,
     });
     const imageEntries = kata?.entries ?? createImageEntries(agentsLogger);
-    const layoutBackend = kata ? "kata" : "process";
+    const boxes = composeBoxes(
+      config.home,
+      agentsLogger,
+      kata?.images ?? null,
+      seams.imageTagOf,
+      core.claudeToken,
+    );
     let crashPause: (agentId: string) => void = (agentId) =>
       agentsLogger.error("agent_vm_crash_pause_unwired", { agentId });
     const delivery = createFilesDelivery({ files: core.agentFiles, clock, logger: agentsLogger });
@@ -260,7 +228,7 @@ export async function composeAgentsVm(
       logger: agentsLogger,
       memoryCapMb: config.agentsMemoryMaxMb,
       idleMs: config.workerIdleMs,
-      layout: (spec) => layoutOf(layoutBackend, config.home, spec),
+      layout: boxes.layoutOfSpec,
       // Each in its own try (M3): a throw of the relay must not leave the proxy with a stale address.
       onLaunch: (grant) =>
         eachOwnTry(agentsLogger, "agent_vm_launch_hook_failed", grant.launchId, [
@@ -273,7 +241,7 @@ export async function composeAgentsVm(
           () => relay?.revoke(launchId),
           () => proxy.ended(launchId),
         ]),
-      onCrashPause: (agentId) => crashPause(agentId),
+      onCrashPause: (box) => boxes.crashPause(box, crashPause),
       notifyCapacity: () => {},
       deliverFiles: delivery.start,
       deliverAgain: delivery.again,
@@ -324,7 +292,7 @@ export async function composeAgentsVm(
       runtime,
       client: kata?.client ?? null,
       require: () => vmStatus.status.require(),
-      stopVm: (agentId, taskKey) => (kata ? kata.backend.stop(agentId, taskKey) : Promise.resolve()),
+      stopVm: (box, taskKey) => (kata ? kata.backend.stop(box, taskKey) : Promise.resolve()),
       papHome: config.home,
       clock,
       logger: agentsLogger,
@@ -333,20 +301,23 @@ export async function composeAgentsVm(
     });
     closers.push({ name: "agent_trash_sweep", close: agentLink.stopSweep });
     if (kata) closers.push({ name: "agent_image_upgrades", close: kata.startUpgrades() });
-    const vmLayoutOf = (row: SessionRow): VmLayout | null =>
-      row.agentId === undefined
-        ? null
-        : layoutOf(layoutBackend, config.home, { agentId: row.agentId, taskKey: taskKeyOf(row) });
+    const { vmLayoutOf } = boxes;
     const baseLaunch = createVmLaunch({
       runtime,
       papHome: config.home,
       layoutOf: vmLayoutOf,
-      joinLaunch: proxy.join,
+      joinLaunch: (launchId, sessionId, project) =>
+        proxy.join(
+          launchId,
+          sessionId,
+          project !== undefined && lateHolder.late?.taintedNow(project.ownerId, sessionId) === true,
+        ),
       imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
       mirrors,
       recheck: (ownerId, agentId) =>
         lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
       logger: agentsLogger,
+      ...boxes.launchDeps,
       toImageEntries: (agentId, image, sources) => imageEntries.toImage(agentId, image, sources),
       packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
       // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
@@ -354,18 +325,22 @@ export async function composeAgentsVm(
         ? { copyProviderScript: scriptCopier(config.testProviderScript) }
         : {}),
     });
+    const relayGate = kata && relay && !down ? relayGateOf(relay, clock) : undefined;
+    const skew = seams.bundleSkew ?? (kata ? skewOf(kata.images, agentsLogger) : undefined);
     const composed: AgentsVm = {
       runtime,
-      launch: guardedLaunch(
-        baseLaunch,
-        vmStatus.status,
-        kata && relay && !down ? relayGateOf(relay, clock) : undefined,
-        seams.bundleSkew ?? (kata ? skewOf(kata.images, agentsLogger) : undefined),
-      ),
+      launch: guardedLaunch(baseLaunch, vmStatus.status, relayGate, skew),
+      boxStack: {
+        backend: kata ? "kata" : "process",
+        client: kata?.client ?? null,
+        gate: launchGate(vmStatus.status, relayGate, skew),
+      },
       vmLayoutOf,
+      boxes,
       mirrors,
       bindMirrorHooks: bindHooks,
       bindLate(late) {
+        boxes.bind(late.boxes ?? null);
         vmStatus.bindAgents(late.agents);
         lateHolder.late = bindAgentsVmLate(
           {
@@ -377,6 +352,7 @@ export async function composeAgentsVm(
             readOnly: core.readOnly,
             bindMirrorHooks: bindHooks,
             bindTaint: proxy.bindTaint,
+            launchRaised: proxy.raised,
           },
           late,
         );

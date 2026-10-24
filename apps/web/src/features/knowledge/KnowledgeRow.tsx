@@ -1,8 +1,12 @@
 import "../../i18n/register-knowledge.ts";
+import "../../i18n/register-boxes.ts";
 import { Button } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { t as translate, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { phaseOf } from "../../stores/box-phase.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { BoxStart } from "../boxes/BoxStart.tsx";
 import { failureCode, failureText } from "../sessions/failure.ts";
 import { useAction } from "../sessions/use-action.ts";
 import { useKnowledgeStore } from "./knowledge-store.ts";
@@ -38,6 +42,12 @@ export function KnowledgeRow({ projectId }: { readonly projectId: string }) {
   const sessionId = origin?.sessionId;
   const [fact, setFact] = useState<{ readonly enabled: boolean; readonly concepts: number } | null>(null);
   const enable = useAction(undefined, undefined, enableFailure);
+  // A box project: its knowledge is the box's, so a stopped box answers `box_stopped` and the row reads again once it runs (R3).
+  const phase = useShellStore((state) => {
+    const project = state.view.projects.get(projectId);
+    return project?.kind === "box" ? phaseOf(project) : null;
+  });
+  const [stopped, setStopped] = useState(false);
 
   useEffect(() => () => useKnowledgeStore.getState().clearOrigin(projectId), [projectId]);
 
@@ -47,15 +57,27 @@ export function KnowledgeRow({ projectId }: { readonly projectId: string }) {
       .rpc.call("projects.knowledge", sessionId === undefined ? { projectId } : { projectId, sessionId })
       .then(
         (answer) => {
-          if (current && typeof answer.enabled === "boolean") setFact(answer);
+          if (!current || typeof answer.enabled !== "boolean") return;
+          setStopped(false);
+          setFact(answer);
         },
-        () => undefined,
+        (failure: unknown) => {
+          if (current && failureCode(failure) === "box_stopped") setStopped(true);
+        },
       );
     return () => {
       current = false;
     };
-  }, [projectId, sessionId, version]);
+  }, [projectId, sessionId, version, phase]);
 
+  if (stopped && phase !== null) {
+    return (
+      <div data-knowledge-row="" className="flex flex-wrap items-center gap-s3 text-ui text-muted">
+        <p>{t("boxes.stopped.purpose")}</p>
+        <BoxStart projectId={projectId} phase={phase} size="sm" />
+      </div>
+    );
+  }
   if (fact === null) return null;
   const onEnable = () => {
     const runtime = getRuntime();

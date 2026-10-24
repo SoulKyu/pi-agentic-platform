@@ -1,4 +1,5 @@
 import {
+  boxKey,
   encodeSocketFrame,
   GUEST_BOOT_TIMEOUT_MS,
   HELLO_MAX_BYTES,
@@ -16,6 +17,7 @@ import {
   harness,
   imageTagOf,
   OTHER_AGENT,
+  PROJECT,
   spawnInput,
   workerHello,
   workerOf,
@@ -50,7 +52,7 @@ describe("the first frame", () => {
       socket.feed(first);
       expect(socket.destroyed).toBe(true);
     }
-    expect(h.refusals()).toEqual(Array(3).fill({ agentId: null, reason: "bad_hello" })); // the 1st, 2nd and 4th of 6 (log throttle)
+    expect(h.refusals()).toEqual(Array(3).fill({ box: null, reason: "bad_hello" })); // the 1st, 2nd and 4th of 6 (log throttle)
   });
 
   it("refuses bytes that are not JSON, and invalid UTF-8", () => {
@@ -69,7 +71,7 @@ describe("the first frame", () => {
     const socket = h.connect();
     socket.feedRaw(header(HELLO_MAX_BYTES + 1));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "too_large" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "too_large" }]);
   });
 
   it("raises the bound once the hello is accepted: a 5 KiB frame after it is not too large", async () => {
@@ -85,7 +87,7 @@ describe("the first frame", () => {
     expect(socket.destroyed).toBe(false);
     await h.clock.advance(1);
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "timeout" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "timeout" }]);
   });
 
   // Mutant "decoder not stopped on close": the hello behind the bad frame is still delivered.
@@ -95,7 +97,7 @@ describe("the first frame", () => {
     socket.feedRaw(
       Buffer.concat([encodeSocketFrame({ type: "nope" }), encodeSocketFrame(guestHello(launch))]),
     );
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "bad_hello" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "bad_hello" }]);
     const rejected = expect(h.gateway.awaitGuest(launch.launchId)).rejects.toEqual(new PapError("timeout"));
     await h.clock.advance(GUEST_BOOT_TIMEOUT_MS);
     await rejected;
@@ -104,9 +106,21 @@ describe("the first frame", () => {
   it("refuses a protocol other than ours", () => {
     const launch = h.launch();
     const socket = h.connect();
-    socket.feed(guestHello(launch, { protocol: 2 }));
+    socket.feed(guestHello(launch, { protocol: 3 }));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: null, reason: "protocol" }]);
+    expect(h.refusals()).toEqual([{ box: null, reason: "protocol" }]);
+  });
+
+  it("accepts a project box hello and refuses a protocol-1 hello", async () => {
+    const project = h.launch(PROJECT, "c");
+    const guest = await guestOf(h, project);
+    expect(guest.socket.destroyed).toBe(false);
+    const legacy: Record<string, unknown> = { ...guestHello(h.launch()), protocol: 1, agentId: AGENT.id };
+    delete legacy.box;
+    const old = h.connect();
+    old.feed(legacy);
+    expect(old.destroyed).toBe(true);
+    expect(h.refusals()).toEqual([{ box: null, reason: "protocol" }]);
   });
 });
 
@@ -116,9 +130,9 @@ describe("who is speaking", () => {
   it("refuses a valid token presented with another agent's id", () => {
     const launch = h.launch(AGENT);
     const socket = h.connect();
-    socket.feed(guestHello(launch, { agentId: OTHER_AGENT }));
+    socket.feed(guestHello(launch, { box: OTHER_AGENT }));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: OTHER_AGENT, reason: "token" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(OTHER_AGENT), reason: "token" }]);
   });
 
   it("refuses a revoked launch, a replayed token on another launch, and a wrong token", () => {
@@ -181,14 +195,14 @@ describe("workers", () => {
     const socket = h.connect();
     socket.feed(workerHello(launch, "f".repeat(32)));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "slot" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(AGENT), reason: "slot" }]);
   });
 
   it("refuses a worker of a launch that has no guest", () => {
     const launch = h.launch();
     const socket = h.connect();
     socket.feed(workerHello(launch, "f".repeat(32)));
-    expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "slot" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(AGENT), reason: "slot" }]);
   });
 
   // Mutant "slot reuse allowed" (state check dropped): the second hello of the slot is accepted.
@@ -219,7 +233,7 @@ describe("workers", () => {
     const socket = h.connect();
     socket.feed(workerHello(intruder, slot));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: OTHER_AGENT, reason: "slot" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(OTHER_AGENT), reason: "slot" }]);
     const real = h.connect();
     real.feed(workerHello(launch, slot));
     expect(await spawning).toBeDefined();
@@ -266,7 +280,7 @@ describe("workers", () => {
     const socket = h.connect();
     socket.feed(workerHello(launch, slot, { session: { file: "other.jsonl", lastEntryId: null, size: 0 } }));
     expect(socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "protocol" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(AGENT), reason: "protocol" }]);
     // AVM-E10: the refused hello burns the slot and fails the spawn at once, with the worker killed.
     await expect(spawning).rejects.toEqual(new PapError("worker_failed"));
     expect(guest.socket.frames().at(-1)).toEqual({ type: "signal", slot, signal: "SIGKILL" });
@@ -360,7 +374,7 @@ describe("what reaches the log", () => {
   it("holds no token, relay key, source address or record content", async () => {
     const launch = h.launch();
     h.connect("10.213.0.77").feed(guestHello(launch, { token: "0".repeat(64) }));
-    h.connect("10.213.0.78").feed(guestHello(launch, { agentId: OTHER_AGENT }));
+    h.connect("10.213.0.78").feed(guestHello(launch, { box: OTHER_AGENT }));
     const guest = await guestOf(h, launch);
     const worker = await workerOf(h, launch, guest);
     worker.socket.feed({ type: "nonsense-secret-content-marker" });

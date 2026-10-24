@@ -1,7 +1,7 @@
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Socket } from "node:net";
 import type { Duplex } from "node:stream";
-import { EGRESS_LIMITS, type EgressHost, type EgressReason } from "@pap/contracts";
+import { type BoxRef, boxKey, EGRESS_LIMITS, type EgressHost, type EgressReason } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
@@ -40,7 +40,7 @@ export interface CoresDeps {
 /** One command's (host mode) or one VM agent's (VM mode) share of a proxy: its connections, report and judge. */
 export interface CoreOptions {
   /** Names the owner of the connections in the `egress_limit` line. */
-  readonly scope: { readonly agentId: string; readonly sessionId: string | null };
+  readonly scope: { readonly box: BoxRef; readonly sessionId: string | null };
   decide(kind: EgressHost["kind"], rawHost: string, port: number): Promise<Decision>;
 }
 
@@ -87,7 +87,7 @@ export function createCores(deps: CoresDeps) {
       const now = clock.now();
       if (now - limitLoggedAt < LIMIT_LOG_EVERY_MS) return;
       limitLoggedAt = now;
-      logger.warn("egress_limit", { what, agentId: scope.agentId, sessionId: scope.sessionId });
+      logger.warn("egress_limit", { what, box: boxKey(scope.box), sessionId: scope.sessionId });
     };
 
     const end = (conn: Conn): void => {

@@ -92,4 +92,13 @@ describe("TextField", () => {
       "pointer-coarse:text-base",
     );
   });
+
+  it("numeric asks for the numeric keyboard and tabular figures, on the input only", () => {
+    const plain = renderToStaticMarkup(<TextField label="CPUs" value="2" onChange={noop} />);
+    expect(plain).not.toContain("tabular-nums");
+    expect(plain).not.toContain("inputMode");
+    const numeric = renderToStaticMarkup(<TextField label="CPUs" value="2" onChange={noop} numeric />);
+    expect(numeric).toContain("tabular-nums");
+    expect(numeric).toContain('inputMode="numeric"');
+  });
 });

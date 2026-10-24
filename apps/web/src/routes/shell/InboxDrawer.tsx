@@ -5,6 +5,7 @@ import { useAppearanceStore } from "../../features/appearance/index.ts";
 import { pathOfItem, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { useAgentsStore } from "../../stores/agents-store.ts";
+import { useCurrentProject } from "../../stores/current-project.ts";
 import { useFocusEntry } from "../../stores/focus-entry.ts";
 import { go } from "./tab-actions.ts";
 
@@ -47,6 +48,12 @@ export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
           show({ kind: "agent", id: agentId });
         }}
         onOpenSession={(id) => show({ kind: "session", id })}
+        onOpenProject={(id) => {
+          // The project's page is the home narrowed to it.
+          useCurrentProject.getState().choose(id);
+          go(navigate, "/");
+          onOpenChange(false);
+        }}
       />
     </Dialog>
   );

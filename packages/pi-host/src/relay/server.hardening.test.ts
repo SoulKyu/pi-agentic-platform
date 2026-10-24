@@ -31,7 +31,7 @@ describe("the relay server: connection hygiene", () => {
     const extra = net.connect(port, "127.0.0.1");
     extra.on("error", () => {});
     await new Promise<void>((resolve) => extra.once("close", () => resolve()));
-    expect(logs).toContain(`agent_relay_refused ${JSON.stringify({ agentId: null, reason: "busy" })}`);
+    expect(logs).toContain(`agent_relay_refused ${JSON.stringify({ box: null, reason: "busy" })}`);
     // A slot comes back when a held connection goes.
     held.pop()?.destroy();
     await vi.waitFor(
@@ -68,7 +68,7 @@ describe("the relay server: a key revoked while its body arrives", () => {
     // A rotation (a new key for the same launch) leaves the request open; a revoke would end it (server.revoke.test.ts).
     keys.add({
       launchId: "a".repeat(32),
-      agentId: "scout-0001",
+      box: { kind: "agent", id: "scout-0001" },
       key: Buffer.from("cd".repeat(32), "hex"),
       address: "127.0.0.1",
     });
@@ -96,7 +96,7 @@ describe("the relay server: client errors", () => {
     const socket = fakeSocket();
     server.emit("clientError", Object.assign(new Error("bad"), { code: "HPE_INVALID_METHOD" }), socket);
     expect(socket.end).toHaveBeenCalledTimes(1);
-    expect(logs).toEqual([`agent_relay_refused ${JSON.stringify({ agentId: null, reason: "request" })}`]);
+    expect(logs).toEqual([`agent_relay_refused ${JSON.stringify({ box: null, reason: "request" })}`]);
   });
 });
 

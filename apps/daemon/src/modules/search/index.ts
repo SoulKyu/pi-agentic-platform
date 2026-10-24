@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
@@ -14,6 +15,30 @@ import { createSearchService } from "./service.ts";
 import { fsWatch, type WatchFactory } from "./watch.ts";
 
 export const MAX_REBUILDS_PER_HOUR = 3;
+/** Pap's mirrors of VM session files, one folder per box; `start` makes the two parents so the watches can be set. */
+const MIRROR_PARENTS = ["agents", "boxes"] as const;
+
+/** A watch that stays silent about a folder that does not exist yet: the reconcile finds it when it appears. */
+const quietWhenAbsent =
+  (watch: WatchFactory): WatchFactory =>
+  (dir, onEvent, onError) => {
+    let setUp = false;
+    const close = watch(dir, onEvent, (code) => {
+      if (!(setUp === false && code === "ENOENT")) onError(code);
+    });
+    setUp = true;
+    return close;
+  };
+
+/** One scanner per root over the same index; `reconcile` and `idle` run for all. */
+function scanAll(scanners: readonly Scanner[]): Scanner {
+  return {
+    start: () => scanners.forEach((scanner) => scanner.start()),
+    stop: async () => void (await Promise.all(scanners.map((scanner) => scanner.stop()))),
+    idle: async () => void (await Promise.all(scanners.map((scanner) => scanner.idle()))),
+    reconcile: async () => void (await Promise.all(scanners.map((scanner) => scanner.reconcile()))),
+  };
+}
 const HOUR_MS = 60 * 60_000;
 
 export interface SearchModule {
@@ -102,18 +127,28 @@ export function createSearchModule(deps: {
       onDamaged,
       ...(deps.spawn ? { spawn: deps.spawn } : {}),
     });
-    const scanner = createScanner({
-      root: join(deps.agentDir, "sessions"),
-      installedAt: deps.installedAt,
-      store: createSearchIndexStore(index),
-      sessions: deps.sessions,
-      watch: deps.watch ?? fsWatch,
-      clock: deps.clock,
-      logger,
-      onDamaged,
-      ...(deps.yieldNow ? { yieldNow: deps.yieldNow } : {}),
-      ...(deps.process ? { process: deps.process } : {}),
-    });
+    const store = createSearchIndexStore(index);
+    const scannerOver = (root: string, watch: WatchFactory): Scanner =>
+      createScanner({
+        root,
+        installedAt: deps.installedAt,
+        store,
+        sessions: deps.sessions,
+        watch,
+        clock: deps.clock,
+        logger,
+        onDamaged,
+        ...(deps.yieldNow ? { yieldNow: deps.yieldNow } : {}),
+        ...(deps.process ? { process: deps.process } : {}),
+      });
+    const watch = deps.watch ?? fsWatch;
+    // A mirror file is indexed only when a session row holds its path: the sessions port decides (claim).
+    const scanner = scanAll([
+      scannerOver(join(deps.agentDir, "sessions"), watch),
+      ...MIRROR_PARENTS.map((parent) =>
+        scannerOver(join(deps.home, parent, ".mirrors"), quietWhenAbsent(watch)),
+      ),
+    ]);
     return { db: index, client, scanner };
   };
   let parts = build(db);
@@ -181,6 +216,15 @@ export function createSearchModule(deps: {
     start() {
       if (started || stopped) return;
       started = true;
+      // The mirror folders exist before the watches: a first box session after the boot is indexed when it writes, not
+      // up to a reconcile later. Private like the folders the sessions make in them.
+      for (const parent of MIRROR_PARENTS) {
+        try {
+          mkdirSync(join(deps.home, parent, ".mirrors"), { recursive: true, mode: 0o700 });
+        } catch (error) {
+          logger.warn("search_mirror_folder_not_made", { parent, err: error });
+        }
+      }
       // During a rebuild the old scanner is stopped for good; the new one starts when the rebuild ends.
       if (!unusable && !rebuilding) parts.scanner.start();
     },

@@ -33,7 +33,7 @@ describe("the process backend with a real guest", () => {
     });
     expect(events.some((event) => event.includes("Scripted reply."))).toBe(true);
     expect(bed.grants).toHaveLength(1);
-    expect(bed.grants[0]).toMatchObject({ agentId: "scout-ab12", address: "127.0.0.1" });
+    expect(bed.grants[0]).toMatchObject({ box: { kind: "agent", id: "scout-ab12" }, address: "127.0.0.1" });
   }, 120_000);
 
   it("stops the VM when its last worker has been gone for the idle time", async () => {
@@ -46,7 +46,7 @@ describe("the process backend with a real guest", () => {
     });
     await vi.waitFor(() => expect(guestOf(bed as RuntimeBed)).toEqual([]), { timeout: 10_000 });
     await vi.waitFor(() => expect(bed?.ended).toEqual([bed?.launches[0]?.launchId]), { timeout: 10_000 });
-    expect(bed.runtime.phase("scout-ab12")).toBe("stopped");
+    expect(bed.runtime.phase({ kind: "agent", id: "scout-ab12" })).toBe("stopped");
   }, 120_000);
 
   it("restarts on the next spawn after the guest crashed (M-no-teardown)", async () => {
@@ -57,7 +57,9 @@ describe("the process backend with a real guest", () => {
     expect(guest).toBeGreaterThan(1);
     process.kill(guest as number, "SIGKILL");
     await first.handle.exited;
-    await vi.waitFor(() => expect(bed?.runtime.phase("scout-ab12")).toBe("stopped"), { timeout: 20_000 });
+    await vi.waitFor(() => expect(bed?.runtime.phase({ kind: "agent", id: "scout-ab12" })).toBe("stopped"), {
+      timeout: 20_000,
+    });
     const second = await bed.spawnReady("scout-ab12");
     expect(bed.launches).toHaveLength(2);
     expect((await second.handle.request({ type: "get_state" })).success).toBe(true);

@@ -50,7 +50,7 @@ describe.skipIf(skip)("the Kata backend on the real stack", () => {
       const sessionId = await bed.openThread(agentId);
       await bed.prompt(sessionId, "First question");
       const stopping = Date.now();
-      await bed.vm.runtime.stop(agentId);
+      await bed.vm.runtime.stop({ kind: "agent", id: agentId });
       const took = Date.now() - stopping;
       process.stderr.write(
         `T20a runtime.stop of a running thread VM: ${took} ms (quarantine step ${QUARANTINE_STEP_MS} ms)\n`,
@@ -212,7 +212,7 @@ describe.skipIf(skip)("the Kata backend on the real stack", () => {
     await bed.probe(agentId, sessionId, "echo t20a-marker > /agent/home/marker && sync");
     const before = mib(await sizeOf());
     expect(before).toBeLessThan(1100);
-    await bed.vm.runtime.stop(agentId);
+    await bed.vm.runtime.stop({ kind: "agent", id: agentId });
     await bed.update(agentId, { resources: { memoryMb: 1024, cpus: 1, diskMb: 2048 } });
     await bed.call("sessions.reopen", { sessionId });
     const after = mib(

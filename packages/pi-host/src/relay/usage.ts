@@ -1,4 +1,9 @@
-import { RELAY_USAGE_MAX_AGENTS, type RelayReport as RelayReportSchema } from "@pap/contracts";
+import {
+  type BoxRef,
+  boxKey,
+  RELAY_USAGE_MAX_BOXES,
+  type RelayReport as RelayReportSchema,
+} from "@pap/contracts";
 import type { z } from "zod";
 
 type RelayReport = z.infer<typeof RelayReportSchema>;
@@ -18,30 +23,31 @@ interface Counts {
   bytesIn: number;
   bytesOut: number;
 }
-const MAX_AGENTS = 4096;
+const MAX_BOXES = 4096;
 
 /**
- * Attribution (RT-17, R13): requests, refusals and bytes per agent, reported every 60 s as `relay_usage` and reset after
- * each report. A report holds at most `RELAY_USAGE_MAX_AGENTS` agents: a longer list goes out as several. Nothing is
+ * Attribution (RT-17, R13): requests, refusals and bytes per box, reported every 60 s as `relay_usage` and reset after
+ * each report. A report holds at most `RELAY_USAGE_MAX_BOXES` boxes: a longer list goes out as several. Nothing is
  * reported for a quiet minute.
  */
 export function createUsage(clock: RelayClock, report: (report: RelayReport) => void) {
-  const counts = new Map<string, Counts>();
+  const counts = new Map<string, { box: BoxRef; counts: Counts }>();
   let timer: unknown = null;
-  const of = (agentId: string): Counts | null => {
-    let entry = counts.get(agentId);
+  const of = (box: BoxRef): Counts | null => {
+    const key = boxKey(box);
+    let entry = counts.get(key);
     if (entry === undefined) {
-      if (counts.size >= MAX_AGENTS) return null;
-      entry = { requests: 0, refused: 0, bytesIn: 0, bytesOut: 0 };
-      counts.set(agentId, entry);
+      if (counts.size >= MAX_BOXES) return null;
+      entry = { box, counts: { requests: 0, refused: 0, bytesIn: 0, bytesOut: 0 } };
+      counts.set(key, entry);
     }
-    return entry;
+    return entry.counts;
   };
   function flush(): void {
-    const all = [...counts].map(([agentId, entry]) => ({ agentId, ...entry }));
+    const all = [...counts.values()].map((entry) => ({ box: entry.box, ...entry.counts }));
     counts.clear();
-    for (let at = 0; at < all.length; at += RELAY_USAGE_MAX_AGENTS)
-      report({ type: "relay_usage", agents: all.slice(at, at + RELAY_USAGE_MAX_AGENTS) });
+    for (let at = 0; at < all.length; at += RELAY_USAGE_MAX_BOXES)
+      report({ type: "relay_usage", boxes: all.slice(at, at + RELAY_USAGE_MAX_BOXES) });
   }
   function schedule(): void {
     timer = clock.setTimeout(() => {
@@ -57,18 +63,18 @@ export function createUsage(clock: RelayClock, report: (report: RelayReport) => 
       if (timer !== null) clock.clearTimeout(timer);
       timer = null;
     },
-    request(agentId: string, size: { bytesIn: number }): void {
-      const entry = of(agentId);
+    request(box: BoxRef, size: { bytesIn: number }): void {
+      const entry = of(box);
       if (entry === null) return;
       entry.requests += 1;
       entry.bytesIn += size.bytesIn;
     },
-    finished(agentId: string, size: { bytesOut: number }): void {
-      const entry = of(agentId);
+    finished(box: BoxRef, size: { bytesOut: number }): void {
+      const entry = of(box);
       if (entry !== null) entry.bytesOut += size.bytesOut;
     },
-    refused(agentId: string): void {
-      const entry = of(agentId);
+    refused(box: BoxRef): void {
+      const entry = of(box);
       if (entry !== null) entry.refused += 1;
     },
   };

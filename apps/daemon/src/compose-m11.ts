@@ -204,7 +204,11 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   );
   platform.register(
     "network.request",
-    createNetworkRequest({ grants: modules.sessions.hostGrants, clock: core.clock }),
+    createNetworkRequest({
+      grants: modules.sessions.hostGrants,
+      boxOf: modules.sessions.projectBoxOf,
+      clock: core.clock,
+    }),
   );
   // secret.request (Task 18): the salt of the refs is made when the first one is, never at boot.
   let refSalt: Buffer | null = null;

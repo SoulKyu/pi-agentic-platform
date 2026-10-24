@@ -29,6 +29,16 @@ describe("PolicyRules agent fields (M11R7)", () => {
     expect(task.agentScratch).toBe("/p/agents/.runs/atlas-1a2b/t1");
   });
 
+  it("accepts the project profile of a session in a project's box", () => {
+    const rules = PolicyRules.parse({
+      ...base,
+      profile: "project",
+      agentHome: "/boxes/6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11/project",
+      sandbox: { required: true, network: true },
+    });
+    expect(rules.profile).toBe("project");
+  });
+
   it("refuses an unknown profile, relative or NUL folders and a sandbox without network", () => {
     expect(PolicyRules.safeParse({ ...base, profile: "root" }).success).toBe(false);
     expect(PolicyRules.safeParse({ ...base, agentHome: "agents/x" }).success).toBe(false);

@@ -11,10 +11,10 @@ describe("runGuest start", () => {
     expect(run.gateway.frames[0]).toEqual({
       type: "hello",
       role: "guest",
-      agentId: IDENTITY.PAP_AGENT_ID,
+      box: { kind: "agent", id: "scout-ab12" },
       launchId: IDENTITY.PAP_LAUNCH_ID,
       token: TOKEN,
-      protocol: 1,
+      protocol: 2,
       imageTag: IDENTITY.PAP_IMAGE_TAG,
     });
     expect(run.exits).toEqual([]);
@@ -43,8 +43,15 @@ describe("runGuest start", () => {
     expect(dialed).toEqual([]);
   });
 
+  it("sends a project box hello from PAP_BOX", async () => {
+    const id = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
+    const run = await start({ env: { ...IDENTITY, PAP_BOX: `project:${id}` } });
+    await run.hello();
+    expect(run.gateway.frames[0]).toMatchObject({ role: "guest", box: { kind: "project", id } });
+  });
+
   it("exits 1 when the environment cannot make a hello", async () => {
-    const run = await start({ env: { PAP_AGENT_ID: "Not An Id" } });
+    const run = await start({ env: { ...IDENTITY, PAP_BOX: "agent:Not An Id" } });
     await run.done;
     expect(run.exits).toEqual([1]);
   });

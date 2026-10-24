@@ -17,6 +17,7 @@ import type { addProjectEn } from "./catalog/add-project.ts";
 import type { automationEn } from "./catalog/automation.ts";
 import type { automationAgentsEn } from "./catalog/automation-agents.ts";
 import type { automationTriggerEn } from "./catalog/automation-trigger.ts";
+import type { boxesEn } from "./catalog/boxes.ts";
 import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
@@ -103,6 +104,7 @@ export type MessageKey =
   | keyof typeof inboxAgentsEn
   | keyof typeof homeEn
   | keyof typeof knowledgeEn
+  | keyof typeof boxesEn
   | keyof typeof usageEn
   | keyof typeof modelsUsageEn
   | keyof typeof agentSettingsEn

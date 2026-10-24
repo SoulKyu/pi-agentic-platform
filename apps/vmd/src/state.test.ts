@@ -11,6 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import type { BoxRef } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Logger } from "./log.ts";
 import { createState, TRASH_TTL_MS, type VmdState } from "./state.ts";
@@ -18,6 +19,9 @@ import { createFakeClock, type FakeClock } from "./testing/fake-clock.ts";
 
 const agent = "helper-1a2b";
 const other = "writer-3c4d";
+const project = "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0";
+const box = (id: string): BoxRef => ({ kind: "agent", id });
+const projectBox: BoxRef = { kind: "project", id: project };
 const key = "e".repeat(32);
 const key2 = "f".repeat(32);
 const DAY = 24 * 3600 * 1000;
@@ -49,22 +53,35 @@ const mode = (file: string): number => lstatSync(file).mode & 0o777;
 
 describe("state folder", () => {
   it("derives every path from checked ids under the root", () => {
-    expect(state.diskPath(agent, null)).toBe(path.join(root, "agents", agent, "disk.img"));
-    expect(state.diskPath(agent, key)).toBe(path.join(root, "agents", agent, "tasks", key, "disk.img"));
+    expect(state.diskPath(box(agent), null)).toBe(path.join(root, "agents", agent, "disk.img"));
+    expect(state.diskPath(box(agent), key)).toBe(path.join(root, "agents", agent, "tasks", key, "disk.img"));
     expect(state.envFile("a".repeat(32))).toBe(path.join(root, "run", `${"a".repeat(32)}.env`));
     expect(state.buildDir("base")).toBe(path.join(root, "build", "base"));
     expect(state.dockerfileDir("agent")).toBe(path.join(root, "dockerfiles", "agent"));
   });
 
+  it("puts a project disk under projects/<id>", () => {
+    expect(state.diskPath(projectBox, null)).toBe(path.join(root, "projects", project, "disk.img"));
+    expect(state.boxDir(projectBox)).toBe(path.join(root, "projects", project));
+    expect(state.trashPath(projectBox, 1234567890123)).toBe(
+      path.join(root, "trash", `project_${project.replaceAll("-", "")}-1234567890123`),
+    );
+    expect(state.trashPath(box(agent), 1234567890123)).toBe(
+      path.join(root, "trash", `${agent}-1234567890123`),
+    );
+    expect(() => state.diskPath({ kind: "project", id: project.toUpperCase() }, null)).toThrow();
+    expect(() => state.diskPath(projectBox, key)).toThrow();
+  });
+
   it("refuses an id or a key that could leave the root", () => {
-    expect(() => state.diskPath("../x", null)).toThrow();
-    expect(() => state.diskPath(agent, "../..")).toThrow();
+    expect(() => state.diskPath(box("../x"), null)).toThrow();
+    expect(() => state.diskPath(box(agent), "../..")).toThrow();
     expect(() => state.envFile("../../etc/passwd")).toThrow();
     expect(() => state.buildDir("../base" as "base")).toThrow();
   });
 
   it("creates its folders 0700 and refuses a folder that is a link", () => {
-    for (const dir of ["", "agents", "trash", "run", "build", "dockerfiles"]) {
+    for (const dir of ["", "agents", "projects", "trash", "run", "build", "dockerfiles"]) {
       expect(mode(path.join(root, dir))).toBe(0o700);
     }
     const planted = path.join(work, "planted");
@@ -92,7 +109,7 @@ describe("state folder", () => {
 
 describe("start sweep (RT-33, R30)", () => {
   const taskDisk = (id: string, task: string): string => {
-    const file = state.diskPath(id, task);
+    const file = state.diskPath(box(id), task);
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, "disk");
     return file;
@@ -102,16 +119,16 @@ describe("start sweep (RT-33, R30)", () => {
     writeFileSync(path.join(root, "run", "x.env"), "TOKEN=1");
     writeFileSync(path.join(root, "run", "addresses.json"), "{}");
     mkdirSync(path.join(root, "agents", agent), { recursive: true });
-    writeFileSync(state.diskPath(agent, null), "agent disk");
+    writeFileSync(state.diskPath(box(agent), null), "agent disk");
     const orphan = taskDisk(agent, key);
     const alive = taskDisk(other, key2);
-    state.sweepAtStart([{ agentId: other, taskKey: key2 }]);
+    state.sweepAtStart([{ box: box(other), taskKey: key2 }]);
     expect(existsSync(path.join(root, "run", "x.env"))).toBe(false);
     expect(existsSync(path.join(root, "run", "addresses.json"))).toBe(true);
     expect(existsSync(orphan)).toBe(false);
     expect(existsSync(path.dirname(orphan))).toBe(false);
     expect(existsSync(alive)).toBe(true);
-    expect(readFileSync(state.diskPath(agent, null), "utf8")).toBe("agent disk");
+    expect(readFileSync(state.diskPath(box(agent), null), "utf8")).toBe("agent disk");
     expect(records.filter((r) => r.event === "vmd_sweep")).toEqual([
       { event: "vmd_sweep", fields: { envFiles: 1, taskDisks: 1 } },
     ]);
@@ -182,10 +199,23 @@ describe("trash (RT-40)", () => {
     const mine = entry(agent, 1000);
     const mineOld = entry(agent, 9 * DAY);
     const theirs = entry(other, 9 * DAY);
-    expect(state.purgeTrash(agent)).toBe(2);
+    expect(state.purgeTrash(box(agent))).toBe(2);
     expect(existsSync(mine)).toBe(false);
     expect(existsSync(mineOld)).toBe(false);
     expect(existsSync(theirs)).toBe(true);
+  });
+
+  it("purges a project's entries on their own, never an agent's and the other way round", () => {
+    const hex = project.replaceAll("-", "");
+    const projectEntry = entry(`project_${hex}`, 1000);
+    const agentEntry = entry(agent, 1000);
+    const otherProject = entry(`project_${"a".repeat(32)}`, 1000);
+    expect(state.purgeTrash(projectBox)).toBe(1);
+    expect(existsSync(projectEntry)).toBe(false);
+    for (const kept of [agentEntry, otherProject]) expect(existsSync(kept)).toBe(true);
+    expect(state.purgeTrash(box(agent))).toBe(1);
+    expect(existsSync(otherProject)).toBe(true);
+    expect(state.purgeTrash(null)).toBe(0);
   });
 
   it("purges at start and then once a day, and stops when asked", async () => {

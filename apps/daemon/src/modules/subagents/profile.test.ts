@@ -29,7 +29,7 @@ function bed(
     sessions: {
       cwdOf: (ownerId, sessionId) =>
         ownerId === "u1" && sessionId === "s1" ? (options.cwd === undefined ? "/work/p" : options.cwd) : null,
-      isAgentSession: () => options.agent === true,
+      runsInVm: () => options.agent === true,
     },
     logger: silentLogger,
   });

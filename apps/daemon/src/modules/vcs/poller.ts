@@ -25,8 +25,13 @@ export interface PollerDeps {
   restrict(status: VcsStatus): VcsStatus;
   /** One counter per cached root; it goes with the root. */
   newCounter(root: string): LineCounter;
-  /** One status run; `counter` is null when line counts are to be skipped. */
-  read(root: string, counter: LineCounter | null): Promise<VcsStatus>;
+  /**
+   * One status run; `counter` is null when line counts are to be skipped. `timed` is true for the poll's own timer: a box's
+   * poll must never keep it alive (a subscription, a refresh and the phase listener are the person's own reads).
+   */
+  read(root: string, counter: LineCounter | null, timed: boolean): Promise<VcsStatus>;
+  /** True for a root that must not be read now (a box that is not running): the run is skipped and the poll stays armed. */
+  paused?(root: string): boolean;
 }
 
 export interface Poller {
@@ -101,27 +106,31 @@ export function createPoller(deps: PollerDeps): Poller {
     if (watch.timer || watch.running || !(early || listened(watch.root))) return;
     watch.timer = clock.setTimeout(() => {
       watch.timer = null;
-      if (watches.get(watch.root) === watch && listened(watch.root)) trigger(watch);
+      if (watches.get(watch.root) === watch && listened(watch.root)) trigger(watch, true);
     }, watch.intervalMs);
   }
 
-  function trigger(watch: Watch): void {
+  function trigger(watch: Watch, timed = false): void {
     if (watch.running) {
       watch.again = true;
       return;
     }
-    run(watch).catch((error: unknown) => {
+    if (deps.paused?.(watch.root)) {
+      arm(watch);
+      return;
+    }
+    run(watch, timed).catch((error: unknown) => {
       deps.logger.error("vcs_run_failed", { err: error });
     });
   }
 
-  async function run(watch: Watch): Promise<void> {
+  async function run(watch: Watch, timed: boolean): Promise<void> {
     watch.running = true;
     if (watch.timer) clock.clearTimeout(watch.timer);
     watch.timer = null;
     let next: VcsStatus;
     try {
-      next = await deps.read(watch.root, watch.skipCounts ? null : watch.counter);
+      next = await deps.read(watch.root, watch.skipCounts ? null : watch.counter, timed);
     } catch (error) {
       deps.logger.warn("vcs_read_failed", { err: error });
       next = emptyStatus(watch.root, clock.now(), true, "failed");

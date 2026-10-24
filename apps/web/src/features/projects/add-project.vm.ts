@@ -1,11 +1,14 @@
+import { SHELL_LIMITS } from "@pap/contracts";
 import { errorKey, type MessageKey } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/index.ts";
 
-/** The one check made before any call: the daemon resolves the rest (`invalid_cwd`). */
-export const isAbsolutePath = (text: string): boolean => text.trim().startsWith("/") && !text.includes("\0");
+/** The name `projects.create` is given: trimmed, never empty; the daemon judges the rest (`bad_request`). */
+export const projectNameOf = (text: string): string | null => {
+  const name = text.trim();
+  return name === "" ? null : [...name].slice(0, SHELL_LIMITS.projectName * 2).join("");
+};
 
 const WORDS: Readonly<Record<string, MessageKey>> = {
-  invalid_cwd: "addProject.error.invalid_cwd",
   bad_request: "addProject.error.bad_request",
   capacity: "addProject.error.capacity",
   read_only: "addProject.error.read_only",

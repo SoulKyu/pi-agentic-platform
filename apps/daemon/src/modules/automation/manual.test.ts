@@ -1,23 +1,13 @@
-import { AutomationSettings, type PrecheckOutcome } from "@pap/contracts";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createManual, type PrecheckPort } from "./manual.ts";
-import type { PrecheckRun } from "./precheck-step.ts";
+import { AutomationSettings } from "@pap/contracts";
+import { afterEach, describe, expect, it } from "vitest";
+import { createManual } from "./manual.ts";
 import { manualInput, parsedInput } from "./testing/bed.ts";
 import { createRunnerBed, type RunnerBed } from "./testing/runner-bed.ts";
 
 let bed: RunnerBed;
 afterEach(() => bed.dispose());
 
-const passing: PrecheckOutcome = { verdict: "pass", exitCode: 0, durationMs: 12, output: "disk ok" };
-const skipping: PrecheckRun = {
-  verdict: "skip",
-  exitCode: 1,
-  durationMs: 5,
-  output: "nothing new",
-  detail: "nothing new",
-};
-
-function setup(precheck?: PrecheckPort["run"], options: { realRuns?: boolean } = {}) {
+function setup(options: { realRuns?: boolean } = {}) {
   bed = createRunnerBed(options);
   const manual = createManual({
     db: bed.db,
@@ -25,9 +15,6 @@ function setup(precheck?: PrecheckPort["run"], options: { realRuns?: boolean } =
     logger: bed.logger,
     fire: bed.engine.fire,
     triggers: bed.triggers,
-    settings: { automation: (ownerId) => bed.settings.owners.get(ownerId) ?? bed.settings.value },
-    gates: bed.engine.gates,
-    ...(precheck ? { precheck: { run: precheck } } : {}),
   });
   return manual;
 }
@@ -127,120 +114,27 @@ describe("manual fire (M10R63)", () => {
   });
 });
 
-describe("the precheck runs first (M10R63)", () => {
-  it("answers a skip as {verdict: precheck, detail}, journals it and starts no task", async () => {
-    const run = vi.fn(async () => skipping);
-    const manual = setup(run);
-    const trigger = bed.trigger(
-      parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "exit 1" } }),
-    );
-    const result = await manual.fire(bed.owner(), trigger.id, undefined);
-    expect(result).toEqual({ verdict: "precheck", detail: "exit 1" });
-    expect(lines()).toEqual([{ verdict: "precheck", detail: "nothing new", source: "manual", count: 1 }]);
+describe("a stored precheck (M10R63, B6)", () => {
+  const withPrecheck = () =>
+    bed.trigger(parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "df" } }));
+
+  it("is refused precheck_removed, journaled once per cause, and spawns nothing", async () => {
+    const manual = setup();
+    const trigger = withPrecheck();
+    for (let again = 0; again < 3; again += 1)
+      expect(await manual.fire(bed.owner(), trigger.id, undefined)).toEqual({
+        verdict: "error",
+        detail: "precheck_removed",
+      });
+    expect(lines()).toEqual([{ verdict: "error", detail: "precheck_removed", source: "manual", count: 3 }]);
     expect(bed.tasks()).toEqual([]);
   });
 
-  it("collapses repeated skips into one line", async () => {
-    const manual = setup(async () => skipping);
-    const trigger = bed.trigger(
-      parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "exit 1" } }),
-    );
-    for (let again = 0; again < 3; again += 1) await manual.fire(bed.owner(), trigger.id, undefined);
-    expect(lines()).toEqual([{ verdict: "precheck", detail: "nothing new", source: "manual", count: 3 }]);
-  });
-
-  it("fences the output of a passing precheck and starts the run tainted", async () => {
-    const run = vi.fn(async () => passing);
-    const manual = setup(run);
-    const trigger = bed.trigger(
-      parsedInput({
-        ...manualInput(bed.folder),
-        execution: { cwd: bed.folder, precheck: "df" },
-        prompt: "Disk: {{precheck}}",
-      }),
-    );
-    const result = (await manual.fire(bed.owner(), trigger.id, undefined)) as { taskId: string };
-    expect(run).toHaveBeenCalledWith({
-      command: "df",
-      cwd: trigger.cwd,
-      env: [],
-      triggerId: trigger.id,
-      origin: "manual",
-    });
-    expect(taskOf(result.taskId)).toMatchObject({ tainted: 1 });
-    expect(taskOf(result.taskId)?.prompt).toMatch(/<untrusted source="precheck" id="[0-9a-f]{12}">\ndisk ok/);
-  });
-
-  it("strips hidden characters from a manual payload and from a precheck output before they reach the prompt", async () => {
-    const hidden = "\u{E0049}\u{E0047}\u202E\u200B\u0007";
-    const run = vi.fn(async () => ({ ...passing, output: `disk${hidden} ok` }));
-    const manual = setup(run);
-    const trigger = bed.trigger(
-      parsedInput({
-        ...manualInput(bed.folder),
-        execution: { cwd: bed.folder, precheck: "df" },
-        prompt: "Disk: {{precheck}} Payload: {{payload}}",
-      }),
-    );
-    const result = (await manual.fire(bed.owner(), trigger.id, `pay${hidden}load`)) as { taskId: string };
-    const prompt = taskOf(result.taskId)?.prompt ?? "";
-    expect(prompt).toContain("\ndisk ok\n");
-    expect(prompt).toContain("\npayload\n");
-    expect(prompt).not.toMatch(/\p{Cf}/u);
-    expect(prompt).not.toContain("\u0007");
-  });
-
-  it("answers a precheck that could not run as an error with a closed detail", async () => {
-    const manual = setup(async () => ({
-      verdict: "error",
-      exitCode: null,
-      durationMs: 30_000,
-      output: "boom",
-      detail: "precheck timeout",
-    }));
-    const trigger = bed.trigger(
-      parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "sleep 99" } }),
-    );
-    const result = await manual.fire(bed.owner(), trigger.id, undefined);
-    expect(result).toEqual({ verdict: "error", detail: "precheck timeout" });
-    expect(lines()).toEqual([{ verdict: "error", detail: "precheck timeout", source: "manual", count: 1 }]);
-  });
-
-  it("does not run a trigger's precheck when it has none", async () => {
-    const run = vi.fn(async () => passing);
-    const manual = setup(run);
-    const trigger = bed.trigger();
-    await manual.fire(bed.owner(), trigger.id, undefined);
-    expect(run).not.toHaveBeenCalled();
-  });
-
-  describe("the pause and the budget come first (ruling 1)", () => {
-    const withPrecheck = () =>
-      bed.trigger(
-        parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "df" } }),
-      );
-
-    it("never spawns the precheck of a paused owner, from a browser or a token", async () => {
-      const run = vi.fn(async () => passing);
-      const manual = setup(run);
-      const trigger = withPrecheck();
-      bed.settings.value = AutomationSettings.parse({ paused: true });
-      expect(await codeOf(manual.fire(bed.owner(), trigger.id, undefined))).toBe("automation_paused");
-      expect(await codeOf(manual.fire(bed.token(), trigger.id, undefined))).toBe("automation_paused");
-      expect(run).not.toHaveBeenCalled();
-      expect(lines()).toEqual([{ verdict: "paused", detail: null, source: "manual", count: 2 }]);
-    });
-
-    it("never spawns a token's precheck past the budget, and spawns the owner's own", async () => {
-      const run = vi.fn(async () => passing);
-      const manual = setup(run);
-      const trigger = withPrecheck();
-      bed.settings.value = AutomationSettings.parse({ dailyBudgetUsd: 5 });
-      bed.runs.spent.value = 5;
-      expect(await codeOf(manual.fire(bed.token(), trigger.id, undefined))).toBe("budget_reached");
-      expect(run).not.toHaveBeenCalled();
-      expect((await manual.fire(bed.owner(), trigger.id, undefined)).verdict).toBe("fired");
-      expect(run).toHaveBeenCalledTimes(1);
-    });
+  it("is refused for a token too, and a trigger without one still fires", async () => {
+    const manual = setup();
+    const trigger = withPrecheck();
+    expect((await manual.fire(bed.token(), trigger.id, undefined)).verdict).toBe("error");
+    const plain = bed.trigger();
+    expect((await manual.fire(bed.owner(), plain.id, undefined)).verdict).toBe("fired");
   });
 });

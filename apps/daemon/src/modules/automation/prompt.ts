@@ -32,14 +32,13 @@ export const fence = (text: string, source: FenceSource, id: string): string =>
 
 export interface PromptValues {
   readonly payload: { readonly text: string; readonly source: FenceSource } | null;
-  readonly precheck: string | null;
   readonly trigger: string;
   readonly firedAt: string;
 }
 
 /**
  * One pass over the template: text put in place of a placeholder is never read again (a payload holding
- * `{{precheck}}` stays text). A payload the template does not place is added at the end, fenced: it is always sent
+ * `{{trigger}}` stays text). A payload the template does not place is added at the end, fenced: it is always sent
  * fenced, never bare. `fenced` says whether outside text is in the prompt (the run then starts tainted).
  */
 export function renderPrompt(
@@ -57,9 +56,7 @@ export function renderPrompt(
         fenced = true;
         return fence(values.payload.text, values.payload.source, newId());
       case "precheck":
-        if (values.precheck === null) return "";
-        fenced = true;
-        return fence(values.precheck, "precheck", newId());
+        return "";
       case "trigger":
         return values.trigger;
       case "firedAt":

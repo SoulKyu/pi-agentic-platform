@@ -35,7 +35,6 @@ export interface FireInput {
   readonly ownerId: string;
   readonly source: "schedule" | "webhook" | "feed" | "manual" | "retry";
   readonly payload: { readonly text: string; readonly source: FenceSource } | null;
-  readonly precheck: string | null;
   readonly dedupKey: string | null;
   readonly title: string;
   readonly detail: string | null;
@@ -131,7 +130,6 @@ export function createFire(deps: FireDeps) {
       ? { text: retry.prompt, fenced: retry.tainted }
       : renderPrompt(trigger.prompt, {
           payload: input.payload,
-          precheck: input.precheck,
           trigger: record.name,
           firedAt: new Date(at).toISOString(),
         });

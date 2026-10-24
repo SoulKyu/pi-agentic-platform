@@ -10,7 +10,7 @@ const TOKEN = "b".repeat(64);
 const NAMES = [
   "PAP_GATEWAY",
   "PAP_LAUNCH_ID",
-  "PAP_AGENT_ID",
+  "PAP_BOX",
   "PAP_WORKER_SLOT",
   "PAP_IMAGE_TAG",
   "PAP_SESSION_FILE",
@@ -56,7 +56,7 @@ const envFor = (port: number, extra: Record<string, string> = {}): NodeJS.Proces
     PAP_WORKER_TRANSPORT: "socket",
     PAP_GATEWAY: `127.0.0.1:${port}`,
     PAP_LAUNCH_ID: "a".repeat(32),
-    PAP_AGENT_ID: "scout-ab12",
+    PAP_BOX: "agent:scout-ab12",
     PAP_WORKER_SLOT: "d".repeat(32),
     PAP_IMAGE_TAG: `pap-agent-agent-${"c".repeat(64)}`,
     ...extra,
@@ -75,7 +75,7 @@ describe("transportFromEnv", () => {
       type: "hello",
       role: "worker",
       token: TOKEN,
-      agentId: "scout-ab12",
+      box: { kind: "agent", id: "scout-ab12" },
       slot: "d".repeat(32),
       session: { file: null, lastEntryId: null, size: 0 },
     });
@@ -113,8 +113,8 @@ describe("transportFromEnv", () => {
   it("rejects a missing variable and a bad gateway address", async () => {
     const { port } = await gateway();
     const env = envFor(port);
-    delete env.PAP_AGENT_ID;
-    await expect(transportFromEnv(env, () => TOKEN)).rejects.toThrow("PAP_AGENT_ID");
+    delete env.PAP_BOX;
+    await expect(transportFromEnv(env, () => TOKEN)).rejects.toThrow("PAP_BOX");
     envFor(port, { PAP_GATEWAY: "nope" });
     await expect(transportFromEnv(process.env, () => TOKEN)).rejects.toThrow("PAP_GATEWAY");
   });

@@ -25,7 +25,9 @@ export function checkStage(result: StageResult, mayBeUnchecked = false): StageRe
 export function markAskable(ctx: PolicyContext, call: CallFacts): boolean {
   const yes =
     ctx.hasUI &&
-    (call.rules.profile === "interactive" || call.rules.profile === "agent-thread") &&
+    (call.rules.profile === "interactive" ||
+      call.rules.profile === "agent-thread" ||
+      call.rules.profile === "project") &&
     call.rules.approvalMode !== "read-only" &&
     !call.rules.unattended;
   if (yes) WAS_UNCHECKED.add(call);

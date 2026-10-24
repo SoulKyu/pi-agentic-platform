@@ -267,3 +267,25 @@ describe("realVmRoots", () => {
     }
   });
 });
+
+describe("a project layout", () => {
+  it("a project layout writes project, home and inbox and refuses .pi", async () => {
+    const box = makeVmWorld({ project: true });
+    try {
+      const { layout } = box;
+      const project = layout.project as string;
+      expect(vmFileFolders(layout).writable).toEqual([project, layout.home, layout.inbox]);
+      const boxRoots = await realVmRoots(layout);
+      for (const target of [project, layout.home, layout.inbox, `${project}/knowledge/index.md`])
+        expect(await judgeVmPath(`${target}/new.txt`, project, boxRoots, true), target).toEqual({ ok: true });
+      expect(await judgeVmPath(box.transcript, project, boxRoots, false)).toEqual(
+        refused("outside this agent's folders"),
+      );
+      expect(await judgeVmPath(`${layout.pi}/x`, project, boxRoots, true)).toEqual(
+        refused("outside this agent's folders"),
+      );
+    } finally {
+      box.cleanup();
+    }
+  });
+});

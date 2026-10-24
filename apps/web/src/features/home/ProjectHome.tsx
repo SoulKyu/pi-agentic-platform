@@ -169,7 +169,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
         text={lazyText}
         load={loadFacts}
         open={project !== null}
-        props={{ root: project?.root ?? "", onFacts: setFacts }}
+        props={{ root: project?.root ?? "", box: project?.kind === "box", onFacts: setFacts }}
         // LazyPanel already notifies the failure; the facts are optional.
         onFailed={() => undefined}
       />

@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { AgentInput, type MethodName, type ParamsOf, type VmdRequest } from "@pap/contracts";
+import { AgentInput, type BoxRef, type MethodName, type ParamsOf, type VmdRequest } from "@pap/contracts";
 import type { AgentsVm } from "../compose-agents-vm.ts";
 import { createVmdClient, VMD_SOCKET, type VmdClient } from "../modules/agent-vm/index.ts";
 import { createSystemClock } from "../kernel/clock.ts";
@@ -84,7 +84,7 @@ export interface KataBed {
   /** Every `vm.start` the daemon sent: the launch token is in the request, so a test can look for it inside the VM. */
   readonly starts: Array<Extract<VmdRequest, { op: "vm.start" }>>;
   /** Every launch's relay key, in order: a test looks for it inside the VM (spec §3). */
-  readonly grants: Array<{ launchId: string; agentId: string; relayKey: string }>;
+  readonly grants: Array<{ launchId: string; box: BoxRef; relayKey: string }>;
   createAgent(input?: Record<string, unknown>): Promise<string>;
   /** Saves the agent's profile with `patch` merged over the bed's defaults (a resize, say). */
   update(agentId: string, patch: Record<string, unknown>): Promise<void>;
@@ -329,9 +329,9 @@ export async function vmsOf(
   agentId: string,
 ): Promise<Array<{ taskKey: string | null; state: string }>> {
   const listed = (await vmd.request({ op: "vm.list" })) as {
-    vms: Array<{ agentId: string; taskKey: string | null; state: string }>;
+    vms: Array<{ box: { kind: string; id: string }; taskKey: string | null; state: string }>;
   };
-  return listed.vms.filter((vm) => vm.agentId === agentId);
+  return listed.vms.filter((vm) => vm.box.kind === "agent" && vm.box.id === agentId);
 }
 
 /** Stops whatever VM of these agents is left and deletes their disks for good (a test's agents are never worth keeping). */
@@ -349,11 +349,15 @@ export async function removeAgents(
   };
   for (const agentId of agentIds) {
     for (const vm of await vmsOf(vmd, agentId))
-      await tolerate("vm.stop", agentId, vmd.request({ op: "vm.stop", agentId, taskKey: vm.taskKey }));
+      await tolerate(
+        "vm.stop",
+        agentId,
+        vmd.request({ op: "vm.stop", box: { kind: "agent", id: agentId }, taskKey: vm.taskKey }),
+      );
     await tolerate(
       "disk.delete",
       agentId,
-      vmd.request({ op: "disk.delete", agentId, taskKey: null, purge: true }),
+      vmd.request({ op: "disk.delete", box: { kind: "agent", id: agentId }, taskKey: null, purge: true }),
     );
   }
 }

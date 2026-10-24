@@ -2,7 +2,6 @@ import {
   AUTOMATION_LIMITS,
   AUTOMATION_READ_TOOLS,
   AUTOMATION_WRITE_TOOLS,
-  EnvName,
   HMAC_HEADERS,
   nextOccurrences,
   OUTSIDE_TEXT_SOURCES,
@@ -11,7 +10,8 @@ import {
   Rrule,
   TimeZone,
   ToolName,
-  TriggerInput,
+  type TriggerInput,
+  TriggerSaveInput,
   type TriggerView,
 } from "@pap/contracts";
 import { t, type MessageKey } from "../../i18n/index.ts";
@@ -199,12 +199,12 @@ export type InputResult =
   | { readonly ok: true; readonly input: TriggerInput }
   | { readonly ok: false; readonly errors: Readonly<Record<string, string>> };
 
-/** The draft through the contract's own `TriggerInput`: its refusals, keyed by path (`source.rrule`, `prompt`...), are the form's errors. */
+/** The draft through the contract's own `TriggerSaveInput`: its refusals, keyed by path (`source.rrule`, `prompt`...), are the form's errors. */
 export function toInput(draft: Draft): InputResult {
   const onThread = draft.agentId !== "" && effectiveTarget(draft) === "thread";
   const maxRunUsd =
     draft.maxRunUsd === null ? undefined : draft.maxRunUsd === "" ? null : Number(draft.maxRunUsd);
-  const parsed = TriggerInput.safeParse({
+  const parsed = TriggerSaveInput.safeParse({
     name: draft.name,
     enabled: draft.enabled,
     source: sourceOf(draft),
@@ -230,8 +230,13 @@ export function toInput(draft: Draft): InputResult {
 }
 
 /** The contract's refusals that the form words itself (W5-R32): the person never sees the raw text. */
-const pap = (message: string): string =>
-  message === "{{precheck}} is for isolated tasks" ? t("automation.editor.threadPrecheck") : message;
+const pap = (message: string): string => {
+  if (message === "{{precheck}} is for isolated tasks") return t("automation.editor.threadPrecheck");
+  if (message === "prechecks were removed") return t("automation.editor.precheck.removed");
+  if (message.startsWith("{{precheck}} was removed") || message === "{{precheck}} needs a precheck command")
+    return t("automation.editor.prompt.precheckRemoved");
+  return message;
+};
 
 const FIELD_TEXT: Readonly<Record<string, (draft: Draft) => string>> = {
   name: (d) => d.name,
@@ -294,18 +299,6 @@ export function toolNotes(mode: Mode, tools: readonly string[]): MessageKey[] {
     ...(hasWriteTool(tools) ? [modeNoteKey(mode)] : []),
     ...(presetOfTools(tools) === "full" ? (["automation.editor.note.preset"] as const) : []),
   ];
-}
-
-// ---- precheck variables ----
-
-export type EnvProblem = "bad" | "never" | "duplicate" | "limit";
-
-export function envProblem(name: string, env: readonly string[]): EnvProblem | null {
-  if (/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(name)) {
-    if (!EnvName.safeParse(name).success) return "never";
-  } else return "bad";
-  if (env.includes(name)) return "duplicate";
-  return env.length >= AUTOMATION_LIMITS.envNames ? "limit" : null;
 }
 
 // ---- the schedule preview ----

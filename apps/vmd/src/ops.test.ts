@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { VmdFailure } from "./errors.ts";
 import type { ExecHandler } from "./testing/fake-exec.ts";
-import { AGENT, createFixture, type Fixture } from "./testing/ops-fixture.ts";
+import { AGENT_BOX, createFixture, type Fixture } from "./testing/ops-fixture.ts";
 
 let fx: Fixture;
 const use = (handler?: ExecHandler): void => {
@@ -51,7 +51,7 @@ describe("dispatch", () => {
 
   it("a thrown VmdFailure keeps its code through the dispatch", async () => {
     use();
-    await expect(fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: null })).resolves.toEqual({
+    await expect(fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null })).resolves.toEqual({
       stopped: true,
     });
     fx.psCode = 1;

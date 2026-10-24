@@ -8,6 +8,7 @@ import { type MessageKey, useLazyFailureText, useT } from "../../i18n/index.ts";
 import { hasCommand, runCommand } from "../../lib/command-registry.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { useCurrentProject } from "../../stores/current-project.ts";
+import { useProjectSettingsRequest } from "../../stores/project-settings-request.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useMenuFocus, wantFocus } from "./menu-focus.ts";
 import { organiseProject } from "./organise.ts";
@@ -71,6 +72,13 @@ export function ProjectMenu({ project, order, movable, onRename, onNewSession }:
         useCurrentProject.getState().startHere(project.id);
         runCommand("lanes.new");
       }),
+    );
+  }
+  if (project.kind === "box") {
+    items.push(
+      item("settings", "sidebar.action.projectSettings", () =>
+        useProjectSettingsRequest.getState().ask(project.id),
+      ),
     );
   }
   if (movable && at > 0) {

@@ -63,7 +63,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     expect(
       readFileSync(join(mirrorDir(b, agentId), name)).equals(readFileSync(join(vmDir(b, agentId), name))),
     ).toBe(true);
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     expect(b.vms.stopped.some((vm) => vm.agentId === agentId)).toBe(true);
     const rowsNow = await history(b, sessionId, join(mirrorDir(b, agentId), name));
     expect(rowsNow.some((row) => row.message.role === "user" && textOf(row).includes("Say something"))).toBe(
@@ -82,7 +82,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     const name = fileOf(mirrorDir(b, agentId));
     const mirror = join(mirrorDir(b, agentId), name);
     const vmFile = join(vmDir(b, agentId), name);
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     // The VM wrote one more entry that the daemon never received: its mirror "lost its last line".
     const lines = readFileSync(vmFile, "utf8").trimEnd().split("\n");
     const last = JSON.parse(lines.at(-1) as string) as { id: string };
@@ -131,7 +131,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     const vmFile = join(vmDir(b, agentId), name);
     const before = readFileSync(mirror);
     expect(taintedAt(b, sessionId)).toBeNull();
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     // Between two runs the VM rewrote its history: the file is cut back to its first lines (the header stays, so it is the
     // same session). The next hello is behind the mirror, and what the worker then writes is not an extension of the mirror.
     const lines = readFileSync(vmFile, "utf8").split("\n");
@@ -166,7 +166,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     const name = fileOf(mirrorDir(b, agentId));
     const mirror = join(mirrorDir(b, agentId), name);
     const before = readFileSync(mirror);
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     rmSync(`${mirror}.ids`);
     writeScript(b.t, { steps: [{ text: "Second answer." }] });
     await prompt(b, sessionId, "Second question");
@@ -199,7 +199,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     const name = fileOf(mirrorDir(b, agentId));
     const mirror = join(mirrorDir(b, agentId), name);
     const before = readFileSync(mirror);
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     rmSync(join(vmDir(b, agentId), name));
     const answer = await b.owner.client.call("sessions.prompt", { sessionId, text: "Second question" });
     expect(answer).toMatchObject({ ok: false, error: { code: "worker_failed" } });
@@ -237,7 +237,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
         timeout: 30_000,
       },
     );
-    await b.vm.runtime.stop(agentId);
+    await b.vm.runtime.stop({ kind: "agent", id: agentId });
     const lines = readFileSync(mirror, "utf8").trimEnd().split("\n");
     const last = JSON.parse(lines.at(-1) as string) as { id: string };
     const listed = (

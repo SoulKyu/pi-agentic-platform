@@ -1,11 +1,13 @@
-import { type Caller, PapError } from "@pap/contracts";
+import { type Caller, PapError, ProjectId } from "@pap/contracts";
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { ClaudeTokenStore, MirrorHooks, PolicyView, RelayLink } from "./modules/agent-vm/index.ts";
 import type { AgentsPort } from "./modules/agents/index.ts";
+import type { PolicyPort } from "./modules/policy/index.ts";
 import type { ModelsPort } from "./modules/models/index.ts";
 import type { RunsPort } from "./modules/runs/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
+import type { BoxesLate } from "./compose-boxes.ts";
 import type { PluginPicks } from "./plugin-picks.ts";
 
 /** The provider id pi-claude-bridge registers (R13). */
@@ -75,7 +77,10 @@ export const POLICY_RECHECK_MS = 60_000;
 export interface AgentsVmLate {
   readonly sessions: Pick<SessionsModule, "mirror"> & {
     kindOf(sessionId: string): { readonly agentId: string | null } | null;
+    cwdOf?(ownerId: string, sessionId: string): string | null;
   };
+  /** The sessions' policy: a project box session's taint taints its whole launch (spec §4). */
+  readonly policy?: Pick<PolicyPort, "onSessionChange" | "sessionPolicy">;
   /** `composePi`'s result: the models Pi offers. */
   readonly pi: {
     readonly models: Pick<ModelsPort, "available" | "onChanged">;
@@ -87,7 +92,15 @@ export interface AgentsVmLate {
   ownerHosts?(ownerId: string): readonly string[] | null;
   readonly runs: { readonly port: Pick<RunsPort, "onLiveCost" | "onRunEnd"> };
   /** The automation module: the agent's own daily budget (M11R74) is `agentTasks.overBudget`. */
-  readonly automation: { readonly agentTasks: { overBudget(ownerId: string, agentId: string): boolean } };
+  readonly automation: {
+    readonly agentTasks: {
+      overBudget(ownerId: string, agentId: string): boolean;
+      /** The owner's own daily budget, whoever spends it (a project box's sessions have no agent line). */
+      ownerOverBudget(ownerId: string): boolean;
+    };
+  };
+  /** The project boxes (spec boxes): absent, no row runs in a box and a box's connection is refused. */
+  readonly boxes?: BoxesLate;
 }
 
 /** What the relay link reads of the late binding. */
@@ -105,9 +118,15 @@ export interface AgentsVmDerived {
   agentOpen(ownerId: string, agentId: string): void;
   /** The agent's host list now: its own, else the owner's, else none. Null: the agent is unknown. */
   hostsOf(agentId: string): readonly string[] | null;
+  /** A project box's relay policy: the owner's models, the bridge when the token is set, `budget` when the owner's day is spent. */
+  policyOfProject(projectId: string): Promise<PolicyView>;
+  /** A project box's host list now: the owner's and the project's together. Null: the project is unknown or being deleted. */
+  hostsOfProject(projectId: string): readonly string[] | null;
+  /** Whether the session's taint is up now (false for one the policy does not know). */
+  taintedNow(ownerId: string, sessionId: string): boolean;
   /** The agent's trusted sources now; none when the agent is unknown. */
   trustedOf(agentId: string): readonly string[];
-  /** Posts a notice into the agent's thread (the image being rebuilt, a disk that grows later); logged when it has none yet. */
+  /** Posts a notice into the agent's thread, or the sessions of the project whose id it is (the image being rebuilt, a disk that grows later); logged when it has none. */
   notify(agentId: string, text: string): void;
 }
 
@@ -134,6 +153,8 @@ export function bindAgentsVmLate(
     bindMirrorHooks(hooks: MirrorHooks): void;
     /** Where the proxy's taint of a launch's sessions goes (spec §4). */
     bindTaint(taint: (sessionId: string) => void): void;
+    /** A project box's session was tainted: its launch is (spec §4). */
+    launchRaised?(sessionId: string): void;
   },
   late: AgentsVmLate,
 ): AgentsVmDerived {
@@ -146,6 +167,21 @@ export function bindAgentsVmLate(
   });
 
   ctx.bindTaint((sessionId) => late.sessions.mirror.taint(sessionId));
+
+  const taintedNow = (ownerId: string, sessionId: string): boolean => {
+    try {
+      return late.policy?.sessionPolicy(ownerId, sessionId).taint.tainted === true;
+    } catch {
+      return false;
+    }
+  };
+  // A project box's sessions share one launch (spec §4): whatever taints one of them taints the launch, the proxy's or not.
+  late.policy?.onSessionChange((ownerId, sessionId) => {
+    if (late.sessions.kindOf(sessionId)?.agentId != null) return;
+    const cwd = late.sessions.cwdOf?.(ownerId, sessionId) ?? null;
+    if (cwd === null || late.boxes?.source.byPath(ownerId, cwd) == null) return;
+    if (taintedNow(ownerId, sessionId)) ctx.launchRaised?.(sessionId);
+  });
 
   const turns = new Map<string, number>();
   // M2: the last list of models read for an agent. A helper that is busy or slow must not empty a running agent's policy.
@@ -187,6 +223,24 @@ export function bindAgentsVmLate(
       return known?.declared ?? false;
     }
   };
+  /** The owner's offered models (the bridge apart), cached per key: a busy helper must not empty a running policy. */
+  const modelsOf = async (key: string, ownerId: string) => {
+    let pairs = lastModels.get(key);
+    try {
+      const offered = (await late.pi.models.available(ownerCaller(ownerId))).models;
+      pairs = offered
+        .map((model) => ({ provider: model.provider, id: model.id }))
+        .filter((pair) => pair.provider !== CLAUDE_BRIDGE_PROVIDER)
+        .slice(0, POLICY_MAX_MODELS);
+      if (offered.length > POLICY_MAX_MODELS)
+        ctx.logger.warn("relay_policy_models_cut", { agentId: key, offered: offered.length });
+      lastModels.set(key, pairs);
+    } catch (error) {
+      if (pairs === undefined) throw error;
+      ctx.logger.warn("relay_policy_models_kept", { agentId: key, err: error });
+    }
+    return pairs;
+  };
   const derived: AgentsVmDerived = {
     sourcesOf: (ids) => late.pi.plugins.sourcesOf(ids),
     checkPackages: (ids) => late.pi.plugins.check(ids),
@@ -195,20 +249,7 @@ export function bindAgentsVmLate(
       if (ownerId === null) return NOTHING;
       const record = late.agents.get(ownerId, agentId);
       if (record === null) return NOTHING;
-      let pairs = lastModels.get(agentId);
-      try {
-        const offered = (await late.pi.models.available(ownerCaller(ownerId))).models;
-        pairs = offered
-          .map((model) => ({ provider: model.provider, id: model.id }))
-          .filter((pair) => pair.provider !== CLAUDE_BRIDGE_PROVIDER)
-          .slice(0, POLICY_MAX_MODELS);
-        if (offered.length > POLICY_MAX_MODELS)
-          ctx.logger.warn("relay_policy_models_cut", { agentId, offered: offered.length });
-        lastModels.set(agentId, pairs);
-      } catch (error) {
-        if (pairs === undefined) throw error;
-        ctx.logger.warn("relay_policy_models_kept", { agentId, err: error });
-      }
+      const pairs = await modelsOf(agentId, ownerId);
       return {
         models: pairs,
         // `models.available` loads no extension, so it never lists the bridge: the profile says whether the agent has it.
@@ -219,6 +260,21 @@ export function bindAgentsVmLate(
             ? "budget"
             : null,
       };
+    },
+    async policyOfProject(projectId) {
+      const box = late.boxes?.source.box(projectId) ?? null;
+      if (box === null || box.deleting) return NOTHING;
+      return {
+        models: await modelsOf(`project:${projectId}`, box.ownerId),
+        claude: ctx.claudeToken.status() === "set",
+        blocked: late.automation.agentTasks.ownerOverBudget(box.ownerId) ? "budget" : null,
+      };
+    },
+    taintedNow,
+    hostsOfProject(projectId) {
+      const box = late.boxes?.source.box(projectId) ?? null;
+      if (box === null || box.deleting) return null;
+      return [...new Set([...(late.ownerHosts?.(box.ownerId) ?? []), ...box.hosts])];
     },
     hostsOf(agentId) {
       const ownerId = late.agents.ownerOf(agentId);
@@ -238,6 +294,12 @@ export function bindAgentsVmLate(
     turnsOf: (agentId) => turns.get(agentId) ?? 0,
     windowEnded: () => turns.clear(),
     notify(agentId, text) {
+      // The images' notices are keyed by agent id, or by project id for a project's box (a uuid, never an agent id).
+      if (ProjectId.safeParse(agentId).success) {
+        if (late.boxes?.notice) late.boxes.notice(agentId, text);
+        else ctx.logger.warn("agent_vm_notice_no_thread", { projectId: agentId });
+        return;
+      }
       const ownerId = late.agents.ownerOf(agentId);
       const sessionId =
         ownerId === null ? null : (late.agents.get(ownerId, agentId)?.threadSessionId ?? null);
@@ -257,7 +319,7 @@ export function bindAgentsVmLate(
       lastModels.delete(agentId);
       lastBridge.delete(agentId);
     }
-    relay.refresh(agentId);
+    relay.refresh({ kind: "agent", id: agentId });
   });
   // After each assistant message and compaction (the runs observer's own hook): one provider request each.
   const stopStart = late.runs.port.onLiveCost((sessionId) => {
@@ -266,7 +328,7 @@ export function bindAgentsVmLate(
   });
   const stopEnd = late.runs.port.onRunEnd((event) => {
     const agentId = agentOfSession(event.sessionId);
-    if (agentId !== null) relay.refresh(agentId);
+    if (agentId !== null) relay.refresh({ kind: "agent", id: agentId });
   });
   let timer: TimerHandle | undefined;
   let closed = false;

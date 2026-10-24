@@ -1,5 +1,7 @@
+import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { ProjectsPort } from "../projects/index.ts";
+import { boxCwdOf } from "./box-cwd.ts";
 import type { MarksStore } from "./marks-store.ts";
 
 const PAGE = 500;
@@ -19,9 +21,13 @@ export function createProjectLink(deps: {
   readonly store: MarksStore;
   readonly projects: ProjectsPort;
   scopeOf(cwd: string): string;
+  /** The box projects, bound late: a box cwd links to its own project, never through `scopeOf`. */
+  readonly boxes?: (() => ProjectBoxSource | undefined) | undefined;
   readonly logger: Logger;
 }): ProjectLink {
   const projectOf = (ownerId: string, cwd: string): string | null => {
+    const box = boxCwdOf(deps.boxes?.(), ownerId, cwd);
+    if (box) return box.projectId;
     try {
       return deps.projects.ensure(ownerId, deps.scopeOf(cwd))?.id ?? null;
     } catch (error) {

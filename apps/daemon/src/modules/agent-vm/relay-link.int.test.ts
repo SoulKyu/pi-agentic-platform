@@ -24,7 +24,7 @@ const MAIN = fileURLToPath(new URL("../../../../../packages/pi-host/src/relay/ma
 const EXEC_ARGV = ["--conditions=development", "--disable-warning=ExperimentalWarning"];
 const KEY = "ab".repeat(32);
 const REAL = "sk-REAL-PROVIDER-KEY-IN-PI-FILES";
-const AGENT = "scout-0001";
+const AGENT = { kind: "agent", id: "scout-0001" } as const;
 const LAUNCH = "a".repeat(32);
 const MODEL = "m-1";
 const POLICY: PolicyView = { models: [{ provider: "acme", id: MODEL }], claude: false, blocked: null };
@@ -156,7 +156,7 @@ const chat = (model = MODEL) => JSON.stringify({ model, stream: true, messages: 
 const grant = (bed: Bed, over: { address?: string; key?: string; launchId?: string } = {}) =>
   bed.link.grant({
     launchId: over.launchId ?? LAUNCH,
-    agentId: AGENT,
+    box: AGENT,
     relayKey: over.key ?? KEY,
     address: over.address ?? "127.0.0.1",
   });

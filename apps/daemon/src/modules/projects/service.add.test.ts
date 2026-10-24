@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { testCaller } from "../../testing/caller.ts";
 import { resolveSessionCwd } from "../sessions/index.ts";
 import { createProjectsService, MAX_PROJECTS, type ProjectFolders } from "./service.ts";
+import { createBoxStore } from "./box-store.ts";
 import { createProjectsStore } from "./store.ts";
 import { createProjectsBed } from "./testing/bed.ts";
 
@@ -17,6 +18,7 @@ const u1 = testCaller({ userId: "u1" });
 
 const build = (rules: ProjectFolders | null = folders) =>
   createProjectsService({
+    boxes: createBoxStore(bed.db),
     store: createProjectsStore(bed.db),
     clock: bed.clock,
     logger: bed.logger,
@@ -158,6 +160,7 @@ describe("projects.add (decision 85)", () => {
   it("maps a refused write of a newer database to read_only", () => {
     const store = createProjectsStore(bed.db);
     const projects = createProjectsService({
+      boxes: createBoxStore(bed.db),
       store: {
         ...store,
         insert: () => {

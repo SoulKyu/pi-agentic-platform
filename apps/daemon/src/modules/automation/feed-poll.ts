@@ -10,7 +10,7 @@ import { hasBaseline, markSeen, seenKeys, takeBaseline } from "./feed-seen.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { Gates } from "./gates.ts";
-import type { PrecheckRunner } from "./precheck-step.ts";
+import { refuseStoredPrecheck } from "./precheck-refusal.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 export interface FeedPollDeps {
@@ -28,8 +28,6 @@ export interface FeedPollDeps {
   fire(triggerId: string, revision: number, input: FireInput): FireResult;
   /** The signal destroys the socket (M10R73). */
   fetch(url: string, signal: AbortSignal): Promise<FeedFetchResult>;
-  /** The trigger's precheck, run in the scheduler's queue before a fire (Task 9); none: the step is skipped. */
-  readonly precheck?: Pick<PrecheckRunner, "run">;
   /** One `feed.fetch` span per poll that fetched; only closed values are given to it (numbers, `ok`, `error`). */
   readonly span?: () => Span;
 }
@@ -61,7 +59,7 @@ function newestFirst(entries: FeedEntry[]): FeedEntry[] {
 }
 
 /**
- * The `feed.poll` effect (M10R73, M10R76): fetch, parse, keep the entries not seen before, run the precheck, then fire once
+ * The `feed.poll` effect (M10R73, M10R76): fetch, parse, keep the entries not seen before, refuse a stored precheck, then fire once
  * with the newest ten, fenced. Entries are marked seen in the transaction of the fire that used them, so a crash or a
  * refusal (pause, budget, full queue, a trigger saved meanwhile) leaves them new for the next poll. The first poll of an
  * address marks everything seen and fires nothing.
@@ -201,18 +199,7 @@ export function createFeedPoller(deps: FeedPollDeps) {
     if (fresh.length === 0) return done;
     const chosen = fresh.slice(0, AUTOMATION_LIMITS.feedEntriesPerTask);
 
-    let precheck: string | null = null;
-    if (deps.precheck) {
-      const step = await deps.precheck.run(record, {
-        source: "feed",
-        gated: true,
-        origin: "scheduler",
-        signal,
-      });
-      if (signal.aborted) return deadline;
-      if (step.kind === "stop") return done;
-      precheck = step.precheck;
-    }
+    if (refuseStoredPrecheck(deps, record, "feed")) return done;
 
     const skipped = fresh.length - chosen.length;
     db.transaction(() => {
@@ -220,7 +207,6 @@ export function createFeedPoller(deps: FeedPollDeps) {
         ownerId: record.ownerId,
         source: "feed",
         payload: { text: chosen.map(entryText).join("\n\n"), source: "feed" },
-        precheck,
         dedupKey: null,
         title: record.name,
         detail: chosen[0]?.title ?? null,
@@ -246,7 +232,7 @@ export function createFeedPoller(deps: FeedPollDeps) {
       payload: { triggerId: string },
       context: Pick<EffectContext, "ownerId" | "signal">,
     ): Promise<Settlement> => poll(context.ownerId, payload.triggerId, context.signal),
-    /** `automation.stop()`: fetches and prechecks in flight are aborted. */
+    /** `automation.stop()`: fetches in flight are aborted. */
     stop(): void {
       stopper.abort();
     },

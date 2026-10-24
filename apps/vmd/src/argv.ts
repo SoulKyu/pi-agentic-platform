@@ -1,5 +1,6 @@
 import path from "node:path";
-import { AGENT_NET } from "@pap/contracts";
+import { AGENT_NET, BOX_MOUNT, type BoxRef } from "@pap/contracts";
+import { vmName } from "./box-name.ts";
 import type { ImageBuildRequest, VmStartRequest } from "./ops.ts";
 
 const BIN = "/opt/pap-vm/bin";
@@ -21,8 +22,13 @@ const NERDCTL = [
 const KATA_CTL = "/opt/kata/bin/kata-ctl";
 const MKFS = "/usr/sbin/mkfs.ext4";
 
-export const vmName = (agentId: string, taskKey: string | null): string =>
-  taskKey === null ? `pap-${agentId}` : `pap-${agentId}-${taskKey}`;
+/** Where a box's disk shows up in its VM: the agent's folder, or `/boxes/<project id>` (spec boxes). */
+export const mountOf = (box: BoxRef): string => (box.kind === "agent" ? "/agent" : `${BOX_MOUNT}/${box.id}`);
+/** The `-v` flags that mount a box's direct volume. */
+export const diskFlags = (box: BoxRef, volume: string): readonly string[] => [
+  "-v",
+  `${volume}:${mountOf(box)}`,
+];
 /** A local image name that never resolves to a registry (`--pull never` as well). */
 export const imageRef = (tag: string): string => `pap.local/${tag}:1`;
 /** Where a VM's direct-assigned volume is registered with Kata (AVM-P13). */
@@ -65,7 +71,7 @@ export function runArgv(request: VmStartRequest, placement: VmPlacement): string
     "--pull",
     "never",
     "--name",
-    vmName(request.agentId, request.taskKey),
+    vmName(request.box, request.taskKey),
     ...placement.runtime,
     "--network",
     AGENT_NET.network,

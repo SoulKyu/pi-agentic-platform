@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe("ProjectHome under All projects (§3.5, PH13)", () => {
-  it("asks which project at Launch, lists the projects then Add project…, and launches in the one picked", async () => {
+  it("asks which project at Launch, lists the projects then New project…, and launches in the one picked", async () => {
     useShellStore.getState().apply({
       kind: "project",
       project: shellProject({
@@ -52,7 +52,7 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     await typeInto(composer(), "Fix");
     await click(button(page.container, "Launch a lane"));
     await waitPicker();
-    expect(choices()).toEqual(["api", "web", "fresh", "Add project…", "Cancel"]);
+    expect(choices()).toEqual(["api", "web", "fresh", "Scratch", "New project…", "Cancel"]);
     expect(document.activeElement?.textContent).toBe("api");
     await click(button(picker() as HTMLElement, "web"));
     await settle();
@@ -66,6 +66,29 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     expect(useCurrentProject.getState().projectId).toBeNull();
   });
 
+  it("Scratch opens the owner's one Scratch project and launches in it", async () => {
+    const scratch = {
+      id: "sc1",
+      root: "/boxes/sc1/project",
+      name: "Scratch",
+      position: 0,
+      kind: "box",
+      scratch: true,
+    };
+    bed.handlers["projects.scratch"] = () => ({ project: scratch });
+    const { page } = await showHome();
+    await click(button(page.container, "Launch a session"));
+    await waitPicker();
+    expect(picker()?.textContent).toContain("An empty project for quick sessions.");
+    await click(button(picker() as HTMLElement, "Scratch"));
+    await settle();
+    expect(bed.called("projects.scratch")).toHaveLength(1);
+    expect(bed.called("sessions.create")[0]?.params).toEqual({
+      cwd: "/boxes/sc1/project",
+      preset: "configured",
+    });
+  });
+
   it("a Session launch asks too, then creates the session in the chosen project's root", async () => {
     const { page } = await showHome();
     await click(button(page.container, "Launch a session"));
@@ -75,13 +98,13 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/w/api", preset: "configured" });
   });
 
-  it("Add project… opens the dialog, and the launch goes on in the project once it is added", async () => {
+  it("New project… opens the dialog, and the launch goes on in the project once it is added", async () => {
     const { page, actions } = await showHome();
     await click(chip("Trigger"));
     await typeInto(composer(), "Nightly");
     await click(button(page.container, "Launch a trigger"));
     await waitPicker();
-    await click(button(picker() as HTMLElement, "Add project…"));
+    await click(button(picker() as HTMLElement, "New project…"));
     expect(actions.addProject).toHaveBeenCalledOnce();
     const onAdded = actions.addProject.mock.calls[0]?.[0];
     await act(async () => {
@@ -96,7 +119,7 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     expect(actions.newTrigger).toHaveBeenCalledExactlyOnceWith("p9", { name: "Nightly", prompt: "Nightly" });
   });
 
-  it("Add project… puts the focus on the composer before the dialog opens, so Cancel returns there (§7)", async () => {
+  it("New project… puts the focus on the composer before the dialog opens, so Cancel returns there (§7)", async () => {
     const { page, actions } = await showHome();
     let focused: Element | null = null;
     actions.addProject.mockImplementation(() => {
@@ -104,7 +127,7 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     });
     await click(button(page.container, "Launch a session"));
     await waitPicker();
-    await click(button(picker() as HTMLElement, "Add project…"));
+    await click(button(picker() as HTMLElement, "New project…"));
     expect(actions.addProject).toHaveBeenCalledOnce();
     expect(focused).toBe(composer());
   });

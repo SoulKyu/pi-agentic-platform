@@ -85,7 +85,7 @@ describe("composeAgentsVm in vm mode", () => {
   const idle = (): AgentRuntimeBackend => ({
     start: vi.fn(async () => ({ address: "127.0.0.1" })),
     stop: vi.fn(async () => {}),
-    list: vi.fn(async () => [{ agentId: "old-9z9z", taskKey: null }]),
+    list: vi.fn(async () => [{ box: { kind: "agent" as const, id: "old-9z9z" }, taskKey: null }]),
   });
   const dial = (port: number): Promise<"open" | "refused"> =>
     new Promise((resolve) => {
@@ -100,7 +100,7 @@ describe("composeAgentsVm in vm mode", () => {
     expect(vm.gatewayPort).toBeGreaterThan(0);
     expect(await dial(vm.gatewayPort)).toBe("open");
     expect(backend.list).toHaveBeenCalledTimes(1);
-    expect(backend.stop).toHaveBeenCalledWith("old-9z9z", null);
+    expect(backend.stop).toHaveBeenCalledWith({ kind: "agent", id: "old-9z9z" }, null);
   });
   it("closes the gateway and stops the VMs again when the daemon stops", async () => {
     const backend = idle();
@@ -141,7 +141,7 @@ describe("composeAgentsVm in vm mode", () => {
           encodeSocketFrame({
             type: "hello",
             role: "guest",
-            agentId: spec.agentId,
+            box: spec.box,
             launchId: launch.launchId,
             token: launch.token,
             protocol: AGENT_VM_PROTOCOL,
@@ -156,7 +156,13 @@ describe("composeAgentsVm in vm mode", () => {
     port = vm.gatewayPort;
     const spawning = vm.runtime
       .spawn(
-        { agentId: ID, kind: "thread", taskKey: null, image: IMAGE, resources: DEFAULT_AGENT_RESOURCES },
+        {
+          box: { kind: "agent", id: ID },
+          kind: "thread",
+          taskKey: null,
+          image: IMAGE,
+          resources: DEFAULT_AGENT_RESOURCES,
+        },
         {
           sessionFile: null,
           sessionsDir: "/x",
@@ -167,7 +173,7 @@ describe("composeAgentsVm in vm mode", () => {
         null,
       )
       .catch(() => undefined);
-    await vi.waitFor(() => expect(vm.runtime.phase(ID)).toBe("running"));
+    await vi.waitFor(() => expect(vm.runtime.phase({ kind: "agent", id: ID })).toBe("running"));
     await Promise.all(closers.splice(0).map((closer) => closer.close()));
     await spawning;
   });
@@ -245,13 +251,13 @@ describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
           onRunEnd: () => () => {},
         },
       },
-      automation: { agentTasks: { overBudget: () => false } },
+      automation: { agentTasks: { overBudget: () => false, ownerOverBudget: () => false } },
     } as never);
     child.emit("message", { type: "relay_ready", port: 1 });
     const usage = (requests: number) =>
       child.emit("message", {
         type: "relay_usage",
-        agents: [{ agentId: ID, requests, refused: 0, bytesIn: 1, bytesOut: 1 }],
+        boxes: [{ box: { kind: "agent", id: ID }, requests, refused: 0, bytesIn: 1, bytesOut: 1 }],
       });
     for (let i = 0; i < 40; i++) live[0]?.("s1");
     usage(40);

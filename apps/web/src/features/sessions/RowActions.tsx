@@ -15,6 +15,8 @@ export interface RowActions {
   /** The agent works, or another structural call of the screen is in flight: both buttons wait. */
   readonly blocked: boolean;
   readonly track: Track;
+  /** The session runs in a project's box: its file is the VM's, so there is no fork (the daemon refuses it). */
+  readonly inBox?: boolean;
   /** The text "Edit from here" puts in the composer. */
   readonly onEdit: (text: string) => void;
   /** The session's fork points, for the branch switcher of a user row. */
@@ -60,22 +62,24 @@ export function RowButtons({ entryId, actions }: { entryId: string; actions: Row
             }
           />
         ) : null}
-        <MessageAction
-          label={fork.slow ? t("actions.working") : t("row.fork")}
-          icon={IconSplit}
-          disabled={wait}
-          onClick={() =>
-            void fork.run(async () => {
-              const forked = await runtime.rpc.call(
-                "sessions.fork",
-                { sessionId, entryId },
-                { commandId: runtime.rpc.newCommandId() },
-              );
-              saveDraft(deviceStorage(), forked.sessionId, forked.text);
-              await navigate({ to: "/s/$sessionId", params: { sessionId: forked.sessionId } });
-            })
-          }
-        />
+        {actions.inBox === true ? null : (
+          <MessageAction
+            label={fork.slow ? t("actions.working") : t("row.fork")}
+            icon={IconSplit}
+            disabled={wait}
+            onClick={() =>
+              void fork.run(async () => {
+                const forked = await runtime.rpc.call(
+                  "sessions.fork",
+                  { sessionId, entryId },
+                  { commandId: runtime.rpc.newCommandId() },
+                );
+                saveDraft(deviceStorage(), forked.sessionId, forked.text);
+                await navigate({ to: "/s/$sessionId", params: { sessionId: forked.sessionId } });
+              })
+            }
+          />
+        )}
         <MessageAction
           label={edit.slow ? t("actions.working") : t("row.edit")}
           icon={IconUndo}

@@ -2,7 +2,9 @@ import { HOME_SUBCOMMANDS } from "./allowlist-homes.ts";
 import { LANE_SUBCOMMANDS } from "./allowlist-lanes.ts";
 import { FILTER_SCAN_ARGS, ORIGIN_URLS_ARGS, PUSH_SCAN_ARGS } from "./exec.ts";
 
-export type GitProfile = "local" | "remote";
+import type { GitProfile } from "@pap/contracts";
+
+export type { GitProfile };
 /** An option spelled exactly, or `prefix` followed by a value `value` matches in full (MC18: no abbreviation, no cluster). */
 export type OptionRule = string | { readonly prefix: string; readonly value: RegExp };
 /** One call's positionals, split at `--`, and the options it gave (each once). */

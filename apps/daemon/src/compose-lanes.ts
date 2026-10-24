@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { denySourcesOf, type WorkspaceModules } from "./compose-workspace.ts";
+import type { ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Db } from "./kernel/db/database.ts";
 import { createPathDiskGuard } from "./kernel/disk.ts";
@@ -87,6 +88,8 @@ export interface LanesComposeDeps {
   readonly config: Pick<Config, "minFreeDiskMb">;
   /** Tests only: replaces the floor built from `config`. */
   readonly diskFloor?: (path: string) => undefined;
+  /** The owner's box projects: a box root is "not a lane project", answered with no host read (boxes B1). */
+  readonly boxes?: () => ProjectBoxSource | undefined;
   /** M10's runs port: `sessionCost` is the compare column's cost (agreement 14). */
   readonly runs?: Pick<RunsPort, "sessionCost" | "sessionBilling">;
   /** Tests only: replaces the worktrees module. */
@@ -115,6 +118,7 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
     audit: deps.audit.port,
     readOnly: deps.readOnly,
     allowFile,
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
   });
   // The runner reports through the service, which is built after it (it needs the runner to run a setup).
   const bridge: { publish(laneId: string): void } = { publish: () => undefined };

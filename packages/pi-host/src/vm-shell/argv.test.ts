@@ -82,6 +82,27 @@ describe("bwrapVmArgv", () => {
     expect(list.indexOf("/agent")).toBeLessThan(list.indexOf("--bind"));
   });
 
+  it("binds the project trio", () => {
+    const box = {
+      ...layout,
+      root: "/boxes/p",
+      project: "/boxes/p/project",
+      home: "/boxes/p/home",
+      inbox: "/boxes/p/inbox",
+      pi: "/boxes/p/.pi",
+      knowledge: "/boxes/p/project/knowledge",
+    };
+    const list = argv({ layout: box });
+    const binds = list.flatMap((arg, i) => (arg === "--bind" ? [[list[i + 1], list[i + 2]]] : []));
+    expect(binds).toEqual([
+      ["/boxes/p/project", "/boxes/p/project"],
+      ["/boxes/p/home", "/boxes/p/home"],
+      ["/boxes/p/inbox", "/boxes/p/inbox"],
+    ]);
+    expect(after(list, "--chdir")[0]).toBe("/boxes/p/project");
+    expect(() => argv({ layout: { ...box, project: "/boxes/p/.pi" } })).toThrow(RangeError);
+  });
+
   it("never names a device bind, /dev/vsock, .pi or the layout root as a bind source", () => {
     for (const rootView of ["read-only", "overlay"] as const) {
       const list = argv({ rootView });

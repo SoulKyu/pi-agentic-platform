@@ -25,10 +25,10 @@ const TAG = `pap-agent-agent-${hex(64, "b")}`;
 const guestHello = {
   type: "hello",
   role: "guest",
-  agentId: "helper-1a2b",
+  box: { kind: "agent", id: "helper-1a2b" },
   launchId: hex(32),
   token: hex(64),
-  protocol: 1,
+  protocol: 2,
   imageTag: TAG,
 };
 const workerHello = {
@@ -101,6 +101,15 @@ describe("hello", () => {
     expect(Hello.safeParse(workerHello).success).toBe(true);
   });
 
+  it("accepts a project box hello and refuses an agentId one", () => {
+    const box = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" };
+    expect(Hello.safeParse({ ...guestHello, box }).success).toBe(true);
+    expect(Hello.safeParse({ ...workerHello, box }).success).toBe(true);
+    const legacy: Record<string, unknown> = { ...guestHello, agentId: "helper-1a2b" };
+    delete legacy.box;
+    expect(Hello.safeParse(legacy).success).toBe(false);
+  });
+
   it("refuses a token of the wrong length or case, a foreign image tag, another protocol and unknown keys", () => {
     const bad = [
       { token: hex(63) },
@@ -108,7 +117,7 @@ describe("hello", () => {
       { token: hex(64, "A") },
       { imageTag: "pap-agent-agent-latest" },
       { imageTag: `other-agent-${hex(64)}` },
-      { protocol: 2 },
+      { protocol: 1 },
       { extra: 1 },
     ];
     for (const patch of bad)
@@ -293,5 +302,27 @@ describe("frame bounds", () => {
   it("keeps the WebSocket bound under the bare name and the gateway bound under its own name", () => {
     expect(MAX_FRAME_BYTES).toBe(1024 * 1024);
     expect(AGENT_VM_MAX_FRAME_BYTES).toBe(4 * 1024 * 1024);
+  });
+});
+
+describe("guest operations on the wire", () => {
+  const id = "ab".repeat(16);
+
+  it("carries an operation to the guest and its answer back, by id", () => {
+    expect(GuestCommand.safeParse({ type: "op", id, op: { name: "git.status" } }).success).toBe(true);
+    expect(GuestCommand.safeParse({ type: "op", id, op: { name: "fs.exec", path: "/x" } }).success).toBe(
+      false,
+    );
+    expect(GuestCommand.safeParse({ type: "op", id: "short", op: { name: "git.status" } }).success).toBe(
+      false,
+    );
+    expect(GuestReport.safeParse({ type: "op_result", id, ok: true, value: { enabled: true } }).success).toBe(
+      true,
+    );
+    expect(GuestReport.safeParse({ type: "op_result", id, ok: false, code: "not_found" }).success).toBe(true);
+    expect(GuestReport.safeParse({ type: "op_result", id, ok: false, code: "box_stopped" }).success).toBe(
+      false,
+    );
+    expect(GuestReport.safeParse({ type: "op_result", id, ok: false }).success).toBe(false);
   });
 });

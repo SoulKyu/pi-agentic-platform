@@ -278,7 +278,7 @@ describe.skipIf(skip)("a VM agent's network through the egress proxy (real Kata)
           'if [ -e "$HOME/.kube/config" ]; then echo "FILE mode=$(stat -c %a "$HOME/.kube/config") dir=$(stat -c %a "$HOME/.kube") size=$(stat -c %s "$HOME/.kube/config")"; head -n 1 "$HOME/.kube/config"; else echo FILE gone; fi',
         );
       const restart = async (): Promise<void> => {
-        await b.vm.runtime.stop(agentId);
+        await b.vm.runtime.stop({ kind: "agent", id: agentId });
         await b.call("sessions.reopen", { sessionId });
       };
       expect(await look()).toContain("FILE mode=600");
@@ -287,7 +287,7 @@ describe.skipIf(skip)("a VM agent's network through the egress proxy (real Kata)
       expect(present).toContain(`FILE mode=600 dir=700 size=${Buffer.byteLength(content)}`);
       expect(present).toContain("apiVersion: v1");
       // Stopped first: the removal must wait as a pending one (no live worker to confirm it) and reach the home at the start.
-      await b.vm.runtime.stop(agentId);
+      await b.vm.runtime.stop({ kind: "agent", id: agentId });
       await b.call("agents.files.remove", { agentId, path: ".kube/config" });
       await b.call("sessions.reopen", { sessionId });
       expect(await look()).toContain("FILE gone");

@@ -2,16 +2,18 @@ import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
 import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
-import { type AgentsVmSeams, composeAgentsVm } from "./compose-agents-vm.ts";
+import { composeAgentsVm } from "./compose-agents-vm.ts";
+import { composeBoxWiring } from "./compose-boxes-wiring.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
-import { composeFonts, type Fetcher } from "./compose-fonts.ts";
+import { composeFonts } from "./compose-fonts.ts";
 import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
-import { composePush, PUSH_MIGRATIONS, type PushSeams } from "./compose-push.ts";
-import { createSystemClock, type Clock } from "./kernel/clock.ts";
+import { composePush, PUSH_MIGRATIONS } from "./compose-push.ts";
+import type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
+import { createSystemClock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
 import { KERNEL_MIGRATIONS, migrate } from "./kernel/db/migrate.ts";
@@ -21,8 +23,7 @@ import { createHttpApp } from "./kernel/http/app.ts";
 import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
 import { newId } from "./kernel/ids.ts";
-import { createLogger, type Logger } from "./kernel/logger.ts";
-import type { WorkerExit } from "./kernel/supervisor/exit.ts";
+import { createLogger } from "./kernel/logger.ts";
 import { probeScopes } from "./kernel/supervisor/scope.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { VERSION } from "./kernel/version.ts";
@@ -32,7 +33,7 @@ import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUDIT_MIGRATIONS, createAuditModule } from "./modules/audit/index.ts";
-import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
+import { AUTH_MIGRATIONS, createAuthModule, requireStepUp } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { composeKnowledge } from "./compose-knowledge.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
@@ -40,45 +41,7 @@ import { createSearchModule } from "./modules/search/index.ts";
 import { createSessionsModule, resolveSessionCwd, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
-export interface DaemonHandle {
-  readonly url: string;
-  readonly port: number;
-  /** The one-time owner setup address while no owner exists; in `--dev` it carries the Vite dev origin (R31). */
-  readonly setupUrl: string | null;
-  readonly inspect: {
-    workerPid(sessionId: string): number | undefined;
-    workerRssMb(sessionId: string): number | null;
-    /** Tests: what the runs registry says the session cost, its subagents included (M11R141). */
-    sessionCost(sessionId: string): number | null;
-  };
-  /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
-  stop(): Promise<void>;
-  /** A stop was given up: SIGKILLs every worker scope of this home, synchronously and bounded. Never throws. */
-  killScopes(): void;
-}
-
-export interface DaemonDeps {
-  readonly clock?: Clock;
-  readonly logger?: Logger;
-  readonly env?: NodeJS.ProcessEnv;
-  /**
-   * The HTTP server raised an error after it started: the caller stops the daemon and exits non-zero (R75). Called
-   * once, however many errors follow: a second call would look like a second signal and cut the shutdown short (R115).
-   */
-  readonly onFatal?: (reason: "server_error") => void;
-  /**
-   * Where the one-time setup address goes. Defaults to `logger.info("setup_url")`; `pap serve` prints it whatever
-   * PAP_LOG_LEVEL is, because without it nobody can create the owner (R117).
-   */
-  readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
-  /** A worker exited: its session and the end of what it printed (at most the supervisor's 8 KiB tail). */
-  readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
-  /** Tests only: replaces the boot probe of the worker scopes. */
-  readonly probeScopes?: typeof probeScopes;
-  readonly push?: PushSeams; // tests only: replaces the transport side
-  readonly fontsFetcher?: Fetcher; // tests only: replaces the Google Fonts fetcher
-  readonly agentsVm?: AgentsVmSeams; // the guest seam, T9b's mirrors (J1)
-}
+export type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
 
 /**
  * Every migration source of the daemon, in order. The CLI migrates with this same constant, so a home the daemon
@@ -203,6 +166,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       clock,
       logger,
       newId,
+      audit: audit.port,
       folders: {
         resolve: resolveSessionCwd,
         scopeOf: (real) => policy.port.scopeOf(real),
@@ -210,13 +174,29 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       },
       knowledge: composeKnowledge(audit.port, () => ({ projects, lanes, sessions })),
     });
+    // The box source is bound before any module that reads a path is built: a box root is never a host path (C6).
+    const boxes = composeBoxWiring({
+      vm: agentsVm,
+      projects,
+      clock,
+      logger,
+      home: config.home,
+      requireStepUp,
+    });
     const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];
     const wk = createWorkspaceModules(
-      { roots: allRoots, config, clock, logger, env, hub, readOnly, scopes },
+      { roots: allRoots, config, clock, logger, env, hub, readOnly, scopes, ...boxes.workspace },
       workerUmask,
     );
     closers.push({ name: "workspace", close: () => wk.shutdown() });
-    const lanes = composeLanes({ ...core, wk, audit, roots: projects.port.roots, runs: m10.runs.port });
+    const lanes = composeLanes({
+      ...core,
+      wk,
+      audit,
+      roots: projects.port.roots,
+      runs: m10.runs.port,
+      boxes: boxes.workspace.boxes,
+    });
     await lanes.recover();
     const sessions = createSessionsModule({
       db,
@@ -241,6 +221,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       env,
       scopes,
       vmLaunch: agentsVm.launch,
+      boxes: boxes.workspace.boxes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     ownerOf = sessions.ownerOf;
@@ -273,7 +254,16 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       vm: agentsVm,
     });
     vmRpc.bindAgents(m11.agents);
-    agentsVm.bindLate({ sessions, pi, ...m11.vmLate, runs: m10.runs, automation: m10Late.automation });
+    const boxesLate = boxes.bind({ sessions, automation: m10Late.automation, inbox: m10Late.inbox });
+    agentsVm.bindLate({
+      sessions,
+      pi,
+      ...m11.vmLate,
+      runs: m10.runs,
+      policy: policy.port,
+      automation: m10Late.automation,
+      boxes: boxesLate,
+    });
     const agents = { port: m11.agents };
     const push = composePush(
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },

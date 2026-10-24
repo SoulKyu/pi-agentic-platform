@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { VmLayout } from "@pap/contracts";
 
 /** A temporary VM layout (`<base>/agent/...`): the agent's three folders, Pi's `.pi` with a transcript, a skills folder. */
-export function makeVmWorld(options: { piAgentDir?: string } = {}) {
+export function makeVmWorld(options: { piAgentDir?: string; project?: boolean } = {}) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), "pap-vm-world-")));
   const root = join(base, "agent");
   const layout: VmLayout = {
@@ -17,8 +17,12 @@ export function makeVmWorld(options: { piAgentDir?: string } = {}) {
     piAgentDir: options.piAgentDir ?? join(root, ".pi", "agent"),
     imageAgentDir: join(base, "image-agent"),
     shellOverlay: join(base, "run-pap-shell"),
+    // A project box: the project folder holds the knowledge, as in `projectLayoutOf`.
+    ...(options.project ? { project: join(root, "project") } : {}),
   };
+  if (layout.project) layout.knowledge = join(layout.project, "knowledge");
   for (const dir of [
+    ...(layout.project ? [layout.project] : []),
     layout.home,
     layout.knowledge,
     layout.inbox,

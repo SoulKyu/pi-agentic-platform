@@ -30,7 +30,10 @@ const between = (value: string, min: number, max: number): boolean =>
 export interface AgentItemInput {
   readonly ownerId: string;
   readonly kind: string;
-  readonly agentId: string;
+  /** Null for an item about a project box. */
+  readonly agentId: string | null;
+  /** The subject line (a project's name); none: the agent label. */
+  readonly title?: string;
   /** The request, staged fact or agent the item is about: one item per `(refId, kind)`. */
   readonly refId: string;
   readonly entryId?: string | null;
@@ -68,7 +71,7 @@ export function createAgentItems(deps: AgentItemsDeps) {
       if (
         !between(input.refId, 1, REF_ID_MAX) ||
         !between(input.entryId ?? "", 0, ENTRY_ID_MAX) ||
-        !between(input.agentId, AGENT_ID_MIN, AGENT_ID_MAX)
+        (input.agentId !== null && !between(input.agentId, AGENT_ID_MIN, AGENT_ID_MAX))
       ) {
         logger.warn("inbox_agent_item_refused", { kind: input.kind, reason: "length" });
         return false;
@@ -85,6 +88,7 @@ export function createAgentItems(deps: AgentItemsDeps) {
         kind: input.kind,
         toHandle: input.toHandle,
         agentId: input.agentId,
+        ...(input.title === undefined ? {} : { title: input.title }),
         refId: input.refId,
         entryId: input.entryId ?? null,
         detail: cleanDetail(input.detail),

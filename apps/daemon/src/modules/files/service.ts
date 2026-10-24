@@ -1,10 +1,12 @@
 import type { FileHandle } from "node:fs/promises";
 import { type Caller, FILE_LIMITS, PapError, type ParamsOf, type ResultOf } from "@pap/contracts";
+import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { BoundaryConfig, Scope } from "../../kernel/fs/boundary.ts";
 import type { DenySet } from "../../kernel/fs/deny-set.ts";
 import type { GitRunner } from "../../kernel/git/runner.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import { type BoxRaw, createBoxFiles } from "./box-backend.ts";
 import { judged, type WriteEnv } from "./access.ts";
 import { createPathLock } from "./path-lock.ts";
 import { listFolder } from "./list.ts";
@@ -26,6 +28,9 @@ export interface FilesDeps {
   readonly readOnly: boolean;
   /** The workers' umask: a new file gets `0o666 & ~workerUmask` (R114). */
   readonly workerUmask: number;
+  /** Late-bound (the boxes are wired after the files): with none bound, no path is a box path. */
+  readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly boxOps?: () => BoxOps | undefined;
 }
 
 export interface FilesService {
@@ -35,6 +40,8 @@ export interface FilesService {
   write(caller: Caller, params: ParamsOf<"files.write">): Promise<ResultOf<"files.write">>;
   /** For the raw route: the file open at its size now. The caller closes the handle. */
   openRaw(caller: Caller, path: string): Promise<{ readonly handle: FileHandle; readonly size: number }>;
+  /** For the raw route: the guest's stream when the path is in a box project, else null (use `openRaw`). */
+  openBoxRaw(caller: Caller, path: string): Promise<BoxRaw | null>;
 }
 
 export function createFilesService(
@@ -48,6 +55,13 @@ export function createFilesService(
     locks: createPathLock(),
   };
   const index = createSearchIndex(env);
+  const box = createBoxFiles({
+    boxes: deps.boxes ?? (() => undefined),
+    ops: deps.boxOps ?? (() => undefined),
+    clock: deps.clock,
+    logger: deps.logger,
+    readOnly: deps.readOnly,
+  });
   // The transport's caller, never the params, decides whose roots and which strictness apply (C 4.4, M8R29).
   const scopeOf = (caller: Caller): Scope => ({
     roots: deps.roots(caller.userId),
@@ -59,16 +73,34 @@ export function createFilesService(
     readOnly: deps.readOnly,
     async upload(caller, input) {
       if (deps.readOnly) throw new PapError("read_only");
+      const inBox = box.match(caller, input.path);
+      if (inBox) return box.upload(inBox, caller, input);
       return uploadFile(env, scopeOf(caller), caller, input, deps.workerUmask);
     },
-    list: (caller, { path, showIgnored }) => listFolder(env, scopeOf(caller), path, showIgnored === true),
-    read: (caller, { path, offset }) => readChunk(env, scopeOf(caller), path, offset),
+    list(caller, params) {
+      const inBox = box.match(caller, params.path);
+      if (inBox) return box.list(inBox, caller, params);
+      return listFolder(env, scopeOf(caller), params.path, params.showIgnored === true);
+    },
+    read(caller, params) {
+      const inBox = box.match(caller, params.path);
+      if (inBox) return box.read(inBox, caller, params);
+      return readChunk(env, scopeOf(caller), params.path, params.offset);
+    },
+    async openBoxRaw(caller, path) {
+      const inBox = box.match(caller, path);
+      return inBox ? box.openRaw(inBox, caller, path) : null;
+    },
     openRaw: (caller, path) => openRaw(env, scopeOf(caller), path),
     async write(caller, params) {
       if (deps.readOnly) throw new PapError("read_only");
+      const inBox = box.match(caller, params.path);
+      if (inBox) return box.write(inBox, caller, params);
       return writeText(env, scopeOf(caller), caller, params, deps);
     },
     async search(caller, { root, query, limit }) {
+      const inBox = box.match(caller, root);
+      if (inBox) return box.search(inBox, caller, { root, query, limit });
       const scope = scopeOf(caller);
       // The root is one of the caller's, spelled exactly, and one the caller may open.
       if (!scope.roots.includes(root)) throw new PapError("not_found");

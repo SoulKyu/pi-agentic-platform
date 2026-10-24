@@ -64,7 +64,7 @@ describe("the VM egress listener keeps the proxy core's bounds", () => {
   let seen: string[];
 
   const scope: VmScope = {
-    agentId: "atlas-1a2b",
+    box: { kind: "agent", id: "atlas-1a2b" },
     launchId: "launch-a",
     source: "thread",
     hosts: ["api.example.test"],

@@ -16,6 +16,7 @@ import type { AgentStart } from "./runner-agent.ts";
 import type { Launch } from "./runner-launch.ts";
 import type { ThreadStart } from "./runner-thread.ts";
 import type { TaskViews } from "./task-view.ts";
+import { refuseStoredPrecheck } from "./precheck-refusal.ts";
 import { createRetry } from "./retry.ts";
 import { isTerminal, type Move, parsePolicy, type TaskRow, type TaskStore } from "./tasks.ts";
 import type { TriggerRecord } from "./triggers.ts";
@@ -45,7 +46,7 @@ export interface RunnerDeps {
   readonly starting: Map<string, string>;
   readonly triggers: {
     get(ownerId: string, id: string): TriggerRecord | null;
-    resolveFolder(cwd: string): string;
+    resolveFolder(cwd: string, ownerId: string): string;
   };
   readonly marks: { started(ownerId: string, triggerId: string, at: number): void };
   readonly sessions: Pick<
@@ -192,7 +193,7 @@ export function createRunner(deps: RunnerDeps) {
     }
     try {
       // An agent's home is inside pap's own folder, which a project task may never use: the agent gate opens it instead.
-      if (row.agent_id === null) deps.triggers.resolveFolder(row.cwd);
+      if (row.agent_id === null) deps.triggers.resolveFolder(row.cwd, row.owner_id);
     } catch (error) {
       settle(row, ["queued"], "failed", { reason: reasonOf(error) });
       return done;
@@ -352,7 +353,12 @@ export function createRunner(deps: RunnerDeps) {
   return {
     handleStart,
     cancel,
-    retry: createRetry({ store, triggers: deps.triggers, fire: deps.fire }),
+    retry: createRetry({
+      store,
+      triggers: deps.triggers,
+      fire: deps.fire,
+      refusePrecheck: (record) => refuseStoredPrecheck(deps, record, "retry"),
+    }),
     /** Starts hearing the runs (not in read-only mode, where none are recorded). */
     listen(): void {
       listening.push(

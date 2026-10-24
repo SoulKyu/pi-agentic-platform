@@ -7,10 +7,13 @@ import { unavailableNet } from "./net-unavailable.ts";
 import type { ExecHandler } from "./testing/fake-exec.ts";
 import {
   AGENT,
+  AGENT_BOX,
   createFixture,
   IMAGE,
   LAUNCH,
   MIB,
+  PROJECT,
+  PROJECT_ID,
   seedDisk,
   startRequest,
   TASK,
@@ -159,10 +162,26 @@ describe("vm.start", () => {
     seedDisk(fx);
     await fx.ops.handle(startRequest());
     expect(seen).toBe(
-      `PAP_GATEWAY=10.213.0.1:7841\nPAP_GUEST_PROXY=10.213.0.1:7843\nPAP_GATEWAY_TOKEN=${TOKEN}\nPAP_LAUNCH_ID=${LAUNCH}\nPAP_AGENT_ID=${AGENT}\nPAP_IMAGE_TAG=${IMAGE}\n`,
+      `PAP_GATEWAY=10.213.0.1:7841\nPAP_GUEST_PROXY=10.213.0.1:7843\nPAP_GATEWAY_TOKEN=${TOKEN}\nPAP_LAUNCH_ID=${LAUNCH}\nPAP_BOX=agent:${AGENT}\nPAP_IMAGE_TAG=${IMAGE}\n`,
     );
     expect(mode).toBe(0o600);
     expect(existsSync(file)).toBe(false);
+  });
+
+  it("starts a project box at /boxes/<id> with PAP_BOX", async () => {
+    let seen = "";
+    use((argv) => {
+      if (isRun(argv)) seen = readFileSync(argv[argv.indexOf("--env-file") + 1] ?? "", "utf8");
+      return undefined;
+    });
+    seedDisk(fx, PROJECT);
+    await fx.ops.handle(startRequest({ box: PROJECT }));
+    const hex = PROJECT_ID.replaceAll("-", "");
+    expect(seen).toContain(`PAP_BOX=project:${PROJECT_ID}\n`);
+    expect(seen).not.toContain("PAP_AGENT_ID");
+    const run = fx.exec.calls.find(isRun) ?? [];
+    expect(run[run.indexOf("--name") + 1]).toBe(`pap_p_${hex}`);
+    expect(run[run.indexOf("-v") + 1]).toBe(`${VOLUME(fx, `pap_p_${hex}`)}:/boxes/${PROJECT_ID}`);
   });
 
   it("no command line, log record or answer holds the token", async () => {
@@ -264,7 +283,7 @@ describe("vm.start, isolated (R30)", () => {
   let taskDisk: string;
   const prepare = (handler?: ExecHandler): void => {
     use(handler);
-    taskDisk = fx.state.diskPath(AGENT, TASK);
+    taskDisk = fx.state.diskPath(AGENT_BOX, TASK);
   };
   beforeEach(() => prepare());
 

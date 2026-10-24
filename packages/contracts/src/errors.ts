@@ -31,6 +31,7 @@ export const ERROR_CODES = [
   "sandbox_unavailable",
   "agent_paused",
   "vm_bundle_stale",
+  "box_stopped",
   "push_unavailable",
   "push_revoked",
   "network",
@@ -86,6 +87,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   agent_paused: "This agent is paused. Resume it from its header.",
   vm_bundle_stale:
     "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
+  box_stopped: "The project's box is stopped: start it from the project page.",
   push_unavailable: "Notifications are not available on this server. See Settings › Notifications.",
   push_revoked:
     "This device was removed from the notification list. Enable notifications again to add it back.",

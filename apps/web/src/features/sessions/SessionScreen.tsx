@@ -20,6 +20,7 @@ import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts";
+import { useBoxPhase } from "../../stores/box-phase.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
@@ -67,6 +68,8 @@ export function SessionScreen({
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const projectId = useShellStore((state) => state.view.sessions.get(sessionId)?.projectId ?? null);
+  // A box repo's own `.pi/` resources do not load in B1, and the host cannot trust a folder it does not hold.
+  const inBox = useBoxPhase(view.cwd) !== null;
   const dismissedNotices = useDismissedNotices((state) => state.keys);
   const dismissNotice = useDismissedNotices((state) => state.dismiss);
   const [error, setError] = useState<string | null>(null);
@@ -189,7 +192,11 @@ export function SessionScreen({
           {t("session.outsideWrite.body")}
         </Banner>
       ) : null}
-      <TrustBanner sessionId={sessionId} cwd={view.cwd} trust={view.loadout?.projectTrust ?? null} />
+      <TrustBanner
+        sessionId={sessionId}
+        cwd={view.cwd}
+        trust={inBox ? null : (view.loadout?.projectTrust ?? null)}
+      />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       {/* On a phone the question comes first: the card a tapped notification opens sits above the thread. */}
       {phone ? approvals : null}

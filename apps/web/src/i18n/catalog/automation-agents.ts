@@ -9,7 +9,6 @@ export const automationAgentsEn = {
     "in a fresh session in {name}'s home, with this tool list, unattended, in its sandbox",
   "automation.editor.target.outside":
     "A webhook or a feed runs as an isolated task only: outside text never reaches an agent's thread.",
-  "automation.editor.precheck.agent": "Prechecks do not run for agents: clear this field.",
   "automation.editor.threadPrecheck":
     "A thread trigger cannot use {{precheck}}: the precheck's output is outside text and the thread is the agent's trusted context. Run it as an isolated task to quote it.",
   "automation.dry.isolatedTask":
@@ -36,7 +35,6 @@ export const automationAgentsFr: Record<keyof typeof automationAgentsEn, string>
     "dans une session neuve dans le dossier personnel de {name}, avec cette liste d'outils, sans surveillance, dans son bac à sable",
   "automation.editor.target.outside":
     "Un webhook ou un flux ne s'exécute qu'en tâche isolée : un texte venu de l'extérieur n'atteint jamais le thread d'un agent.",
-  "automation.editor.precheck.agent": "Les pré-checks ne tournent pas pour les agents : videz ce champ.",
   "automation.editor.threadPrecheck":
     "Un déclencheur de thread ne peut pas utiliser {{precheck}} : la sortie du precheck est un texte extérieur et le thread est le contexte de confiance de l'agent. Lancez-le en tâche isolée pour la citer.",
   "automation.dry.isolatedTask":

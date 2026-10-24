@@ -82,7 +82,7 @@ export const vcsMethods = {
     idempotent: true,
     params: z.object({ root: FilePath, after: Cursor.optional() }),
     result: z.object({ sub: z.string() }),
-    errors: ["not_found", "capacity"],
+    errors: ["not_found", "capacity", "box_stopped"],
   }),
   "vcs.refresh": defineMethod({
     name: "vcs.refresh",
@@ -90,7 +90,7 @@ export const vcsMethods = {
     idempotent: true,
     params: z.object({ root: FilePath }),
     result: z.object({ ok: z.literal(true) }),
-    errors: ["not_found", "capacity"],
+    errors: ["not_found", "capacity", "box_stopped"],
   }),
   "vcs.fileDiff": defineMethod({
     name: "vcs.fileDiff",
@@ -104,6 +104,6 @@ export const vcsMethods = {
       to: DiffSide,
     }),
     result: z.object({ before: DiffText, after: DiffText, binary: z.boolean(), truncated: z.boolean() }),
-    errors: ["not_found", "capacity", "timeout"],
+    errors: ["not_found", "capacity", "timeout", "box_stopped"],
   }),
 } as const;

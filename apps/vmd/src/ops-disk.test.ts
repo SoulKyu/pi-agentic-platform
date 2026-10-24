@@ -11,14 +11,19 @@ import {
   writeFileSync,
 } from "node:fs";
 import path from "node:path";
+import type { BoxRef } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { VmdFailure } from "./errors.ts";
 import type { ExecHandler } from "./testing/fake-exec.ts";
 import {
   AGENT,
+  AGENT_BOX,
   createFixture,
   MIB,
   OTHER_AGENT,
+  OTHER_BOX,
+  PROJECT,
+  PROJECT_ID,
   seedDisk,
   TASK,
   type Fixture,
@@ -43,15 +48,15 @@ const use = (handler?: ExecHandler): void => {
 afterEach(() => fx.cleanup());
 const stateDir = (...parts: string[]): string => path.join(fx.state.root, ...parts);
 const mkfs = (argv: readonly string[]): boolean => argv[0] === "/usr/sbin/mkfs.ext4";
-const grow = (agentId = AGENT, diskMb = 8192): Record<string, unknown> => ({
+const grow = (box: BoxRef = AGENT_BOX, diskMb = 8192): Record<string, unknown> => ({
   op: "disk.grow",
-  agentId,
+  box,
   taskKey: null,
   diskMb,
 });
 const del = (taskKey: string | null, purge = false): Record<string, unknown> => ({
   op: "disk.delete",
-  agentId: AGENT,
+  box: AGENT_BOX,
   taskKey,
   purge,
 });
@@ -59,7 +64,7 @@ const del = (taskKey: string | null, purge = false): Record<string, unknown> => 
 describe("disk.create", () => {
   it("makes a sparse file of diskMb MiB and runs mkfs.ext4 -q -F on it", async () => {
     use();
-    await fx.ops.handle({ op: "disk.create", agentId: AGENT, taskKey: null, diskMb: 4096 });
+    await fx.ops.handle({ op: "disk.create", box: AGENT_BOX, taskKey: null, diskMb: 4096 });
     const file = stateDir("agents", AGENT, "disk.img");
     const stat = statSync(file);
     expect(stat.size).toBe(4096 * MIB);
@@ -73,7 +78,7 @@ describe("disk.create", () => {
     use();
     const file = seedDisk(fx);
     await expect(
-      fx.ops.handle({ op: "disk.create", agentId: AGENT, taskKey: null, diskMb: 4096 }),
+      fx.ops.handle({ op: "disk.create", box: AGENT_BOX, taskKey: null, diskMb: 4096 }),
     ).rejects.toMatchObject({ code: "conflict" });
     expect(readFileSync(file, "utf8")).toBe("agent disk");
     expect(fx.exec.calls).toEqual([]);
@@ -83,12 +88,12 @@ describe("disk.create", () => {
     use();
     fx.room = () => Promise.reject(new VmdFailure("disk_low"));
     await expect(
-      fx.ops.handle({ op: "disk.create", agentId: AGENT, taskKey: null, diskMb: 4096 }),
+      fx.ops.handle({ op: "disk.create", box: AGENT_BOX, taskKey: null, diskMb: 4096 }),
     ).rejects.toMatchObject({ code: "disk_low" });
     expect(existsSync(stateDir("agents", AGENT, "disk.img"))).toBe(false);
     use((argv) => (mkfs(argv) ? { code: 1 } : undefined));
     await expect(
-      fx.ops.handle({ op: "disk.create", agentId: AGENT, taskKey: null, diskMb: 4096 }),
+      fx.ops.handle({ op: "disk.create", box: AGENT_BOX, taskKey: null, diskMb: 4096 }),
     ).rejects.toMatchObject({ code: "failed" });
     expect(existsSync(stateDir("agents", AGENT, "disk.img"))).toBe(false);
   });
@@ -98,7 +103,7 @@ describe("disk.grow (R31)", () => {
   it("disk.grow only extends the file: no e2fsck, no resize2fs, no mkfs", async () => {
     use();
     const file = seedDisk(fx);
-    await fx.ops.handle({ op: "disk.create", agentId: OTHER_AGENT, taskKey: null, diskMb: 1024 });
+    await fx.ops.handle({ op: "disk.create", box: OTHER_BOX, taskKey: null, diskMb: 1024 });
     fx.exec.calls.length = 0;
     await fx.ops.handle(grow());
     expect(statSync(file).size).toBe(8192 * MIB);
@@ -114,10 +119,10 @@ describe("disk.grow (R31)", () => {
   it("disk.grow refuses a smaller size and leaves the file as it was", async () => {
     use();
     const file = stateDir("agents", AGENT, "disk.img");
-    await fx.ops.handle({ op: "disk.create", agentId: AGENT, taskKey: null, diskMb: 4096 });
-    await expect(fx.ops.handle(grow(AGENT, 2048))).rejects.toMatchObject({ code: "bad_request" });
+    await fx.ops.handle({ op: "disk.create", box: AGENT_BOX, taskKey: null, diskMb: 4096 });
+    await expect(fx.ops.handle(grow(AGENT_BOX, 2048))).rejects.toMatchObject({ code: "bad_request" });
     expect(statSync(file).size).toBe(4096 * MIB);
-    await expect(fx.ops.handle(grow(AGENT, 4096))).resolves.toEqual({ diskMb: 4096 });
+    await expect(fx.ops.handle(grow(AGENT_BOX, 4096))).resolves.toEqual({ diskMb: 4096 });
     expect(statSync(file).size).toBe(4096 * MIB);
   });
 
@@ -127,10 +132,10 @@ describe("disk.grow (R31)", () => {
     fx.ps = [`pap-${AGENT}-${TASK} Up 2 seconds`];
     await expect(fx.ops.handle(grow())).rejects.toMatchObject({ code: "conflict" });
     fx.ps = [`pap-${OTHER_AGENT} Up 2 seconds`];
-    await expect(fx.ops.handle(grow(OTHER_AGENT))).rejects.toMatchObject({ code: "not_found" });
+    await expect(fx.ops.handle(grow(OTHER_BOX))).rejects.toMatchObject({ code: "not_found" });
     await expect(fx.ops.handle(grow())).resolves.toEqual({ diskMb: 8192 });
     fx.psCode = 1;
-    await expect(fx.ops.handle(grow(AGENT, 9000))).rejects.toMatchObject({ code: "failed" });
+    await expect(fx.ops.handle(grow(AGENT_BOX, 9000))).rejects.toMatchObject({ code: "failed" });
     expect(statSync(file).size).toBe(8192 * MIB);
   });
 
@@ -164,7 +169,7 @@ describe("fail closed on a status pap does not know (I1)", () => {
     use();
     for (const status of ["Unknown", "Pausing", ""]) {
       fx.ps = [`pap-${AGENT}-${TASK} ${status}`.trimEnd()];
-      const disk = fx.state.diskPath(AGENT, TASK);
+      const disk = fx.state.diskPath(AGENT_BOX, TASK);
       mkdirSync(path.dirname(disk), { recursive: true });
       writeFileSync(disk, "task disk");
       fx.state.sweepAtStart(await fx.ops.runningTasks());
@@ -172,7 +177,7 @@ describe("fail closed on a status pap does not know (I1)", () => {
     }
     fx.ps = [`pap-${AGENT}-${TASK} Exited (0) 1 hour ago`];
     fx.state.sweepAtStart(await fx.ops.runningTasks());
-    expect(existsSync(fx.state.diskPath(AGENT, TASK))).toBe(false);
+    expect(existsSync(fx.state.diskPath(AGENT_BOX, TASK))).toBe(false);
   });
 });
 
@@ -198,12 +203,33 @@ describe("disk.delete (R30)", () => {
     expect(readFileSync(stateDir("trash", `${AGENT}-${fx.clock.now()}`, "disk.img"), "utf8")).toBe(
       "agent disk",
     );
-    const second = seedDisk(fx, OTHER_AGENT);
+    const second = seedDisk(fx, OTHER_BOX);
     fx.ps = [];
-    await fx.ops.handle({ op: "disk.delete", agentId: OTHER_AGENT, taskKey: null, purge: true });
+    await fx.ops.handle({ op: "disk.delete", box: OTHER_BOX, taskKey: null, purge: true });
     expect(existsSync(path.dirname(second))).toBe(false);
     expect(readdirSync(stateDir("trash"))).toHaveLength(1);
     await expect(fx.ops.handle(del(null))).rejects.toMatchObject({ code: "not_found" });
+  });
+
+  it("trashes and purges a project disk", async () => {
+    use();
+    const hex = PROJECT_ID.replaceAll("-", "");
+    await fx.ops.handle({ op: "disk.create", box: PROJECT, taskKey: null, diskMb: 8192 });
+    const file = stateDir("projects", PROJECT_ID, "disk.img");
+    expect(statSync(file).size).toBe(8192 * MIB);
+    fx.ps = [`pap_p_${hex} Up 1 minute`];
+    await expect(
+      fx.ops.handle({ op: "disk.delete", box: PROJECT, taskKey: null, purge: false }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    fx.ps = [`pap-${AGENT} Up 1 minute`];
+    await fx.ops.handle({ op: "disk.delete", box: PROJECT, taskKey: null, purge: false });
+    const trashed = `project_${hex}-${fx.clock.now()}`;
+    expect(readdirSync(stateDir("trash"))).toEqual([trashed]);
+    expect(existsSync(file)).toBe(false);
+    await expect(fx.ops.handle({ op: "trash.purge", box: AGENT_BOX })).resolves.toEqual({ removed: 0 });
+    expect(readdirSync(stateDir("trash"))).toEqual([trashed]);
+    await expect(fx.ops.handle({ op: "trash.purge", box: PROJECT })).resolves.toEqual({ removed: 1 });
+    expect(readdirSync(stateDir("trash"))).toEqual([]);
   });
 
   it("a task key removes that task disk when its VM is not running, and only that one", async () => {
@@ -230,8 +256,8 @@ describe("trash.purge (RT-40)", () => {
     use();
     mkdirSync(stateDir("trash", `${AGENT}-${fx.clock.now()}`));
     mkdirSync(stateDir("trash", `${OTHER_AGENT}-${fx.clock.now()}`));
-    await expect(fx.ops.handle({ op: "trash.purge", agentId: AGENT })).resolves.toEqual({ removed: 1 });
+    await expect(fx.ops.handle({ op: "trash.purge", box: AGENT_BOX })).resolves.toEqual({ removed: 1 });
     expect(readdirSync(stateDir("trash"))).toEqual([`${OTHER_AGENT}-${fx.clock.now()}`]);
-    await expect(fx.ops.handle({ op: "trash.purge", agentId: null })).resolves.toEqual({ removed: 0 });
+    await expect(fx.ops.handle({ op: "trash.purge", box: null })).resolves.toEqual({ removed: 0 });
   });
 });

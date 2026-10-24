@@ -48,7 +48,7 @@ describe("disposeAgent (delete)", () => {
     put(join(mirrors("scout-0001"), "s.jsonl"), "line\n");
     await disposeAgent(deps(), "scout-0001", 1_760_000_000_000);
     expect(fake.of("disk.delete")).toEqual([
-      { op: "disk.delete", agentId: "scout-0001", taskKey: null, purge: false },
+      { op: "disk.delete", box: { kind: "agent", id: "scout-0001" }, taskKey: null, purge: false },
     ]);
     expect(existsSync(mirrors("scout-0001"))).toBe(false);
     expect(readFileSync(join(trash(), "scout-0001-1760000000000.mirrors", "s.jsonl"), "utf8")).toBe("line\n");
@@ -97,7 +97,7 @@ describe("purgeAgent (Purge now)", () => {
     put(join(trash(), "scout-0001-0123-1760000000000.mirrors", "s.jsonl"));
     put(join(trash(), "other-0002-1760000000000.mirrors", "s.jsonl"));
     await purgeAgent(deps(), "scout-0001");
-    expect(fake.of("trash.purge")).toEqual([{ op: "trash.purge", agentId: "scout-0001" }]);
+    expect(fake.of("trash.purge")).toEqual([{ op: "trash.purge", box: { kind: "agent", id: "scout-0001" } }]);
     expect(readdirSync(trash()).sort()).toEqual([
       "other-0002-1760000000000.mirrors",
       "scout-0001-0123-1760000000000.mirrors",

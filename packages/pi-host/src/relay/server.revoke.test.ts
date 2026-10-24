@@ -97,7 +97,7 @@ describe("revoking a launch's key (T12 carry: relay_revoke ends running streams)
     const third = "ef".repeat(32);
     keys.add({
       launchId: "c".repeat(32),
-      agentId: "other-0002",
+      box: { kind: "agent", id: "other-0002" },
       key: Buffer.from(third, "hex"),
       address: "127.0.0.1",
     });
@@ -118,7 +118,7 @@ describe("revoking a launch's key (T12 carry: relay_revoke ends running streams)
     await stream.first;
     keys.add({
       launchId: LAUNCH_A,
-      agentId: "scout-0001",
+      box: { kind: "agent", id: "scout-0001" },
       key: Buffer.from(KEY, "hex"),
       address: "127.0.0.1",
     });
@@ -197,7 +197,7 @@ describe("a request that waits for its credential (I3)", () => {
     // A key rotation or a re-grant to the same address by another launch: the response is still open, the grant is not its own.
     keys.add({
       launchId: "c".repeat(32),
-      agentId: "scout-0001",
+      box: { kind: "agent", id: "scout-0001" },
       key: Buffer.from(KEY, "hex"),
       address: "127.0.0.1",
     });
@@ -215,7 +215,7 @@ describe("a request that waits for its credential (I3)", () => {
   it("is refused when the agent was paused meanwhile", async () => {
     const { policy, seen, release, reply } = await waiting();
     policy.set({
-      agentId: "scout-0001",
+      box: { kind: "agent", id: "scout-0001" },
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: true,
       blocked: "paused",
@@ -229,7 +229,7 @@ describe("a request that waits for its credential (I3)", () => {
   it("is refused when the agent's budget was reached meanwhile", async () => {
     const { policy, seen, release, reply } = await waiting();
     policy.set({
-      agentId: "scout-0001",
+      box: { kind: "agent", id: "scout-0001" },
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: true,
       blocked: "budget",

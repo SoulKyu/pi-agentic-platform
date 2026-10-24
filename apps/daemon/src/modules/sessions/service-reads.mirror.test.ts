@@ -44,7 +44,7 @@ function setup(options: {
     },
   };
   const reads = createSessionReads({
-    store: { get: () => row } as never,
+    store: { get: () => row, marks: { row: () => undefined } } as never,
     agentDir,
     papHome,
     loadTranscript: () => Promise.resolve(reader as never),
@@ -102,7 +102,7 @@ describe("unverified user entries (R32)", () => {
     } else writeFileSync(`${path}.unverified`, unverified.map((id) => `${id}\n`).join(""), { mode: 0o600 });
     const row = { id: "s1", ownerId: "u1", cwd: "/w", piPath: path, name: null, ...vmRow } as SessionRow;
     const reads = createSessionReads({
-      store: { get: () => row } as never,
+      store: { get: () => row, marks: { row: () => undefined } } as never,
       agentDir: bed.agentDir,
       papHome: bed.papHome,
       loadTranscript: () => loadTranscriptReader(),

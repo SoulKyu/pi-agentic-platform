@@ -80,3 +80,40 @@ describe("a networked shell in a VM, through the pipeline", () => {
     expect(h.asked).toEqual([]);
   });
 });
+
+describe("a project session in a VM", () => {
+  const projectRules =
+    (approvalMode: "auto-accept-edits" | "supervised" | "read-only") => (project: string) =>
+      PolicyRules.parse({
+        profile: "project",
+        approvalMode,
+        agentHome: project,
+        agentScratch: null,
+        sandbox: { required: true, network: true },
+      });
+  const tools = { bash: { path: SANDBOX_SOURCE, sandboxNetwork: true } };
+  async function shell(approvalMode: "auto-accept-edits" | "supervised" | "read-only") {
+    const boxed = makeVmWorld({ project: true });
+    try {
+      const project = boxed.layout.project as string;
+      const h = bed.harness({
+        cwd: project,
+        rules: () => projectRules(approvalMode)(project),
+        vm: { layout: boxed.layout, roots: await realVmRoots(boxed.layout) },
+        tools,
+      });
+      const result = await h.run("bash", { command: "touch made.txt" });
+      return { result, asked: h.asked.length };
+    } finally {
+      boxed.cleanup();
+    }
+  }
+
+  it("a project session's shell is an edit of the project folder: unasked in auto-accept-edits, asked in supervised, blocked in read-only", async () => {
+    expect(await shell("auto-accept-edits")).toEqual({ result: undefined, asked: 0 });
+    expect((await shell("supervised")).asked).toBe(1);
+    const readOnly = await shell("read-only");
+    expect(readOnly.result).toMatchObject({ block: true });
+    expect(readOnly.asked).toBe(0);
+  });
+});

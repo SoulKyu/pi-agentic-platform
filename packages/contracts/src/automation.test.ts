@@ -4,6 +4,7 @@ import {
   inQuietHours,
   presetOfTools,
   TriggerInput,
+  TriggerSaveInput,
   type TriggerInput as TriggerInputValue,
 } from "./automation.ts";
 
@@ -173,5 +174,26 @@ describe("inQuietHours", () => {
 
   it("falls back to the server's zone when none is given", () => {
     expect(typeof inQuietHours(night, null, at("2026-01-15T22:00:00Z"))).toBe("boolean");
+  });
+});
+
+describe("prechecks were removed (B6)", () => {
+  const paths = (patch: Record<string, unknown>) => {
+    const result = TriggerSaveInput.safeParse({ ...base, ...patch });
+    return result.success ? [] : result.error.issues.map((issue) => issue.path.join("."));
+  };
+
+  it("a stored precheck parses, a new one is refused", () => {
+    const stored = { execution: { ...base.execution, precheck: "true", env: ["KUBECONFIG"] } };
+    expect(parse(stored).execution).toMatchObject({ precheck: "true", env: ["KUBECONFIG"] });
+    expect(paths(stored)).toEqual(expect.arrayContaining(["execution.precheck", "execution.env"]));
+    expect(paths({})).toEqual([]);
+  });
+
+  it("{{precheck}} is refused on save", () => {
+    const stored = { execution: { ...base.execution, precheck: "true" }, prompt: "Look: {{precheck}}" };
+    expect(parse(stored).prompt).toBe("Look: {{precheck}}");
+    expect(paths({ prompt: "Look: {{precheck}}" })).toContain("prompt");
+    expect(paths(stored)).toContain("prompt");
   });
 });

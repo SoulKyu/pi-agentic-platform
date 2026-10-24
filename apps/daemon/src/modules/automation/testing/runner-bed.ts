@@ -17,7 +17,6 @@ import {
   type Engine,
   type FireInput,
   type Operations,
-  type PrecheckPort,
 } from "../index.ts";
 import { requireStepUp } from "../../auth/index.ts";
 import { createAutomationBed, manualInput, webhookInput } from "./bed.ts";
@@ -325,10 +324,9 @@ export function createRunnerBed(options: { readOnly?: boolean; startAt?: number;
         requireStepUp,
         announce: (row) => (current as NonNullable<typeof current>).engine.runner.announce(row.id, row.state),
       }),
-    /** Manual fire, dry-run and the journal over the bed's engine; `precheck` stands for the runner of Task 9. */
-    operations: (precheck?: PrecheckPort["run"]): Operations => {
+    /** Manual fire, dry-run and the journal over the bed's engine. */
+    operations: (): Operations => {
       const { engine } = current as NonNullable<typeof current>;
-      const port = precheck ? { precheck: { run: precheck } } : {};
       return {
         manual: createManual({
           db: base.db,
@@ -336,9 +334,6 @@ export function createRunnerBed(options: { readOnly?: boolean; startAt?: number;
           logger: base.logger,
           fire: engine.fire,
           triggers: base.triggers,
-          settings: { automation: (ownerId) => settings.owners.get(ownerId) ?? settings.value },
-          gates: engine.gates,
-          ...port,
         }),
         dryRun: createDryRun({
           clock: base.clock,
@@ -347,7 +342,6 @@ export function createRunnerBed(options: { readOnly?: boolean; startAt?: number;
           store: engine.store,
           gates: engine.gates,
           settings: { automation: (ownerId) => settings.owners.get(ownerId) ?? settings.value },
-          ...port,
         }),
         journal: createJournal({
           db: base.db,
@@ -379,7 +373,6 @@ export const fireInput = (overrides: Partial<FireInput> = {}): FireInput => ({
   ownerId: "u1",
   source: "manual",
   payload: null,
-  precheck: null,
   dedupKey: null,
   title: "Nightly check",
   detail: null,

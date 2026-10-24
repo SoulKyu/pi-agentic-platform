@@ -74,7 +74,7 @@ describe("the relay server: what never reaches a provider", () => {
   it("follows a policy pushed later", async () => {
     const { port, policy, seen } = await bed();
     policy.set({
-      agentId: AGENT,
+      box: AGENT,
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: false,
       blocked: "budget",
@@ -83,7 +83,7 @@ describe("the relay server: what never reaches a provider", () => {
       403,
     );
     policy.set({
-      agentId: AGENT,
+      box: AGENT,
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: false,
       blocked: null,

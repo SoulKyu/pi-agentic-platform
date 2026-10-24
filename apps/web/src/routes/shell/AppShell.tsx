@@ -33,6 +33,7 @@ import { NewAgentHost } from "./NewAgentHost.tsx";
 import { NewLaneHost } from "./NewLaneHost.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
+import { ProjectSettingsHost } from "./ProjectSettingsHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { SecretDialogHost } from "./SecretDialogHost.tsx";
 import { ShellContext } from "./shell-context.ts";
@@ -121,6 +122,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
         <NewLaneHost />
         <NewAgentHost />
         <AddProjectHost />
+        <ProjectSettingsHost />
         <SecretDialogHost />
         <LazyPanel
           text={lazyText}

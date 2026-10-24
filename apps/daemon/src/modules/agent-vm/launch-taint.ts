@@ -1,8 +1,13 @@
 export interface LaunchTaint {
   /** The launch's proxy let unclean content through: the sessions to taint now; empty after the first call for that launch. */
   mark(launchId: string): readonly string[];
-  /** A session started in the launch: true when the launch is already marked, so the caller taints the session at once. */
-  join(launchId: string, sessionId: string): boolean;
+  /**
+   * A session started in the launch: the sessions to taint now. `[sessionId]` when the launch is already marked; with `tainted`
+   * (a project box's session that is tainted as it starts, spec §4) it marks the launch and answers every session of it.
+   */
+  join(launchId: string, sessionId: string, tainted?: boolean): readonly string[];
+  /** A joined session was tainted by something other than the proxy (a project box, spec §4): marks its launch, as `mark` does. */
+  raised(sessionId: string): readonly string[];
   /** The launch is over: forgets its sessions and its mark. */
   ended(launchId: string): void;
 }
@@ -13,6 +18,7 @@ export interface LaunchTaint {
  */
 export function createLaunchTaint(): LaunchTaint {
   const launches = new Map<string, { marked: boolean; readonly sessions: Set<string> }>();
+  const launchOf = new Map<string, string>();
   const of = (launchId: string) => {
     let launch = launches.get(launchId);
     if (launch === undefined) {
@@ -21,18 +27,28 @@ export function createLaunchTaint(): LaunchTaint {
     }
     return launch;
   };
+  const mark = (launchId: string): readonly string[] => {
+    const launch = of(launchId);
+    if (launch.marked) return [];
+    launch.marked = true;
+    return [...launch.sessions];
+  };
   return {
-    mark(launchId) {
-      const launch = of(launchId);
-      if (launch.marked) return [];
-      launch.marked = true;
-      return [...launch.sessions];
-    },
-    join(launchId, sessionId) {
+    mark,
+    join(launchId, sessionId, tainted = false) {
       const launch = of(launchId);
       launch.sessions.add(sessionId);
-      return launch.marked;
+      launchOf.set(sessionId, launchId);
+      if (launch.marked) return [sessionId];
+      return tainted ? mark(launchId) : [];
     },
-    ended: (launchId) => void launches.delete(launchId),
+    raised(sessionId) {
+      const launchId = launchOf.get(sessionId);
+      return launchId === undefined ? [] : mark(launchId);
+    },
+    ended(launchId) {
+      for (const sessionId of launches.get(launchId)?.sessions ?? []) launchOf.delete(sessionId);
+      launches.delete(launchId);
+    },
   };
 }

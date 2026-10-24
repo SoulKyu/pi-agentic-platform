@@ -77,7 +77,7 @@ process.on("message", (raw: unknown) => {
     case "relay_grant":
       keys.add({
         launchId: command.launchId,
-        agentId: command.agentId,
+        box: command.box,
         key: Buffer.from(command.key, "hex"),
         address: command.address,
       });
@@ -85,7 +85,7 @@ process.on("message", (raw: unknown) => {
     case "relay_revoke":
       keys.remove(command.launchId);
       break;
-    case "agent_policy":
+    case "box_policy":
       policy.set(command);
       break;
     case "claude_token":

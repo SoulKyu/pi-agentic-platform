@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { type BoxRef, boxKey } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 
 export type SkewVerdict = "ok" | "stale" | "unchecked";
 
 export interface BundleSkew {
-  /** Whether the bundle installed for the VMs is the one built with this daemon. `stale` is logged once per agent. */
-  check(agentId: string): Promise<SkewVerdict>;
+  /** Whether the bundle installed for the VMs is the one built with this daemon. `stale` is logged once per box. */
+  check(box: BoxRef): Promise<SkewVerdict>;
 }
 
 export interface BundleSkewDeps {
@@ -38,7 +39,7 @@ export function createBundleSkew(deps: BundleSkewDeps): BundleSkew {
   const told = new Set<string>();
 
   return {
-    async check(agentId) {
+    async check(box) {
       if (treeBundle === null) {
         if (!unchecked) logger.info("vm_bundle_unchecked");
         unchecked = true;
@@ -57,9 +58,10 @@ export function createBundleSkew(deps: BundleSkewDeps): BundleSkew {
       // A stale verdict is confirmed with a fresh read: `pap vm setup` may have run since the installed digest was cached.
       if ((await deps.installedDigest()) === wanted) return "ok";
       if ((await deps.installedDigest(true)) === wanted) return "ok";
-      if (!told.has(agentId)) {
-        told.add(agentId);
-        logger.warn("vm_bundle_stale", { agentId });
+      const key = boxKey(box);
+      if (!told.has(key)) {
+        told.add(key);
+        logger.warn("vm_bundle_stale", { box: key });
       }
       return "stale";
     },

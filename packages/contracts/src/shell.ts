@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BoxPhase } from "./boxes.ts";
 import { defineMethod } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MarkChange, MAX_PINS } from "./marks.ts";
@@ -44,6 +45,10 @@ export const ProjectView = z.object({
     .max(SHELL_LIMITS.projectName * 2),
   /** The person's order: lower first (fractional, so a move rewrites one row). */
   position: z.number().finite(),
+  /** `box`: its files live in its own microVM; absent from an older daemon, which has host projects only. */
+  kind: z.enum(["host", "box"]).optional(),
+  /** The owner's one Scratch project (a box). Absent otherwise. */
+  scratch: z.literal(true).optional(),
 });
 export type ProjectView = z.infer<typeof ProjectView>;
 
@@ -52,6 +57,8 @@ export const ProjectSummary = ProjectView.extend({
   sessions: z.number().int().nonnegative(),
   /** No session of the owner files under it yet; the switcher lists it anyway (decision 85, PH3). Absent otherwise. */
   unused: z.literal(true).optional(),
+  /** The phase of a box project's microVM; absent for a host project. */
+  box: z.object({ phase: BoxPhase }).strict().optional(),
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
 
@@ -127,6 +134,8 @@ export const ShellStreamEvent = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("session"), session: ShellSession }),
   z.object({ kind: z.literal("project"), project: ProjectSummary }),
+  /** A box project was deleted: it and its sessions leave every client's switcher and tree at once. */
+  z.object({ kind: z.literal("projectRemoved"), projectId: Id }),
   z.object({ kind: z.literal("counts"), archived: z.number().int().nonnegative() }),
 ]);
 export type ShellStreamEvent = z.infer<typeof ShellStreamEvent>;
@@ -159,7 +168,7 @@ export const shellMethods = {
     // `sessionId`: a lane session reads its worktree's `knowledge/`, any other the project's folder.
     params: z.object({ projectId: Id, sessionId: Id.optional() }),
     result: z.object({ enabled: z.boolean(), concepts: z.number().int().nonnegative() }),
-    errors: ["not_found"],
+    errors: ["not_found", "box_stopped"],
   }),
   "projects.enableKnowledge": defineMethod({
     name: "projects.enableKnowledge",
@@ -168,7 +177,7 @@ export const shellMethods = {
     params: z.object({ projectId: Id, sessionId: Id.optional() }),
     result: z.object({ enabled: z.literal(true) }),
     // `conflict`: `knowledge` is a link or a file, or its `index.md` is not an OKF index; nothing was written.
-    errors: ["not_found", "conflict"],
+    errors: ["not_found", "conflict", "box_stopped"],
   }),
   "sessions.mark": defineMethod({
     name: "sessions.mark",

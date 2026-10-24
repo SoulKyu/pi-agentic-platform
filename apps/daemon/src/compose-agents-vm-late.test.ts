@@ -90,7 +90,7 @@ function bed(
         onRunEnd: (listener) => (listeners.end.push(listener as never), () => {}),
       },
     },
-    automation: { agentTasks: { overBudget: () => state.over } },
+    automation: { agentTasks: { overBudget: () => state.over, ownerOverBudget: () => state.over } },
   };
   const derived = bindAgentsVmLate(
     {
@@ -328,14 +328,14 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
   it("refreshes the agent that was edited, paused or deleted", () => {
     const { listeners, relay } = bed();
     for (const listener of listeners.agent) listener({ agentId: AGENT });
-    expect(relay.refresh).toHaveBeenCalledExactlyOnceWith(AGENT);
+    expect(relay.refresh).toHaveBeenCalledExactlyOnceWith({ kind: "agent", id: AGENT });
   });
 
   it("refreshes the agent of a run that ended (its spend moved), not a session that is no agent's", () => {
     const { listeners, relay } = bed();
     listeners.end[0]?.({ sessionId: "s1" });
     listeners.end[0]?.({ sessionId: "stranger" });
-    expect(relay.refresh).toHaveBeenCalledExactlyOnceWith(AGENT);
+    expect(relay.refresh).toHaveBeenCalledExactlyOnceWith({ kind: "agent", id: AGENT });
   });
 
   it("counts the turns an agent's workers report in the window, and the window's end starts again (I4)", () => {

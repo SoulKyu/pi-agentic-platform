@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Caller, TOKEN_PERMISSIONS, TriggerInput } from "@pap/contracts";
+import type { ProjectBoxSource } from "../../../kernel/boxes.ts";
 import { createFakeClock } from "../../../kernel/clock.ts";
 import type { Db } from "../../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
@@ -15,7 +16,9 @@ import { RUNS_MIGRATIONS } from "../../runs/index.ts";
 import { type AgentBinding, AUTOMATION_MIGRATIONS, createTriggers, type TriggerChanged } from "../index.ts";
 
 /** A real database through `migrate`, a fake clock, a temporary `$PAP_HOME` and Pi folder, and the triggers service over them. */
-export function createAutomationBed(options: { startAt?: number; agents?: AgentBinding } = {}) {
+export function createAutomationBed(
+  options: { startAt?: number; agents?: AgentBinding; boxes?: () => ProjectBoxSource | undefined } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "pap-automation-"));
   const clock = createFakeClock(options.startAt ?? Date.now());
   const logs: Array<Record<string, unknown>> = [];
@@ -54,6 +57,7 @@ export function createAutomationBed(options: { startAt?: number; agents?: AgentB
     audit: audit.port,
     projects: projects.port,
     scopeOf: (cwd) => cwd,
+    ...(options.boxes ? { boxes: options.boxes } : {}),
     config: { home, piAgentDir, publicOrigin: "https://pap.example" },
     requireStepUp,
   });

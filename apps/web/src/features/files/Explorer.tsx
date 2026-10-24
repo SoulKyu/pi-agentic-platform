@@ -3,6 +3,8 @@ import { Banner, Button, IconButton, IconRefresh, Spinner, Switch } from "@pap/u
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
+import { useOnBoxRunning } from "../../stores/box-phase.ts";
+import { BoxStopped } from "../boxes/BoxStopped.tsx";
 import { ExplorerRow } from "./ExplorerRow.tsx";
 import { visibleRows, type TreeRow } from "./files.vm.ts";
 import { useFolders } from "./use-folders.ts";
@@ -38,6 +40,8 @@ export function Explorer({ root, selected, onOpen }: ExplorerProps) {
   const t = useT();
   const [showIgnored, setShowIgnored] = useState(readShowIgnored);
   const { expanded, folders, toggle, refresh } = useFolders(root, showIgnored);
+  // A box that turns running lists its root again (R3).
+  useOnBoxRunning(root, refresh);
   const [focused, setFocused] = useState<string | null>(null);
   const tree = useRef<HTMLDivElement>(null);
 
@@ -110,6 +114,13 @@ export function Explorer({ root, selected, onOpen }: ExplorerProps) {
     ([path, folder]) => folder.status === "error" && (path === root || expanded.includes(path)),
   );
 
+  if (rootFolder?.status === "error" && rootFolder.code === "box_stopped") {
+    return (
+      <div data-slot="explorer" className="flex min-h-0 flex-1 flex-col">
+        <BoxStopped path={root} />
+      </div>
+    );
+  }
   return (
     <div data-slot="explorer" className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between gap-s2 border-b border-border px-s2 py-s1">

@@ -147,6 +147,18 @@ export default defineConfig(
               ],
               allow: [["web-feature", { domain: "knowledge" }]],
             },
+            // Boxes lot B1: the project page, Files, Changes, the knowledge row, the project menu and settings and the agent form render the box pieces (`features/boxes`: START, the stopped panel, the resource fields).
+            {
+              from: [
+                ["web-feature", { domain: "home" }],
+                ["web-feature", { domain: "files" }],
+                ["web-feature", { domain: "vcs" }],
+                ["web-feature", { domain: "knowledge" }],
+                ["web-feature", { domain: "projects" }],
+                ["web-feature", { domain: "agents" }],
+              ],
+              allow: [["web-feature", { domain: "boxes" }]],
+            },
             {
               from: [["web-feature", { domain: "knowledge" }]],
               allow: [

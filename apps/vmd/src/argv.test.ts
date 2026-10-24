@@ -1,3 +1,4 @@
+import type { BoxRef } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import {
   buildArgv,
@@ -7,9 +8,11 @@ import {
   mkfsArgv,
   rmArgv,
   runArgv,
-  vmName,
+  diskFlags,
+  mountOf,
   type VmPlacement,
 } from "./argv.ts";
+import { parseVmName, vmName } from "./box-name.ts";
 import type { ImageBuildRequest, VmStartRequest } from "./ops.ts";
 
 /*
@@ -32,11 +35,13 @@ const NERDCTL = [
   "--cni-netconfpath",
   "/etc/pap-vm/cni",
 ];
+const agent: BoxRef = { kind: "agent", id: "helper-1a2b" };
+const project: BoxRef = { kind: "project", id: "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0" };
 const TOKEN = "c".repeat(64);
 const IMAGE = `pap-agent-agent-${"b".repeat(64)}`;
 const request: VmStartRequest = {
   op: "vm.start",
-  agentId: "helper-1a2b",
+  box: agent,
   kind: "thread",
   taskKey: null,
   image: IMAGE,
@@ -65,9 +70,35 @@ const placement: VmPlacement = {
 
 describe("names", () => {
   it("names a thread VM by its agent and a task VM by its agent and key", () => {
-    expect(vmName("helper-1a2b", null)).toBe("pap-helper-1a2b");
-    expect(vmName("helper-1a2b", "e".repeat(32))).toBe(`pap-helper-1a2b-${"e".repeat(32)}`);
+    expect(vmName(agent, null)).toBe("pap-helper-1a2b");
+    expect(vmName(agent, "e".repeat(32))).toBe(`pap-helper-1a2b-${"e".repeat(32)}`);
     expect(imageRef(IMAGE)).toBe(`pap.local/${IMAGE}:1`);
+  });
+
+  it("names a project box so it never parses as an agent id", () => {
+    const name = vmName(project, null);
+    expect(name).toBe("pap_p_0b1c2d3e4f504162" + "8394a5b6c7d8e9f0");
+    expect(parseVmName(name)).toEqual({ box: project, taskKey: null });
+    expect(parseVmName(`pap-${project.id}`)).toBeNull();
+    expect(parseVmName(`pap-p-${project.id.replaceAll("-", "")}`)).toBeNull();
+    expect(parseVmName("pap_p_" + "A".repeat(32))).toBeNull();
+    expect(parseVmName(`pap_p_${"a".repeat(31)}`)).toBeNull();
+    expect(parseVmName(`pap_p_${"a".repeat(32)}-${"e".repeat(32)}`)).toBeNull();
+    expect(parseVmName("pap-helper-1a2b")).toEqual({ box: agent, taskKey: null });
+    expect(() => vmName(project, "e".repeat(32))).toThrow();
+    expect(() => vmName({ kind: "project", id: project.id.toUpperCase() }, null)).toThrow();
+  });
+
+  it("mounts a project disk at /boxes/<id> and an agent's at /agent", () => {
+    expect(mountOf(project)).toBe(`/boxes/${project.id}`);
+    expect(diskFlags(project, "/run/pap-vm/vol/pap_p_x")).toEqual([
+      "-v",
+      `/run/pap-vm/vol/pap_p_x:/boxes/${project.id}`,
+    ]);
+    expect(diskFlags(agent, "/run/pap-vm/vol/pap-helper-1a2b")).toEqual([
+      "-v",
+      "/run/pap-vm/vol/pap-helper-1a2b:/agent",
+    ]);
   });
 });
 

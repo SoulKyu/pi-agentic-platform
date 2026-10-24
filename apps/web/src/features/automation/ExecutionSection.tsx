@@ -1,12 +1,11 @@
-import { Checkbox, Segmented, TextField } from "@pap/ui";
+import { Button, Checkbox, Segmented, TextField } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { EditorSection, type SectionProps } from "./EditorSection.tsx";
 import { effectiveMode, effectiveTarget, effectiveUsd } from "./editor.vm.ts";
-import { EnvList } from "./EnvList.tsx";
 import { RunsAsField } from "./RunsAsField.tsx";
 import { ToolList } from "./ToolList.tsx";
 
-/** Execution (board 11 §1, "isolated-task"): the target, the folder, the tool list and mode, the precheck and the run's bounds. */
+/** Execution (board 11 §1, "isolated-task"): the target, the folder, the tool list and mode, a stored precheck to clear, and the run's bounds. */
 export function ExecutionSection({ draft, set, errors }: SectionProps) {
   const t = useT();
   const mode = effectiveMode(draft);
@@ -37,21 +36,24 @@ export function ExecutionSection({ draft, set, errors }: SectionProps) {
           onChange={(next) => set({ mode: next })}
         />
       )}
-      <EnvList env={draft.env} error={errors["execution.env"] ?? null} onChange={(env) => set({ env })} />
-      {agent && draft.precheck.trim() === "" ? null : (
-        <TextField
-          multiline
-          mono
-          rows={2}
-          label={t("automation.editor.precheck")}
-          hint={[
-            t("automation.editor.precheck.hint"),
-            ...(agent ? [t("automation.editor.precheck.agent")] : []),
-          ].join(" ")}
-          error={errors["execution.precheck"] ?? null}
-          value={draft.precheck}
-          onChange={(precheck) => set({ precheck })}
-        />
+      {draft.precheck.trim() === "" ? null : (
+        <div className="flex items-end gap-s2">
+          <div className="min-w-0 flex-1">
+            <TextField
+              multiline
+              mono
+              rows={2}
+              disabled
+              label={t("automation.editor.precheck")}
+              hint={t("automation.editor.precheck.removed")}
+              value={draft.precheck}
+              onChange={() => {}}
+            />
+          </div>
+          <Button variant="secondary" onClick={() => set({ precheck: "", env: [] })}>
+            {t("automation.editor.precheck.clear")}
+          </Button>
+        </div>
       )}
       <Segmented
         label={t("automation.editor.interrupted")}

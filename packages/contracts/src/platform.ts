@@ -93,7 +93,8 @@ export const PLATFORM_OPS = {
   },
   "network.request": {
     tool: "network_request",
-    callers: ["agent-thread"],
+    // plain, task and child are a project box's sessions: the daemon refuses the call `forbidden` for any row not in a box.
+    callers: ["agent-thread", "plain", "task", "child"],
     exfiltration: false,
     whenTainted: "run",
     deadlineMs: 10_000,

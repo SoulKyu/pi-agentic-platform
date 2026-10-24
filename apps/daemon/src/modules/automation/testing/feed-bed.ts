@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Settlement } from "../../../kernel/outbox/index.ts";
-import { createFeedPoller, createPrecheckStep, type FeedFetchResult, type PrecheckPort } from "../index.ts";
+import { createFeedPoller, type FeedFetchResult } from "../index.ts";
 import { parsedInput } from "./bed.ts";
 import { createRunnerBed, effectContext, type RunnerBed } from "./runner-bed.ts";
 
@@ -39,8 +39,8 @@ export const range = (from: number, to: number): Post[] =>
 
 export type Fetch = (url: string, signal: AbortSignal) => Promise<FeedFetchResult>;
 interface Options {
-  /** The precheck command's runner (the port); the trigger then has a precheck command. */
-  readonly precheck?: PrecheckPort["run"];
+  /** The trigger then holds a stored precheck command (refused since B6). */
+  readonly storedPrecheck?: boolean;
   readonly enabled?: boolean;
 }
 
@@ -60,19 +60,6 @@ export function setup(fetch: Fetch, options: Options = {}) {
       gates: state.bed.engine.gates,
       fire: state.bed.engine.fire,
       fetch: fetcher,
-      precheck: options.precheck
-        ? createPrecheckStep({
-            db: state.bed.db,
-            clock: state.bed.clock,
-            logger: state.bed.logger,
-            settings: {
-              automation: (ownerId) => state.bed.settings.owners.get(ownerId) ?? state.bed.settings.value,
-            },
-            gates: state.bed.engine.gates,
-            triggers: state.bed.triggers,
-            precheck: { run: options.precheck },
-          })
-        : undefined,
       span: () => ({ end: (outcome, attrs) => void spans.push({ outcome, attrs }) }),
     });
   const { trigger } = state.bed.triggers.create(
@@ -81,7 +68,7 @@ export function setup(fetch: Fetch, options: Options = {}) {
       name: "k8s blog",
       enabled: options.enabled ?? true,
       source: { type: "feed", url: "https://example.com/feed.xml", everyMinutes: 60 },
-      execution: { cwd: state.bed.folder, ...(options.precheck ? { precheck: "check.sh" } : {}) },
+      execution: { cwd: state.bed.folder, ...(options.storedPrecheck ? { precheck: "check.sh" } : {}) },
       prompt: "New posts:\n{{payload}}",
     }),
   );

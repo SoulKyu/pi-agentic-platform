@@ -7,6 +7,8 @@ export interface RetryDeps {
   readonly store: Pick<TaskStore, "getOwned">;
   readonly triggers: { get(ownerId: string, id: string): TriggerRecord | null };
   readonly fire: Fire;
+  /** A trigger that still holds a stored precheck is refused (B6): true when it was, and journaled. */
+  refusePrecheck?(record: TriggerRecord): boolean;
 }
 
 /**
@@ -30,6 +32,8 @@ export function createRetry(deps: RetryDeps) {
     if ((policy === null && options.asToken !== true) || trigger === null) throw new PapError("conflict");
     // The new task takes its target from the trigger as it is NOW (`fire`), so that is what is judged (M11R65, owner m15):
     // a token never fires the agent's trusted thread, and a prompt that carries a payload or precheck output never goes there.
+    // Nothing spawns for a trigger with a stored precheck, a retry included (B6).
+    if (deps.refusePrecheck?.(trigger) === true) throw new PapError("conflict");
     if (trigger.input?.execution.agent?.target === "thread") {
       if (options.asToken === true) throw new PapError("forbidden");
       if (row.tainted === 1) throw new PapError("bad_request");
@@ -38,7 +42,6 @@ export function createRetry(deps: RetryDeps) {
       ownerId,
       source: "retry",
       payload: null,
-      precheck: null,
       dedupKey: null,
       title: row.title,
       detail: row.detail,

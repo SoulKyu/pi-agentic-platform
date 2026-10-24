@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { connect } from "node:net";
+import { type BoxRef, boxKey } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { AgentsVmDerived } from "./compose-agents-vm-late.ts";
@@ -25,7 +26,9 @@ export interface VmProxyContext {
   /** Under Kata the bridge's host address and the proxy port; undefined: loopback, any port (the process backend, tests). */
   readonly bind: { readonly host: string; readonly port: number } | undefined;
   /** The agents' view, bound late: until then every source is refused (no host list). */
-  late(): Pick<AgentsVmDerived, "hostsOf" | "trustedOf"> | null;
+  late():
+    | (Pick<AgentsVmDerived, "hostsOf" | "trustedOf"> & Partial<Pick<AgentsVmDerived, "hostsOfProject">>)
+    | null;
   readonly closers: Array<{ readonly name: string; close(): void | Promise<void> }>;
   readonly seams?: VmProxySeams | undefined;
 }
@@ -38,8 +41,16 @@ export interface VmProxyContext {
  */
 export function composeVmProxy(ctx: VmProxyContext) {
   const { clock, logger } = ctx;
-  /** The agent's host list now: its own, else the owner's. Null before the late binding. */
-  const hostsOf = (agentId: string): readonly string[] | null => ctx.late()?.hostsOf(agentId) ?? null;
+  /**
+   * The box's host list now, read on every connection. An agent's: its own, else the owner's. A project box's: the owner's and
+   * the project's together. Null before the late binding, and for an unknown or deleting project: the proxy refuses its source.
+   */
+  const hostsOf = (box: BoxRef): readonly string[] | null =>
+    box.kind === "agent"
+      ? (ctx.late()?.hostsOf(box.id) ?? null)
+      : (ctx.late()?.hostsOfProject?.(box.id) ?? null);
+  const trustedOf = (box: BoxRef): readonly string[] =>
+    box.kind === "agent" ? (ctx.late()?.trustedOf(box.id) ?? []) : [];
   const launches = createLaunchAddresses();
   const launchTaint = createLaunchTaint();
   let taint: (sessionId: string) => void = (sessionId) =>
@@ -54,9 +65,9 @@ export function composeVmProxy(ctx: VmProxyContext) {
   };
   const bind = ctx.bind ?? { host: "127.0.0.1", port: 0 };
   let sink: (refusal: VmRefusal) => void = (refusal) => {
-    const written = writtenEntries(hostsOf(refusal.agentId) ?? []);
+    const written = writtenEntries(hostsOf(refusal.box) ?? []);
     logger.warn("egress_vm_refused", {
-      agentId: refusal.agentId,
+      box: boxKey(refusal.box),
       host: hostLabel(refusal.host, written),
       port: refusal.port,
       reason: refusal.reason,
@@ -72,10 +83,10 @@ export function composeVmProxy(ctx: VmProxyContext) {
     ...ctx.seams,
     scopeOf(address) {
       const launch = launches.scopeOf(address);
-      const hosts = launch === null ? null : hostsOf(launch.agentId);
+      const hosts = launch === null ? null : hostsOf(launch.box);
       return launch === null || hosts === null
         ? null
-        : { ...launch, hosts, trustedSources: ctx.late()?.trustedOf(launch.agentId) ?? [] };
+        : { ...launch, hosts, trustedSources: trustedOf(launch.box) };
     },
     onRefusal: (refusal) => sink(refusal),
     onTaint: (launch) => taintAll(launchTaint.mark(launch.launchId)),
@@ -83,9 +94,11 @@ export function composeVmProxy(ctx: VmProxyContext) {
   return {
     bindTaint: (handler: (sessionId: string) => void): void => void (taint = handler),
     /** A session started in the launch: it starts tainted when the launch's proxy already let unclean content through. */
-    join(launchId: string, sessionId: string): void {
-      if (launchTaint.join(launchId, sessionId)) taintAll([sessionId]);
+    join(launchId: string, sessionId: string, tainted = false): void {
+      taintAll(launchTaint.join(launchId, sessionId, tainted));
     },
+    /** A project box's session was tainted (spec §4): every session of its launch is, and every later one. */
+    raised: (sessionId: string): void => taintAll(launchTaint.raised(sessionId)),
     bindRefusals: (handler: (refusal: VmRefusal) => void): void => void (sink = handler),
     /** Listens (the bridge address is up by now) and answers the port; its closer is registered once it does. */
     async start(): Promise<number> {
@@ -100,7 +113,7 @@ export function composeVmProxy(ctx: VmProxyContext) {
     },
     launched: (grant: LaunchGrant): void =>
       launches.add(grant.address, {
-        agentId: grant.agentId,
+        box: grant.box,
         launchId: grant.launchId,
         source: grant.taskKey == null ? "thread" : { task: grant.taskKey },
       }),

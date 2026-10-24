@@ -23,7 +23,7 @@ function bed() {
     runtime: { stop: async () => {}, resume: () => {} },
     require: async () => {},
     client: fake,
-    stopVm: (agentId, taskKey) => backend.stop(agentId, taskKey),
+    stopVm: (box, taskKey) => backend.stop(box, taskKey),
     papHome: "/nonexistent",
     clock: createFakeClock(),
     logger: silentLogger,
@@ -35,8 +35,8 @@ function bed() {
 describe("the agent link's stops go through the backend", () => {
   it("a stop through the link clears the backend's running record of the thread VM, not of a task's", async () => {
     const { fake, images, link } = bed();
-    fake.running.add(ID);
-    fake.running.add(`${ID}/${TASK}`);
+    fake.running.add(`agent:${ID}`);
+    fake.running.add(`agent:${ID}/${TASK}`);
     await link.stop(ID);
     expect(fake.running.size).toBe(0);
     expect(images.stopped.mock.calls).toEqual([[ID]]);
@@ -44,7 +44,7 @@ describe("the agent link's stops go through the backend", () => {
 
   it("keeps it when pap-vmd could not stop the VM, and a second ask finishes", async () => {
     const { fake, images, link } = bed();
-    fake.running.add(ID);
+    fake.running.add(`agent:${ID}`);
     fake.failNext("vm.stop", "failed");
     await expect(link.stop(ID)).rejects.toBeDefined();
     expect(images.stopped).not.toHaveBeenCalled();

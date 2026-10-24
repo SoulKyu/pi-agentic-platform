@@ -1,11 +1,11 @@
-import { DEFAULT_AGENT_RESOURCES, PapError } from "@pap/contracts";
+import { type BoxRef, boxKey, DEFAULT_AGENT_RESOURCES, PapError } from "@pap/contracts";
 import { vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { classifyExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { Gateway } from "./gateway.ts";
 import type { GuestLink } from "./guest-link.ts";
-import { layoutOf } from "./layouts.ts";
+import { layoutOfSpec } from "./layouts.ts";
 import {
   createAgentRuntime,
   type AgentRuntime,
@@ -21,8 +21,10 @@ export const IDLE_MS = 30 * 60_000;
 export const CAP_MB = 4096;
 export const IMAGE = `pap-agent-agent-${"a".repeat(64)}`;
 
+export const agentBox = (id: string): BoxRef => ({ kind: "agent", id });
+export const PROJECT_ID = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
 export const specOf = (agentId: string, extra: Partial<VmSpec> = {}): VmSpec => ({
-  agentId,
+  box: { kind: "agent", id: agentId },
   kind: "thread",
   taskKey: null,
   image: IMAGE,
@@ -76,6 +78,8 @@ export function fakeGuest(order: string[]): FakeGuest {
       return Promise.resolve(handle);
     },
     shutdown,
+    sendOp: () => false,
+    onOpResult: () => () => undefined,
     closed,
   };
   return { link, handles, spawned, crash, shutdown };
@@ -91,7 +95,7 @@ export interface Bed {
   ended: string[];
   crashPauses: string[];
   capacity: string[][];
-  listed: Array<{ agentId: string; taskKey: string | null }>;
+  listed: Array<{ box: BoxRef; taskKey: string | null }>;
   failStart: { error: Error | null };
   backend: AgentRuntimeBackend & {
     start: ReturnType<typeof vi.fn>;
@@ -122,8 +126,8 @@ export function bed(extra: Partial<AgentRuntimeDeps> = {}): Bed {
       guests.set(launch.launchId, fakeGuest(order));
       return Promise.resolve({ address: "10.213.0.9" });
     }),
-    stop: vi.fn((agentId: string, taskKey: string | null) => {
-      order.push(`stop:${agentId}:${taskKey ?? ""}`);
+    stop: vi.fn((box: BoxRef, taskKey: string | null) => {
+      order.push(`stop:${box.id}:${taskKey ?? ""}`);
       return Promise.resolve();
     }),
     list: vi.fn(() => Promise.resolve(listed)),
@@ -167,13 +171,13 @@ export function bed(extra: Partial<AgentRuntimeDeps> = {}): Bed {
     logger: silentLogger,
     memoryCapMb: CAP_MB,
     idleMs: IDLE_MS,
-    layout: (spec) => layoutOf("process", "/pap", spec),
+    layout: (spec) => layoutOfSpec("process", "/pap", spec),
     onLaunch: (grant) => {
       order.push("onLaunch");
       result.grants.push(grant);
     },
     onLaunchEnd: (launchId) => void result.ended.push(launchId),
-    onCrashPause: (agentId) => void result.crashPauses.push(agentId),
+    onCrashPause: (box) => void result.crashPauses.push(boxKey(box)),
     notifyCapacity: (running) => void result.capacity.push(running),
     ...extra,
   });

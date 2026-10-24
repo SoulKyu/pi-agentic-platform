@@ -1,9 +1,8 @@
 import type { Caller, HandlerContext, HandlerTable } from "@pap/contracts";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { createReceiptStore } from "../../kernel/db/receipts.ts";
 import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { testCaller } from "../../testing/caller.ts";
-import type { PrecheckPort } from "./manual.ts";
 import { automationRpc, taskActions } from "./rpc.ts";
 import { manualInput, parsedInput } from "./testing/bed.ts";
 import { createRunnerBed, type RunnerBed } from "./testing/runner-bed.ts";
@@ -13,17 +12,11 @@ afterEach(() => bed.dispose());
 
 function setup() {
   bed = createRunnerBed();
-  const precheck = vi.fn<PrecheckPort["run"]>(async () => ({
-    verdict: "pass",
-    exitCode: 0,
-    durationMs: 3,
-    output: "ok",
-  }));
   const dispatch = createDispatcher({
     handlers: automationRpc(
       bed.triggers,
       taskActions(bed.engine.runner, bed.engine.stream, bed.releaseTools()),
-      bed.operations(precheck),
+      bed.operations(),
     ) as unknown as HandlerTable,
     receipts: createReceiptStore(bed.db, bed.clock),
     logger: bed.logger,
@@ -39,7 +32,7 @@ function setup() {
     frameId += 1;
     return dispatch({ id: frameId, method, params, commandId: commandId ?? `c-${frameId}` }, ctx);
   };
-  return { call, precheck };
+  return { call };
 }
 const reader = (): Caller => testCaller({ permissions: new Set(["automation:read"]) });
 const gatedOf = (taskId: string) =>
@@ -109,28 +102,24 @@ describe("automation.fire", () => {
 });
 
 describe("automation.dryRun", () => {
-  it("is idempotent, writes nothing and runs no precheck for a token", async () => {
-    const { call, precheck } = setup();
+  it("is idempotent, writes nothing and answers a stored precheck as removed, for a token too", async () => {
+    const { call } = setup();
     const trigger = bed.trigger(
       parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "make check" } }),
     );
-    const reply = await call("automation.dryRun", { triggerId: trigger.id }, bed.token(), undefined);
-    expect(reply).toMatchObject({
-      ok: true,
-      result: { verdict: "fire", precheck: "not_run_token", tokens: "none" },
-    });
-    expect(precheck).not.toHaveBeenCalled();
+    for (const caller of [bed.token(), bed.owner()]) {
+      const reply = await call("automation.dryRun", { triggerId: trigger.id }, caller, undefined);
+      expect(reply).toMatchObject({
+        ok: true,
+        result: {
+          verdict: "skip",
+          reasons: ["precheck_error"],
+          precheck: { verdict: "error", output: "precheck_removed" },
+          tokens: "none",
+        },
+      });
+    }
     expect(bed.tasks()).toEqual([]);
-  });
-
-  it("runs the saved precheck for the owner's browser", async () => {
-    const { call, precheck } = setup();
-    const trigger = bed.trigger(
-      parsedInput({ ...manualInput(bed.folder), execution: { cwd: bed.folder, precheck: "make check" } }),
-    );
-    const reply = await call("automation.dryRun", { triggerId: trigger.id });
-    expect(reply).toMatchObject({ ok: true, result: { precheck: { verdict: "pass" } } });
-    expect(precheck).toHaveBeenCalledTimes(1);
   });
 
   it("refuses a draft that fails TriggerInput, and neither a trigger nor a draft", async () => {

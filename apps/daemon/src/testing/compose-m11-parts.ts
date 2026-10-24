@@ -74,7 +74,7 @@ export function parts(options: { readOnly?: boolean; busy?: boolean; beforeBoot?
       waitingAgent: vi.fn(() => false),
     },
     cwdOf: vi.fn(() => "/work"),
-    isAgentSession: vi.fn(() => false),
+    runsInVm: vi.fn(() => false),
   };
   const laneOf = vi.fn((cwd: string) => (cwd === "/lane" ? { ownerId: "u1" } : null));
   const agentTasks = {

@@ -67,14 +67,14 @@ describe("RunsAsField", () => {
     expect(text(page.container)).toContain("Allowed tools");
   });
 
-  it("says prechecks do not run for agents, on a stored precheck of an agent only", async () => {
+  it("says prechecks were removed on a stored precheck, an agent's or a project's", async () => {
     const agent = await show(initial({ agentId: ATLAS.id, target: "isolated", precheck: "true" }));
-    expect(text(agent.container)).toContain("Prechecks do not run for agents: clear this field.");
+    expect(text(agent.container)).toContain("Prechecks were removed: clear this field.");
     const project = await show(initial({ precheck: "true" }));
-    expect(text(project.container)).not.toContain("Prechecks do not run for agents");
+    expect(text(project.container)).toContain("Prechecks were removed: clear this field.");
   });
 
-  it("hides the Mode control for a thread target, keeps it for isolated, and keeps the precheck", async () => {
+  it("hides the Mode control for a thread target, keeps it for isolated, ", async () => {
     const thread = await show(initial({ agentId: ATLAS.id, target: "thread", sourceType: "manual" }));
     expect(segmentOn(thread.container, "Approval mode")).toBeNull();
     expect(text(thread.container)).not.toContain("Precheck");
@@ -138,17 +138,11 @@ describe("toInput with an agent", () => {
     expect(result.errors["prompt"]).toContain("isolated task");
   });
 
-  it("keeps {{precheck}} for an isolated task", () => {
+  it("refuses {{precheck}} for an isolated task too: prechecks were removed", () => {
     const result = toInput(
-      initial({
-        ...base,
-        prompt: "Look {{precheck}}",
-        precheck: "true",
-        agentId: ATLAS.id,
-        target: "isolated",
-      }),
+      initial({ ...base, prompt: "Look {{precheck}}", agentId: ATLAS.id, target: "isolated" }),
     );
-    expect(result.ok).toBe(true);
+    expect(result.ok).toBe(false);
   });
 
   it("drops the tool list for a thread target, which runs with the agent's own tools", () => {

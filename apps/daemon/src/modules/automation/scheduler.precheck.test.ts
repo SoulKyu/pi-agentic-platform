@@ -1,21 +1,16 @@
 import { AutomationSettings } from "@pap/contracts";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { type PrecheckPort, createPrecheckStep } from "./precheck-step.ts";
+import { afterEach, describe, expect, it } from "vitest";
 import { createScheduler } from "./scheduler.ts";
 import { createTriggerStore } from "./store.ts";
 import { parsedInput } from "./testing/bed.ts";
-import { createRunnerBed, deferred, type RunnerBed } from "./testing/runner-bed.ts";
+import { createRunnerBed, type RunnerBed } from "./testing/runner-bed.ts";
 
 const MINUTE = 60_000;
 let bed: RunnerBed;
 afterEach(() => bed.dispose());
 
-function setup(run: PrecheckPort["run"]) {
+function setup() {
   bed = createRunnerBed();
-  const spawn = vi.fn<PrecheckPort["run"]>(run);
-  const settings = {
-    automation: (ownerId: string) => bed.settings.owners.get(ownerId) ?? bed.settings.value,
-  };
   const scheduler = createScheduler({
     db: bed.db,
     clock: bed.clock,
@@ -24,105 +19,44 @@ function setup(run: PrecheckPort["run"]) {
     store: createTriggerStore(bed.db),
     fire: bed.engine.fire,
     readOnly: false,
-    precheck: createPrecheckStep({
-      db: bed.db,
-      clock: bed.clock,
-      logger: bed.logger,
-      settings,
-      gates: bed.engine.gates,
-      triggers: bed.triggers,
-      precheck: { run: spawn },
-    }),
   });
   bed.onTriggerChange(() => scheduler.refresh());
   scheduler.start();
-  const { trigger } = bed.triggers.create(
+  bed.triggers.create(
     bed.owner(),
     parsedInput({
       name: "Nightly check",
       enabled: true,
       source: { type: "schedule", rrule: "FREQ=MINUTELY;INTERVAL=15", timezone: "UTC", catchUp: "skip" },
       execution: { cwd: bed.folder, precheck: "check.sh" },
-      prompt: "Report: {{precheck}}",
+      prompt: "Report",
     }),
   );
-  return { scheduler, spawn, trigger };
+  return scheduler;
 }
 const journal = () =>
-  bed.db.all<{ verdict: string; detail: string | null; source: string }>(
-    "SELECT verdict, detail, source FROM trigger_fires ORDER BY id",
+  bed.db.all<{ verdict: string; detail: string | null; source: string; count: number }>(
+    "SELECT verdict, detail, source, count FROM trigger_fires ORDER BY id",
   );
-const prompts = () => bed.db.all<{ prompt: string; tainted: number }>("SELECT prompt, tainted FROM tasks");
+const taskCount = () => bed.db.all("SELECT 1 FROM tasks").length;
 
-describe("a scheduled fire with a precheck (M10R68, M10R70)", () => {
-  it("fires with the fenced output when the precheck passes", async () => {
-    const { scheduler, spawn } = setup(async () => ({
-      verdict: "pass",
-      exitCode: 0,
-      durationMs: 3,
-      output: "disk ok",
-    }));
+describe("a scheduled trigger that still holds a precheck (B6)", () => {
+  it("is refused as precheck_removed, once per cause, and starts no task", async () => {
+    const scheduler = setup();
     await bed.clock.advance(15 * MINUTE);
-    expect(spawn).toHaveBeenCalledTimes(1);
-    expect(prompts()).toHaveLength(1);
-    expect(prompts()[0]).toMatchObject({ tainted: 1 });
-    expect(prompts()[0]?.prompt).toMatch(/<untrusted source="precheck" id="[0-9a-f]{12}">\ndisk ok/);
+    await bed.clock.advance(15 * MINUTE);
+    expect(journal()).toEqual([
+      { verdict: "error", detail: "precheck_removed", source: "schedule", count: 2 },
+    ]);
+    expect(taskCount()).toBe(0);
     scheduler.stop();
   });
 
-  it("journals a skip as precheck with the reason, and starts no task", async () => {
-    const { scheduler } = setup(async () => ({
-      verdict: "skip",
-      exitCode: 1,
-      durationMs: 3,
-      output: "nothing new",
-      detail: "nothing new",
-    }));
-    await bed.clock.advance(15 * MINUTE);
-    expect(journal()).toEqual([{ verdict: "precheck", detail: "nothing new", source: "schedule" }]);
-    expect(prompts()).toEqual([]);
-    scheduler.stop();
-  });
-
-  it("never spawns the precheck when the owner is paused: the fire is refused and journaled as paused", async () => {
-    const { scheduler, spawn } = setup(async () => ({
-      verdict: "pass",
-      exitCode: 0,
-      durationMs: 3,
-      output: "x",
-    }));
+  it("does not need the pause or the budget to refuse it", async () => {
+    const scheduler = setup();
     bed.settings.value = AutomationSettings.parse({ paused: true });
     await bed.clock.advance(15 * MINUTE);
-    expect(spawn).not.toHaveBeenCalled();
-    expect(journal()).toEqual([{ verdict: "paused", detail: null, source: "schedule" }]);
+    expect(journal().map((line) => line.detail)).toEqual(["precheck_removed"]);
     scheduler.stop();
-  });
-
-  it("never spawns it past the budget", async () => {
-    const { scheduler, spawn } = setup(async () => ({
-      verdict: "pass",
-      exitCode: 0,
-      durationMs: 3,
-      output: "x",
-    }));
-    bed.settings.value = AutomationSettings.parse({ dailyBudgetUsd: 5 });
-    bed.runs.spent.value = 5;
-    await bed.clock.advance(15 * MINUTE);
-    expect(spawn).not.toHaveBeenCalled();
-    expect(journal()).toEqual([{ verdict: "budget", detail: null, source: "schedule" }]);
-    scheduler.stop();
-  });
-
-  it("fires nothing when the scheduler stops while the precheck runs", async () => {
-    const pending = deferred<Awaited<ReturnType<PrecheckPort["run"]>>>();
-    const { scheduler, spawn } = setup(() => pending.promise);
-    await bed.clock.advance(15 * MINUTE);
-    expect(spawn).toHaveBeenCalledTimes(1);
-    scheduler.stop();
-    pending.resolve({ verdict: "pass", exitCode: 0, durationMs: 3, output: "late" });
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(prompts()).toEqual([]);
-    expect(journal()).toEqual([]);
   });
 });

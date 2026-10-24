@@ -36,6 +36,7 @@ function serviceThatAnswers(): { service: FilesService; calls: unknown[][] } {
     openRaw: async () => {
       throw new PapError("not_found");
     },
+    openBoxRaw: async () => null,
   };
   return { service, calls };
 }

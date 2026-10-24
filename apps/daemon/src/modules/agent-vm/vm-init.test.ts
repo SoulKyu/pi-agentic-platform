@@ -1,6 +1,7 @@
 import { InitRecord, PolicyRules, type VmInit } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { layoutOf } from "./layouts.ts";
+import { projectLayoutOf } from "./project-layout.ts";
 import { vmInitOf } from "./vm-init.ts";
 
 const PAP_HOME = "/host/pap-home";
@@ -145,5 +146,59 @@ describe("vmInitOf (R17, RT-06)", () => {
   it("does not change its input", () => {
     expect(host.vault).toEqual({ TOKEN: "s3cret" });
     expect(host.platform?.ops).toContain("secret.request");
+  });
+});
+
+describe("vmInitOf for a project box", () => {
+  const box = projectLayoutOf("kata", PAP_HOME, "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11");
+  const boxVm: VmInit = { ...vm, layout: box };
+  const projectRules = rulesOf({
+    profile: "project",
+    agentHome: box.project,
+    agentScratch: null,
+    sandbox: { required: true, network: true },
+  });
+  const hostRecord: InitRecord = {
+    type: "init",
+    cwd: "/host/projects/p",
+    agentDir: PI_DIR,
+    papHome: PAP_HOME,
+    umask: 0o022,
+    papSessionId: "s1",
+    platform: { ops: [] },
+    testProviderScript: `${PAP_HOME}/script.json`,
+    policy: projectRules,
+  };
+
+  it("composes project rules with cwd and own folder at the project", () => {
+    const out = vmInitOf(hostRecord, boxVm, null);
+    expect(out.cwd).toBe(box.project);
+    expect(out.policy).toMatchObject({ profile: "project", agentHome: box.project, agentScratch: null });
+    expect(out.agentDir).toBe(box.piAgentDir);
+    expect(out.papHome).toBe(`${box.pi}/pap`);
+    expect(InitRecord.safeParse(out).success).toBe(true);
+  });
+  it("always names the project's knowledge folder, whatever the host composed", () => {
+    expect(vmInitOf(hostRecord, boxVm, null).knowledge).toEqual({ path: `${box.project}/knowledge` });
+    const given = { ...hostRecord, knowledge: { path: "/host/projects/p/knowledge" } };
+    expect(vmInitOf(given, boxVm, null).knowledge).toEqual({ path: `${box.project}/knowledge` });
+  });
+  it("keeps no host path in the record", () => {
+    const text = JSON.stringify(vmInitOf(hostRecord, boxVm, null));
+    for (const hostPath of [PAP_HOME, PI_DIR, "/host/projects"]) expect(text).not.toContain(hostPath);
+  });
+  it("refuses a project layout with agent rules, and project rules in an agent layout", () => {
+    expect(() => vmInitOf({ ...hostRecord, policy: vmRules }, boxVm, null)).toThrow(
+      expect.objectContaining({ code: "bad_request" }),
+    );
+    expect(() => vmInitOf({ ...hostRecord, policy: projectRules }, vm, null)).toThrow(
+      expect.objectContaining({ code: "bad_request" }),
+    );
+  });
+  it("refuses project rules whose own folder is not the project (the home, the root)", () => {
+    for (const agentHome of [box.home, box.root])
+      expect(() =>
+        vmInitOf({ ...hostRecord, policy: rulesOf({ ...projectRules, agentHome }) }, boxVm, null),
+      ).toThrow(expect.objectContaining({ code: "bad_request" }));
   });
 });

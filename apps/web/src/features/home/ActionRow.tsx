@@ -1,4 +1,5 @@
 import "../../i18n/register-home.ts";
+import "../../i18n/register-boxes.ts";
 import type { HomeLayout, ProjectSummary } from "@pap/contracts";
 import { Badge, Button, Icon, IconSettings, Kbd } from "@pap/ui";
 import { type ReactNode, useId, useRef, useState } from "react";
@@ -85,6 +86,9 @@ export function ActionRow({ project, layout, actions, shortcuts }: Props) {
   if (!layout.explore && !layout.automate && !layout.project && !layout.help) return null;
 
   const rootReason: MessageKey | null = root === null ? "home.reason.noProject" : access;
+  // A box project has no host terminal yet: the control stays, disabled, with its reason (§3.2).
+  const terminalReason =
+    project?.kind === "box" ? t("boxes.off") : rootReason === null ? null : t(rootReason);
   const terminalNotice = terminal !== null && terminal.root === root ? terminal.key : null;
   const openTerminal = () => {
     if (root === null || starting.current) return;
@@ -122,7 +126,7 @@ export function ActionRow({ project, layout, actions, shortcuts }: Props) {
           />
           <Action
             label={t("home.action.terminal")}
-            reason={rootReason === null ? null : t(rootReason)}
+            reason={terminalReason}
             notice={terminalNotice === null ? null : t(terminalNotice)}
             onClick={openTerminal}
           />

@@ -16,6 +16,7 @@
     "build": "tsc -p tsconfig.build.json"
   },
   "dependencies": {
+    "yaml": "2.9.0",
     "zod": "4.6.5"
   }
 }

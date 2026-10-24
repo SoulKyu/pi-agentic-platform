@@ -1,6 +1,6 @@
 import { lstatSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
-import { AGENT_NET, AgentId, TaskKey, VM_IPV4, type VmState } from "@pap/contracts";
+import { AGENT_NET, boxKey, VM_IPV4, type BoxRef, type VmState } from "@pap/contracts";
 import {
   directVolumeAddArgv,
   directVolumeRemoveArgv,
@@ -9,11 +9,12 @@ import {
   pauseArgv,
   psArgv,
   rmArgv,
+  diskFlags,
   runArgv,
   unpauseArgv,
-  vmName,
   volumePath,
 } from "./argv.ts";
+import { parseVmName, vmName } from "./box-name.ts";
 import { VmdFailure } from "./errors.ts";
 import { readNetFacts } from "./net-facts.ts";
 import { fileExists, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
@@ -21,16 +22,15 @@ import type { OpsDeps, VmStartRequest } from "./ops.ts";
 
 export type VmStateName = ReturnType<(typeof VmState)["parse"]>;
 export interface VmEntry {
-  readonly agentId: string;
+  readonly box: BoxRef;
   readonly taskKey: string | null;
   readonly state: VmStateName;
 }
 
-type Stop = { op: "vm.stop"; agentId: string; taskKey: string | null };
-type Named = { agentId: string };
-type Status = { agentId: string; taskKey: string | null };
+type Stop = { op: "vm.stop"; box: BoxRef; taskKey: string | null };
+type Named = { box: BoxRef };
+type Status = { box: BoxRef; taskKey: string | null };
 
-const NAME = /^pap-(.+?)(?:-([0-9a-f]{32}))?$/;
 /** nerdctl 2.4.1, recorded on the real stack (T20a): `rm --force` and `pause` say "no such container: x", `inspect` says "no such object x". */
 const NO_SUCH_CONTAINER = /no such container/i;
 const NO_SUCH_INSPECTED = /no such (?:container|object)/i;
@@ -68,14 +68,10 @@ export function parseVmList(text: string): VmEntry[] {
   for (const line of text.split("\n")) {
     if (line.trim() === "") continue;
     const space = line.indexOf(" ");
-    const match = NAME.exec(space === -1 ? line.trim() : line.slice(0, space));
-    const agentId = match?.[1];
-    const taskKey = match?.[2] ?? null;
-    if (agentId === undefined || !AgentId.safeParse(agentId).success) continue;
-    if (taskKey !== null && !TaskKey.safeParse(taskKey).success) continue;
+    const named = parseVmName(space === -1 ? line.trim() : line.slice(0, space));
+    if (named === null) continue;
     entries.push({
-      agentId,
-      taskKey,
+      ...named,
       state: stateOfStatus(space === -1 ? "" : line.slice(space + 1).trim()),
     });
   }
@@ -163,15 +159,15 @@ export function createVmOps(deps: OpsDeps) {
 
   async function startVm(request: VmStartRequest, name: string): Promise<{ address: string }> {
     const isolated = request.taskKey !== null;
-    // R30: an isolated VM gets a blank disk of its own; the agent's disk is not even looked at.
-    const disk = state.diskPath(request.agentId, request.taskKey);
+    // R30: an isolated VM gets a blank disk of its own; the box's disk is not even looked at.
+    const disk = state.diskPath(request.box, request.taskKey);
     const volume = volumePath(deps.volumeRoot, name);
     const env = {
       PAP_GATEWAY: `${AGENT_NET.host}:${AGENT_NET.gatewayPort}`,
       PAP_GUEST_PROXY: `${AGENT_NET.host}:${AGENT_NET.proxyPort}`,
       PAP_GATEWAY_TOKEN: request.token,
       PAP_LAUNCH_ID: request.launchId,
-      PAP_AGENT_ID: request.agentId,
+      PAP_BOX: boxKey(request.box),
       PAP_IMAGE_TAG: request.image,
     };
     if (!Object.values(env).every((value) => ENV_VALUE.test(value))) throw new VmdFailure("bad_request");
@@ -213,7 +209,7 @@ export function createVmOps(deps: OpsDeps) {
             const placement = {
               ip: address.ip,
               mac: address.mac,
-              disk: ["-v", `${volume}:/agent`],
+              disk: diskFlags(request.box, volume),
               envFile,
               runtime: KATA_RUNTIME,
             };
@@ -247,16 +243,16 @@ export function createVmOps(deps: OpsDeps) {
   }
 
   async function start(request: VmStartRequest): Promise<{ address: string }> {
-    const name = vmName(request.agentId, request.taskKey);
-    const result = await locks.withAgent(request.agentId, () => startVm(request, name));
+    const name = vmName(request.box, request.taskKey);
+    const result = await locks.withBox(request.box, () => startVm(request, name));
     if (!VM_IPV4.test(result.address)) throw new VmdFailure("failed");
     return result;
   }
 
   function stop(request: Stop): Promise<unknown> {
-    const name = vmName(request.agentId, request.taskKey);
+    const name = vmName(request.box, request.taskKey);
     const volume = volumePath(deps.volumeRoot, name);
-    return locks.withAgent(request.agentId, async () => {
+    return locks.withBox(request.box, async () => {
       // containerd forgets the token with the container (R8); a container already gone is fine.
       const removed = await removeContainer(name);
       const detached = await step("detach", () => net.detach(name));
@@ -265,7 +261,7 @@ export function createVmOps(deps: OpsDeps) {
       await step("netns", () => locks.withStart(async () => deps.sweepNetns?.()));
       // R30: a task's disk goes with its VM, but never while the container may still hold it.
       if (removed && request.taskKey !== null) {
-        removeTaskDir(state.diskPath(request.agentId, request.taskKey));
+        removeTaskDir(state.diskPath(request.box, request.taskKey));
       }
       if (!removed || !detached) throw new VmdFailure("failed");
       return { stopped: true };
@@ -273,13 +269,13 @@ export function createVmOps(deps: OpsDeps) {
   }
 
   const control = (argv: (name: string) => string[]) => (request: Named) =>
-    locks.withAgent(request.agentId, async () => {
-      succeed((await exec(argv(vmName(request.agentId, null)))).code);
+    locks.withBox(request.box, async () => {
+      succeed((await exec(argv(vmName(request.box, null)))).code);
       return {};
     });
 
   async function status(request: Status): Promise<unknown> {
-    const result = await exec(inspectArgv(vmName(request.agentId, request.taskKey)));
+    const result = await exec(inspectArgv(vmName(request.box, request.taskKey)));
     if (result.code === 0) return { state: stateOfInspect(result.stdout) };
     // Only "no such container" is absent: a containerd or nerdctl failure says nothing about the VM (S1, fail closed).
     if (NO_SUCH_INSPECTED.test(result.stderr)) return { state: "absent" };

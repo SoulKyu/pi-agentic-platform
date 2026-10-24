@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  type BoxOp,
   GUEST_BOOT_TIMEOUT_MS,
   GuestReport,
   type GuestCommand,
@@ -20,10 +21,17 @@ import {
   type WorkerSpawnInput,
 } from "./vm-worker.ts";
 
+/** The guest's answer to a {@link GuestLink.sendOp}. */
+export type OpResult = Extract<GuestReport, { type: "op_result" }>;
+
 export interface GuestLink {
   /** Asks the guest to start a worker; resolves once the worker's hello arrived (`init` is sent after, never dropped). */
   spawnWorker(input: WorkerSpawnInput, packages: PackagePicks): Promise<VmWorkerHandle>;
   shutdown(): void;
+  /** Asks the guest for one operation on its project; false when the link is gone. The answer comes through {@link onOpResult}. */
+  sendOp(id: string, op: BoxOp): boolean;
+  /** Every `op_result` the guest sends, until the returned function is called. */
+  onOpResult(listener: (result: OpResult) => void): () => void;
   readonly closed: Promise<void>;
 }
 
@@ -67,13 +75,15 @@ const worthLogging = (count: number): boolean => (count & (count - 1)) === 0;
 export function createGuestLink(deps: {
   clock: Clock;
   logger: Logger;
-  agentId: string;
+  /** `boxKey` of the box: only a log label here. */
+  box: string;
   wire: Wire;
 }): GuestLinkInternals {
-  const { clock, logger, agentId, wire } = deps;
+  const { clock, logger, box, wire } = deps;
   const slots = new Map<string, Slot | typeof USED>();
   let isClosed = false;
   let dropped = 0;
+  const opListeners = new Set<(result: OpResult) => void>();
   let markClosed: () => void = () => {};
   const closedPromise = new Promise<void>((resolve) => {
     markClosed = resolve;
@@ -105,7 +115,7 @@ export function createGuestLink(deps: {
       return new Promise<VmWorkerHandle>((resolve, reject) => {
         const entry: Slot = { state: "asked", input, resolve, reject, timer: undefined };
         entry.timer = clock.setTimeout(() => {
-          logger.warn("agent_gateway_spawn_timeout", { agentId });
+          logger.warn("agent_gateway_spawn_timeout", { box });
           signal(slot, "SIGKILL");
           giveUp(entry, new PapError("timeout"));
         }, GUEST_BOOT_TIMEOUT_MS);
@@ -124,6 +134,11 @@ export function createGuestLink(deps: {
     },
     shutdown() {
       wire.send({ type: "shutdown" } satisfies GuestCommand);
+    },
+    sendOp: (id, op) => !isClosed && wire.send({ type: "op", id, op } satisfies GuestCommand),
+    onOpResult(listener) {
+      opListeners.add(listener);
+      return () => void opListeners.delete(listener);
     },
     closed: closedPromise,
   };
@@ -155,7 +170,7 @@ export function createGuestLink(deps: {
         worker = createVmWorker({
           clock,
           logger,
-          label: { agentId },
+          label: { box },
           slot: hello.slot,
           input: entry.input,
           wire: workerWire,
@@ -164,7 +179,7 @@ export function createGuestLink(deps: {
           signal: (name) => signal(hello.slot, name),
         });
       } catch (error) {
-        logger.warn("agent_gateway_worker_failed", { agentId, err: error });
+        logger.warn("agent_gateway_worker_failed", { box, err: error });
         mirror?.close();
         burn(hello.slot, entry);
         return "protocol";
@@ -183,7 +198,11 @@ export function createGuestLink(deps: {
       const report = GuestReport.safeParse(raw);
       if (!report.success) {
         dropped++;
-        if (worthLogging(dropped)) logger.warn("agent_gateway_report_dropped", { agentId, dropped });
+        if (worthLogging(dropped)) logger.warn("agent_gateway_report_dropped", { box, dropped });
+        return;
+      }
+      if (report.data.type === "op_result") {
+        for (const listener of [...opListeners]) listener(report.data);
         return;
       }
       if (report.data.type !== "exited") return;

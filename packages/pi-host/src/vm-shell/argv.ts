@@ -31,8 +31,13 @@ const normal = (dir: string): string => posix.normalize(dir).replace(/(?<=.)\/+$
 export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: number): string[] {
   const layout = { ...spec.layout, root: normal(spec.layout.root), pi: normal(spec.layout.pi) };
   if (!SLOT.test(spec.slot)) throw new RangeError("vm shell spec");
-  const binds = [spec.layout.home, spec.layout.knowledge, spec.layout.inbox].map(normal);
-  const [home = ""] = binds;
+  const { project } = spec.layout;
+  const binds = (
+    project === undefined
+      ? [spec.layout.home, spec.layout.knowledge, spec.layout.inbox]
+      : [project, spec.layout.home, spec.layout.inbox]
+  ).map(normal);
+  const [start = ""] = project === undefined ? binds : [normal(project)];
   // `.pi` itself, below it, or an ancestor of it (`/`, the root): none is a bind source.
   const ancestor = (dir: string) => layout.pi.startsWith(dir === "/" ? "/" : `${dir}/`);
   if (
@@ -73,7 +78,7 @@ export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: numbe
     "--seccomp",
     String(seccompFd),
     "--chdir",
-    home,
+    start,
     "--",
     "/bin/sh",
     "-c",

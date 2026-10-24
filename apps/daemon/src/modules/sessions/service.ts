@@ -1,7 +1,9 @@
 import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
+import { newBoxCwdOf } from "./box-cwd.ts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
-import { createAttention, createAutomationPort } from "./automation-port.ts";
+import { type AutomationContext, createAttention, createAutomationPort } from "./automation-port.ts";
+import { createSessionsProjectPort } from "./project-port.ts";
 import { createAgentPort } from "./agent-port.ts";
 import { createChildPort } from "./child-port.ts";
 import { createSidebarHub } from "./sidebar-hub.ts";
@@ -66,6 +68,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     store: marks,
     projects: deps.projects,
     scopeOf: deps.policy.scopeOf,
+    boxes: deps.boxes,
     logger: deps.logger,
   });
 
@@ -91,6 +94,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     clock: deps.clock,
   });
   deps.projects.onChange((ownerId, view) => publisher.projectChanged(ownerId, view.id));
+  // A deleted box project and its sessions leave every client of the owner at once (a pending update of it reads no row and is skipped).
+  deps.projects.onRemoved((ownerId, projectId) =>
+    deps.hub.publish("shell", ownerId, { kind: "projectRemoved", projectId }),
+  );
   const organiser = createOrganiser({
     store: marks,
     clock: deps.clock,
@@ -105,6 +112,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     clock: deps.clock,
     logger: deps.logger,
     agentDir: deps.worker.agentDir,
+    papHome: deps.worker.papHome,
     newId: deps.newId,
     ownerId: deps.ownerId,
     ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
@@ -159,9 +167,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   const sendPrompt = createPromptFlow({ deps, ensureLive, organiser, publisher, owned });
-  // A fork would be a second thread, or a plain session in the agent's home (M11R179).
-  const notAgent = (row: SessionRow): SessionRow => {
+  // A fork would be a second thread, or a plain session in the agent's home (M11R179). A project box's session file is the VM's:
+  // the host's Pi never opens it, so the refusal comes before the writer is loaded.
+  const notInVm = (row: SessionRow): SessionRow => {
     if (row.agentId !== undefined) throw new PapError("bad_request");
+    if (agent.vmLayoutOf(row) !== null) throw new PapError("sandbox_unavailable");
     return row;
   };
 
@@ -233,22 +243,20 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
 
   const filed = filedOf(link, publisher);
 
-  const automation = createAutomationPort(
-    {
-      deps,
-      live,
-      starting,
-      reopening,
-      launch,
-      attention,
-      publisher,
-      marks,
-      room,
-      sandboxed: agent.shellSandboxed,
-      removed: (row) => child.removed(row),
-    },
-    () => self,
-  );
+  const automationCtx: AutomationContext = {
+    deps,
+    live,
+    starting,
+    reopening,
+    launch,
+    attention,
+    publisher,
+    marks,
+    room,
+    sandboxed: agent.shellSandboxed,
+    removed: (row) => child.removed(row),
+  };
+  const automation = createAutomationPort(automationCtx, () => self);
   const agentSessions = createAgentPort({
     deps,
     live,
@@ -275,12 +283,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   });
   const self: SessionsServiceWithAutomation = {
     automation,
+    projectCleanup: createSessionsProjectPort(automationCtx),
     agent,
     agentSessions,
     child,
     modeOf: (ownerId, sessionId) => policyLink.viewOf(owned(sessionId, { userId: ownerId } as Caller)).mode,
     async create(cwdInput, caller, preset) {
-      const cwd = resolveSessionCwd(cwdInput, deps.worker.papHome);
+      const cwd =
+        newBoxCwdOf(deps.boxes?.(), caller.userId, cwdInput)?.cwd ??
+        resolveSessionCwd(cwdInput, deps.worker.papHome);
       const now = deps.clock.now();
       const toolPreset = preset === undefined ? null : storedPresetOf(preset);
       const row: SessionRow = {
@@ -326,11 +337,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     setThinking: (input, caller) => modelCommands.setThinking(input, caller),
     setTools: (input, caller) => modelCommands.setTools(input, caller),
     fork: async ({ sessionId, entryId }, caller) => {
-      const row = notAgent(owned(sessionId, caller));
+      const row = notInVm(owned(sessionId, caller));
       return filed(row, await forks.fork(row, entryId));
     },
     clone: async ({ sessionId }, caller) => {
-      const row = notAgent(owned(sessionId, caller));
+      const row = notInVm(owned(sessionId, caller));
       return filed(row, await forks.clone(row, live.get(row.id)?.leafId() ?? null));
     },
     async clearQueue(sessionId, caller) {

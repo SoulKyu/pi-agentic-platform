@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mirrorFileOf, mirrorPathOf } from "./mirror-paths.ts";
+import { mirrorFileOf, mirrorFolderOf, mirrorPathOf, projectMirrorPathOf } from "./mirror-paths.ts";
+
+const PROJECT = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
 
 describe("mirrorPathOf (R23)", () => {
   it("is <papHome>/agents/.mirrors/<agent id>/<file>", () => {
@@ -38,5 +40,29 @@ describe("mirrorFileOf", () => {
     expect(
       mirrorFileOf("/p", { piPath: "/p/agents/.mirrors/atlas-1a2b/s.jsonl", agentId: undefined }),
     ).toBeNull();
+  });
+});
+
+describe("a project box's mirrors", () => {
+  it("puts a project mirror under boxes/.mirrors/<id>", () => {
+    expect(projectMirrorPathOf("/p", PROJECT, "s.jsonl")).toBe(`/p/boxes/.mirrors/${PROJECT}/s.jsonl`);
+    expect(mirrorFolderOf("/p", PROJECT)).toBe(`/p/boxes/.mirrors/${PROJECT}`);
+    expect(mirrorFolderOf("/p", "atlas-1a2b")).toBe("/p/agents/.mirrors/atlas-1a2b");
+  });
+  it("refuses a project id that is not a lowercase uuid, and a file that is a path", () => {
+    for (const id of ["../x", PROJECT.toUpperCase(), ""])
+      expect(() => projectMirrorPathOf("/p", id, "a.jsonl")).toThrow(
+        expect.objectContaining({ code: "bad_request" }),
+      );
+    expect(() => projectMirrorPathOf("/p", PROJECT, "../a.jsonl")).toThrow(
+      expect.objectContaining({ code: "bad_request" }),
+    );
+  });
+  it("finds the file of a row under its own project's folder only", () => {
+    const row = (piPath: string, projectId = PROJECT) => ({ piPath, projectId });
+    expect(mirrorFileOf("/p", row(`/p/boxes/.mirrors/${PROJECT}/s.jsonl`))).toBe("s.jsonl");
+    expect(mirrorFileOf("/p", row(`/p/boxes/.mirrors/${PROJECT}/../other/s.jsonl`))).toBeNull();
+    expect(mirrorFileOf("/p", row(`/p/agents/.mirrors/${PROJECT}/s.jsonl`))).toBeNull();
+    expect(mirrorFileOf("/p", row(`/p/boxes/.mirrors/${PROJECT}/s.jsonl`, "not-a-uuid"))).toBeNull();
   });
 });

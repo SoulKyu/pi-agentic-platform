@@ -7,10 +7,10 @@ import { createSocketIpc } from "./socket-ipc.ts";
 const hello = WorkerHello.parse({
   type: "hello",
   role: "worker",
-  agentId: "scout-ab12",
+  box: { kind: "agent", id: "scout-ab12" },
   launchId: "a".repeat(32),
   token: "b".repeat(64),
-  protocol: 1,
+  protocol: 2,
   imageTag: `pap-agent-agent-${"c".repeat(64)}`,
   slot: "d".repeat(32),
   session: { file: null, lastEntryId: null, size: 0 },

@@ -24,7 +24,7 @@ export const SUBAGENTS_MIGRATIONS: MigrationSource = {
 /** The Pi modules (helper pool, trust) and the sessions the profiles are read for and the children are made in. */
 export interface SubagentsPorts {
   readonly pi: SubagentsPi;
-  readonly sessions: Pick<SessionsModule, "cwdOf" | "isAgentSession" | "child" | "automation" | "kindOf">;
+  readonly sessions: Pick<SessionsModule, "cwdOf" | "runsInVm" | "child" | "automation" | "kindOf">;
 }
 
 export interface SubagentsModuleDeps {

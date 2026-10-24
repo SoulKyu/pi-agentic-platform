@@ -34,6 +34,8 @@ export interface HooksDeps {
   readonly rate?: HookRate;
   /** The lines of refusals the route itself writes; none: nothing is journaled (unit tests of the route). */
   readonly journal?: HookJournal;
+  /** A trigger that still holds a stored precheck is refused at every fire (B6): true when it was, and journaled. */
+  refusePrecheck?(record: TriggerRecord): boolean;
 }
 
 const JSON_TYPE = /^application\/(?:[\w.-]+\+)?json\s*(?:;|$)/i;
@@ -143,6 +145,7 @@ export function mountHookRoute(app: Hono, deps: HooksDeps): void {
       }
     }
     const mapped = mapPayload(source.format, parsed, text);
+    if (deps.refusePrecheck?.(trigger) === true) return answer(c, 409, { reason: "precheck_removed" });
 
     try {
       const result = deps.fire(trigger.id, trigger.revision, {
@@ -152,7 +155,6 @@ export function mountHookRoute(app: Hono, deps: HooksDeps): void {
           text: mapped.text,
           source: source.format === "raw" ? "webhook" : source.format,
         },
-        precheck: null,
         dedupKey: dedupKeyOf(mapped.identity, body),
         title: trigger.name,
         detail: mapped.detail,

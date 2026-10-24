@@ -1,7 +1,11 @@
 import { z } from "zod";
 import { PackagePicks } from "./agents-resources.ts";
-import { AgentId } from "./platform.ts";
+import { BoxRef } from "./box-ref.ts";
+import { BoxOp, BoxOpError } from "./boxes.ts";
+import { FILE_CHUNK_B64, FILE_CHUNK_BYTES } from "./file-chunk.ts";
 import { AbsolutePath, LINE_HIDDEN } from "./text-rules.ts";
+
+const FileId = z.string().regex(/^[0-9a-f]{32}$/);
 
 /** Spec §4, decision 107. Fixed in v1; `pap vm setup` writes the same values. */
 export const AGENT_NET = Object.freeze({
@@ -15,7 +19,7 @@ export const AGENT_NET = Object.freeze({
 });
 /** Where host-local keeps its reservations (the conflist's `dataDir`, under /run: no VM outlives a reboot); one folder per network below it. */
 export const CNI_IPAM_DIR = "/run/pap-vm/cni-ipam";
-export const AGENT_VM_PROTOCOL = 1;
+export const AGENT_VM_PROTOCOL = 2;
 /** The gateway frame bound. `frames.ts` has the WebSocket's `MAX_FRAME_BYTES` (1 MiB): a different bound. */
 export const AGENT_VM_MAX_FRAME_BYTES = 4 * 1024 * 1024;
 /** RT-27: what a connection may send before its hello is accepted, and the gateway's other bounds. */
@@ -34,9 +38,7 @@ export const GATEWAY_LIMITS = Object.freeze({
 export const SESSION_CHUNK_BYTES = 2 * 1024 * 1024;
 export const SESSION_CHUNK_B64 = Math.ceil(SESSION_CHUNK_BYTES / 3) * 4;
 export const MAX_SESSION_LINE_BYTES = 32 * 1024 * 1024;
-/** R33 (RT-15): `file_put` is chunked like the transcript. */
-export const FILE_CHUNK_BYTES = 2 * 1024 * 1024;
-export const FILE_CHUNK_B64 = Math.ceil(FILE_CHUNK_BYTES / 3) * 4;
+export { FILE_CHUNK_B64, FILE_CHUNK_BYTES };
 export const GATEWAY_PING_MS = 15_000;
 export const GATEWAY_PING_MISSES = 3;
 export const IMAGE_TAG = /^pap-agent-(base|profile|agent)-[0-9a-f]{64}$/;
@@ -71,6 +73,8 @@ export const VmLayout = z
     piAgentDir: AbsolutePath,
     imageAgentDir: AbsolutePath,
     shellOverlay: AbsolutePath,
+    /** A project box only (spec boxes): the project folder, which is the session's cwd and own folder. An agent's layout has none. */
+    project: AbsolutePath.optional(),
   })
   .strict();
 export type VmLayout = z.infer<typeof VmLayout>;
@@ -91,7 +95,7 @@ export type VmInit = z.infer<typeof VmInit>;
 
 const helloBase = {
   type: z.literal("hello"),
-  agentId: AgentId,
+  box: BoxRef,
   launchId: LaunchId,
   token: GatewayToken,
   protocol: z.literal(AGENT_VM_PROTOCOL),
@@ -144,6 +148,8 @@ export const GuestCommand = z.discriminatedUnion("type", [
     .strict(),
   z.object({ type: z.literal("signal"), slot: SlotId, signal: z.enum(["SIGTERM", "SIGKILL"]) }).strict(),
   z.object({ type: z.literal("shutdown") }).strict(),
+  /** One guest operation of a project box (spec boxes); `id` correlates the `op_result`. */
+  z.object({ type: z.literal("op"), id: FileId, op: BoxOp }).strict(),
 ]);
 export type GuestCommand = z.infer<typeof GuestCommand>;
 /** Guest to daemon. */
@@ -161,6 +167,11 @@ export const GuestReport = z.discriminatedUnion("type", [
       tail: z.string().max(8192),
     })
     .strict(),
+  /** The answer to an `op`: the value is checked against the op's result schema by the daemon, never trusted. */
+  z.discriminatedUnion("ok", [
+    z.object({ type: z.literal("op_result"), id: FileId, ok: z.literal(true), value: z.unknown() }).strict(),
+    z.object({ type: z.literal("op_result"), id: FileId, ok: z.literal(false), code: BoxOpError }).strict(),
+  ]),
 ]);
 export type GuestReport = z.infer<typeof GuestReport>;
 
@@ -186,7 +197,6 @@ export const SessionResync = z
     lastEntryId: EntryId.nullable(),
   })
   .strict();
-const FileId = z.string().regex(/^[0-9a-f]{32}$/);
 /** Daemon to worker: one chunk of an attachment for the inbox (R33); chunks of one `id` come in order, `last` ends it. */
 export const FilePut = z
   .object({

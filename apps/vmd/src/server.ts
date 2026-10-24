@@ -1,6 +1,6 @@
 import { chmodSync, chownSync, lstatSync, unlinkSync } from "node:fs";
 import net from "node:net";
-import { VMD_MAX_FRAME_BYTES, VmdRequest } from "@pap/contracts";
+import { boxKey, VMD_MAX_FRAME_BYTES, VmdRequest } from "@pap/contracts";
 import type { Clock, TimerHandle } from "./clock.ts";
 import { VmdFailure, type VmdCode, type VmdResponseBody } from "./errors.ts";
 import type { Logger } from "./log.ts";
@@ -36,7 +36,7 @@ export interface VmdServer {
  * RT-33, R36: one typed JSON request per connection on a unix socket owned by pap's uid, mode 0600. The request is UTF-8
  * JSON ended by a newline or by the client closing its writing side; it is at most `VMD_MAX_FRAME_BYTES` and is never
  * parsed once it is over. It must pass `VmdRequest` before anything runs. The answer is one `VmdResponse` line (also at most
- * that size), then the connection is closed. A log record names the op, agent, task key, result and duration, never the request.
+ * that size), then the connection is closed. A log record names the op, box, task key, result and duration, never the request.
  */
 export function createVmdServer(deps: VmdServerDeps): VmdServer {
   const { socketPath, handle, log, clock } = deps;
@@ -76,12 +76,12 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
 
   function record(
     op: string | null,
-    agentId: string | null,
+    box: string | null,
     taskKey: string | null,
     result: string,
     since: number,
   ): void {
-    log.info("vmd_call", { op, agentId, taskKey, result, ms: clock.now() - since });
+    log.info("vmd_call", { op, box, taskKey, result, ms: clock.now() - since });
   }
 
   async function serve(bytes: Buffer, since: number): Promise<VmdResponseBody> {
@@ -92,15 +92,15 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
       record(null, null, null, "bad_request", since);
       return refuse("bad_request");
     }
-    const agentId = "agentId" in request ? request.agentId : null;
+    const box = "box" in request && request.box !== null ? boxKey(request.box) : null;
     const taskKey = "taskKey" in request ? request.taskKey : null;
     try {
       const result = await handle(request);
-      record(request.op, agentId, taskKey, "ok", since);
+      record(request.op, box, taskKey, "ok", since);
       return { ok: true, result };
     } catch (error) {
       const code = error instanceof VmdFailure ? error.code : "failed";
-      record(request.op, agentId, taskKey, code, since);
+      record(request.op, box, taskKey, code, since);
       return refuse(code);
     }
   }

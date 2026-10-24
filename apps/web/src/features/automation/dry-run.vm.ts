@@ -1,4 +1,4 @@
-import type { DryRunResult, TrustStatus } from "@pap/contracts";
+import { type DryRunResult, PRECHECK_REMOVED, type TrustStatus } from "@pap/contracts";
 import { formatCost } from "@pap/ui";
 import { t, type MessageKey } from "../../i18n/index.ts";
 import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
@@ -65,6 +65,8 @@ export function precheckLine(
 ): { line: string; output: string | null } | null {
   if (precheck === null) return null;
   if (typeof precheck === "string") return { line: t(`automation.dry.notRun.${precheck}`), output: null };
+  if (precheck.verdict === "error" && precheck.output === PRECHECK_REMOVED)
+    return { line: t("automation.editor.precheck.removed"), output: null };
   const line =
     precheck.verdict === "error"
       ? t("automation.dry.precheckFailed", { seconds: seconds(precheck.durationMs) })

@@ -25,11 +25,12 @@ const papHome = (): string =>
   (JSON.parse(readFileSync("/etc/pap-vm/config.json", "utf8")) as { papHome: string }).papHome;
 let gateway: Awaited<ReturnType<typeof listenGateway>>;
 const agents: string[] = [];
+const boxOf = (id: string) => ({ kind: "agent" as const, id });
 const taskKey = (): string => hex(16);
 const start = (agentId: string, key: string | null = null) =>
   vmd({
     op: "vm.start",
-    agentId,
+    box: boxOf(agentId),
     kind: key === null ? "thread" : "isolated",
     taskKey: key,
     image: imageTag,
@@ -38,7 +39,7 @@ const start = (agentId: string, key: string | null = null) =>
     token: hex(32),
   });
 const statusOf = async (agentId: string, key: string | null = null): Promise<string> =>
-  ((await vmdOk({ op: "vm.status", agentId, taskKey: key })) as { state: string }).state;
+  ((await vmdOk({ op: "vm.status", box: boxOf(agentId), taskKey: key })) as { state: string }).state;
 const fresh = (): string => {
   const id = testAgentId();
   agents.push(id);
@@ -85,11 +86,11 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
   afterAll(async () => {
     for (const agentId of agents) {
       const listed = (
-        await vmdOk<{ vms: Array<{ agentId: string; taskKey: string | null }> }>({ op: "vm.list" })
+        await vmdOk<{ vms: Array<{ box: { id: string }; taskKey: string | null }> }>({ op: "vm.list" })
       ).vms;
-      for (const vm of listed.filter((each) => each.agentId === agentId))
-        await vmd({ op: "vm.stop", agentId, taskKey: vm.taskKey });
-      await vmd({ op: "disk.delete", agentId, taskKey: null, purge: true });
+      for (const vm of listed.filter((each) => each.box.id === agentId))
+        await vmd({ op: "vm.stop", box: boxOf(agentId), taskKey: vm.taskKey });
+      await vmd({ op: "disk.delete", box: boxOf(agentId), taskKey: null, purge: true });
     }
     await gateway?.close();
   });
@@ -102,7 +103,7 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
 
   it("runs a thread VM: create the disk, start, running, its guest reaches the gateway from its own address, stop, delete", async () => {
     const agentId = fresh();
-    expect(await vmdOk({ op: "disk.create", agentId, taskKey: null, diskMb: 1024 })).toEqual({
+    expect(await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: 1024 })).toEqual({
       diskMb: 1024,
     });
     const started = Date.now();
@@ -122,44 +123,48 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
       BOOT_MS,
     );
     console.info(`T20a vm.start to first guest dial: ${Date.now() - started} ms`);
-    const listed = await vmdOk<{ vms: Array<{ agentId: string; state: string }> }>({ op: "vm.list" });
-    expect(listed.vms.filter((vm) => vm.agentId === agentId)).toEqual([
-      expect.objectContaining({ agentId, state: "running" }),
+    const listed = await vmdOk<{ vms: Array<{ box: { id: string }; state: string }> }>({ op: "vm.list" });
+    expect(listed.vms.filter((vm) => vm.box.id === agentId)).toEqual([
+      expect.objectContaining({ box: boxOf(agentId), state: "running" }),
     ]);
 
     const stopping = Date.now();
-    expect(await vmdOk({ op: "vm.stop", agentId, taskKey: null })).toEqual({ stopped: true });
+    expect(await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null })).toEqual({ stopped: true });
     console.info(`T20a vm.stop (thread VM): ${Date.now() - stopping} ms`);
     expect(await statusOf(agentId)).toBe("absent");
-    expect(await vmdOk({ op: "disk.delete", agentId, taskKey: null, purge: true })).toEqual({
+    expect(await vmdOk({ op: "disk.delete", box: boxOf(agentId), taskKey: null, purge: true })).toEqual({
       deleted: true,
     });
-    expect((await vmd({ op: "disk.delete", agentId, taskKey: null, purge: true })).ok).toBe(false);
+    expect((await vmd({ op: "disk.delete", box: boxOf(agentId), taskKey: null, purge: true })).ok).toBe(
+      false,
+    );
   }, 180_000);
 
   it("pauses and resumes a VM", async () => {
     const agentId = fresh();
-    await vmdOk({ op: "disk.create", agentId, taskKey: null, diskMb: 1024 });
+    await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: 1024 });
     expect((await start(agentId)).ok).toBe(true);
     expect(await statusOf(agentId)).toBe("running");
-    await vmdOk({ op: "vm.pause", agentId });
+    await vmdOk({ op: "vm.pause", box: boxOf(agentId) });
     expect(await statusOf(agentId)).toBe("paused");
-    await vmdOk({ op: "vm.resume", agentId });
+    await vmdOk({ op: "vm.resume", box: boxOf(agentId) });
     expect(await statusOf(agentId)).toBe("running");
-    await vmdOk({ op: "vm.stop", agentId, taskKey: null });
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
   }, 180_000);
 
   it("refuses a grow while the VM runs, grows after the stop, never shrinks", async () => {
     const agentId = fresh();
-    await vmdOk({ op: "disk.create", agentId, taskKey: null, diskMb: 1024 });
+    await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: 1024 });
     expect((await start(agentId)).ok).toBe(true);
-    expect(await vmd({ op: "disk.grow", agentId, taskKey: null, diskMb: 2048 })).toEqual({
+    expect(await vmd({ op: "disk.grow", box: boxOf(agentId), taskKey: null, diskMb: 2048 })).toEqual({
       ok: false,
       code: "conflict",
     });
-    await vmdOk({ op: "vm.stop", agentId, taskKey: null });
-    expect(await vmdOk({ op: "disk.grow", agentId, taskKey: null, diskMb: 2048 })).toEqual({ diskMb: 2048 });
-    expect(await vmd({ op: "disk.grow", agentId, taskKey: null, diskMb: 1024 })).toEqual({
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
+    expect(await vmdOk({ op: "disk.grow", box: boxOf(agentId), taskKey: null, diskMb: 2048 })).toEqual({
+      diskMb: 2048,
+    });
+    expect(await vmd({ op: "disk.grow", box: boxOf(agentId), taskKey: null, diskMb: 1024 })).toEqual({
       ok: false,
       code: "bad_request",
     });
@@ -168,26 +173,26 @@ describe.skipIf(skip)("pap-vmd on the real Kata stack", () => {
   it("gives an isolated VM a disk of its own that goes with its stop, and leaves the agent's disk and VM alone", async () => {
     const agentId = fresh();
     const key = taskKey();
-    await vmdOk({ op: "disk.create", agentId, taskKey: null, diskMb: 1024 });
+    await vmdOk({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: 1024 });
     expect((await start(agentId)).ok).toBe(true);
     expect((await start(agentId, key)).ok).toBe(true);
     expect(await statusOf(agentId, key)).toBe("running");
     expect(await statusOf(agentId)).toBe("running");
     // A running task's disk cannot be deleted from under it.
-    expect(await vmd({ op: "disk.delete", agentId, taskKey: key, purge: true })).toEqual({
+    expect(await vmd({ op: "disk.delete", box: boxOf(agentId), taskKey: key, purge: true })).toEqual({
       ok: false,
       code: "conflict",
     });
-    await vmdOk({ op: "vm.stop", agentId, taskKey: key });
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: key });
     expect(await statusOf(agentId, key)).toBe("absent");
     expect(await statusOf(agentId)).toBe("running");
     // The task disk went with its stop; the agent's disk is still there (a second create is a conflict).
-    expect(await vmd({ op: "disk.delete", agentId, taskKey: key, purge: true })).toEqual({
+    expect(await vmd({ op: "disk.delete", box: boxOf(agentId), taskKey: key, purge: true })).toEqual({
       ok: false,
       code: "not_found",
     });
-    await vmdOk({ op: "vm.stop", agentId, taskKey: null });
-    expect(await vmd({ op: "disk.create", agentId, taskKey: null, diskMb: 1024 })).toEqual({
+    await vmdOk({ op: "vm.stop", box: boxOf(agentId), taskKey: null });
+    expect(await vmd({ op: "disk.create", box: boxOf(agentId), taskKey: null, diskMb: 1024 })).toEqual({
       ok: false,
       code: "conflict",
     });

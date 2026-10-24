@@ -85,7 +85,7 @@ describe("agent files reach the VM home", () => {
     const first = await b.spawnReady(AGENT);
     await present(join(homeOf(), CONFIG));
     await first.handle.stop();
-    await b.runtime.stop(AGENT);
+    await b.runtime.stop({ kind: "agent", id: AGENT });
     files.remove(AGENT, CONFIG);
     expect(files.pendingRemovals(AGENT)).toEqual([CONFIG]);
     // The VM kept (or lost) its disk; either way the file is there when the VM comes back.

@@ -2,6 +2,7 @@ import { type AddressInfo, createServer, type Server } from "node:net";
 import {
   AGENT_VM_MAX_FRAME_BYTES,
   AGENT_VM_PROTOCOL,
+  boxKey,
   createFrameDecoder,
   encodeSocketFrame,
   GATEWAY_LIMITS,
@@ -67,13 +68,15 @@ interface Waiter {
   timer: TimerHandle | undefined;
 }
 
+/** A hello of another protocol (a protocol-1 guest names `agentId`, not `box`): by its envelope, since its body is not ours. */
 const isHelloWithOtherProtocol = (value: unknown): boolean => {
   if (typeof value !== "object" || value === null) return false;
-  const protocol = (value as { protocol?: unknown }).protocol;
+  const { type, role, protocol } = value as { type?: unknown; role?: unknown; protocol?: unknown };
   return (
+    type === "hello" &&
+    (role === "guest" || role === "worker") &&
     typeof protocol === "number" &&
-    protocol !== AGENT_VM_PROTOCOL &&
-    Hello.safeParse({ ...value, protocol: AGENT_VM_PROTOCOL }).success
+    protocol !== AGENT_VM_PROTOCOL
   );
 };
 
@@ -94,12 +97,12 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
    * with no refusal for `REFUSAL_QUIET_MS` counts from 1 again (S2 m2), so a later burst is not hidden behind an old count.
    */
   const refusals = new Map<Refusal, { count: number; at: number }>();
-  const refusedLog = (agentId: string | null, reason: Refusal): void => {
+  const refusedLog = (box: string | null, reason: Refusal): void => {
     const last = refusals.get(reason);
     const now = clock.now();
     const count = last !== undefined && now - last.at < REFUSAL_QUIET_MS ? last.count + 1 : 1;
     refusals.set(reason, { count, at: now });
-    if ((count & (count - 1)) === 0) logger.warn("agent_gateway_refused", { agentId, reason, count });
+    if ((count & (count - 1)) === 0) logger.warn("agent_gateway_refused", { box, reason, count });
   };
 
   function accept(socket: GatewaySocket): void {
@@ -111,7 +114,7 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
     }
     let done = false;
     let accepted = false;
-    let agentId: string | null = null;
+    let box: string | null = null;
     let role: WorkerConnection | null = null;
     let outstanding = 0;
     let helloTimer: TimerHandle | undefined;
@@ -157,7 +160,7 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         }
         socket.write(bytes);
         if (socket.writableLength > GATEWAY_LIMITS.writeBacklogBytes) {
-          logger.warn("agent_gateway_backlog", { agentId });
+          logger.warn("agent_gateway_backlog", { box });
           close();
           return false;
         }
@@ -177,7 +180,7 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
     const tick = (): void => {
       pingTimer = undefined;
       if (outstanding >= GATEWAY_PING_MISSES) {
-        logger.warn("agent_gateway_ping_timeout", { agentId });
+        logger.warn("agent_gateway_ping_timeout", { box });
         close();
         return;
       }
@@ -190,12 +193,12 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
       const parsed = Hello.safeParse(value);
       if (!parsed.success) return refuse(null, isHelloWithOtherProtocol(value) ? "protocol" : "bad_hello");
       const hello = parsed.data;
-      if (!tokens.check(hello.agentId, hello.launchId, hello.token)) return refuse(hello.agentId, "token");
-      if (imageOf(hello.launchId) !== hello.imageTag) return refuse(hello.agentId, "image");
+      if (!tokens.check(hello.box, hello.launchId, hello.token)) return refuse(boxKey(hello.box), "token");
+      if (imageOf(hello.launchId) !== hello.imageTag) return refuse(boxKey(hello.box), "image");
       if (hello.role === "guest") {
-        if (everSeen.has(hello.launchId)) return refuse(hello.agentId, "duplicate");
+        if (everSeen.has(hello.launchId)) return refuse(boxKey(hello.box), "duplicate");
         everSeen.add(hello.launchId);
-        const guest = createGuestLink({ clock, logger, agentId: hello.agentId, wire });
+        const guest = createGuestLink({ clock, logger, box: boxKey(hello.box), wire });
         guests.set(hello.launchId, guest);
         role = {
           frame: guest.frame,
@@ -211,12 +214,12 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         waiters.delete(hello.launchId);
       } else {
         const guest = guests.get(hello.launchId);
-        if (!guest) return refuse(hello.agentId, "slot");
+        if (!guest) return refuse(boxKey(hello.box), "slot");
         const result = guest.acceptWorker(hello, wire);
-        if (typeof result === "string") return refuse(hello.agentId, result);
+        if (typeof result === "string") return refuse(boxKey(hello.box), result);
         role = result;
       }
-      agentId = hello.agentId;
+      box = boxKey(hello.box);
       accepted = true;
       if (helloTimer) clock.clearTimeout(helloTimer);
       helloTimer = undefined;
@@ -237,7 +240,7 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         }
         role?.frame(value);
       } catch (error) {
-        logger.error("agent_gateway_handler_failed", { agentId, err: error });
+        logger.error("agent_gateway_handler_failed", { box, err: error });
         close();
       }
     };
@@ -247,7 +250,7 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
       onFrame,
       onError(error) {
         if (!accepted) return refuse(null, error === "too_large" ? "too_large" : "bad_hello");
-        logger.warn("agent_gateway_frame_error", { agentId, error });
+        logger.warn("agent_gateway_frame_error", { box, error });
         close();
       },
     });

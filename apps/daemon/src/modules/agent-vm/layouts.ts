@@ -1,4 +1,4 @@
-import type { VmLayout } from "@pap/contracts";
+import { BOX_MOUNT, PapError, projectBoxPaths, type ProjectBoxPaths, type VmLayout } from "@pap/contracts";
 import { join } from "node:path";
 import type { VmSpec } from "./runtime.ts";
 
@@ -16,7 +16,7 @@ const KATA_LAYOUT: VmLayout = Object.freeze({
 });
 
 /** The process backend's temp folder of one VM: `$PAP_HOME/tmp/agent-vm/<agent id>[-<task key>]`. */
-export function processRootOf(papHome: string, spec: Pick<VmSpec, "agentId" | "taskKey">): string {
+export function processRootOf(papHome: string, spec: { agentId: string; taskKey: string | null }): string {
   return join(
     papHome,
     "tmp",
@@ -25,11 +25,25 @@ export function processRootOf(papHome: string, spec: Pick<VmSpec, "agentId" | "t
   );
 }
 
+/**
+ * Where a project box lives: Kata mounts its disk at `/boxes/<id>`, the process backend (tests only) uses
+ * `$PAP_HOME/tmp/boxes/<id>` with the same names inside.
+ */
+export function projectLayoutOf(
+  backend: "kata" | "process",
+  papHome: string,
+  projectId: string,
+): ProjectBoxPaths {
+  return projectBoxPaths(
+    backend === "kata" ? `${BOX_MOUNT}/${projectId}` : join(papHome, "tmp", "boxes", projectId),
+  );
+}
+
 /** Where things are in a VM of this backend (pure, R28). */
 export function layoutOf(
   backend: "kata" | "process",
   papHome: string,
-  spec: Pick<VmSpec, "agentId" | "taskKey">,
+  spec: { agentId: string; taskKey: string | null },
 ): VmLayout {
   if (backend === "kata") return { ...KATA_LAYOUT };
   const root = processRootOf(papHome, spec);
@@ -44,4 +58,14 @@ export function layoutOf(
     imageAgentDir: join(root, "image-agent"),
     shellOverlay: join(root, "run", "pap-shell"),
   };
+}
+
+/** The runtime's view of a VM spec. A project box's layout is not a `VmLayout` (spec boxes): its guest brings it (task A4). */
+export function layoutOfSpec(
+  backend: "kata" | "process",
+  papHome: string,
+  spec: Pick<VmSpec, "box" | "taskKey">,
+): VmLayout {
+  if (spec.box.kind !== "agent") throw new PapError("sandbox_unavailable");
+  return layoutOf(backend, papHome, { agentId: spec.box.id, taskKey: spec.taskKey });
 }

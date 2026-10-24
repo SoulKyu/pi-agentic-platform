@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocks, type Locks } from "./locks.ts";
-import { AGENT, createFixture, type Fixture } from "./testing/ops-fixture.ts";
+import { AGENT_BOX, createFixture, type Fixture } from "./testing/ops-fixture.ts";
 
 /*
  * AVM-E62 (b): after each `vm.stop` pap-vmd sweeps the unmounted `cnitest-*` namespace files, under the start lock.
@@ -34,7 +34,7 @@ describe("vm.stop and the namespace sweep", () => {
         },
       },
     );
-    await fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: null });
+    await fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null });
     expect(seen).toEqual(["rm", "sweep (start lock held)"]);
   });
 
@@ -44,7 +44,7 @@ describe("vm.stop and the namespace sweep", () => {
         throw new Error("boom");
       },
     });
-    await expect(fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: null })).resolves.toEqual({
+    await expect(fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null })).resolves.toEqual({
       stopped: true,
     });
   });

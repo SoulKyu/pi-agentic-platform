@@ -129,7 +129,7 @@ describe("agent form: the other fields speak the schema", () => {
   it("an invalid host shows the host field's error", () => {
     expect(toInput(fresh({ ownHosts: false, hosts: "api.example.com\nk8s.lan:0" }))).toEqual({
       ok: false,
-      errors: { allowHosts: "agentForm.error.allowHosts" },
+      errors: { allowHosts: "boxes.hosts.error" },
     });
   });
 

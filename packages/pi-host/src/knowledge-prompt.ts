@@ -1,3 +1,27 @@
+import { closeSync, constants, readSync } from "node:fs";
+import { isOkfIndex, OKF_HEAD_BYTES } from "@pap/contracts";
+import { closeQuietly, openFileChain, openRootDir } from "./nofollow.ts";
+
+/**
+ * Whether `<knowledge>/index.md` is an OKF index, read inside `root` with no link followed at any component (the folder is
+ * agent-written). Any refusal reads as absent.
+ */
+export function okfBundleAt(root: string, knowledge: string): boolean {
+  let rootFd = -1;
+  let fd = -1;
+  try {
+    rootFd = openRootDir(root);
+    fd = openFileChain(rootFd, root, `${knowledge}/index.md`, constants.O_RDONLY);
+    const buffer = Buffer.alloc(OKF_HEAD_BYTES);
+    return isOkfIndex(buffer.toString("utf8", 0, readSync(fd, buffer, 0, OKF_HEAD_BYTES, 0)));
+  } catch {
+    return false;
+  } finally {
+    if (fd >= 0) closeSync(fd);
+    if (rootFd >= 0) closeQuietly(rootFd);
+  }
+}
+
 /**
  * The fixed section a session with an OKF bundle appends to its system prompt (once, at creation). Guidance, not
  * enforcement: pap does not read what the model writes. `path` is the bundle's folder: a project's `knowledge/` or an

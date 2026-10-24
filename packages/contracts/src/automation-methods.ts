@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { TriggerInput } from "./automation.ts";
+import { TriggerInput, TriggerSaveInput } from "./automation.ts";
 import { Cursor } from "./frames.ts";
 import {
   DryRunResult,
@@ -37,7 +37,6 @@ export const automationTriggerMethods = {
     result: TriggerView,
     errors: ["not_found"],
   }),
-  // The params can hold a credential typed inline in a precheck command: the receipt keeps a hash of no param at all (MC30).
   // A password step-up is required (M10R19). The secret is in this answer only: a replayed commandId answers `conflict`.
   "automation.triggers.create": defineMethod({
     name: "automation.triggers.create",
@@ -45,7 +44,7 @@ export const automationTriggerMethods = {
     idempotent: false,
     secretResult: true,
     sensitiveParams: [],
-    params: z.object({ input: TriggerInput }).strict(),
+    params: z.object({ input: TriggerSaveInput }).strict(),
     result: WithSecret,
     errors: ["step_up_required", "limit_reached", "invalid_cwd", "bad_request", "read_only"],
   }),
@@ -56,7 +55,7 @@ export const automationTriggerMethods = {
     secretResult: true,
     sensitiveParams: ["triggerId", "baseRevision"],
     params: z
-      .object({ triggerId: TriggerId, baseRevision: z.number().int().min(1), input: TriggerInput })
+      .object({ triggerId: TriggerId, baseRevision: z.number().int().min(1), input: TriggerSaveInput })
       .strict(),
     result: WithSecret,
     errors: ["step_up_required", "not_found", "conflict", "invalid_cwd", "bad_request", "read_only"],

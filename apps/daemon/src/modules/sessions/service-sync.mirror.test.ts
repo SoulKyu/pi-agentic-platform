@@ -22,7 +22,10 @@ function setup() {
   const bound: Array<[string, string, string]> = [];
   const log = captureLogger();
   const sync = createStoreSync({
-    store: { bindPiFile: (...args: [string, string, string]) => (bound.push(args), true) } as never,
+    store: {
+      bindPiFile: (...args: [string, string, string]) => (bound.push(args), true),
+      marks: { row: () => undefined },
+    } as never,
     clock: createFakeClock(),
     logger: log.logger,
     hub: { publish: vi.fn() },

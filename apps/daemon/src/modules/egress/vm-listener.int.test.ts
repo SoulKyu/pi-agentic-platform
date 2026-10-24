@@ -68,7 +68,7 @@ describe("the VM egress listener", () => {
   let egress: ReturnType<typeof createVmEgress>;
 
   const scope = (agentId: string, launchId: string, hosts: string[]): VmScope => ({
-    agentId,
+    box: { kind: "agent", id: agentId },
     launchId,
     source: "thread",
     hosts,
@@ -140,7 +140,7 @@ describe("the VM egress listener", () => {
     expect(reply).toMatch(/not_listed/);
     expect(refusals).toEqual([
       {
-        agentId: "atlas-1a2b",
+        box: { kind: "agent", id: "atlas-1a2b" },
         launchId: "launch-a",
         source: "thread",
         host: "other.example.test",
@@ -222,17 +222,17 @@ describe("the VM egress listener", () => {
     await readAll(await dial(port, VM_B, connectLine("api.example.test:443")));
     await clock.advance(60_000);
     const usage = lines.filter((line) => line.msg === "egress_vm_usage");
-    const a = usage.find((line) => line.agentId === "atlas-1a2b");
+    const a = usage.find((line) => line.box === "agent:atlas-1a2b");
     expect(a).toMatchObject({ launchId: "launch-a", requests: 2, refused: 1, up: 6, down: 6 });
     const hosts = a?.hosts as string[];
     expect(hosts).toContain("api.example.test");
     expect(hosts.some((host) => host.startsWith("h:") && host.endsWith("(len 18)"))).toBe(true);
     expect(hosts).not.toContain("other.example.test");
-    expect(usage.find((line) => line.agentId === "bravo-3c4d")).toMatchObject({ requests: 1, refused: 1 });
+    expect(usage.find((line) => line.box === "agent:bravo-3c4d")).toMatchObject({ requests: 1, refused: 1 });
     // The next window starts from zero.
     await clock.advance(60_000);
     expect(
-      lines.filter((line) => line.msg === "egress_vm_usage" && line.agentId === "atlas-1a2b"),
+      lines.filter((line) => line.msg === "egress_vm_usage" && line.box === "agent:atlas-1a2b"),
     ).toHaveLength(1);
     tunnelA.destroy();
   });

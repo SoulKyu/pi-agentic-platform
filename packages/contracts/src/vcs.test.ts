@@ -78,8 +78,8 @@ describe("the vcs methods", () => {
     expect(STREAMS).toContain("vcs");
     for (const name of ["subscribe.vcs", "vcs.refresh", "vcs.fileDiff"] as const)
       expect(methods[name]).toMatchObject({ permission: "vcs:read", idempotent: true });
-    expect(methods["vcs.fileDiff"].errors).toEqual(["not_found", "capacity", "timeout"]);
-    expect(methods["subscribe.vcs"].errors).toEqual(["not_found", "capacity"]);
+    expect(methods["vcs.fileDiff"].errors).toEqual(["not_found", "capacity", "timeout", "box_stopped"]);
+    expect(methods["subscribe.vcs"].errors).toEqual(["not_found", "capacity", "box_stopped"]);
   });
   it("takes an absolute root and relative paths for a diff", () => {
     const { params } = methods["vcs.fileDiff"];

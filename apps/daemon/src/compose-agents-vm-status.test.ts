@@ -288,7 +288,7 @@ describe("composeVmStatus", () => {
   const config = { agentsMemoryMaxMb: 4096, minFreeDiskMb: 0 };
   const make = (client: typeof fake | null) =>
     composeVmStatus({ clock, logger: silentLogger, claudeToken: claudeToken(), config }, client, {
-      phase: (id) => (id === "a-0001" ? "running" : "stopped"),
+      phase: (box) => (box.id === "a-0001" ? "running" : "stopped"),
     });
 
   it("lists the owner's agents with their phases once the agents are bound (M-agents)", async () => {

@@ -1,28 +1,28 @@
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import { VM_OVERHEAD_MB } from "../../kernel/config-agents-vm.ts";
 
-/** RT-40: this many crashes within the window pause the agent. */
+/** RT-40: this many crashes within the window pause the box. */
 export const CRASH_LIMIT = 3;
 export const CRASH_WINDOW_MS = 10 * 60_000;
-/** Agents with a crash on record: one entry per agent of this daemon, dropped by `clear` (Resume) or when its window empties. */
+/** Boxes (by `boxKey`) with a crash on record: one entry per box of this daemon, dropped by `clear` (Resume) or when its window empties. */
 export interface CrashLog {
   /** Records a crash now; true when this one is the limit's. */
-  record(agentId: string): boolean;
-  clear(agentId: string): void;
+  record(box: string): boolean;
+  clear(box: string): void;
 }
 
 export function createCrashLog(clock: Clock): CrashLog {
   const crashes = new Map<string, number[]>();
   return {
-    record(agentId) {
+    record(box) {
       const now = clock.now();
-      const recent = (crashes.get(agentId) ?? []).filter((at) => now - at < CRASH_WINDOW_MS);
+      const recent = (crashes.get(box) ?? []).filter((at) => now - at < CRASH_WINDOW_MS);
       recent.push(now);
-      crashes.set(agentId, recent);
+      crashes.set(box, recent);
       return recent.length >= CRASH_LIMIT;
     },
-    clear(agentId) {
-      crashes.delete(agentId);
+    clear(box) {
+      crashes.delete(box);
     },
   };
 }

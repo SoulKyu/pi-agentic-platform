@@ -15,3 +15,9 @@ export const okfLogText = (now: Date): string => `## ${now.toISOString().slice(0
 
 /** The one test for the retired pi-mem0 extension: the VM image leaves it out and pap's workers never load it (ADR 0082). */
 export const isPiMem0 = (text: string): boolean => /pi-mem0/i.test(text);
+
+/** The first bytes of a regular `index.md` that count: both sides (the daemon on a host project, the guest in a box) read this many. */
+export const OKF_HEAD_BYTES = 512;
+const OKF_VERSION_LINE = /^okf_version:[ \t]*"0\.\d+"[ \t]*$/m;
+/** Whether the head of an `index.md` (its first {@link OKF_HEAD_BYTES} bytes) carries `okf_version: "0.<n>"`: the one rule of "this folder is an OKF bundle". */
+export const isOkfIndex = (head: string): boolean => OKF_VERSION_LINE.test(head);

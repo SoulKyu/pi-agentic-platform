@@ -17,7 +17,7 @@ export interface ProfilesDeps {
     /** The folder of the owner's session; null when there is no such session of theirs. */
     cwdOf(ownerId: string, sessionId: string): string | null;
     /** True for a session of an agent (and its children): its home is not a project (W5-R27, W5-R29). */
-    isAgentSession(sessionId: string): boolean;
+    runsInVm(sessionId: string): boolean;
   };
   readonly logger: Logger;
 }
@@ -25,7 +25,7 @@ export interface ProfilesDeps {
 /**
  * The profiles a session can pick for a subagent (M11R135): Pi's agent files, read offline by the helper. The session's
  * folder goes to the helper only when Pi trusts it, so an untrusted repository never defines a child's prompt; the helper
- * checks the trust store again before it opens `.pi/agents`. Never for an agent's session: its home is agent-written and
+ * checks the trust store again before it opens `.pi/agents`. Never for a session in a VM (an agent's, or a project box's): its home is written in the VM and
  * not a project (W5-R27, W5-R29), whatever Pi's trust store says of an ancestor.
  */
 export function createProfiles(deps: ProfilesDeps) {
@@ -33,7 +33,7 @@ export function createProfiles(deps: ProfilesDeps) {
     async list(caller: Caller, sessionId: string): Promise<SubagentsProfilesResult> {
       const cwd = deps.sessions.cwdOf(caller.userId, sessionId);
       if (cwd === null) throw new PapError("not_found");
-      const trusted = !deps.sessions.isAgentSession(sessionId) && (await deps.pi.trust.status(cwd)) === true;
+      const trusted = !deps.sessions.runsInVm(sessionId) && (await deps.pi.trust.status(cwd)) === true;
       const handle = deps.pi.helpers.run(
         "subagents.profiles",
         { offline: true },

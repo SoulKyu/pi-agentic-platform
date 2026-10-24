@@ -142,3 +142,22 @@ describe("shell reducer", () => {
     expect(pinnedIds(view)).toEqual(["y", "x"]);
   });
 });
+
+describe("a deleted project (projectRemoved)", () => {
+  it("drops the project and its sessions, and nothing else", () => {
+    const view = reduceShell(
+      reduceShell(reduceShell(EMPTY_SHELL, { kind: "project", project: shellProject({ id: "gone" }) }), {
+        kind: "project",
+        project: shellProject({ id: "kept" }),
+      }),
+      { kind: "session", session: shellSession({ id: "s-gone", projectId: "gone" }) },
+    );
+    const withKept = reduceShell(view, {
+      kind: "session",
+      session: shellSession({ id: "s-kept", projectId: "kept" }),
+    });
+    const after = reduceShell(withKept, { kind: "projectRemoved", projectId: "gone" });
+    expect([...after.projects.keys()]).toEqual(["kept"]);
+    expect([...after.sessions.keys()]).toEqual(["s-kept"]);
+  });
+});

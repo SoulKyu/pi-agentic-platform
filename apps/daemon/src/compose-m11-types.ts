@@ -43,6 +43,7 @@ export interface M11Modules {
     | "automation"
     | "agentSessions"
     | "hostGrants"
+    | "projectBoxOf"
     | "child"
   >;
   /** The owner's settings: their host list is what an agent's own list is judged against (W5-R36). */

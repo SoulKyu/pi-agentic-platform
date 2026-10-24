@@ -23,7 +23,7 @@ function bed(trusted: boolean | null, answer: (call: RunCall) => unknown = helpe
     pi: { helpers: pool, trust: { status: async () => trusted } },
     sessions: {
       cwdOf: (owner, id) => (owner === "u1" && id === "s1" ? "/w/api" : null),
-      isAgentSession: () => agent,
+      runsInVm: () => agent,
     },
     logger,
   });

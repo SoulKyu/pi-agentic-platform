@@ -6,7 +6,6 @@ import {
   insertAgentTrigger,
   TASK,
 } from "./testing/agent-fakes.ts";
-import { createPrecheckStep } from "./precheck-step.ts";
 import { createRunnerBed, effectContext, fireInput, type RunnerBed } from "./testing/runner-bed.ts";
 
 let bed: RunnerBed;
@@ -150,34 +149,6 @@ describe("a paused agent's fires (M11R75)", () => {
     insertAgentTrigger(bed.db, fakes.homeOf(AGENT));
     fakes.add(AGENT, "u1", { paused: true, quarantinedAt: 5 });
     expect(fire()).toEqual({ verdict: "paused" });
-  });
-
-  it("spawn no precheck for a paused agent's trigger, and refuse it once the agent is resumed (agents run in microVMs)", async () => {
-    setup();
-    insertAgentTrigger(bed.db, fakes.homeOf(AGENT), { precheck: "exit 0" });
-    const run = vi.fn(async () => ({ verdict: "pass" as const, exitCode: 0, durationMs: 1, output: "ok" }));
-    const step = createPrecheckStep({
-      db: bed.db,
-      clock: bed.clock,
-      logger: bed.logger,
-      settings: { automation: () => bed.settings.value },
-      gates: bed.engine.gates,
-      triggers: bed.triggers,
-      precheck: { run },
-      agents: bed.engine.agents,
-    });
-    const record = bed.triggers.get("u1", "trg-agent-1");
-    const how = { source: "schedule", gated: true, origin: "scheduler" } as const;
-    const agent = fakes.agents.get(AGENT);
-    if (agent) agent.paused = true;
-    expect(await step.run(record as NonNullable<typeof record>, how)).toEqual({ kind: "go", precheck: null });
-    expect(run).not.toHaveBeenCalled();
-    if (agent) agent.paused = false;
-    expect(await step.run(record as NonNullable<typeof record>, how)).toMatchObject({
-      kind: "stop",
-      detail: "precheck_agent",
-    });
-    expect(run).not.toHaveBeenCalled();
   });
 
   it("leave a project trigger alone", () => {

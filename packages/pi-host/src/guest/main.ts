@@ -2,10 +2,12 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
-import { VmLayout } from "@pap/contracts";
+import { parseBoxKey, VmLayout } from "@pap/contracts";
 import { errorClass } from "../bounded.ts";
 import { growFilesystem } from "./grow.ts";
 import { runGuest } from "./guest.ts";
+import { KATA_LAYOUT, KATA_PROJECT_LAYOUT } from "./kata-layout.ts";
+import { createGuestOps } from "./ops/index.ts";
 import { takeGatewayToken } from "./scrub.ts";
 import { pickPackages, seedAgentFolder } from "./seed.ts";
 
@@ -13,19 +15,6 @@ import { pickPackages, seedAgentFolder } from "./seed.ts";
 const fail = (message: string): never => {
   process.stderr.write(`pap-guest: ${message}\n`);
   process.exit(70);
-};
-
-/** Where things are under Kata; the process backend names its own folders in PAP_GUEST_LAYOUT (a VmLayout as JSON). */
-const KATA_LAYOUT: VmLayout = {
-  root: "/agent",
-  home: "/agent/home",
-  knowledge: "/agent/knowledge",
-  inbox: "/agent/inbox",
-  pi: "/agent/.pi",
-  sessions: "/agent/.pi/sessions",
-  piAgentDir: "/agent/.pi/agent",
-  imageAgentDir: "/opt/pap/pi-agent",
-  shellOverlay: "/run/pap-shell",
 };
 
 let token: string | null = null;
@@ -47,7 +36,9 @@ try {
 }
 if (token === null) fail("the re-execution returned");
 
-let layout: VmLayout = KATA_LAYOUT;
+// A project box mounts at /boxes/<id>, not /agent.
+const box = parseBoxKey(process.env.PAP_BOX ?? "");
+let layout: VmLayout = box?.kind === "project" ? KATA_PROJECT_LAYOUT(box.id) : KATA_LAYOUT;
 if (process.env.PAP_GUEST_LAYOUT) {
   try {
     layout = VmLayout.parse(JSON.parse(process.env.PAP_GUEST_LAYOUT));
@@ -76,11 +67,12 @@ await runGuest({
   spawn: (_slot, env) =>
     spawn(process.execPath, [...process.execArgv, piHost], {
       env,
-      cwd: layout.home,
+      cwd: layout.project ?? layout.home,
       stdio: ["ignore", "pipe", "pipe", "pipe"],
       // Its own process group: `signal` reaches the worker and what it started.
       detached: true,
     }),
+  ...(layout.project ? { ops: createGuestOps(layout.project, () => Date.now()) } : {}),
   clock: {
     now: () => Date.now(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),

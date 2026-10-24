@@ -31,23 +31,28 @@ import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
+import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import { createSessionsService } from "./service.ts";
 import type { SessionsAgentPort } from "./agent-port.ts";
 import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
+import type { SessionsProjectPort } from "./project-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
 
+export { boxCwdOf } from "./box-cwd.ts";
 export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
 export type { SessionsAutomationPort } from "./automation-port.ts";
+export type { SessionsProjectPort } from "./project-port.ts";
 export type { SessionsAgentPort } from "./agent-port.ts";
 export type { ChildProfile, SessionsChildPort } from "./child-port.ts";
 export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
 export type { SessionRow } from "./store.ts";
+export type { SessionBoxes } from "./project-gate.ts";
 export { createVmLaunch, type MirrorInputs, taskKeyOf, type VmLaunch } from "./vm-launch.ts";
 export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
 export type { SessionsLanePort } from "./lane-port.ts";
@@ -88,6 +93,8 @@ export interface SessionsModuleDeps {
   readonly scopes: WorkerScopes;
   /** Present when the VM stack is composed (T8a): the agents' sessions start in their VMs through it. */
   readonly vmLaunch?: VmLaunch | undefined;
+  /** The owner's box projects (the projects module's source): a cwd under a box root is a box session, never a host path (boxes B1). */
+  readonly boxes?: () => ProjectBoxSource | undefined;
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;
   /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
@@ -112,8 +119,11 @@ export interface SessionsModule {
   ownerOf(sessionId: string): string | null;
   /** The folder of the owner's session; null when there is none or it is another owner's (Task 29a). */
   cwdOf(ownerId: string, sessionId: string): string | null;
-  /** True for a session that belongs to an agent (its thread, task or child): the profile reader skips project files (W5-R27). */
-  isAgentSession(sessionId: string): boolean;
+  /**
+   * True for a session that runs in a VM: an agent's (thread, task or child) or a project box's. The profile reader skips
+   * project files for it (W5-R27): its folder is the VM's, never a host folder to hand a Pi helper.
+   */
+  runsInVm(sessionId: string): boolean;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
   /** A trust decision applies at the next open (M7R105): releases the owner's workers in the folder or below. */
   restartFolder(ownerId: string, folder: string): number;
@@ -133,6 +143,8 @@ export interface SessionsModule {
   setLaneHooks(hooks: LaneRunHooks): void;
   /** What the automation and runs modules may do to a session (M10R32). */
   readonly automation: SessionsAutomationPort;
+  /** What the projects module asks when a box project is deleted (boxes B1). */
+  readonly projectCleanup: SessionsProjectPort;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */
   readonly agentSessions: SessionsAgentPort;
   /** What the subagents module may do to the child sessions of a parent (M11R136). */
@@ -148,6 +160,8 @@ export interface SessionsModule {
   setAgentPorts: AgentSurface["setAgentPorts"];
   /** The hosts the owner allowed for agent threads (owner a2): the `network.request` handler and, later, the egress proxy read it. */
   readonly hostGrants: Pick<AgentSurface["hostGrants"], "has" | "of">;
+  /** The project box a session runs in and its host list now; null for a host session (`network.request`, task A7). */
+  readonly projectBoxOf: AgentSurface["projectBoxOfSession"];
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -229,6 +243,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     ...(deps.runs ? { runs: deps.runs } : {}),
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.vmLaunch ? { vmLaunch: deps.vmLaunch } : {}),
     admission: createAdmission({
       clock: deps.clock,
@@ -265,7 +280,10 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       const row = store.get(sessionId);
       return row?.ownerId === ownerId ? row.cwd : null;
     },
-    isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
+    runsInVm(sessionId) {
+      const row = store.get(sessionId);
+      return row !== undefined && (row.agentId !== undefined || service.agent.vmLayoutOf(row) !== null);
+    },
     inspect: (sessionId) => service.inspect(sessionId),
     mirror: {
       notice: (sessionId, text, now) => {
@@ -288,6 +306,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     }),
     setLaneHooks: laneHooks.set,
     automation: service.automation,
+    projectCleanup: service.projectCleanup,
     agentSessions: service.agentSessions,
     child: service.child,
     modeOf: service.modeOf,
@@ -296,5 +315,6 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     approvedCalls: { take: service.agent.approvedCalls.take },
     setAgentPorts: service.agent.setAgentPorts,
     hostGrants: service.agent.hostGrants,
+    projectBoxOf: service.agent.projectBoxOfSession,
   };
 }

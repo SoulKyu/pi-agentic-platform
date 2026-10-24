@@ -10,7 +10,8 @@ import { fakeClock } from "./guest-harness.ts";
 /** The relay server on loopback in front of a fake upstream, for server.*.test.ts: the agent, its key and its policy are set up. */
 export const KEY = "ab".repeat(32);
 export const OTHER_KEY = "cd".repeat(32);
-export const AGENT = "scout-0001";
+export const AGENT = { kind: "agent", id: "scout-0001" } as const;
+export const OTHER_AGENT = { kind: "agent", id: "other-0002" } as const;
 export const REAL = "REAL-PROVIDER-SECRET";
 export const TOKEN = "sk-ant-oat01-OWNER-CLAUDE-TOKEN";
 export const MIB = 1024 * 1024;
@@ -62,16 +63,16 @@ export async function bed(
   await new Promise<void>((resolve) => upstream.listen(0, "127.0.0.1", resolve));
   const upstreamPort = (upstream.address() as AddressInfo).port;
   const keys = createRelayKeys();
-  keys.add({ launchId: "a".repeat(32), agentId: AGENT, key: Buffer.from(KEY, "hex"), address: "127.0.0.1" });
+  keys.add({ launchId: "a".repeat(32), box: AGENT, key: Buffer.from(KEY, "hex"), address: "127.0.0.1" });
   keys.add({
     launchId: "b".repeat(32),
-    agentId: "other-0002",
+    box: OTHER_AGENT,
     key: Buffer.from(OTHER_KEY, "hex"),
     address: "10.213.0.9",
   });
   const policy = createRelayPolicy();
   policy.set({
-    agentId: AGENT,
+    box: AGENT,
     models: over.models ?? [
       { provider: "zai", id: "glm-4.6" },
       { provider: "gem", id: "gemini-2.5-pro" },
@@ -80,7 +81,7 @@ export async function bed(
     blocked: over.blocked ?? null,
   });
   policy.set({
-    agentId: "other-0002",
+    box: OTHER_AGENT,
     models: [{ provider: "zai", id: "glm-4.6" }],
     claude: true,
     blocked: null,

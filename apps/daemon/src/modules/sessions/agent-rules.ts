@@ -1,8 +1,10 @@
 import type { ApprovalMode, PolicyRules, VmLayout } from "@pap/contracts";
+import type { ProjectBoxRow } from "../../kernel/boxes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AgentProfile } from "./agent-gate.ts";
 import { agentHomePath } from "./agent-home.ts";
 import { childModeOf } from "./child-port.ts";
+import { projectRuleParts } from "./project-rules.ts";
 import type { SessionRow } from "./store.ts";
 import { vmRuleParts } from "./vm-rules.ts";
 
@@ -63,6 +65,8 @@ export interface AgentRulesDeps {
   readonly logger: Logger;
   /** The VM layout of a row that runs in a VM (pure, the runtime's `layoutOf`); null for a host row (R15). */
   vmLayoutOf?(row: SessionRow): VmLayout | null;
+  /** The project box a row with no agent runs in (task A3), null for any other row. */
+  projectBoxOf?(row: SessionRow): ProjectBoxRow | null;
 }
 
 const MAX_DENYLIST = 128;
@@ -117,6 +121,10 @@ export function createAgentRules(deps: AgentRulesDeps) {
   }
   return function agentRules(row: SessionRow, owner: OwnerLists): AgentRuleParts {
     const parts = hostRules(row, owner);
+    const box = row.agentId === undefined ? (deps.projectBoxOf?.(row) ?? null) : null;
+    const boxLayout = box === null ? null : (deps.vmLayoutOf?.(row) ?? null);
+    if (box !== null && boxLayout !== null)
+      return projectRuleParts(boxLayout, owner, box, deps.hostGrants(row.id));
     const layout = row.agentId === undefined ? null : (deps.vmLayoutOf?.(row) ?? null);
     return layout === null ? parts : vmRuleParts(parts, layout, row.agentRole === "task");
   };

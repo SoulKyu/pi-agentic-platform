@@ -13,6 +13,7 @@ import type {
   ToolPreset,
   TranscriptRow,
 } from "@pap/contracts";
+import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
@@ -27,6 +28,7 @@ import type { SessionsAgentPort } from "./agent-port.ts";
 import type { SessionsChildPort } from "./child-port.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
+import type { SessionsProjectPort } from "./project-port.ts";
 import type { Exports } from "./exports.ts";
 import type { LaneHooksSlot } from "./lane-hooks.ts";
 import type { LaneProbe } from "./lane-port.ts";
@@ -89,6 +91,8 @@ export interface SessionsServiceDeps {
   readonly runs?: RunObserver;
   /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
   readonly admission?: Admission;
+  /** The owner's box projects, bound late by the composition: a cwd under a box root is a box session (boxes B1). */
+  readonly boxes?: () => ProjectBoxSource | undefined;
   /** Present when the VM stack is composed (T8a): the agents' sessions start in their VMs through it. */
   readonly vmLaunch?: VmLaunch;
 }
@@ -207,6 +211,8 @@ export interface SessionsService extends SessionCommands, SessionModels {
 export interface SessionsServiceWithAutomation extends SessionsService {
   /** What the automation and runs modules may do to a session, and nothing more (M10R32). */
   readonly automation: SessionsAutomationPort;
+  /** What the projects module asks when a box project is deleted (boxes B1). */
+  readonly projectCleanup: SessionsProjectPort;
   /** Session kinds, the platform bridge's port and the approved calls (M11). */
   readonly agent: AgentSurface;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */

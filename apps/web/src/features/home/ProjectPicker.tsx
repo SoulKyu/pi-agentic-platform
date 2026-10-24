@@ -1,8 +1,11 @@
 import "../../i18n/register-home.ts";
+import "../../i18n/register-boxes.ts";
 import type { ProjectSummary } from "@pap/contracts";
-import { Button } from "@pap/ui";
-import { useEffect, useRef } from "react";
-import { useT } from "../../i18n/index.ts";
+import { Button, usePendingAction } from "@pap/ui";
+import { useEffect, useId, useRef, useState } from "react";
+import { errorKey, useT } from "../../i18n/index.ts";
+import { getRuntime, RpcError } from "../../runtime/index.ts";
+import { holdProject } from "../../stores/shell-store.ts";
 
 export interface ProjectPickerProps {
   readonly projects: readonly ProjectSummary[];
@@ -15,6 +18,20 @@ export interface ProjectPickerProps {
 export default function ProjectPicker({ projects, onPick, onAdd, onClose }: ProjectPickerProps) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
+  const hintId = useId();
+  const scratch = usePendingAction();
+  const [problem, setProblem] = useState<string | null>(null);
+  const openScratch = () =>
+    void scratch.run(async () => {
+      setProblem(null);
+      try {
+        const { project } = await getRuntime().rpc.call("projects.scratch", {});
+        holdProject(project);
+        onPick(project.id);
+      } catch (failure) {
+        setProblem(t(errorKey(failure instanceof RpcError ? failure.code : "internal")));
+      }
+    });
   useEffect(() => {
     box.current?.querySelector("button")?.focus();
   }, []);
@@ -38,6 +55,16 @@ export default function ProjectPicker({ projects, onPick, onAdd, onClose }: Proj
             {project.name}
           </Button>
         ))}
+        <Button
+          size="sm"
+          remote={false}
+          disabled={scratch.since !== null}
+          pendingSince={scratch.since}
+          aria-describedby={hintId}
+          onClick={openScratch}
+        >
+          {t("boxes.picker.scratch")}
+        </Button>
         <Button size="sm" variant="ghost" onClick={onAdd}>
           {t("home.picker.add")}
         </Button>
@@ -45,6 +72,14 @@ export default function ProjectPicker({ projects, onPick, onAdd, onClose }: Proj
           {t("home.picker.cancel")}
         </Button>
       </div>
+      <p id={hintId} className="text-ui text-muted">
+        {t("boxes.picker.scratchHint")}
+      </p>
+      {problem === null ? null : (
+        <p role="alert" className="text-ui text-err">
+          {problem}
+        </p>
+      )}
     </div>
   );
 }

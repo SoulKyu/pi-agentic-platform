@@ -16,9 +16,9 @@ describe("files methods", () => {
       expect(methods[name]).toBe(filesMethods[name]);
       expect(methods[name]).toMatchObject({ permission: "files:read", idempotent: true });
     }
-    expect(filesMethods["files.list"].errors).toEqual(["not_found"]);
-    expect(filesMethods["files.read"].errors).toEqual(["not_found"]);
-    expect(filesMethods["files.search"].errors).toEqual(["not_found", "capacity"]);
+    expect(filesMethods["files.list"].errors).toEqual(["not_found", "box_stopped"]);
+    expect(filesMethods["files.read"].errors).toEqual(["not_found", "box_stopped"]);
+    expect(filesMethods["files.search"].errors).toEqual(["not_found", "capacity", "box_stopped"]);
   });
 
   it("files.read refuses an offset below 0 and above 2^53 - 1", () => {

@@ -8,7 +8,8 @@ import { ALL_PERMISSIONS, type Permission } from "./permissions.ts";
  * administration (M7R39: it can make pap run a configured command or redirect provider traffic), never a terminal
  * (`terminal:*`, M8R2), never a trigger written or lifted (`automation:admin`, M10R2): a standing credential makes no
  * standing or code-running change. `lanes:admin` approves or runs code, sends it out, reaches a forge or destroys work
- * (M9R1). An agent is never administered by a token, and a token never sees or answers for a secret (M11R4).
+ * (M9R1). An agent is never administered by a token, and a token never sees or answers for a secret (M11R4). `sessions:admin` changes a
+ * box project's egress hosts, rebuilds it and deletes it: never a token (boxes B1).
  */
 export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
   (permission) =>
@@ -19,6 +20,7 @@ export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
     permission !== "lanes:admin" &&
     permission !== "automation:admin" &&
     permission !== "agents:admin" &&
+    permission !== "sessions:admin" &&
     !permission.startsWith("secrets:"),
 );
 export const TokenPermission = z.enum(TOKEN_PERMISSIONS as [Permission, ...Permission[]]);

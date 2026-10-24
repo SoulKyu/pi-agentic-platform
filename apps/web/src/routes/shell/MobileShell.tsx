@@ -31,6 +31,7 @@ import { usePaletteChord } from "./shortcut.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { useAgents } from "../../stores/agents-store.ts";
 import { useInboxStore } from "../../stores/inbox-store.ts";
+import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
@@ -162,6 +163,10 @@ export function MobileShell() {
             open={section === "inbox"}
             props={{
               onOpenSession: (id: string) => showInWork({ kind: "session", id }),
+              onOpenProject: (id: string) => {
+                useCurrentProject.getState().choose(id);
+                setSection("work");
+              },
             }}
             onFailed={() => setSection("work")}
           />

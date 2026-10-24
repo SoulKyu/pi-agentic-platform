@@ -1,4 +1,4 @@
-import type { VmdRequest } from "@pap/contracts";
+import { type BoxRef, boxKey, parseBoxKey, type VmdRequest } from "@pap/contracts";
 import { type VmdClient, VmdError, type VmdErrorCode } from "../index.ts";
 
 /** What a test sees of a request: the op and its fields, in the order the client sent them. */
@@ -12,9 +12,9 @@ export interface FakeVmd extends VmdClient {
   of<Op extends VmdRequest["op"]>(op: Op): Array<Extract<VmdRequest, { op: Op }>>;
   /** Tags `image.list` answers (what has been built). */
   readonly images: Set<string>;
-  /** Agent disks pap-vmd holds, by agent id, in MiB. */
+  /** Box disks pap-vmd holds, by box key (`agent:<id>` | `project:<uuid>`), in MiB. */
   readonly disks: Map<string, number>;
-  /** VMs pap-vmd runs: `agentId` or `agentId/taskKey`. */
+  /** VMs pap-vmd runs: a box key, or `<box key>/<taskKey>`. */
   readonly running: Set<string>;
   /** The next request of this op answers this error (once). */
   failNext(op: VmdRequest["op"], code: VmdErrorCode): void;
@@ -53,10 +53,10 @@ export function createFakeVmd(): FakeVmd {
       return answer(request);
     },
   };
-  const key = (agentId: string, taskKey: string | null): string =>
-    taskKey === null ? agentId : `${agentId}/${taskKey}`;
-  const runningOf = (agentId: string): boolean =>
-    [...fake.running].some((name) => name === agentId || name.startsWith(`${agentId}/`));
+  const key = (box: BoxRef, taskKey: string | null): string =>
+    taskKey === null ? boxKey(box) : `${boxKey(box)}/${taskKey}`;
+  const runningOf = (box: BoxRef): boolean =>
+    [...fake.running].some((name) => name === boxKey(box) || name.startsWith(`${boxKey(box)}/`));
   function answer(request: Seen): unknown {
     switch (request.op) {
       case "image.list":
@@ -65,37 +65,38 @@ export function createFakeVmd(): FakeVmd {
         fake.images.add(request.tag);
         return { tag: request.tag };
       case "disk.create":
-        if (fake.disks.has(request.agentId)) throw new VmdError("conflict");
-        fake.disks.set(request.agentId, request.diskMb);
+        if (fake.disks.has(boxKey(request.box))) throw new VmdError("conflict");
+        fake.disks.set(boxKey(request.box), request.diskMb);
         return { diskMb: request.diskMb };
       case "disk.grow": {
-        const have = fake.disks.get(request.agentId);
+        const have = fake.disks.get(boxKey(request.box));
         if (have === undefined) throw new VmdError("not_found");
-        if (runningOf(request.agentId)) throw new VmdError("conflict");
+        if (runningOf(request.box)) throw new VmdError("conflict");
         if (request.diskMb < have) throw new VmdError("bad_request");
-        fake.disks.set(request.agentId, request.diskMb);
+        fake.disks.set(boxKey(request.box), request.diskMb);
         return { diskMb: request.diskMb };
       }
       case "disk.delete":
         if (request.taskKey === null) {
-          if (!fake.disks.has(request.agentId)) throw new VmdError("not_found");
-          if (runningOf(request.agentId)) throw new VmdError("conflict");
-          fake.disks.delete(request.agentId);
+          if (!fake.disks.has(boxKey(request.box))) throw new VmdError("not_found");
+          if (runningOf(request.box)) throw new VmdError("conflict");
+          fake.disks.delete(boxKey(request.box));
         }
         return { deleted: true };
       case "vm.start": {
-        if (request.kind === "thread" && !fake.disks.has(request.agentId)) throw new VmdError("not_found");
-        fake.running.add(key(request.agentId, request.taskKey));
+        if (request.kind === "thread" && !fake.disks.has(boxKey(request.box)))
+          throw new VmdError("not_found");
+        fake.running.add(key(request.box, request.taskKey));
         return { address: fake.address };
       }
       case "vm.stop":
-        fake.running.delete(key(request.agentId, request.taskKey));
+        fake.running.delete(key(request.box, request.taskKey));
         return { stopped: true };
       case "vm.list":
         return {
           vms: [...fake.running].map((name) => {
-            const [agentId = "", taskKey = null] = name.split("/");
-            return { agentId, taskKey, state: "running" };
+            const [text = "", taskKey = null] = name.split("/");
+            return { box: parseBoxKey(text), taskKey, state: "running" };
           }),
         };
       case "image.prune":

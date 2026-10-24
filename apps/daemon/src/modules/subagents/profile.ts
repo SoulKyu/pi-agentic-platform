@@ -14,7 +14,7 @@ export function createProfileReader(deps: Pick<ProfilesDeps, "pi" | "sessions" |
     async get(ownerId: string, sessionId: string, name: string): Promise<SubagentProfileFile> {
       const cwd = deps.sessions.cwdOf(ownerId, sessionId);
       if (cwd === null) throw new PapError("not_found");
-      const trusted = !deps.sessions.isAgentSession(sessionId) && (await deps.pi.trust.status(cwd)) === true;
+      const trusted = !deps.sessions.runsInVm(sessionId) && (await deps.pi.trust.status(cwd)) === true;
       const handle = deps.pi.helpers.run(
         "subagents.profile",
         { offline: true, name },

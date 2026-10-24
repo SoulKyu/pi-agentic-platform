@@ -24,6 +24,8 @@ export interface TextFieldProps {
   /** Multiline only: monospace text and a taller box, for code and configuration. */
   readonly mono?: boolean;
   readonly rows?: number;
+  /** Single line only: whole numbers (MB, CPUs); the numeric keyboard on a phone and tabular figures so digits align (DESIGN.md §4). */
+  readonly numeric?: boolean;
   readonly name?: string;
   readonly placeholder?: string;
   readonly autoComplete?: string;
@@ -101,8 +103,14 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
       ) : (
         <input
           {...shared}
-          className={cn(FIELD_CLASSES, GROUNDS[props.ground ?? "bg"], "h-control font-sans text-ui")}
+          className={cn(
+            FIELD_CLASSES,
+            GROUNDS[props.ground ?? "bg"],
+            "h-control font-sans text-ui",
+            props.numeric ? "tabular-nums" : "",
+          )}
           type={props.type ?? "text"}
+          inputMode={props.numeric ? "numeric" : undefined}
           onChange={(event) => props.onChange(event.target.value)}
         />
       )}

@@ -1,4 +1,4 @@
-import { type RelayCommand, RelayReport } from "@pap/contracts";
+import { type BoxRef, boxKey, type RelayCommand, RelayReport } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { LaunchGrant } from "./runtime.ts";
@@ -21,7 +21,7 @@ export interface RelayChild {
   on(event: "error", listener: (error: Error) => void): unknown;
 }
 
-/** What an agent may ask of its relay (R13): the models its picker offers, the bridge, and whether it may ask now. */
+/** What a box may ask of its relay (R13): the models its picker offers, the bridge, and whether it may ask now. */
 export interface PolicyView {
   readonly models: ReadonlyArray<{ readonly provider: string; readonly id: string }>;
   readonly claude: boolean;
@@ -40,12 +40,12 @@ export interface RelayLinkDeps {
    * addresses are pap's own, else the reason. A reason makes the child not ready (launches stay refused) and it is restarted.
    */
   listenerFault?(child: RelayChild): string | null;
-  /** The agent's allowed models and state now; a rejection makes the agent use nothing until the next push (fail closed). */
-  policyOf(agentId: string): Promise<PolicyView>;
+  /** The box's allowed models and state now; a rejection makes the box use nothing until the next push (fail closed). */
+  policyOf(box: BoxRef): Promise<PolicyView>;
   /** The stored Claude token, replayed after a restart. */
   claudeToken(): string | null;
-  /** The turns (assistant messages) the agent's workers reported in the window just ended (RT-17): each is one provider request. */
-  reportedTurns?(agentId: string): number;
+  /** The turns (assistant messages) the box's workers reported in the window just ended (RT-17): each is one provider request. */
+  reportedTurns?(box: BoxRef): number;
   /** A relay report was handled: the window's counts start again. */
   windowEnded?(): void;
 }
@@ -55,8 +55,8 @@ export interface RelayLink {
   start(): Promise<void>;
   grant(grant: LaunchGrant): void;
   revoke(launchId: string): void;
-  /** The agent's policy changed (models, pause, budget): pushed when the agent has a live launch. */
-  refresh(agentId: string): void;
+  /** The box's policy changed (models, pause, budget): pushed when the box has a live launch. */
+  refresh(box: BoxRef): void;
   refreshAll(): void;
   setClaudeToken(token: string | null): void;
   /** Resolves when a child is ready to serve (it listens), or when `signal` aborts (the waiter is then removed, N6). */
@@ -72,8 +72,8 @@ const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
 
 /**
  * The daemon's half of the provider relay (R13, T12): forks `pap-relay`, restarts it with backoff and replays what it forgot
- * (every live grant, each live agent's policy, the Claude token) when the new child is ready. Grants go out at a launch's
- * start and revokes at its end; the policy goes out at each grant and whenever the caller says the agent's state changed.
+ * (every live grant, each live box's policy, the Claude token) when the new child is ready. Grants go out at a launch's
+ * start and revokes at its end; the policy goes out at each grant and whenever the caller says the box's state changed.
  * Nothing it logs holds a relay key, a Claude token or a provider key: grants are sent, never logged.
  */
 export function createRelayLink(deps: RelayLinkDeps): RelayLink {
@@ -91,7 +91,8 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
   let dropped = 0;
   let readyWaiters: Array<() => void> = [];
 
-  const liveAgents = (): Set<string> => new Set([...grants.values()].map((grant) => grant.agentId));
+  const liveBoxes = (): Map<string, BoxRef> =>
+    new Map([...grants.values()].map((grant) => [boxKey(grant.box), grant.box]));
   const send = (command: RelayCommand): boolean => {
     if (child === null || !ready) return false;
     try {
@@ -105,28 +106,29 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
     send({
       type: "relay_grant",
       launchId: grant.launchId,
-      agentId: grant.agentId,
+      box: grant.box,
       key: grant.relayKey,
       address: grant.address as Extract<RelayCommand, { type: "relay_grant" }>["address"],
     });
   };
 
-  async function pushPolicy(agentId: string): Promise<void> {
-    if (!liveAgents().has(agentId)) return;
-    const mine = (seq.get(agentId) ?? 0) + 1;
-    seq.set(agentId, mine);
+  async function pushPolicy(box: BoxRef): Promise<void> {
+    const key = boxKey(box);
+    if (!liveBoxes().has(key)) return;
+    const mine = (seq.get(key) ?? 0) + 1;
+    seq.set(key, mine);
     let view: PolicyView;
     try {
-      view = await deps.policyOf(agentId);
+      view = await deps.policyOf(box);
     } catch (error) {
-      logger.warn("relay_policy_failed", { agentId, err: error });
+      logger.warn("relay_policy_failed", { box: key, err: error });
       view = NOTHING;
     }
-    // A newer push started meanwhile, or the agent has no launch left: this answer is stale.
-    if (seq.get(agentId) !== mine || !liveAgents().has(agentId)) return;
+    // A newer push started meanwhile, or the box has no launch left: this answer is stale.
+    if (seq.get(key) !== mine || !liveBoxes().has(key)) return;
     send({
-      type: "agent_policy",
-      agentId,
+      type: "box_policy",
+      box,
       models: [...view.models],
       claude: view.claude,
       blocked: view.blocked,
@@ -135,7 +137,7 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
 
   function replay(): void {
     for (const grant of grants.values()) sendGrant(grant);
-    for (const agentId of liveAgents()) void pushPolicy(agentId);
+    for (const box of liveBoxes().values()) void pushPolicy(box);
     const token = deps.claudeToken();
     if (token !== null) send({ type: "claude_token", token });
   }
@@ -167,11 +169,13 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       for (const resolve of waiting) resolve();
       return;
     }
-    for (const usage of report.data.agents) {
-      logger.info("agent_relay_usage", { ...usage });
-      const turns = deps.reportedTurns?.(usage.agentId) ?? 0;
+    for (const usage of report.data.boxes) {
+      logger.info("agent_relay_usage", { ...usage, box: boxKey(usage.box) });
+      // A project box reports no turns (its sessions are not agents'): there is nothing to compare its requests with.
+      if (usage.box.kind === "project") continue;
+      const turns = deps.reportedTurns?.(usage.box) ?? 0;
       if (deps.reportedTurns && usage.requests - turns > RELAY_MISMATCH_MARGIN)
-        logger.warn("agent_relay_mismatch", { agentId: usage.agentId, requests: usage.requests, turns });
+        logger.warn("agent_relay_mismatch", { box: boxKey(usage.box), requests: usage.requests, turns });
     }
     deps.windowEnded?.();
   }
@@ -232,22 +236,23 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
     grant(grant) {
       grants.set(grant.launchId, grant);
       sendGrant(grant);
-      void pushPolicy(grant.agentId);
+      void pushPolicy(grant.box);
     },
     revoke(launchId) {
       const grant = grants.get(launchId);
       if (grant === undefined) return;
       grants.delete(launchId);
       send({ type: "relay_revoke", launchId });
-      if (liveAgents().has(grant.agentId)) return;
-      // The agent's last launch is over: the relay keeps nothing it could allow at the next launch before a fresh policy
+      const key = boxKey(grant.box);
+      if (liveBoxes().has(key)) return;
+      // The box's last launch is over: the relay keeps nothing it could allow at the next launch before a fresh policy
       // arrives, and an answer still in flight is stale (the counter only grows).
-      seq.set(grant.agentId, (seq.get(grant.agentId) ?? 0) + 1);
-      send({ type: "agent_policy", agentId: grant.agentId, models: [], claude: false, blocked: null });
+      seq.set(key, (seq.get(key) ?? 0) + 1);
+      send({ type: "box_policy", box: grant.box, models: [], claude: false, blocked: null });
     },
-    refresh: (agentId) => void pushPolicy(agentId),
+    refresh: (box) => void pushPolicy(box),
     refreshAll() {
-      for (const agentId of liveAgents()) void pushPolicy(agentId);
+      for (const box of liveBoxes().values()) void pushPolicy(box);
     },
     setClaudeToken(token) {
       send({ type: "claude_token", token });

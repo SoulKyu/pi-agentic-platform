@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { DenySet } from "../../kernel/fs/deny-set.ts";
 import type { BoundaryConfig } from "../../kernel/fs/boundary.ts";
@@ -40,6 +41,9 @@ export function createFilesModule(deps: {
   readonly workerUmask: number;
   /** `$PAP_HOME/attachments`: pending uploads and the copies claimed per session (M8R36). */
   readonly attachmentsDir: string;
+  /** Late-bound (J1 wires them): with no source bound, every path is a host path. */
+  readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly boxOps?: () => BoxOps | undefined;
 }): FilesModule {
   const logger = deps.logger.child({ module: "files" });
   const service = createFilesService({ ...deps, logger });

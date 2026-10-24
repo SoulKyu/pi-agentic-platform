@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { getRuntime } from "../../runtime/index.ts";
+import { useBoxPhase } from "../../stores/box-phase.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { useAction, type Track } from "./use-action.ts";
 
@@ -57,6 +58,7 @@ export function SessionActions(props: SessionActionsProps) {
   const track = props.track ?? untracked;
   const blocked = props.blocked ?? false;
   const runtime = getRuntime();
+  const inBox = useBoxPhase(view.cwd) !== null;
   const navigate = useNavigate();
   const [draftName, setDraftName] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -114,20 +116,25 @@ export function SessionActions(props: SessionActionsProps) {
         ),
     },
     { id: "export", label: t("actions.export"), disabled: exporting, onSelect: () => setExporting(true) },
-    {
-      id: "duplicate",
-      label: duplicate.slow ? t("actions.working") : t("actions.duplicate"),
-      disabled: duplicate.busy,
-      onSelect: () =>
-        void duplicate.run(async () => {
-          const copy = await runtime.rpc.call(
-            "sessions.clone",
-            { sessionId },
-            { commandId: runtime.rpc.newCommandId() },
-          );
-          await navigate({ to: "/s/$sessionId", params: { sessionId: copy.sessionId } });
-        }),
-    },
+    // A box session's file is the VM's: the daemon refuses a copy, so the menu does not offer one.
+    ...(inBox
+      ? []
+      : [
+          {
+            id: "duplicate",
+            label: duplicate.slow ? t("actions.working") : t("actions.duplicate"),
+            disabled: duplicate.busy,
+            onSelect: () =>
+              void duplicate.run(async () => {
+                const copy = await runtime.rpc.call(
+                  "sessions.clone",
+                  { sessionId },
+                  { commandId: runtime.rpc.newCommandId() },
+                );
+                await navigate({ to: "/s/$sessionId", params: { sessionId: copy.sessionId } });
+              }),
+          },
+        ]),
   ];
   // The trigger sits in the session header's row; every panel below takes a row of its own at the end of it.
   return (

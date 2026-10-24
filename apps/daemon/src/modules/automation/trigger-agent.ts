@@ -73,28 +73,16 @@ export function resolveExecution(
   binding: AgentBinding | undefined,
   ownerId: string,
   execution: TriggerInput["execution"],
-  folderOf: (cwd: string) => string,
+  folderOf: (cwd: string, ownerId: string) => string,
 ): { readonly cwd: string; readonly agentId: string | null } {
   const { agent } = execution;
   if (agent === null) {
     if (execution.cwd === undefined) throw new PapError("bad_request");
-    return { cwd: folderOf(execution.cwd), agentId: null };
+    return { cwd: folderOf(execution.cwd, ownerId), agentId: null };
   }
   const registry = binding?.ports()?.registry;
   if (!registry?.get(ownerId, agent.agentId)) throw new PapError("not_found");
   return { cwd: registry.homeOf(ownerId, agent.agentId), agentId: agent.agentId };
-}
-
-/** The word a stored precheck on an agent trigger is refused with: agents run in microVMs, where a precheck has no place. */
-export const PRECHECK_AGENT = "precheck_agent";
-
-/**
- * The closed word a refused precheck is journaled with (T10), never the thrown text: a folder that is gone says so, anything
- * else is the spawn's generic failure. An agent trigger's stored precheck is refused earlier, as `PRECHECK_AGENT`.
- */
-export function precheckRefusal(error: unknown): string {
-  if (error instanceof PapError && error.code === "invalid_cwd") return "invalid_cwd";
-  return "precheck spawn";
 }
 
 export interface AgentTriggerLinkDeps {

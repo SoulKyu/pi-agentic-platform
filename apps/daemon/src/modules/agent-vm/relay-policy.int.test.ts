@@ -34,7 +34,7 @@ function fakeRelay() {
   };
 }
 const policies = (sent: Array<Record<string, unknown>>) =>
-  sent.filter((message) => message.type === "agent_policy");
+  sent.filter((message) => message.type === "box_policy");
 
 describe("the relay link inside the daemon (vm mode)", () => {
   it("grants the launch's key, tells the agent's policy, follows a pause and a budget, and revokes at the VM's stop", async () => {
@@ -47,24 +47,39 @@ describe("the relay link inside the daemon (vm mode)", () => {
       timeout: 20_000,
     });
     const grant = relay.sent.find((m) => m.type === "relay_grant") as Record<string, unknown>;
-    expect(grant).toMatchObject({ agentId, address: "127.0.0.1" });
+    expect(grant).toMatchObject({ box: { kind: "agent", id: agentId }, address: "127.0.0.1" });
     expect(grant.key).toMatch(/^[0-9a-f]{64}$/);
     await vi.waitFor(() => expect(policies(relay.sent).length).toBeGreaterThan(0), { timeout: 20_000 });
-    expect(policies(relay.sent).at(-1)).toMatchObject({ agentId, claude: false, blocked: null });
+    expect(policies(relay.sent).at(-1)).toMatchObject({
+      box: { kind: "agent", id: agentId },
+      claude: false,
+      blocked: null,
+    });
 
     await bed.call("agents.setPaused", { agentId, paused: true });
     await vi.waitFor(
-      () => expect(policies(relay.sent).at(-1)).toMatchObject({ agentId, blocked: "paused" }),
+      () =>
+        expect(policies(relay.sent).at(-1)).toMatchObject({
+          box: { kind: "agent", id: agentId },
+          blocked: "paused",
+        }),
       {
         timeout: 20_000,
       },
     );
     await bed.call("agents.setPaused", { agentId, paused: false });
-    await vi.waitFor(() => expect(policies(relay.sent).at(-1)).toMatchObject({ agentId, blocked: null }), {
-      timeout: 20_000,
-    });
+    await vi.waitFor(
+      () =>
+        expect(policies(relay.sent).at(-1)).toMatchObject({
+          box: { kind: "agent", id: agentId },
+          blocked: null,
+        }),
+      {
+        timeout: 20_000,
+      },
+    );
 
-    await bed.vm.runtime.stop(agentId);
+    await bed.vm.runtime.stop({ kind: "agent", id: agentId });
     await vi.waitFor(
       () =>
         expect(relay.sent.some((m) => m.type === "relay_revoke" && m.launchId === grant.launchId)).toBe(true),
@@ -96,7 +111,7 @@ describe("the relay link inside the daemon (vm mode)", () => {
     const claudeOf = (agentId: string) =>
       (
         policies(relay.sent)
-          .filter((m) => m.agentId === agentId)
+          .filter((m) => (m.box as { id: string }).id === agentId)
           .at(-1) as { claude?: boolean } | undefined
       )?.claude;
     await vi.waitFor(() => expect([claudeOf(bridged), claudeOf(plain)]).toEqual([false, false]), {

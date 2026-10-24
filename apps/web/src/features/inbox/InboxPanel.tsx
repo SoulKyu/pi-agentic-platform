@@ -14,12 +14,19 @@ export interface InboxPanelProps {
   onOpenSession(sessionId: string): void;
   /** The shell opens the agent's tab, scrolled to `entryId` when it is given. */
   onOpenAgent?(agentId: string, entryId: string | null): void;
+  /** The shell opens a box project's page (a paused box's item). */
+  onOpenProject?(projectId: string): void;
   /** The account's avatar style (Settings › Appearance), given by the shell. */
   readonly avatarStyle?: AvatarStyle;
 }
 
 /** The Inbox (decision 29, board 09 §2): header, filters, rows to handle first. Shown in the right drawer and in the phone's Inbox section. */
-export default function InboxPanel({ onOpenSession, onOpenAgent, avatarStyle }: InboxPanelProps) {
+export default function InboxPanel({
+  onOpenSession,
+  onOpenAgent,
+  onOpenProject,
+  avatarStyle,
+}: InboxPanelProps) {
   const t = useT();
   const view = useInboxStore((state) => state.view);
   const [filter, setFilter] = useState<InboxFilter>("all");
@@ -112,6 +119,7 @@ export default function InboxPanel({ onOpenSession, onOpenAgent, avatarStyle }: 
               now={now}
               avatarStyle={avatarStyle ?? "outlined"}
               onPick={pick}
+              {...(onOpenProject === undefined ? {} : { onOpenProject })}
             />
           ))}
         </ul>

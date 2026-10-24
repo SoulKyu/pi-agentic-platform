@@ -58,7 +58,8 @@ export function vmPlumbing(
           expose: (vm) => void (exposed = vm),
           observe: {
             started: (spec) => void vms.started.push(spec),
-            stopped: (agentId, taskKey) => void vms.stopped.push({ agentId, taskKey }),
+            stopped: (box, taskKey) =>
+              void (box.kind === "agent" && vms.stopped.push({ agentId: box.id, taskKey })),
           },
           ...extra.seams,
         },

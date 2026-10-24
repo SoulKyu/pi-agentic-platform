@@ -1,14 +1,15 @@
+import { boxKey, type BoxRef } from "@pap/contracts";
 import { VmdFailure } from "./errors.ts";
 
-/** One agent never queues more than this many operations: a flood from the caller is refused `capacity`. */
-export const MAX_QUEUED_PER_AGENT = 64;
+/** One box never queues more than this many operations: a flood from the caller is refused `capacity`. */
+export const MAX_QUEUED_PER_BOX = 64;
 /** Joins and starts are bounded by the agents and tags pap-vmd knows; this caps a caller that invents tags. */
 const MAX_JOINED = 256;
 const MAX_QUEUED_STARTS = 256;
 
 export interface Locks {
-  /** RT-33, RT-42: `vm.*` and `disk.*` of one agent run one at a time, in arrival order. */
-  withAgent<T>(agentId: string, run: () => Promise<T>): Promise<T>;
+  /** RT-33, RT-42: `vm.*` and `disk.*` of one box run one at a time, in arrival order. */
+  withBox<T>(box: BoxRef, run: () => Promise<T>): Promise<T>;
   /** AVM-P12: one `nerdctl run` plus `net.attach` at a time, whatever the agent (bridge-port discovery is "the new port"). */
   withStart<T>(run: () => Promise<T>): Promise<T>;
   /** A second `image.build` of a tag already building joins the running one and gets its result. */
@@ -36,7 +37,7 @@ function enqueue<T>(queues: Map<string, Queue>, key: string, cap: number, run: (
 }
 
 export function createLocks(): Locks {
-  const agents = new Map<string, Queue>();
+  const boxes = new Map<string, Queue>();
   const starts = new Map<string, Queue>();
   const joined = new Map<string, Promise<unknown>>();
 
@@ -51,9 +52,9 @@ export function createLocks(): Locks {
     return started;
   }
 
-  const withAgent: Locks["withAgent"] = (agentId, run) => enqueue(agents, agentId, MAX_QUEUED_PER_AGENT, run);
+  const withBox: Locks["withBox"] = (box, run) => enqueue(boxes, boxKey(box), MAX_QUEUED_PER_BOX, run);
   return {
-    withAgent,
+    withBox,
     withStart: (run) => enqueue(starts, "start", MAX_QUEUED_STARTS, run),
     joinBuild: (tag, run) => join(`build:${tag}`, run),
   };

@@ -4,6 +4,7 @@ import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
+import { useBoxPhase } from "../../stores/box-phase.ts";
 import { useFocusEntry } from "../../stores/focus-entry.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
@@ -138,6 +139,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
   });
   const quiet = older.error !== null;
   const matchNotice = useFocusMatch(sessionId, view, items, scope, canLoad);
+  const inBox = useBoxPhase(view.cwd) !== null;
   const actionsFor = (item: TranscriptItem): RowActions | undefined =>
     rowActions && item.kind === "message"
       ? {
@@ -145,6 +147,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
           track: rowActions.track,
           onEdit: rowActions.onEdit,
           announce: rowActions.announce,
+          inBox,
           branches: branches.points,
           blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
         }

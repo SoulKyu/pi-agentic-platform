@@ -67,7 +67,7 @@ describe.runIf(process.platform === "linux")("pap-guest as a process", () => {
           PATH: process.env.PATH ?? "",
           PAP_GATEWAY_TOKEN: TOKEN,
           PAP_GATEWAY: `127.0.0.1:${port}`,
-          PAP_AGENT_ID: "scout-ab12",
+          PAP_BOX: "agent:scout-ab12",
           PAP_LAUNCH_ID: "a".repeat(32),
           PAP_IMAGE_TAG: `pap-agent-agent-${"c".repeat(64)}`,
           PAP_GUEST_RUN_DIR: join(dir, "run"),

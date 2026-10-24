@@ -28,7 +28,7 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
 
 /**
  * What a worker in a VM is told at `init` (RT-06, R17): the host record translated to the VM's paths. Nothing of the
- * host stays (no `testProviderScript`; `knowledge` is the VM's own, for a thread only); the vault and the one-use values do travel (ADR 0081).
+ * host stays (no `testProviderScript`; `knowledge` is the VM's own, for a thread or a project box only); the vault and the one-use values do travel (ADR 0081).
  * `papHome` is a folder no VM has, so every host rule keyed on pap's home matches nothing (T11b replaces the ones a VM needs).
  * The record carries the relay key: it is never logged.
  */
@@ -37,16 +37,24 @@ export function vmInitOf(init: InitRecord, vm: VmInit, mirrorFile: string | null
   if (mirrorFile !== null && !SessionFileName.safeParse(mirrorFile).success)
     throw new PapError("bad_request");
   const rules = vmRulesOf(init.policy, layout.root);
+  // The box and the rules agree: a project layout takes the project profile with the project folder as its own, and no other does.
+  if (
+    (layout.project !== undefined) !== (rules.profile === "project") ||
+    (layout.project !== undefined && rules.agentHome !== layout.project)
+  )
+    throw new PapError("bad_request");
   const kept: InitRecord = {
     ...init,
-    cwd: layout.home,
+    // A project box's sessions work in the project folder (their own folder, `agentHome`); an agent's in its home.
+    cwd: layout.project ?? layout.home,
     agentDir: layout.piAgentDir,
     papHome: `${layout.pi}/pap`,
     policy: rules,
     vm,
   };
   delete kept.knowledge;
-  // A thread's bundle is the VM's own folder; a task (isolated, scratch set) has none, whatever the host composed.
+  // A thread's bundle is the VM's own folder; a task (isolated, scratch set) has none, whatever the host composed. A project
+  // box always names `<project>/knowledge`, the host reads nothing of it: the worker decides whether it exists (task A4).
   if (rules.profile !== "isolated-task" && rules.agentScratch === null)
     kept.knowledge = { path: layout.knowledge };
   delete kept.testProviderScript;

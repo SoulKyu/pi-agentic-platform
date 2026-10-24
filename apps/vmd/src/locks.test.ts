@@ -1,10 +1,11 @@
+import type { BoxRef } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { VmdFailure } from "./errors.ts";
 import { createLocks, createRoomCheck } from "./locks.ts";
 
 /*
  * Mutants (RT-43) killed here, run for real:
- *  - M-no-agent-lock: `withAgent` runs the operation at once: killed by "two operations of one agent run one after the other".
+ *  - M-no-box-lock: `withBox` runs the operation at once: killed by "two operations of one agent run one after the other".
  *  - M-no-join: `joinBuild` / `joinPopulate` start a second run: killed by "two builds of one tag run once".
  *  - M-no-start-mutex: `withStart` runs at once: killed by "two starts never overlap".
  */
@@ -15,19 +16,21 @@ function gate(): { promise: Promise<void>; open: () => void } {
   });
   return { promise, open };
 }
+const agent = (id: string): BoxRef => ({ kind: "agent", id });
+const project: BoxRef = { kind: "project", id: "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0" };
 const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
-describe("per-agent lock", () => {
+describe("per-box lock", () => {
   it("two operations of one agent run one after the other, in order", async () => {
     const locks = createLocks();
     const first = gate();
     const events: string[] = [];
-    const a = locks.withAgent("helper-1a2b", async () => {
+    const a = locks.withBox(agent("helper-1a2b"), async () => {
       events.push("a:start");
       await first.promise;
       events.push("a:end");
     });
-    const b = locks.withAgent("helper-1a2b", async () => {
+    const b = locks.withBox(agent("helper-1a2b"), async () => {
       events.push("b:start");
     });
     await tick();
@@ -41,11 +44,11 @@ describe("per-agent lock", () => {
     const locks = createLocks();
     const first = gate();
     const events: string[] = [];
-    const a = locks.withAgent("helper-1a2b", async () => {
+    const a = locks.withBox(agent("helper-1a2b"), async () => {
       await first.promise;
       events.push("a");
     });
-    await locks.withAgent("writer-3c4d", async () => {
+    await locks.withBox(agent("writer-3c4d"), async () => {
       events.push("b");
     });
     expect(events).toEqual(["b"]);
@@ -53,10 +56,25 @@ describe("per-agent lock", () => {
     await a;
   });
 
+  it("an agent box and a project box do not wait for each other", async () => {
+    const locks = createLocks();
+    const first = gate();
+    const events: string[] = [];
+    const a = locks.withBox(agent("helper-1a2b"), async () => {
+      await first.promise;
+    });
+    await locks.withBox(project, async () => {
+      events.push("project");
+    });
+    expect(events).toEqual(["project"]);
+    first.open();
+    await a;
+  });
+
   it("a failed operation does not block the next, and its error reaches its own caller", async () => {
     const locks = createLocks();
-    const failing = locks.withAgent("helper-1a2b", () => Promise.reject(new VmdFailure("conflict")));
-    const next = locks.withAgent("helper-1a2b", async () => "ran");
+    const failing = locks.withBox(agent("helper-1a2b"), () => Promise.reject(new VmdFailure("conflict")));
+    const next = locks.withBox(agent("helper-1a2b"), async () => "ran");
     await expect(failing).rejects.toMatchObject({ code: "conflict" });
     await expect(next).resolves.toBe("ran");
   });
@@ -64,11 +82,13 @@ describe("per-agent lock", () => {
   it("refuses with `capacity` past 64 queued operations of one agent and recovers", async () => {
     const locks = createLocks();
     const hold = gate();
-    const queued = Array.from({ length: 64 }, () => locks.withAgent("helper-1a2b", () => hold.promise));
-    await expect(locks.withAgent("helper-1a2b", async () => 1)).rejects.toMatchObject({ code: "capacity" });
+    const queued = Array.from({ length: 64 }, () => locks.withBox(agent("helper-1a2b"), () => hold.promise));
+    await expect(locks.withBox(agent("helper-1a2b"), async () => 1)).rejects.toMatchObject({
+      code: "capacity",
+    });
     hold.open();
     await Promise.all(queued);
-    await expect(locks.withAgent("helper-1a2b", async () => 1)).resolves.toBe(1);
+    await expect(locks.withBox(agent("helper-1a2b"), async () => 1)).resolves.toBe(1);
   });
 });
 

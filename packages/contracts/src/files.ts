@@ -79,27 +79,37 @@ export type AttachmentView = z.infer<typeof AttachmentView>;
 
 const Offset = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
+export const FilesListResult = z.object({
+  entries: z.array(FileEntry).max(FILE_LIMITS.listEntries),
+  truncated: z.boolean(),
+});
+export const FilesReadResult = z.object({
+  meta: FileMeta,
+  text: z.string().max(FILE_LIMITS.readChunkBytes),
+  offset: Offset,
+  nextOffset: Offset.nullable(),
+});
+export const FilesSearchResult = z.object({
+  paths: z.array(z.string().min(1).max(FILE_LIMITS.pathBytes)).max(FILE_LIMITS.searchResults),
+  truncated: z.boolean(),
+});
+
 export const filesMethods = {
   "files.list": defineMethod({
     name: "files.list",
     permission: "files:read",
     idempotent: true,
     params: z.object({ path: FilePath, showIgnored: z.boolean().optional() }),
-    result: z.object({ entries: z.array(FileEntry).max(FILE_LIMITS.listEntries), truncated: z.boolean() }),
-    errors: ["not_found"],
+    result: FilesListResult,
+    errors: ["not_found", "box_stopped"],
   }),
   "files.read": defineMethod({
     name: "files.read",
     permission: "files:read",
     idempotent: true,
     params: z.object({ path: FilePath, offset: Offset.optional() }),
-    result: z.object({
-      meta: FileMeta,
-      text: z.string().max(FILE_LIMITS.readChunkBytes),
-      offset: Offset,
-      nextOffset: Offset.nullable(),
-    }),
-    errors: ["not_found"],
+    result: FilesReadResult,
+    errors: ["not_found", "box_stopped"],
   }),
   "files.search": defineMethod({
     name: "files.search",
@@ -110,11 +120,8 @@ export const filesMethods = {
       query: z.string().min(1).max(FILE_LIMITS.searchQuery),
       limit: z.number().int().min(1).max(FILE_LIMITS.searchResults).optional(),
     }),
-    result: z.object({
-      paths: z.array(z.string().min(1).max(FILE_LIMITS.pathBytes)).max(FILE_LIMITS.searchResults),
-      truncated: z.boolean(),
-    }),
-    errors: ["not_found", "capacity"],
+    result: FilesSearchResult,
+    errors: ["not_found", "capacity", "box_stopped"],
   }),
   "files.write": defineMethod({
     name: "files.write",
@@ -127,6 +134,14 @@ export const filesMethods = {
       confirmProtected: z.literal(true).optional(),
     }),
     result: z.object({ meta: FileMeta }),
-    errors: ["not_found", "conflict", "protected_path", "step_up_required", "forbidden", "payload_too_large"],
+    errors: [
+      "not_found",
+      "conflict",
+      "protected_path",
+      "step_up_required",
+      "forbidden",
+      "payload_too_large",
+      "box_stopped",
+    ],
   }),
 } as const;

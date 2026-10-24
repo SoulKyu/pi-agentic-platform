@@ -40,7 +40,10 @@ export function createVmShellTool(
     name: "pap-sandbox",
     factory: (pi) => {
       pi.registerTool(
-        createBashToolDefinition(vm.layout.home, { operations, exposeSessionEnvironment: false }),
+        createBashToolDefinition(vm.layout.project ?? vm.layout.home, {
+          operations,
+          exposeSessionEnvironment: false,
+        }),
       );
     },
   };

@@ -15,7 +15,7 @@ export const TOKEN = "ab".repeat(32);
 export const SLOT = "1".repeat(32);
 export const SLOT_B = "2".repeat(32);
 export const IDENTITY = {
-  PAP_AGENT_ID: "scout-ab12",
+  PAP_BOX: "agent:scout-ab12",
   PAP_LAUNCH_ID: "a".repeat(32),
   PAP_IMAGE_TAG: `pap-agent-agent-${"c".repeat(64)}`,
   PAP_GATEWAY: "127.0.0.1:1",

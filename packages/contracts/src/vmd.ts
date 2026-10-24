@@ -2,7 +2,7 @@ import { z } from "zod";
 import { AgentResources, SystemPackage } from "./agents-resources.ts";
 import { VM_IPV4 } from "./agents-net.ts";
 import { GatewayToken, IMAGE_TAG, LaunchId } from "./agents-vm.ts";
-import { AgentId } from "./platform.ts";
+import { BoxRef } from "./boxes.ts";
 
 /** RT-33: one request per connection, at most this large; pap-vmd reads no more. */
 export const VMD_MAX_FRAME_BYTES = 64 * 1024;
@@ -11,9 +11,13 @@ const NodeImage = z.string().regex(/^docker\.io\/library\/node@sha256:[0-9a-f]{6
 const Kind = z.enum(["thread", "isolated"]);
 /** An isolated task's key (a task uuid without dashes). Its VM is `pap-<agent id>-<key>`, its disk pap-vmd's own (R30). */
 export const TaskKey = z.string().regex(/^[0-9a-f]{32}$/);
-const agent = { agentId: AgentId };
-/** Every disk op names its disk (R30, RT-05): the agent's (`taskKey: null`); only `disk.delete` may name a task's. */
-const agentDisk = { agentId: AgentId, taskKey: z.null() };
+const box = { box: BoxRef };
+/** Every disk op names its disk (R30, RT-05): the box's (`taskKey: null`); only `disk.delete` may name a task's. */
+const boxDisk = { box: BoxRef, taskKey: z.null() };
+/** Only an agent's box has isolated tasks: a project box's VM and disk are always the box's own. */
+const agentTasksOnly = (request: { box: BoxRef; taskKey: string | null }): boolean =>
+  request.box.kind === "agent" || request.taskKey === null;
+const AGENT_TASKS_ONLY = "a project box has no task key";
 
 /**
  * The whole request surface of pap-vmd (R3, R7, R8, R30). No path, command, Dockerfile text or environment comes from the
@@ -25,7 +29,7 @@ export const VmdRequest = z.discriminatedUnion("op", [
   z
     .object({
       op: z.literal("vm.start"),
-      ...agent,
+      ...box,
       kind: Kind,
       taskKey: TaskKey.nullable(),
       image: Tag,
@@ -34,23 +38,28 @@ export const VmdRequest = z.discriminatedUnion("op", [
       token: GatewayToken,
     })
     .strict()
-    .refine(
-      (request) => (request.kind === "isolated") === (request.taskKey !== null),
-      "isolated iff taskKey",
-    ),
-  z.object({ op: z.literal("vm.stop"), ...agent, taskKey: TaskKey.nullable() }).strict(),
-  // Sub-project 4's seam (page 03): no caller in sub-project 1.
-  z.object({ op: z.literal("vm.pause"), ...agent }).strict(),
-  z.object({ op: z.literal("vm.resume"), ...agent }).strict(),
-  z.object({ op: z.literal("vm.status"), ...agent, taskKey: TaskKey.nullable() }).strict(),
-  z.object({ op: z.literal("vm.list") }).strict(),
-  z.object({ op: z.literal("disk.create"), ...agentDisk, diskMb: AgentResources.shape.diskMb }).strict(),
-  z.object({ op: z.literal("disk.grow"), ...agentDisk, diskMb: AgentResources.shape.diskMb }).strict(),
+    .refine((request) => (request.kind === "isolated") === (request.taskKey !== null), "isolated iff taskKey")
+    .refine(agentTasksOnly, AGENT_TASKS_ONLY),
   z
-    .object({ op: z.literal("disk.delete"), ...agent, taskKey: TaskKey.nullable(), purge: z.boolean() })
-    .strict(),
-  /** RT-40: `agentId` null purges every trash entry older than 7 days; an id purges that agent's entries now ("Purge now"). */
-  z.object({ op: z.literal("trash.purge"), agentId: AgentId.nullable() }).strict(),
+    .object({ op: z.literal("vm.stop"), ...box, taskKey: TaskKey.nullable() })
+    .strict()
+    .refine(agentTasksOnly, AGENT_TASKS_ONLY),
+  // Sub-project 4's seam (page 03): no caller in sub-project 1.
+  z.object({ op: z.literal("vm.pause"), ...box }).strict(),
+  z.object({ op: z.literal("vm.resume"), ...box }).strict(),
+  z
+    .object({ op: z.literal("vm.status"), ...box, taskKey: TaskKey.nullable() })
+    .strict()
+    .refine(agentTasksOnly, AGENT_TASKS_ONLY),
+  z.object({ op: z.literal("vm.list") }).strict(),
+  z.object({ op: z.literal("disk.create"), ...boxDisk, diskMb: AgentResources.shape.diskMb }).strict(),
+  z.object({ op: z.literal("disk.grow"), ...boxDisk, diskMb: AgentResources.shape.diskMb }).strict(),
+  z
+    .object({ op: z.literal("disk.delete"), ...box, taskKey: TaskKey.nullable(), purge: z.boolean() })
+    .strict()
+    .refine(agentTasksOnly, AGENT_TASKS_ONLY),
+  /** RT-40: `box` null purges every trash entry older than 7 days; a box purges that box's entries now ("Purge now"). */
+  z.object({ op: z.literal("trash.purge"), box: BoxRef.nullable() }).strict(),
   z
     .object({
       op: z.literal("image.build"),

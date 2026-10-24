@@ -1,3 +1,4 @@
+import { BoxRef } from "@pap/contracts";
 import { z } from "zod";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
@@ -14,7 +15,7 @@ import {
 import { type AgentVmLink, removeTree } from "./modules/agents/index.ts";
 
 const Listing = z.object({
-  vms: z.array(z.object({ agentId: z.string(), taskKey: z.string().nullable(), state: z.string() })),
+  vms: z.array(z.object({ box: BoxRef, taskKey: z.string().nullable(), state: z.string() })),
 });
 
 /**
@@ -32,9 +33,9 @@ async function stopListed(
     if (!listed.success) throw new VmdError("protocol");
     let failed: unknown;
     for (const vm of listed.data.vms) {
-      if (vm.agentId !== agentId || vm.state === "stopped") continue;
+      if (vm.box.kind !== "agent" || vm.box.id !== agentId || vm.state === "stopped") continue;
       try {
-        await stopVm(agentId, vm.taskKey);
+        await stopVm(vm.box, vm.taskKey);
       } catch (error) {
         failed ??= error;
       }
@@ -53,7 +54,7 @@ export interface AgentsLinkContext {
    * Stops one VM through the Kata backend (S1): queued with its starts and stops, and it clears the image policy's record of the
    * thread VM, so the next thread VM takes the image that is current, not the one the stopped VM ran on.
    */
-  stopVm(agentId: string, taskKey: string | null): Promise<void>;
+  stopVm(box: BoxRef, taskKey: string | null): Promise<void>;
   /** The stack gate (`VmStatus.require`): `agents.create` is refused `sandbox_unavailable` while it is unusable. */
   require(): Promise<void>;
   readonly papHome: string;
@@ -82,7 +83,7 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
     link: {
       require: ctx.require,
       async stop(agentId) {
-        await ctx.runtime.stop(agentId);
+        await ctx.runtime.stop({ kind: "agent", id: agentId });
         if (ctx.client !== null) await stopListed(ctx.client, ctx.stopVm, agentId);
       },
       async dispose(agentId, stamp) {
@@ -90,7 +91,7 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
         ctx.forget(agentId);
       },
       purge: (agentId) => purgeAgent(trash, agentId),
-      resume: (agentId) => ctx.runtime.resume(agentId),
+      resume: (agentId) => ctx.runtime.resume({ kind: "agent", id: agentId }),
     },
     stopSweep: startTrashSweep(trash),
   };

@@ -56,7 +56,7 @@ describe.runIf(process.platform === "linux")("a worker started like the guest st
           PAP_WORKER_TRANSPORT: "socket",
           PAP_GATEWAY: `127.0.0.1:${port}`,
           PAP_LAUNCH_ID: "a".repeat(32),
-          PAP_AGENT_ID: "scout-ab12",
+          PAP_BOX: "agent:scout-ab12",
           PAP_WORKER_SLOT: "d".repeat(32),
           PAP_IMAGE_TAG: `pap-agent-agent-${"c".repeat(64)}`,
         },
@@ -73,6 +73,11 @@ describe.runIf(process.platform === "linux")("a worker started like the guest st
     pipe.end(TOKEN);
     expect(await exit, err).toBe(0);
     expect(JSON.parse(out)).toEqual({ token: false, name: false, transport: true });
-    expect(await hello).toMatchObject({ type: "hello", role: "worker", token: TOKEN, agentId: "scout-ab12" });
+    expect(await hello).toMatchObject({
+      type: "hello",
+      role: "worker",
+      token: TOKEN,
+      box: { kind: "agent", id: "scout-ab12" },
+    });
   });
 });

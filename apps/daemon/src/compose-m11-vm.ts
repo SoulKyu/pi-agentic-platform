@@ -1,4 +1,5 @@
 import type { AgentsVm } from "./compose-agents-vm.ts";
+import { createBoxCrashPause } from "./compose-boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
@@ -14,7 +15,10 @@ export type { AgentsVm };
 /** What the VM composition adds to M11's call sites; nothing when a bed composes without it. */
 export interface VmPorts {
   /** Into the one `agents` object of `setAgentPorts`: it replaces the whole object, so it cannot be set apart. */
-  readonly sessions: Partial<Pick<AgentsVm, "vmLayoutOf">>;
+  readonly sessions: Partial<Pick<AgentsVm, "vmLayoutOf">> & {
+    /** The project boxes the sessions module reads (task A3); absent in a bed that composes without them. */
+    boxes?: AgentsVm["boxes"]["sessions"];
+  };
   /** Into `createAgents`: the host's resource ceilings, the check of the package picks and the VM runtime's link (T15). */
   readonly agents: {
     resourceHost?: AgentsVm["resourceHost"];
@@ -36,7 +40,7 @@ export function vmPortsOf(vm: AgentsVm | undefined): VmPorts {
   if (typeof vm.agentLink !== "object") throw new Error("agentLink is not wired");
   const { vmLayoutOf, resourceHost, checkPackages, agentLink } = vm;
   return {
-    sessions: { vmLayoutOf },
+    sessions: { vmLayoutOf, ...(vm.boxes ? { boxes: vm.boxes.sessions } : {}) },
     agents: { resourceHost, checkPackages, vm: agentLink },
   };
 }
@@ -56,6 +60,8 @@ export function bindVmCrash(
   },
 ): void {
   vm?.bindCrashPause(createCrashPause({ ...parts, logger }));
+  // The same for a project's box: one Inbox line naming the project; its Resume is the restart's (task A6).
+  vm?.boxes.bindCrashPause(createBoxCrashPause({ boxes: vm.boxes, items: parts.items, logger }));
   // Sub-project 2: a host the VM proxy refused is a card in the agent's thread and an Inbox item (and its push).
   vm?.bindRefusals(
     createRefusalSink({

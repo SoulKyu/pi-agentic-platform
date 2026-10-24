@@ -2,7 +2,16 @@ import { existsSync, lstatSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ExecHandler } from "./testing/fake-exec.ts";
-import { AGENT, createFixture, seedDisk, startRequest, TASK, type Fixture } from "./testing/ops-fixture.ts";
+import {
+  AGENT_BOX,
+  createFixture,
+  PROJECT,
+  PROJECT_ID,
+  seedDisk,
+  startRequest,
+  TASK,
+  type Fixture,
+} from "./testing/ops-fixture.ts";
 
 /*
  * Mutants (RT-43) killed here, run for real:
@@ -29,7 +38,7 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
 
   it("stops a thread VM: rm --force, port, volume; the agent's disk stays", async () => {
     const disk = seedDisk(fx);
-    await fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: null });
+    await fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null });
     expect(fx.exec.calls.map((argv) => argv.slice(-3))).toEqual([
       ["rm", "--force", "pap-helper-1a2b"],
       ["direct-volume", "remove", VOLUME(fx, "pap-helper-1a2b")],
@@ -42,10 +51,10 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
     use((argv) =>
       isRm(argv) ? { code: 1, stderr: 'level=error msg="1 errors:\\nno such container: x"' } : undefined,
     );
-    const file = fx.state.diskPath(AGENT, TASK);
+    const file = fx.state.diskPath(AGENT_BOX, TASK);
     await fx.ops.handle(startRequest({ kind: "isolated", taskKey: TASK }));
     expect(existsSync(file)).toBe(true);
-    await fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: TASK });
+    await fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: TASK });
     expect(existsSync(file)).toBe(false);
     expect(existsSync(path.dirname(file))).toBe(false);
     expect(fx.exec.calls.filter(isRm).at(-1)?.slice(-3)).toEqual([
@@ -57,11 +66,11 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
 
   it("a rm that really fails is reported, still removes the port and the volume, and keeps the task disk", async () => {
     use((argv) => (isRm(argv) ? { code: 1, stderr: "containerd: connection refused" } : undefined));
-    const file = fx.state.diskPath(AGENT, TASK);
+    const file = fx.state.diskPath(AGENT_BOX, TASK);
     await fx.ops.handle(startRequest({ kind: "isolated", taskKey: TASK }));
     fx.exec.calls.length = 0;
     fx.net.events.length = 0;
-    await expect(fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: TASK })).rejects.toMatchObject({
+    await expect(fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: TASK })).rejects.toMatchObject({
       code: "failed",
     });
     expect(fx.net.events).toEqual([`detach pap-helper-1a2b-${TASK}`]);
@@ -70,8 +79,8 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
   });
 
   it("pauses and resumes the agent's thread VM", async () => {
-    await fx.ops.handle({ op: "vm.pause", agentId: AGENT });
-    await fx.ops.handle({ op: "vm.resume", agentId: AGENT });
+    await fx.ops.handle({ op: "vm.pause", box: AGENT_BOX });
+    await fx.ops.handle({ op: "vm.resume", box: AGENT_BOX });
     expect(fx.exec.calls.map((argv) => argv.slice(-2))).toEqual([
       ["pause", "pap-helper-1a2b"],
       ["unpause", "pap-helper-1a2b"],
@@ -90,7 +99,7 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
     ];
     for (const [text, state] of states) {
       use((argv) => (argv.includes("inspect") ? { stdout: `${text}\n` } : undefined));
-      await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: null })).resolves.toEqual({
+      await expect(fx.ops.handle({ op: "vm.status", box: AGENT_BOX, taskKey: null })).resolves.toEqual({
         state,
       });
     }
@@ -101,14 +110,14 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
         ? { code: 1, stderr: 'level=fatal msg="1 errors: [no such object pap-helper-1a2b]"\n' }
         : undefined,
     );
-    await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: TASK })).resolves.toEqual({
+    await expect(fx.ops.handle({ op: "vm.status", box: AGENT_BOX, taskKey: TASK })).resolves.toEqual({
       state: "absent",
     });
     // M-inspect-failure-absent (S1 round 1): any other failure says nothing of the VM, so it is not "absent".
     use((argv) =>
       argv.includes("inspect") ? { code: 1, stderr: "containerd: connection refused" } : undefined,
     );
-    await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: TASK })).rejects.toMatchObject({
+    await expect(fx.ops.handle({ op: "vm.status", box: AGENT_BOX, taskKey: TASK })).rejects.toMatchObject({
       code: "failed",
     });
     expect(fx.exec.calls[0]?.slice(-4)).toEqual([
@@ -117,6 +126,27 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
       "{{.State.Status}}",
       `pap-helper-1a2b-${TASK}`,
     ]);
+  });
+
+  it("lists a project VM and an agent VM and stops both at boot", async () => {
+    const hex = PROJECT_ID.replaceAll("-", "");
+    fx.ps = [`pap_p_${hex} Up 1 minute`, "pap-helper-1a2b Up 3 minutes", `pap_p_${hex}-${TASK} Up 1 second`];
+    await expect(fx.ops.handle({ op: "vm.list" })).resolves.toEqual({
+      vms: [
+        { box: PROJECT, taskKey: null, state: "running" },
+        { box: AGENT_BOX, taskKey: null, state: "running" },
+      ],
+    });
+    // The VM stack stops what it lists (sweep at boot): both kinds go through the same stop.
+    await fx.ops.handle({ op: "vm.stop", box: PROJECT, taskKey: null });
+    expect(fx.exec.calls.some((argv) => argv.at(-2) === "--force" && argv.at(-1) === `pap_p_${hex}`)).toBe(
+      true,
+    );
+    expect(
+      fx.exec.calls.some(
+        (argv) => argv[0] === "/opt/kata/bin/kata-ctl" && argv.at(-1)?.endsWith(`/pap_p_${hex}`) === true,
+      ),
+    ).toBe(true);
   });
 
   it("lists pap's VMs only, with their state", async () => {
@@ -130,10 +160,10 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
     ];
     await expect(fx.ops.handle({ op: "vm.list" })).resolves.toEqual({
       vms: [
-        { agentId: "helper-1a2b", taskKey: null, state: "running" },
-        { agentId: "writer-3c4d", taskKey: TASK, state: "paused" },
-        { agentId: "writer-3c4d", taskKey: null, state: "stopped" },
-        { agentId: "x-1a2b", taskKey: null, state: "starting" },
+        { box: { kind: "agent", id: "helper-1a2b" }, taskKey: null, state: "running" },
+        { box: { kind: "agent", id: "writer-3c4d" }, taskKey: TASK, state: "paused" },
+        { box: { kind: "agent", id: "writer-3c4d" }, taskKey: null, state: "stopped" },
+        { box: { kind: "agent", id: "x-1a2b" }, taskKey: null, state: "starting" },
       ],
     });
     expect(fx.exec.calls[0]?.slice(-4)).toEqual(["ps", "--all", "--format", "{{.Names}} {{.Status}}"]);
@@ -145,7 +175,9 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
       `pap-writer-3c4d-${"f".repeat(32)} Exited (1) 1 hour ago`,
       "pap-helper-1a2b Up 1 minute",
     ];
-    await expect(fx.ops.runningTasks()).resolves.toEqual([{ agentId: "writer-3c4d", taskKey: TASK }]);
+    await expect(fx.ops.runningTasks()).resolves.toEqual([
+      { box: { kind: "agent", id: "writer-3c4d" }, taskKey: TASK },
+    ]);
   });
 
   it("a failing nerdctl ps is failed (never an empty list)", async () => {
@@ -162,7 +194,7 @@ describe("what a start leaves behind", () => {
     const volume = VOLUME(fx, "pap-helper-1a2b");
     expect(lstatSync(volume).isDirectory()).toBe(true);
     expect(statSync(volume).mode & 0o777).toBe(0o700);
-    await fx.ops.handle({ op: "vm.stop", agentId: AGENT, taskKey: null });
+    await fx.ops.handle({ op: "vm.stop", box: AGENT_BOX, taskKey: null });
     expect(existsSync(volume)).toBe(false);
   });
 });

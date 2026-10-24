@@ -52,7 +52,7 @@ afterEach(async () => {
 const profiles = (trusted: boolean | null, agent = false) =>
   createProfiles({
     pi: { helpers: pool, trust: { status: async () => trusted } },
-    sessions: { cwdOf: () => project, isAgentSession: () => agent },
+    sessions: { cwdOf: () => project, runsInVm: () => agent },
     logger: silentLogger,
   });
 
@@ -74,13 +74,13 @@ describe("subagents.profiles through a real helper", () => {
     expect((await agentSessions.list(testCaller(), "s1")).profiles.map((p) => p.name)).toEqual(["scout"]);
     const reader = createProfileReader({
       pi: { helpers: pool, trust: { status: async () => true } },
-      sessions: { cwdOf: () => project, isAgentSession: () => true },
+      sessions: { cwdOf: () => project, runsInVm: () => true },
       logger: silentLogger,
     });
     await expect(reader.get("u1", "s1", "reviewer")).rejects.toMatchObject({ code: "not_found" });
     const plain = createProfileReader({
       pi: { helpers: pool, trust: { status: async () => true } },
-      sessions: { cwdOf: () => project, isAgentSession: () => false },
+      sessions: { cwdOf: () => project, runsInVm: () => false },
       logger: silentLogger,
     });
     expect((await plain.get("u1", "s1", "reviewer")).source).toBe("project");

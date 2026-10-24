@@ -89,6 +89,14 @@ export function reduceShell(view: ShellView, raw: unknown): ShellView {
         ...view,
         projects: boundProjects(new Map(view.projects).set(event.project.id, event.project), view.sessions),
       };
+    case "projectRemoved": {
+      const projects = new Map(view.projects);
+      projects.delete(event.projectId);
+      const sessions = new Map(
+        [...view.sessions].filter(([, session]) => session.projectId !== event.projectId),
+      );
+      return { ...view, projects, sessions };
+    }
     case "counts":
       return { ...view, archived: event.archived };
   }

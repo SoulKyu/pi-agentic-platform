@@ -8,7 +8,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import * as report from "../../lib/report.ts";
 import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
-import { button, click, field, press, settle, text, typeInto } from "../../testing/dom.ts";
+import { button, click, field, press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
@@ -106,7 +106,7 @@ describe("the project switcher", () => {
     expect(trigger().textContent).toBe("All projects");
     expect(trigger().getAttribute("aria-label")).toBe("Project: All projects");
     await openSwitcher();
-    expect(labels()).toEqual(["All projects", "api", "web", "Add project…"]);
+    expect(labels()).toEqual(["All projects", "api", "web", "New project…"]);
     await page.unmount();
   });
 
@@ -178,7 +178,7 @@ describe("the project switcher", () => {
       ],
     });
     await openSwitcher();
-    expect(labels()).toEqual(["All projects", "api", "fresh", "Add project…"]);
+    expect(labels()).toEqual(["All projects", "api", "fresh", "New project…"]);
     await page.unmount();
   });
 
@@ -218,7 +218,7 @@ describe("the project switcher", () => {
     await settle();
     await feed([], { projects: [], moreProjects: 1 });
     await openSwitcher();
-    expect(labels()).toEqual(["All projects", "1 more project is not listed", "Add project…"]);
+    expect(labels()).toEqual(["All projects", "1 more project is not listed", "New project…"]);
     await page.unmount();
   });
 
@@ -253,27 +253,22 @@ describe("the project switcher", () => {
     expect(issue.mock.calls).toEqual([["storage_refused"]]);
     await page.unmount();
   });
-  it("Add project… opens the dialog, and Add switches the chip to the new project (§3.6)", async () => {
-    bed.handlers["projects.add"] = () => ({
-      project: { id: "fresh", root: "/w/fresh", name: "fresh", position: -1 },
+  it("New project… opens the dialog, and Create switches the chip to the new project (§3.6)", async () => {
+    bed.handlers["projects.create"] = () => ({
+      project: { id: "fresh", root: "/boxes/fresh/project", name: "fresh", position: -1, kind: "box" },
     });
-    bed.handlers["lanes.preview"] = () => ({ repo: false });
     const page = await renderShell("/");
     await settle();
     await three();
     await openSwitcher();
-    await pick("Add project…");
+    await pick("New project…");
     await vi.waitFor(() => expect(document.querySelector("[data-add-project]")).not.toBeNull(), {
       timeout: 2_000,
     });
-    await typeInto(field(document.body, "Folder"), "/w/fresh");
-    await click(button(document.body, "Check"));
+    await typeInto(field(document.body, "Project name"), "fresh");
+    await click(button(document.body, "Create"));
     await settle();
-    expect(text(document.querySelector("[data-add-project]") as HTMLElement)).toContain(
-      "Not a git repository",
-    );
-    await click(button(document.body, "Add"));
-    await settle();
+    expect(bed.called("projects.create")[0]?.params).toEqual({ name: "fresh" });
     expect(document.querySelector("[data-add-project]")).toBeNull();
     expect(trigger().textContent).toBe("fresh");
     expect(localStorage.getItem("pap.project.v1")).toBe('{"v":1,"projectId":"fresh"}');

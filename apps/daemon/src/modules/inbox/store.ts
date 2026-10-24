@@ -47,7 +47,10 @@ export interface RefItem {
   readonly ownerId: string;
   readonly kind: string;
   readonly toHandle: boolean;
-  readonly agentId: string;
+  /** Null for an item about something that is not an agent (a project box). */
+  readonly agentId: string | null;
+  /** The line shown as the item's subject; none: the agent label. */
+  readonly title?: string;
   readonly refId: string;
   readonly entryId: string | null;
   readonly detail: string | null;
@@ -220,7 +223,7 @@ export function createInboxStore(db: Db) {
            created_at = excluded.created_at, agent_id = excluded.agent_id, title = excluded.title,
            entry_id = excluded.entry_id, detail = excluded.detail
          WHERE inbox_items.owner_id = excluded.owner_id`,
-        { ...item, toHandle: item.toHandle ? 1 : 0, at: item.at, title: AGENT_ITEM_LABEL },
+        { ...item, toHandle: item.toHandle ? 1 : 0, at: item.at, title: item.title ?? AGENT_ITEM_LABEL },
       ).changes;
       const written = changed === 1 ? byRef(item.kind, item.refId) : null;
       return written?.ownerId === item.ownerId ? written.item : null;

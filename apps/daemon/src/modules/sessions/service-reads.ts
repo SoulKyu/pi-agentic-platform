@@ -15,6 +15,7 @@ import {
 } from "@pap/contracts";
 import { cutUnits, MAX_ID_CHARS } from "../../kernel/text.ts";
 import { mirrorFileOf, unverifiedIds } from "../agent-vm/index.ts";
+import { mirrorRowOf } from "./mirror-row.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { BranchPage, BranchPathEntry } from "./branch.ts";
 import {
@@ -147,12 +148,12 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
     const trusted =
       reported &&
       (isPiSessionFile(deps.agentDir, reported) ||
-        mirrorFileOf(deps.papHome, { piPath: reported, agentId: row.agentId }) !== null);
+        mirrorFileOf(deps.papHome, mirrorRowOf(deps.store.marks, row, reported)) !== null);
     return row.piPath ?? (trusted ? reported : null);
   };
   // R32: the user entries of a mirror that pap did not send show as such.
   const withMarks = (row: SessionRow, file: string | null, page: BranchPage): BranchPage => {
-    if (!file || mirrorFileOf(deps.papHome, { piPath: file, agentId: row.agentId }) === null) return page;
+    if (!file || mirrorFileOf(deps.papHome, mirrorRowOf(deps.store.marks, row, file)) === null) return page;
     const listed = unverifiedIds(file);
     if (!listed.all && listed.ids.size === 0) return page;
     // A list that cannot be trusted (unreadable, cut) marks every user row: fail closed (AVM-E22).

@@ -18,7 +18,7 @@ const SAVED = TriggerInput.parse({
   name: "prod-alerts",
   enabled: true,
   source: { type: "webhook", format: "alertmanager", auth: "secret" },
-  execution: { cwd: "/work/atlas", tools: ["read", "grep"], precheck: "kubectl get pods" },
+  execution: { cwd: "/work/atlas", tools: ["read", "grep"] },
   prompt: "Investigate the alert.\n{{payload}}",
 });
 

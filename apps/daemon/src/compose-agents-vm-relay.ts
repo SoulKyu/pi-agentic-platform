@@ -18,7 +18,8 @@ import {
 } from "./modules/agent-vm/index.ts";
 
 /** Until the late binding the relay learns no model for any agent: it refuses every request (fail closed). */
-const failClosed = { policyOf: async () => ({ models: [], claude: false, blocked: null }) as PolicyView };
+const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
+const failClosed = { policyOf: async () => NOTHING, policyOfProject: async () => NOTHING };
 
 export interface RelayContext {
   readonly clock: Clock;
@@ -40,6 +41,7 @@ export interface RelayContext {
   readonly bridgeReady: (() => Promise<void>) | undefined;
   readonly late: () => {
     policyOf(agentId: string): Promise<PolicyView>;
+    policyOfProject(projectId: string): Promise<PolicyView>;
     turnsOf(agentId: string): number;
     windowEnded(): void;
   } | null;
@@ -72,9 +74,13 @@ export function composeRelay(ctx: RelayContext): RelayLink | null {
         }
       : {}),
     ...(ctx.bridgeReady ? { bridgeReady: ctx.bridgeReady } : {}),
-    policyOf: (agentId) => (ctx.late() ?? failClosed).policyOf(agentId),
+    // A project box has no policy until its settings give it one (task A3): it uses nothing (fail closed).
+    policyOf: async (box) => {
+      const late = ctx.late() ?? failClosed;
+      return box.kind === "agent" ? late.policyOf(box.id) : late.policyOfProject(box.id);
+    },
     claudeToken: () => ctx.claudeToken.load(),
-    reportedTurns: (agentId) => ctx.late()?.turnsOf(agentId) ?? 0,
+    reportedTurns: (box) => (box.kind === "agent" ? (ctx.late()?.turnsOf(box.id) ?? 0) : 0),
     windowEnded: () => ctx.late()?.windowEnded(),
   });
   // The bridge's policy follows the token too: set it and the agents with the bridge may use it at once.

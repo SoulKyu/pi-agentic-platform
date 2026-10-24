@@ -11,7 +11,7 @@ const AGENT = "kubedoc-1a2b";
 const HOUR = 3_600_000;
 
 const refusal = (over: Partial<Parameters<ReturnType<typeof createRefusalSink>>[0]> = {}) => ({
-  agentId: AGENT,
+  box: { kind: "agent", id: AGENT } as const,
   launchId: "l1",
   source: "thread" as const,
   host: "prometheus.lan",
@@ -56,6 +56,17 @@ describe("entryFor", () => {
 });
 
 describe("the refusal sink", () => {
+  it("writes no card for a project box, which has no agent thread: it logs once", () => {
+    const { events, items, logger, sink } = setup();
+    const box = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" } as const;
+    sink(refusal({ box }));
+    sink(refusal({ box }));
+    expect(events.write).not.toHaveBeenCalled();
+    expect(items.upsertAgentItem).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledTimes(1);
+    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_no_thread", { box: `project:${box.id}` });
+  });
+
   it("dedupe: 200 refusals of one agent and host:port in 10 minutes are one card, one Inbox item, a final count of 200", async () => {
     const { clock, events, items, sink } = setup();
     for (let i = 0; i < 200; i++) {
@@ -163,7 +174,7 @@ describe("the refusal sink", () => {
   it("another agent has its own card", async () => {
     const { events, sink } = setup();
     sink(refusal());
-    sink(refusal({ agentId: "other-3c4d" }));
+    sink(refusal({ box: { kind: "agent", id: "other-3c4d" } }));
     expect(events.write).toHaveBeenCalledTimes(2);
   });
 
@@ -172,15 +183,15 @@ describe("the refusal sink", () => {
     events.write.mockReturnValueOnce(null as never);
     sink(refusal());
     expect(items.upsertAgentItem).not.toHaveBeenCalled();
-    sink(refusal({ agentId: "ghost-0000" }));
-    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_unknown_agent", { agentId: "ghost-0000" });
+    sink(refusal({ box: { kind: "agent", id: "ghost-0000" } }));
+    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_unknown_agent", { box: "agent:ghost-0000" });
   });
 
   it("an agent that tries many hosts gets at most 20 new cards an hour; the rest are only logged", async () => {
     const { clock, events, logger, sink } = setup();
     for (let i = 0; i < 30; i++) sink(refusal({ host: `h${i}.lan` }));
     expect(events.write).toHaveBeenCalledTimes(20);
-    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_card_cap", { agentId: AGENT });
+    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_card_cap", { box: `agent:${AGENT}` });
     await clock.advance(HOUR + 1);
     sink(refusal({ host: "again.lan" }));
     expect(events.write).toHaveBeenCalledTimes(21);
@@ -190,16 +201,16 @@ describe("the refusal sink", () => {
     const { clock, logger, sink } = setup();
     for (let i = 0; i < 20; i++) sink(refusal({ host: `h${i}.lan` }));
     for (let i = 0; i < 1000; i++) sink(refusal({ host: `x${i}.lan` }));
-    for (let i = 0; i < 1000; i++) sink(refusal({ agentId: "ghost-0000" }));
+    for (let i = 0; i < 1000; i++) sink(refusal({ box: { kind: "agent", id: "ghost-0000" } }));
     const lines = () => logger.warn.mock.calls.map(([event, fields]) => [event, fields]);
     expect(lines()).toEqual([
-      ["egress_refusal_card_cap", { agentId: AGENT }],
-      ["egress_refusal_unknown_agent", { agentId: "ghost-0000" }],
+      ["egress_refusal_card_cap", { box: `agent:${AGENT}` }],
+      ["egress_refusal_unknown_agent", { box: "agent:ghost-0000" }],
     ]);
     await clock.advance(61_000);
     sink(refusal({ host: "late.lan" }));
-    expect(lines().at(-1)).toEqual(["egress_refusal_card_cap", { agentId: AGENT }]);
-    expect(lines()).toContainEqual(["egress_refusal_card_cap", { agentId: AGENT, suppressed: 999 }]);
+    expect(lines().at(-1)).toEqual(["egress_refusal_card_cap", { box: `agent:${AGENT}` }]);
+    expect(lines()).toContainEqual(["egress_refusal_card_cap", { box: `agent:${AGENT}`, suppressed: 999 }]);
   });
 
   // Mutant: no timer on a skipped line. Killed here: a burst that stops never logs its total.
@@ -211,7 +222,7 @@ describe("the refusal sink", () => {
     await clock.advance(60_000);
     expect(logger.warn).toHaveBeenCalledTimes(2);
     expect(logger.warn).toHaveBeenLastCalledWith("egress_refusal_card_cap", {
-      agentId: AGENT,
+      box: `agent:${AGENT}`,
       suppressed: 49,
     });
     await clock.advance(10 * 60_000);
@@ -227,7 +238,7 @@ describe("the refusal sink", () => {
       throw new Error("database is locked");
     });
     await expect(clock.advance(60_000)).resolves.not.toThrow();
-    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_flush_failed", { agentId: AGENT });
+    expect(logger.warn).toHaveBeenCalledWith("egress_refusal_flush_failed", { box: `agent:${AGENT}` });
     sink(refusal());
     await clock.advance(60_000);
     expect(events.update).toHaveBeenLastCalledWith("u1", 10, expect.objectContaining({ count: 3 }));

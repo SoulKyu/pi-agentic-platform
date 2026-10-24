@@ -21,6 +21,7 @@ const STATUS: Readonly<Record<string, 400 | 403 | 404 | 409 | 413 | 503>> = {
   payload_too_large: 413,
   read_only: 503,
   capacity: 503,
+  box_stopped: 409,
 };
 
 /** An answer sent before the body is read closes the connection: the rest of the body is not worth receiving. */

@@ -7,8 +7,9 @@ vi.mock("node:crypto", async (importOriginal) => {
   return { ...actual, timingSafeEqual: vi.fn(actual.timingSafeEqual) };
 });
 
-const AGENT = "reviewer-0a1b";
-const OTHER = "writer-2c3d";
+const AGENT = { kind: "agent", id: "reviewer-0a1b" } as const;
+const OTHER = { kind: "agent", id: "writer-2c3d" } as const;
+const PROJECT = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" } as const;
 let tokens: LaunchTokens;
 
 beforeEach(() => {
@@ -28,6 +29,17 @@ describe("launch tokens", () => {
   it("refuses a valid token presented with another agent's id", () => {
     const { launchId, token } = tokens.issue(AGENT);
     expect(tokens.check(OTHER, launchId, token)).toBe(false);
+  });
+
+  it("a token issued for one box is refused for another", () => {
+    const { launchId, token } = tokens.issue(PROJECT);
+    expect(tokens.check(PROJECT, launchId, token)).toBe(true);
+    expect(tokens.check(AGENT, launchId, token)).toBe(false);
+    expect(
+      tokens.check({ kind: "project", id: "11111111-1111-4111-8111-111111111111" }, launchId, token),
+    ).toBe(false);
+    // The same text as an agent id never names a project box.
+    expect(tokens.check({ kind: "agent", id: PROJECT.id }, launchId, token)).toBe(false);
   });
 
   it("refuses an unknown launch and a revoked one, the token being right", () => {

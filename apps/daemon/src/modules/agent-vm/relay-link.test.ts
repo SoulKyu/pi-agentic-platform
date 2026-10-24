@@ -22,11 +22,11 @@ describe("the relay link: grants and policy", () => {
       {
         type: "relay_grant",
         launchId: grant(1).launchId,
-        agentId: "scout-0001",
+        box: { kind: "agent", id: "scout-0001" },
         key: grant(1).relayKey,
         address: "10.213.0.2",
       },
-      { type: "agent_policy", agentId: "scout-0001", ...POLICY },
+      { type: "box_policy", box: { kind: "agent", id: "scout-0001" }, ...POLICY },
     ]);
   });
 
@@ -53,7 +53,13 @@ describe("the relay link: grants and policy", () => {
     link.revoke(grant(2).launchId);
     expect(last().sent.slice(-2)).toEqual([
       { type: "relay_revoke", launchId: grant(2).launchId },
-      { type: "agent_policy", agentId: "scout-0001", models: [], claude: false, blocked: null },
+      {
+        type: "box_policy",
+        box: { kind: "agent", id: "scout-0001" },
+        models: [],
+        claude: false,
+        blocked: null,
+      },
     ]);
   });
 
@@ -74,13 +80,15 @@ describe("the relay link: grants and policy", () => {
     await settle();
     const policies = last().sent.filter(
       (m) =>
-        (m as { type: string; models?: unknown[] }).type === "agent_policy" &&
+        (m as { type: string; models?: unknown[] }).type === "box_policy" &&
         (m as { models: unknown[] }).models.length > 0,
     );
-    expect(policies).toEqual([{ type: "agent_policy", agentId: "scout-0001", ...POLICY, blocked: "budget" }]);
+    expect(policies).toEqual([
+      { type: "box_policy", box: { kind: "agent", id: "scout-0001" }, ...POLICY, blocked: "budget" },
+    ]);
   });
 
-  it("pushes the policy again on each trigger: refresh, refresh of all, a token change (agent_policy per live agent)", async () => {
+  it("pushes the policy again on each trigger: refresh, refresh of all, a token change (box_policy per live agent)", async () => {
     const answers: PolicyView[] = [
       POLICY,
       { ...POLICY, blocked: "paused" },
@@ -93,14 +101,14 @@ describe("the relay link: grants and policy", () => {
     last().ready();
     link.grant(grant(1));
     await settle();
-    link.refresh("scout-0001");
+    link.refresh({ kind: "agent", id: "scout-0001" });
     await settle();
     link.refreshAll();
     await settle();
-    link.refresh("never-launched");
+    link.refresh({ kind: "agent", id: "never-launched" });
     await settle();
     const policies = last()
-      .sent.filter((m) => (m as { type: string }).type === "agent_policy")
+      .sent.filter((m) => (m as { type: string }).type === "box_policy")
       .map((m) => (m as { blocked: string | null }).blocked);
     expect(policies).toEqual([null, "paused", "budget"]);
     expect(policyOf).toHaveBeenCalledTimes(3);
@@ -113,14 +121,16 @@ describe("the relay link: grants and policy", () => {
     await link.start();
     last().ready();
     link.grant(grant(1));
-    link.refresh("scout-0001");
+    link.refresh({ kind: "agent", id: "scout-0001" });
     await settle();
     slow[1]?.({ ...POLICY, blocked: "budget" });
     await settle();
     slow[0]?.({ ...POLICY, blocked: null });
     await settle();
-    const sent = last().sent.filter((m) => (m as { type: string }).type === "agent_policy");
-    expect(sent).toEqual([{ type: "agent_policy", agentId: "scout-0001", ...POLICY, blocked: "budget" }]);
+    const sent = last().sent.filter((m) => (m as { type: string }).type === "box_policy");
+    expect(sent).toEqual([
+      { type: "box_policy", box: { kind: "agent", id: "scout-0001" }, ...POLICY, blocked: "budget" },
+    ]);
   });
 
   it("fails closed when the policy cannot be read: the agent is told it may use nothing", async () => {
@@ -133,8 +143,8 @@ describe("the relay link: grants and policy", () => {
     link.grant(grant(1));
     await settle();
     expect(last().sent.at(-1)).toEqual({
-      type: "agent_policy",
-      agentId: "scout-0001",
+      type: "box_policy",
+      box: { kind: "agent", id: "scout-0001" },
       models: [],
       claude: false,
       blocked: null,
@@ -185,7 +195,7 @@ describe("the relay link: a restart (RT-36)", () => {
     const replayed = last().sent as Array<{
       type: string;
       launchId?: string;
-      agentId?: string;
+      box?: { id: string };
       token?: string;
     }>;
     expect(replayed.filter((m) => m.type === "relay_grant").map((m) => m.launchId)).toEqual([
@@ -194,8 +204,8 @@ describe("the relay link: a restart (RT-36)", () => {
     ]);
     expect(
       replayed
-        .filter((m) => m.type === "agent_policy")
-        .map((m) => m.agentId)
+        .filter((m) => m.type === "box_policy")
+        .map((m) => m.box?.id)
         .sort(),
     ).toEqual(["other-0002", "scout-0001"]);
     expect(replayed.find((m) => m.type === "claude_token")?.token).toBe(TOKEN);

@@ -2,12 +2,13 @@ import { describe, expect, it } from "vitest";
 import { VmdRequest, VmdResponse, VmStartResult } from "./vmd.ts";
 
 const hex = (n: number, ch = "a"): string => ch.repeat(n);
-const agentId = "helper-1a2b";
+const box = { kind: "agent", id: "helper-1a2b" };
+const project = { kind: "project", id: "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0" };
 const tag = (layer: string): string => `pap-agent-${layer}-${hex(64, "b")}`;
 const key = hex(32, "e");
 const start = {
   op: "vm.start",
-  agentId,
+  box,
   kind: "thread",
   taskKey: null,
   image: tag("agent"),
@@ -19,15 +20,15 @@ const NODE = `docker.io/library/node@sha256:${hex(64, "d")}`;
 const valid: Record<string, unknown> = {
   "vm.start": start,
   "vm.start isolated": { ...start, kind: "isolated", taskKey: key },
-  "vm.stop": { op: "vm.stop", agentId, taskKey: null },
-  "vm.pause": { op: "vm.pause", agentId },
-  "vm.resume": { op: "vm.resume", agentId },
-  "vm.status": { op: "vm.status", agentId, taskKey: key },
+  "vm.stop": { op: "vm.stop", box, taskKey: null },
+  "vm.pause": { op: "vm.pause", box },
+  "vm.resume": { op: "vm.resume", box },
+  "vm.status": { op: "vm.status", box, taskKey: key },
   "vm.list": { op: "vm.list" },
-  "disk.create": { op: "disk.create", agentId, taskKey: null, diskMb: 4096 },
-  "disk.grow": { op: "disk.grow", agentId, taskKey: null, diskMb: 8192 },
-  "disk.delete": { op: "disk.delete", agentId, taskKey: key, purge: false },
-  "trash.purge": { op: "trash.purge", agentId: null },
+  "disk.create": { op: "disk.create", box, taskKey: null, diskMb: 4096 },
+  "disk.grow": { op: "disk.grow", box, taskKey: null, diskMb: 8192 },
+  "disk.delete": { op: "disk.delete", box, taskKey: key, purge: false },
+  "trash.purge": { op: "trash.purge", box: null },
   "image.build": {
     op: "image.build",
     layer: "base",
@@ -67,7 +68,7 @@ describe("VmdRequest", () => {
 
   // M5: the root API has no disk populate any more (no caller since AVM-E53). Mutant: the schema line back -> this fails.
   it("refuses disk.populate: pap-vmd no longer copies a user folder into a disk", () => {
-    const request = { op: "disk.populate", agentId, taskKey: null, staging: "migration" };
+    const request = { op: "disk.populate", box, taskKey: null, staging: "migration" };
     expect(VmdRequest.safeParse(request).success).toBe(false);
   });
 
@@ -130,6 +131,24 @@ describe("VmdRequest", () => {
     const profile = { ...agent, layer: "profile", tag: tag("profile"), from: tag("base") };
     expect(VmdRequest.safeParse(profile).success, "profile with apt").toBe(false);
     expect(VmdRequest.safeParse({ ...profile, aptPackages: [] }).success).toBe(true);
+  });
+
+  it("accepts a project box for the VM and disk ops, never with a task key", () => {
+    const projectStart = { ...start, box: project };
+    expect(VmdRequest.safeParse(projectStart).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...projectStart, kind: "isolated", taskKey: key }).success).toBe(false);
+    expect(VmdRequest.safeParse({ op: "vm.stop", box: project, taskKey: null }).success).toBe(true);
+    expect(VmdRequest.safeParse({ op: "vm.stop", box: project, taskKey: key }).success).toBe(false);
+    expect(
+      VmdRequest.safeParse({ op: "disk.create", box: project, taskKey: null, diskMb: 8192 }).success,
+    ).toBe(true);
+    expect(
+      VmdRequest.safeParse({ op: "disk.delete", box: project, taskKey: key, purge: false }).success,
+    ).toBe(false);
+    expect(VmdRequest.safeParse({ op: "trash.purge", box: project }).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...start, box: { kind: "project", id: "helper-1a2b" } }).success).toBe(
+      false,
+    );
   });
 
   it("refuses an unknown op and unknown keys", () => {

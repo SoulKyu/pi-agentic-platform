@@ -28,14 +28,18 @@ async function lstatOrNull(p: string) {
     throw error;
   }
 }
-/** The folders a VM agent's file tools reach (spec §5): its own three, and Pi's skill and package folders read-only (R26). */
+/** The folders a VM agent's file tools reach (spec §5): its own three (a project box's: the project folder, home and inbox), and Pi's skill and package folders read-only (R26). */
 export const vmFileFolders = (layout: {
   home: string;
   knowledge: string;
   inbox: string;
   piAgentDir: string;
+  project?: string | undefined;
 }) => ({
-  writable: [layout.home, layout.knowledge, layout.inbox],
+  writable:
+    layout.project === undefined
+      ? [layout.home, layout.knowledge, layout.inbox]
+      : [layout.project, layout.home, layout.inbox],
   readOnly: ["skills", "npm", "git", "local"].map((name) => `${layout.piAgentDir}/${name}`),
 });
 

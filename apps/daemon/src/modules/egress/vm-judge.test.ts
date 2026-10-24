@@ -17,7 +17,7 @@ import { vmAddressRefused } from "./vm-address.ts";
  */
 
 const scope = (hosts: string[]): VmScope => ({
-  agentId: "a1",
+  box: { kind: "agent", id: "a1-0001" },
   launchId: "l1",
   source: "thread",
   hosts,

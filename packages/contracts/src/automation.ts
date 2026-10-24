@@ -276,6 +276,26 @@ export const TriggerInput = z
   .transform(withDefaults);
 export type TriggerInput = z.output<typeof TriggerInput>;
 
+/** The journal word, manual-fire detail and dry-run output of a stored trigger that still holds a precheck (B6). */
+export const PRECHECK_REMOVED = "precheck_removed";
+
+/**
+ * What a save accepts (B6): prechecks were removed, so a precheck command, its variable names and `{{precheck}}` are refused
+ * on `create` and `update`. A stored trigger still parses as `TriggerInput`, so the form can show the old value to clear.
+ */
+export const TriggerSaveInput = TriggerInput.superRefine((input, ctx) => {
+  if (input.execution.precheck !== null)
+    ctx.addIssue({
+      code: "custom",
+      path: ["execution", "precheck"],
+      message: "prechecks were removed",
+    });
+  if (input.execution.env.length > 0)
+    ctx.addIssue({ code: "custom", path: ["execution", "env"], message: "variables were for prechecks" });
+  if ([...input.prompt.matchAll(PLACEHOLDER)].some((match) => match[1] === "precheck"))
+    ctx.addIssue({ code: "custom", path: ["prompt"], message: "{{precheck}} was removed with prechecks" });
+});
+
 const HHMM = z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/);
 /** The `automation` account setting (Settings › Automation), compare-and-set like every setting (owner R3-4). */
 export const AutomationSettings = z

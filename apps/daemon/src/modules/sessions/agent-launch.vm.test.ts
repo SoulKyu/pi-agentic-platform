@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { AgentInput, type InitRecord } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
-import { layoutOf, type VmSpec } from "../agent-vm/index.ts";
+import { layoutOf, layoutOfSpec, type VmSpec } from "../agent-vm/index.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
@@ -58,7 +58,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
                   if (world.hold) await new Promise<void>((resolve) => (world.release = resolve));
                   return {
                     handle: Object.assign(makeWorker(), { slot: "b".repeat(32), piFile: () => null }),
-                    layout: layoutOf("process", papHome, spec),
+                    layout: layoutOfSpec("process", papHome, spec),
                     relayKey: "a".repeat(64),
                     slot: "b".repeat(32),
                     launchId: "launch-1",
@@ -122,7 +122,12 @@ describe("agent sessions in vm mode (T8a)", () => {
     const { papHome } = setup();
     const { sessionId } = await thread();
     expect(world.specs).toEqual([
-      expect.objectContaining({ agentId: ID, kind: "thread", taskKey: null, image: IMAGE }),
+      expect.objectContaining({
+        box: { kind: "agent", id: ID },
+        kind: "thread",
+        taskKey: null,
+        image: IMAGE,
+      }),
     ]);
     const init = initRecordOf(bed.spawned[0]);
     const layout = layoutOf("process", papHome, { agentId: ID, taskKey: null });

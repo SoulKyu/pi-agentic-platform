@@ -94,40 +94,24 @@ describe("ExecutionSection: mode and budget", () => {
   });
 });
 
-describe("ExecutionSection: precheck and its variables", () => {
-  it("shows the credential refusal for GH_TOKEN, refuses A-B, and takes a plain name", async () => {
-    const page = await show(initial({ precheck: "true" }));
-    expect(text(page.container)).toContain("Never passed: the SSH agent, provider and cloud keys");
-    const name = field(page.container, "Variable name") as HTMLInputElement;
-
-    await typeInto(name, "GH_TOKEN");
-    await click(button(page.container, "Add variable"));
-    expect(text(page.container)).toContain("GH_TOKEN looks like a credential or is withheld.");
-
-    await typeInto(name, "A-B");
-    await click(button(page.container, "Add variable"));
-    expect(text(page.container)).toContain("This is not a variable name.");
-
-    await typeInto(name, "KUBECONFIG");
-    await click(button(page.container, "Add variable"));
-    expect(hasButton(page.container, "Remove KUBECONFIG")).toBe(true);
-    await click(button(page.container, "Remove KUBECONFIG"));
-    expect(hasButton(page.container, "Remove KUBECONFIG")).toBe(false);
+describe("ExecutionSection: prechecks were removed", () => {
+  it("shows no precheck field and no variable names for a trigger without a precheck", async () => {
+    const page = await show(initial());
+    expect(text(page.container)).not.toContain("Precheck");
+    expect(text(page.container)).not.toContain("Variable");
+    expect(text(page.container)).not.toContain("Prechecks were removed");
+    const agent = await show(initial({ agentId: "atlas-1a2b", target: "isolated" }));
+    expect(text(agent.container)).not.toContain("Precheck");
   });
 
-  it("says the precheck is not run for webhooks and shows the contract's error under it", async () => {
-    const page = await show(initial(), { "execution.precheck": "visible text, tabs and new lines only" });
-    expect(text(page.container)).toContain("Not run for webhooks.");
-    expect(text(page.container)).toContain("visible text, tabs and new lines only");
-  });
-});
-
-describe("ExecutionSection: precheck of an agent target", () => {
-  it("hides the precheck field for an agent unless one is stored", async () => {
-    const empty = await show(initial({ agentId: "atlas-1a2b", target: "isolated" }));
-    expect(text(empty.container)).not.toContain("Precheck");
-    const stored = await show(initial({ agentId: "atlas-1a2b", target: "isolated", precheck: "true" }));
-    expect(text(stored.container)).toContain("Precheck");
-    expect(text(stored.container)).toContain("Prechecks do not run for agents: clear this field.");
+  it("shows a stored precheck read-only with the hint, and clears it with its variable names", async () => {
+    const page = await show(initial({ precheck: "kubectl get pods", env: ["KUBECONFIG"] }));
+    const stored = field(page.container, "Precheck") as HTMLTextAreaElement;
+    expect(stored.value).toBe("kubectl get pods");
+    expect(stored.disabled).toBe(true);
+    expect(text(page.container)).toContain("Prechecks were removed: clear this field.");
+    await click(button(page.container, "Clear"));
+    expect(hasButton(page.container, "Clear")).toBe(false);
+    expect(text(page.container)).not.toContain("Precheck");
   });
 });

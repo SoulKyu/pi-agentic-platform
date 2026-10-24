@@ -34,6 +34,8 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
     },
     covers: (_ownerId, path) =>
       [...seen].some((key) => path.startsWith((JSON.parse(key) as string[])[1] ?? "\0")),
+    coversHost: (_ownerId, path) =>
+      [...seen].some((key) => path.startsWith((JSON.parse(key) as string[])[1] ?? "\0")),
     list: (_ownerId, ids) =>
       ids.filter((id) => id.startsWith(PREFIX)).map((id) => viewOf(id.slice(PREFIX.length))),
     all: (ownerId) =>
@@ -56,5 +58,6 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
+    onRemoved: () => () => {},
   };
 }

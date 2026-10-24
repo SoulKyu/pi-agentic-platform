@@ -9,6 +9,7 @@ import {
   type InitRecord,
   type WorkerRecord,
 } from "@pap/contracts";
+import type { ProjectBoxSource } from "../../../kernel/boxes.ts";
 import { type Clock, createFakeClock, type FakeClock } from "../../../kernel/clock.ts";
 import type { Db } from "../../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
@@ -65,6 +66,8 @@ export interface BedOptions {
   policy?: PolicyPort;
   /** The projects module's port; defaults to `fakeProjectsPort()`. */
   projects?: ProjectsPort;
+  /** The owner's box projects (late-bound in the daemon); none by default. */
+  boxes?: ProjectBoxSource;
   /** The instance owner adopted sessions go to; defaults to `u1`. */
   ownerId?(): string | null;
   /** Called once per adopted row (agreement 8). */
@@ -251,6 +254,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     hub,
     policy: options.policy ?? fakePolicyPort(),
     projects,
+    ...(options.boxes ? { boxes: () => options.boxes } : {}),
     audit: options.audit ?? { append: () => {}, reserve: () => true, fromWorker: () => null },
     attachments: options.attachments ?? noAttachments,
     containment: options.containment ?? "none",

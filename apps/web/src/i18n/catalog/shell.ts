@@ -79,7 +79,7 @@ export const shellEn = {
   "shell.project.menu": "Choose a project",
   "shell.project.more.one": "{count} more project is not listed",
   "shell.project.more.other": "{count} more projects are not listed",
-  "shell.project.add": "Add project…",
+  "shell.project.add": "New project…",
   "shell.notFound.title": "This page does not exist",
   "shell.notFound.purpose": "The link may be old, or the item was closed.",
   "shell.notFound.home": "Go to the start",
@@ -127,6 +127,7 @@ export const shellEn = {
   "error.agent_paused": "This agent is paused. Resume it from its header.",
   "error.vm_bundle_stale":
     "The code inside this agent's VM is older than pap. Run `sudo pap vm setup`, then open the thread again. Nothing was lost.",
+  "error.box_stopped": "The project's box is stopped: start it from the project page.",
   "error.push_unavailable": "Notifications are not available on this server. See Settings › Notifications.",
   "error.push_revoked":
     "This device was removed from the notification list. Enable notifications again to add it back.",
@@ -222,7 +223,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.project.menu": "Choisir un projet",
   "shell.project.more.one": "{count} autre projet n'est pas listé",
   "shell.project.more.other": "{count} autres projets ne sont pas listés",
-  "shell.project.add": "Ajouter un projet…",
+  "shell.project.add": "Nouveau projet…",
   "shell.notFound.title": "Cette page n'existe pas",
   "shell.notFound.purpose": "Le lien est peut-être ancien, ou l'élément a été fermé.",
   "shell.notFound.home": "Aller au début",
@@ -273,6 +274,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "error.agent_paused": "Cet agent est en pause. Reprenez-le depuis son en-tête.",
   "error.vm_bundle_stale":
     "Le code dans la VM de cet agent est plus ancien que pap. Lancez `sudo pap vm setup`, puis rouvrez le fil. Rien n'est perdu.",
+  "error.box_stopped": "La box du projet est arrêtée : démarrez-la depuis la page du projet.",
   "error.push_unavailable":
     "Les notifications ne sont pas disponibles sur ce serveur. Voir Réglages › Notifications.",
   "error.push_revoked":

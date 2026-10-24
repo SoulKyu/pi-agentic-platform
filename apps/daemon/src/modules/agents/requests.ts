@@ -25,7 +25,8 @@ export interface RequestItems {
   upsertAgentItem(input: {
     readonly ownerId: string;
     readonly kind: string;
-    readonly agentId: string;
+    readonly agentId: string | null;
+    readonly title?: string;
     readonly refId: string;
     readonly detail?: string | null;
     readonly toHandle: boolean;

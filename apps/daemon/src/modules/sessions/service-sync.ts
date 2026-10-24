@@ -2,6 +2,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { mirrorFileOf } from "../agent-vm/index.ts";
+import { mirrorRowOf } from "./mirror-row.ts";
 import type { LiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import type { PreReadyBuffer } from "./pre-ready-buffer.ts";
@@ -29,7 +30,7 @@ export function createStoreSync(deps: StoreSyncDeps) {
     const file = session.piFile();
     const piSessionId = session.piSessionId();
     if (!file || !piSessionId || fileSizeOrZero(file) === 0) return false;
-    const mirror = mirrorFileOf(deps.papHome, { piPath: file, agentId: row.agentId }) !== null;
+    const mirror = mirrorFileOf(deps.papHome, mirrorRowOf(deps.store.marks, row, file)) !== null;
     if (!mirror && !isPiSessionFile(deps.agentDir, file)) {
       deps.logger.warn("session_file_refused", { sessionId: row.id });
       return true;

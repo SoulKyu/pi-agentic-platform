@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFil
 import { join } from "node:path";
 import { AUTOMATION_LIMITS } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
+import { createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
 import {
   createAutomationBed,
   manualInput,
@@ -28,6 +29,27 @@ const everything = () =>
   ]);
 
 describe("create", () => {
+  it("a trigger on a box root stores the project and the cwd as given", () => {
+    const root = "/boxes/p1/project";
+    bed = createAutomationBed({
+      boxes: () =>
+        createFakeProjectBoxSource({
+          p1: {
+            ownerId: "u1",
+            root,
+            resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
+            hosts: [],
+            deleting: false,
+          },
+        }),
+    });
+    const { trigger } = bed.triggers.create(bed.owner(), webhookInput(`${root}/sub`));
+    expect(trigger).toMatchObject({ cwd: `${root}/sub`, projectId: "p1" });
+    expect(row(trigger.id)).toMatchObject({ cwd: `${root}/sub`, project_id: "p1" });
+    expect(bed.triggers.resolveFolder(`${root}/sub`, "u1")).toBe(`${root}/sub`);
+    expect(() => bed.triggers.create(bed.owner(), webhookInput(`${root}/../x`))).toThrow(code("invalid_cwd"));
+  });
+
   it("without a step-up answers step_up_required and writes nothing", () => {
     bed = createAutomationBed();
     expect(() => bed.triggers.create(bed.unconfirmed(), webhookInput(bed.folder))).toThrow(

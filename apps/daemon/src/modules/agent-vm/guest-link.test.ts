@@ -1,4 +1,4 @@
-import { PapError } from "@pap/contracts";
+import { boxKey, PapError } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   AGENT,
@@ -79,8 +79,8 @@ describe("a worker hello refused in acceptWorker burns the slot (AVM-E10, T6 min
     );
     expect(again.destroyed).toBe(true);
     expect(h.refusals()).toEqual([
-      { agentId: AGENT, reason: "protocol" },
-      { agentId: AGENT, reason: "duplicate" },
+      { box: boxKey(AGENT), reason: "protocol" },
+      { box: boxKey(AGENT), reason: "duplicate" },
     ]);
   });
 
@@ -104,7 +104,7 @@ describe("a worker hello refused in acceptWorker burns the slot (AVM-E10, T6 min
     const guest = await guestOf(h, launch);
     const spawning = guest.link.spawnWorker(spawnInput(), null);
     h.connect().feed(workerHello(launch, "f".repeat(32)));
-    expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "slot" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(AGENT), reason: "slot" }]);
     const slot = (guest.socket.frames().at(-1) as { slot: string }).slot;
     h.connect().feed(workerHello(launch, slot));
     expect((await spawning).pid).toBeUndefined();
@@ -118,7 +118,7 @@ describe("a new session's hello must not name a file (AVM-E10, T6 minor 9a)", ()
       session: { file: "s.jsonl", lastEntryId: null, size: 10 },
     });
     expect(run.socket.destroyed).toBe(true);
-    expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "protocol" }]);
+    expect(h.refusals()).toEqual([{ box: boxKey(AGENT), reason: "protocol" }]);
     expect(await run.settled).toEqual(new PapError("worker_failed"));
     expect(signalsOf(run.guest, run.slot)).toHaveLength(1);
   });
@@ -150,7 +150,7 @@ describe("the slot is used only once the worker exists (AVM-E10, T6 minor 2)", (
     again.feed(
       workerHello(run.launch, run.slot, { session: { file: "s.jsonl", lastEntryId: null, size: 0 } }),
     );
-    expect(h.refusals().at(-1)).toEqual({ agentId: AGENT, reason: "duplicate" });
+    expect(h.refusals().at(-1)).toEqual({ box: boxKey(AGENT), reason: "duplicate" });
   });
 });
 
@@ -164,7 +164,7 @@ describe("after a worker exits only the used marker stays (AVM-E10, T6 minor 5)"
     const again = h.connect();
     again.feed(workerHello(launch, worker.slot));
     expect(again.destroyed).toBe(true);
-    expect(h.refusals().at(-1)).toEqual({ agentId: AGENT, reason: "duplicate" });
+    expect(h.refusals().at(-1)).toEqual({ box: boxKey(AGENT), reason: "duplicate" });
     guest.socket.feed({ type: "exited", slot: worker.slot, code: 1, signal: null, tail: "late" });
     expect(worker.handle.outputTail()).toBe("");
   });

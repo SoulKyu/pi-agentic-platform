@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { createLocks } from "./locks.ts";
-import { createFixture, OTHER_AGENT, seedDisk, startRequest, type Fixture } from "./testing/ops-fixture.ts";
+import { createFixture, OTHER_BOX, seedDisk, startRequest, type Fixture } from "./testing/ops-fixture.ts";
 
 /*
  * Mutants (RT-43) killed here, run for real:
@@ -32,9 +32,9 @@ describe("vm.start and the start lock", () => {
       release = resolve;
     });
     seedDisk(fx);
-    seedDisk(fx, OTHER_AGENT);
+    seedDisk(fx, OTHER_BOX);
     const first = fx.ops.handle(startRequest()).catch((error: unknown) => (error as { code?: string }).code);
-    const second = fx.ops.handle(startRequest({ agentId: OTHER_AGENT, launchId: "b".repeat(32) }));
+    const second = fx.ops.handle(startRequest({ box: OTHER_BOX, launchId: "b".repeat(32) }));
     for (let index = 0; index < 5; index += 1) await flush();
     expect(fx.order).toContain(`attach ${HELPER}`);
     expect(fx.order).not.toContain(`prepare ${WRITER}`);

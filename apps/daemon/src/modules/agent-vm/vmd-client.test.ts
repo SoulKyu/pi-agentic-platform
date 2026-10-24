@@ -22,7 +22,7 @@ const LIST: VmdRequest = { op: "vm.list" };
 const TOKEN = "ab".repeat(32);
 const START: VmdRequest = {
   op: "vm.start",
-  agentId: "scout-0001",
+  box: { kind: "agent", id: "scout-0001" },
   kind: "thread",
   taskKey: null,
   image: `pap-agent-agent-${"a".repeat(64)}`,
@@ -96,7 +96,7 @@ describe("vmd client", () => {
 
   it("refuses a request the schema refuses before connecting", async () => {
     const before = connections.length;
-    const bad = { op: "vm.start", agentId: "../x" } as unknown as VmdRequest;
+    const bad = { op: "vm.start", box: { kind: "agent", id: "../x" } } as unknown as VmdRequest;
     await expect(client().request(bad)).rejects.toMatchObject({ code: "bad_request" });
     expect(connections).toHaveLength(before);
   });

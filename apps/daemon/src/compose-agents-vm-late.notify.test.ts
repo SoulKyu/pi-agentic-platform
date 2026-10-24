@@ -21,7 +21,7 @@ function bed(thread: string | null, known = true) {
       onChange: () => () => {},
     },
     runs: { port: { onLiveCost: () => () => {}, onRunEnd: () => () => {} } },
-    automation: { agentTasks: { overBudget: () => false } },
+    automation: { agentTasks: { overBudget: () => false, ownerOverBudget: () => false } },
   } as unknown as AgentsVmLate;
   const derived = bindAgentsVmLate(
     {

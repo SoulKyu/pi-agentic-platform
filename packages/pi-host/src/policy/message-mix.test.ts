@@ -21,11 +21,11 @@ beforeEach(async () => {
 });
 afterEach(() => bed.dispose());
 
-const rulesOf = (profile: "agent-thread" | "isolated-task" | "interactive") =>
+const rulesOf = (profile: "agent-thread" | "isolated-task" | "interactive" | "project") =>
   PolicyRules.parse({
     profile,
     approvalMode: "auto-accept-edits",
-    ...(profile === "agent-thread" ? { agentHome: atlas } : {}),
+    ...(profile === "agent-thread" || profile === "project" ? { agentHome: atlas } : {}),
     ...(profile === "isolated-task" ? { agentHome: atlas, agentScratch: scratch } : {}),
     sandbox: { required: true, network: false },
   });
@@ -52,7 +52,7 @@ const shell = (rules: PolicyRules) => call("bash", sandboxedBash, rules, { comma
 const piTool = (name: string, rules: PolicyRules, input: unknown = { path: "a.txt" }) =>
   call(name, classifyTool(name, { path: `builtin:${name}` }), rules, input);
 
-describe.each(["agent-thread", "isolated-task"] as const)(
+describe.each(["agent-thread", "isolated-task", "project"] as const)(
   "one message, a sandboxed shell and a file tool (W5-R11): %s",
   (profile) => {
     const rules = rulesOf(profile);

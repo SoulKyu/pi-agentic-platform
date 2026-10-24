@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createLaunchAddresses } from "./launch-addresses.ts";
 
-const scope = (launchId: string) => ({ agentId: "atlas-1a2b", launchId, source: "thread" as const });
+const scope = (launchId: string) => ({
+  box: { kind: "agent", id: "atlas-1a2b" } as const,
+  launchId,
+  source: "thread" as const,
+});
 
 describe("the launch addresses", () => {
   it("answers the launch behind an address until it is removed", () => {
@@ -15,7 +19,11 @@ describe("the launch addresses", () => {
 
   it("keeps a task VM's source", () => {
     const map = createLaunchAddresses();
-    map.add("10.213.0.7", { agentId: "a", launchId: "l9", source: { task: "nightly" } });
+    map.add("10.213.0.7", {
+      box: { kind: "agent", id: "a-0001" } as const,
+      launchId: "l9",
+      source: { task: "nightly" },
+    });
     expect(map.scopeOf("10.213.0.7")?.source).toEqual({ task: "nightly" });
   });
 

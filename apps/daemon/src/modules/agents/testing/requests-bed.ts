@@ -31,7 +31,7 @@ export async function createRequestsBed(options: { readOnly?: boolean; auditFail
       upserts.push({
         kind: input.kind,
         refId: input.refId,
-        agentId: input.agentId,
+        agentId: input.agentId ?? "",
         detail: input.detail ?? null,
         toHandle: input.toHandle,
       });

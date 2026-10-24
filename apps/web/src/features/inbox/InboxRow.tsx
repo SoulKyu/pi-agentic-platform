@@ -3,6 +3,7 @@ import { type AvatarStyle, Chip, cn, FOCUS_RING, Icon, IconWork } from "@pap/ui"
 import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
 import { AgentInboxRow } from "./AgentInboxRow.tsx";
+import { BOX_PAUSED, BoxPausedRow } from "./BoxPausedRow.tsx";
 import { chipOf, costOf, isAgentItem, isOpen, titleOf } from "./inbox.vm.ts";
 
 export interface InboxRowProps {
@@ -10,10 +11,13 @@ export interface InboxRowProps {
   readonly now: number;
   readonly avatarStyle: AvatarStyle;
   onPick(item: InboxItem): void;
+  /** The shell opens the project's page. */
+  onOpenProject?(projectId: string): void;
 }
 
-/** An agent's item is an agent row (M11R129); every other kind is M10's task line. */
+/** A paused box is a project row (R7); an agent's item is an agent row (M11R129); every other kind is M10's task line. */
 export function InboxRow(props: InboxRowProps) {
+  if (props.item.kind === BOX_PAUSED) return <BoxPausedRow {...props} />;
   return isAgentItem(props.item) ? <AgentInboxRow {...props} /> : <TaskRow {...props} />;
 }
 

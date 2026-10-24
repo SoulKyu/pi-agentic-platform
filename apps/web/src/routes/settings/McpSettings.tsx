@@ -1,5 +1,6 @@
 import { Button } from "@pap/ui";
 import { useState } from "react";
+import "../../i18n/register-boxes.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
 import { useEffectiveProject } from "../../stores/current-project.ts";
@@ -17,7 +18,10 @@ export function McpSettings() {
   const t = useT();
   const failureText = useLazyFailureText();
   const { stepUp, prompt } = useSettingsStepUp();
-  const cwd = useEffectiveProject()?.root;
+  const project = useEffectiveProject();
+  // A box project's own MCP servers are not available yet (a helper would open its host path): the global list only.
+  const inBox = project?.kind === "box";
+  const cwd = inBox ? undefined : project?.root;
   const { Lazy, attempt, retry } = useRetryableLazy(loadMcp);
   const [failed, setFailed] = useState(false);
 
@@ -50,6 +54,11 @@ export function McpSettings() {
       >
         <Lazy stepUp={stepUp} cwd={cwd} />
       </LazyBoundary>
+      {inBox ? (
+        <p role="note" className="text-ui text-muted">
+          {t("boxes.off")}
+        </p>
+      ) : null}
       {prompt}
     </>
   );

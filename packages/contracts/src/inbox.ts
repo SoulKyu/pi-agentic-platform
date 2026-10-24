@@ -28,7 +28,7 @@ export const INBOX_KINDS = {
   toHandle: ["task_needs_input", "agent_approve", "secret_request"],
   replies: ["agent_reply", "delegation_done"],
   tasks: ["task_done", "task_failed", "task_interrupted", "task_limited"],
-  info: ["agent_notify", "agent_egress"],
+  info: ["agent_notify", "agent_egress", "box_paused"],
 } as const;
 
 export const INBOX_FILTERS = ["all", "to_handle", "replies", "tasks"] as const;

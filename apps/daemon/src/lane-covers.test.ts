@@ -3,7 +3,9 @@ import { withLaneRoots } from "./lane-covers.ts";
 import type { ProjectsPort } from "./modules/projects/index.ts";
 
 const projects = {
-  covers: (owner: string, path: string) => owner === "u1" && path.startsWith("/w/api"),
+  covers: (owner: string, path: string) =>
+    owner === "u1" && (path.startsWith("/w/api") || path.startsWith("/boxes/b1/project")),
+  coversHost: (owner: string, path: string) => owner === "u1" && path.startsWith("/w/api"),
   roots: () => ["/w/api"],
 } as unknown as ProjectsPort;
 const lanes = (owner: string): readonly string[] =>
@@ -33,5 +35,10 @@ describe("withLaneRoots (final review I1)", () => {
     expect(live("u1", "/p/worktrees/fix-1a2b")).toBe(true);
     roots = [];
     expect(live("u1", "/p/worktrees/fix-1a2b")).toBe(false);
+  });
+
+  it("never covers a box project's root, though the projects do (a helper would open its host path)", () => {
+    expect(covers("u1", "/boxes/b1/project")).toBe(false);
+    expect(covers("u1", "/boxes/b1/project/src")).toBe(false);
   });
 });

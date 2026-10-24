@@ -2,7 +2,9 @@ import { PapError } from "@pap/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { classifyExit } from "../../kernel/supervisor/exit.ts";
 import { CRASH_LIMIT } from "./lifecycle.ts";
-import { type Bed, bed, IDLE_MS, settle, specOf, workerInput } from "./runtime-fixtures.ts";
+import { type Bed, bed, IDLE_MS, settle, specOf, workerInput, agentBox } from "./runtime-fixtures.ts";
+
+const A1 = { kind: "agent", id: "a1" } as const;
 
 let b: Bed;
 beforeEach(async () => {
@@ -14,18 +16,18 @@ beforeEach(async () => {
 
 describe("launch end", () => {
   const revoked = (agentId: string, launch: { launchId: string; token: string }) =>
-    b.tokens.check(agentId, launch.launchId, launch.token) === false;
+    b.tokens.check(agentBox(agentId), launch.launchId, launch.token) === false;
 
   it("revokes and ends the launch when the VM stops", async () => {
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
     const launch = b.launchAt(0);
-    await b.runtime.stop("a1");
+    await b.runtime.stop(agentBox("a1"));
     expect(revoked("a1", launch)).toBe(true);
     expect(b.ended).toEqual([launch.launchId]);
     expect(b.guestAt(0).shutdown).toHaveBeenCalled();
     expect(b.guestAt(0).handles.at(0)?.stop).toHaveBeenCalled();
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
-    expect(b.runtime.phase("a1")).toBe("stopped");
+    expect(b.backend.stop).toHaveBeenCalledWith(A1, null, expect.any(String));
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
   });
 
   it("revokes and ends the launch when the VM crashes", async () => {
@@ -43,7 +45,7 @@ describe("launch end", () => {
     const launch = b.launchAt(0);
     expect(revoked("a1", launch)).toBe(true);
     expect(b.ended).toEqual([launch.launchId]);
-    expect(b.runtime.phase("a1")).toBe("stopped");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
     expect(b.runtime.imageOf(launch.launchId)).toBeNull();
   });
 
@@ -55,7 +57,7 @@ describe("launch end", () => {
     const launch = b.launchAt(0);
     expect(revoked("a1", launch)).toBe(true);
     expect(b.ended).toEqual([launch.launchId]);
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
+    expect(b.backend.stop).toHaveBeenCalledWith(A1, null, expect.any(String));
   });
 
   it("lets a later spawn start a new VM after a failed start", async () => {
@@ -64,7 +66,7 @@ describe("launch end", () => {
     b.failStart.error = null;
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
     expect(b.starts).toHaveLength(2);
-    expect(b.runtime.phase("a1")).toBe("running");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("running");
   });
 });
 
@@ -76,9 +78,9 @@ describe("idle stop", () => {
     await b.clock.advance(IDLE_MS - 1);
     expect(b.backend.stop).not.toHaveBeenCalled();
     await b.clock.advance(1);
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
+    expect(b.backend.stop).toHaveBeenCalledWith(A1, null, expect.any(String));
     expect(guest.shutdown).toHaveBeenCalled();
-    expect(b.runtime.phase("a1")).toBe("stopped");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
   });
 
   it("never stops the VM while a worker lives", async () => {
@@ -109,8 +111,8 @@ describe("crash (RT-40)", () => {
     const guest = b.guestAt(0);
     guest.crash();
     await expect(out.handle.exited).resolves.toBeDefined();
-    expect(b.runtime.phase("a1")).toBe("stopped");
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
+    expect(b.backend.stop).toHaveBeenCalledWith(A1, null, expect.any(String));
   });
 
   const crashOnce = async (): Promise<void> => {
@@ -123,8 +125,8 @@ describe("crash (RT-40)", () => {
     for (let i = 0; i < CRASH_LIMIT - 1; i++) await crashOnce();
     expect(b.crashPauses).toEqual([]);
     await crashOnce();
-    expect(b.crashPauses).toEqual(["a1"]);
-    expect(b.runtime.phase("a1")).toBe("paused");
+    expect(b.crashPauses).toEqual(["agent:a1"]);
+    expect(b.runtime.phase(agentBox("a1"))).toBe("paused");
     const before = b.starts.length;
     await expect(b.runtime.spawn(specOf("a1"), workerInput(), null)).rejects.toMatchObject({
       code: "agent_paused",
@@ -136,10 +138,10 @@ describe("crash (RT-40)", () => {
   it("tells the pause once: a VM of the agent that crashes after it is a crash, not another pause", async () => {
     await b.runtime.spawn(specOf("a1", { kind: "isolated", taskKey: "t1" }), workerInput(), null);
     for (let i = 0; i < CRASH_LIMIT; i++) await crashOnce();
-    expect(b.crashPauses).toEqual(["a1"]);
+    expect(b.crashPauses).toEqual(["agent:a1"]);
     b.guestAt(0).crash();
     await settle();
-    expect(b.crashPauses).toEqual(["a1"]);
+    expect(b.crashPauses).toEqual(["agent:a1"]);
   });
 
   it("does not pause when the crashes are spread over more than ten minutes", async () => {
@@ -154,9 +156,9 @@ describe("crash (RT-40)", () => {
   it("does not count another agent's crash, and Resume clears the pause", async () => {
     for (let i = 0; i < CRASH_LIMIT; i++) await crashOnce();
     await b.runtime.spawn(specOf("a2"), workerInput(), null);
-    b.runtime.resume("a1");
+    b.runtime.resume(agentBox("a1"));
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
-    expect(b.runtime.phase("a1")).toBe("running");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("running");
   });
 
   // Mutant "stopping guard dropped in onClosed": the guest's close after our own stop counts as a crash.
@@ -166,18 +168,18 @@ describe("crash (RT-40)", () => {
       (out.handle.stop as ReturnType<typeof vi.fn>).mockImplementation(() =>
         Promise.resolve(classifyExit(0, null)),
       );
-      await b.runtime.stop("a1");
+      await b.runtime.stop(agentBox("a1"));
       b.guestAt(-1).crash();
       await settle();
     }
     expect(b.crashPauses).toEqual([]);
-    expect(b.runtime.phase("a1")).toBe("stopped");
+    expect(b.runtime.phase(agentBox("a1"))).toBe("stopped");
   });
 
   it("does not count a VM that stops on our command, or one that crashes with no worker alive", async () => {
     for (let i = 0; i < CRASH_LIMIT; i++) {
       await b.runtime.spawn(specOf("a1"), workerInput(), null);
-      await b.runtime.stop("a1");
+      await b.runtime.stop(agentBox("a1"));
     }
     expect(b.crashPauses).toEqual([]);
     for (let i = 0; i < CRASH_LIMIT; i++) {

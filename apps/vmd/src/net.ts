@@ -15,7 +15,8 @@ import { VmdFailure } from "./errors.ts";
 import type { Logger } from "./log.ts";
 import type { Exec, NetPort } from "./ops.ts";
 import { NET_CALL_TIMEOUT_MS } from "./net-facts.ts";
-import { psArgv, vmName } from "./argv.ts";
+import { psArgv } from "./argv.ts";
+import { vmName } from "./box-name.ts";
 import { parseVmList } from "./ops-vm.ts";
 import type { VmdState } from "./state.ts";
 
@@ -317,7 +318,7 @@ export function createNet(deps: NetDeps): NetPort {
     const running = new Set(
       parseVmList(listed.stdout)
         .filter((entry) => entry.state !== "stopped")
-        .map((entry) => vmName(entry.agentId, entry.taskKey)),
+        .map((entry) => vmName(entry.box, entry.taskKey)),
     );
     const ports = await listPorts();
     if (ports === null) throw new Error("net: restore cannot list the bridge ports");

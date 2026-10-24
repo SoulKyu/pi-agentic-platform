@@ -45,11 +45,10 @@ function setup() {
 
 const receiptRows = () =>
   bed.db.all<{ method: string; result: string }>("SELECT method, result FROM receipts");
-const PRECHECK = "curl -H 'Authorization: Bearer hunter2' http://example.invalid";
 const webhook = () => ({
   name: "Hook",
   source: { type: "webhook" },
-  execution: { cwd: bed.folder, precheck: PRECHECK },
+  execution: { cwd: bed.folder },
   prompt: "Alert: {{payload}}",
 });
 
@@ -62,7 +61,6 @@ describe("secrets in the receipts", () => {
     expect(secret).toMatch(/^pwh_[A-Za-z0-9_-]{43}$/);
     const stored = JSON.stringify(receiptRows());
     expect(stored).not.toContain("pwh_");
-    expect(stored).not.toContain("hunter2");
     expect(stored).not.toContain(trigger.id);
     expect(JSON.parse(receiptRows()[0]?.result ?? "{}")).toEqual({
       paramsHash: sha256Hex("{}"),
@@ -98,7 +96,6 @@ describe("secrets in the receipts", () => {
     expect(rotated.result.secret).toMatch(/^pwh_/);
     const stored = JSON.stringify(receiptRows());
     expect(stored).not.toContain("pwh_");
-    expect(stored).not.toContain("hunter2");
     for (const [method, params, commandId] of [
       [
         "automation.triggers.update",
@@ -146,16 +143,18 @@ describe("the handlers", () => {
     );
   });
 
-  it("refuses a trigger that names a never-passed variable for its precheck, and writes nothing", async () => {
+  it("refuses a precheck, its variable names and {{precheck}} on save, and writes nothing (B6)", async () => {
     const call = setup();
-    const input = {
-      ...webhook(),
-      execution: { cwd: bed.folder, precheck: "check.sh", env: ["GH_TOKEN"] },
-    };
-    expect(await call("automation.triggers.create", { input }, bed.owner(), "env1")).toMatchObject({
-      ok: false,
-      error: { code: "bad_request" },
-    });
+    const inputs = [
+      { ...webhook(), execution: { cwd: bed.folder, precheck: "check.sh" } },
+      { ...webhook(), execution: { cwd: bed.folder, precheck: "check.sh", env: ["GH_HOST"] } },
+      { ...webhook(), prompt: "Out: {{precheck}}" },
+    ];
+    for (const [index, input] of inputs.entries())
+      expect(await call("automation.triggers.create", { input }, bed.owner(), `pre${index}`)).toMatchObject({
+        ok: false,
+        error: { code: "bad_request" },
+      });
     expect(bed.db.get<{ n: number }>("SELECT count(*) AS n FROM triggers")?.n).toBe(0);
   });
 
@@ -198,7 +197,6 @@ describe("the handlers", () => {
       ok: true,
       result: { redacted: true, execution: { precheck: null, env: [] } },
     });
-    expect(JSON.stringify(got)).not.toContain("hunter2");
     const writes: Array<[string, unknown]> = [
       ["automation.triggers.create", { input: webhook() }],
       ["automation.triggers.update", { triggerId, baseRevision: 1, input: webhook() }],

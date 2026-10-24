@@ -56,7 +56,7 @@ describe("the op table and the caller verdict (M11R5)", () => {
       "agent.remind": ["agent-thread"],
       "lane.note": ["lane"],
       "secret.request": ["agent-thread"],
-      "network.request": ["agent-thread"],
+      "network.request": ["agent-thread", "plain", "task", "child"],
       "subagent.run": ["plain", "lane", "agent-thread"],
     });
   });
@@ -114,9 +114,9 @@ describe("the op table and the caller verdict (M11R5)", () => {
     expect(PLATFORM_OPS["agent.notify"].deadlineMs).toBe(10_000);
   });
 
-  it("registers no op for child, task or agent-task, and the table's lists in its order for the others", () => {
-    expect(opsFor("child")).toEqual([]);
-    expect(opsFor("task")).toEqual([]);
+  it("registers only network.request for child and task (the daemon refuses a host row), no op for agent-task, and the table's lists in its order for the others", () => {
+    expect(opsFor("child")).toEqual(["network.request"]);
+    expect(opsFor("task")).toEqual(["network.request"]);
     expect(opsFor("agent-task")).toEqual([]);
     expect(opsFor("agent-thread")).toEqual([
       "agent.notify",
@@ -128,7 +128,7 @@ describe("the op table and the caller verdict (M11R5)", () => {
       "subagent.run",
     ]);
     expect(opsFor("lane")).toEqual(["lane.note", "subagent.run"]);
-    expect(opsFor("plain")).toEqual(["subagent.run"]);
+    expect(opsFor("plain")).toEqual(["network.request", "subagent.run"]);
   });
 });
 

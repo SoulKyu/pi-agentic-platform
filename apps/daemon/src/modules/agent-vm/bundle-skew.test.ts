@@ -22,16 +22,19 @@ const named = (lines: Array<Record<string, unknown>>, msg: string) =>
 describe("createBundleSkew", () => {
   it("says ok when the digests are equal", async () => {
     const { skew, log } = make("aa", "aa");
-    expect(await skew.check("a1")).toBe("ok");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("ok");
     expect(named(log.lines, "vm_bundle_stale")).toHaveLength(0);
   });
 
   it("says stale when they differ, and logs it once per agent", async () => {
     const { skew, log } = make("aa", "bb");
-    expect(await skew.check("a1")).toBe("stale");
-    expect(await skew.check("a1")).toBe("stale");
-    expect(await skew.check("a2")).toBe("stale");
-    expect(named(log.lines, "vm_bundle_stale").map((line) => line.agentId)).toEqual(["a1", "a2"]);
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("stale");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("stale");
+    expect(await skew.check({ kind: "agent", id: "a2-0001" })).toBe("stale");
+    expect(named(log.lines, "vm_bundle_stale").map((line) => line.box)).toEqual([
+      "agent:a1-0001",
+      "agent:a2-0001",
+    ]);
   });
 
   it("says ok when a fresh read of the installed digest now matches", async () => {
@@ -43,7 +46,7 @@ describe("createBundleSkew", () => {
       treeDigest: async () => "bb",
       logger: log.logger,
     });
-    expect(await skew.check("a1")).toBe("ok");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("ok");
     expect(reads).toEqual([undefined, true]);
   });
 
@@ -60,15 +63,15 @@ describe("createBundleSkew", () => {
       },
       logger: log.logger,
     });
-    expect(await skew.check("a1")).toBe("unchecked");
-    expect(await skew.check("a1")).toBe("ok");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("unchecked");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("ok");
     expect(calls).toBe(2);
   });
 
   it("is unchecked without a bundle of its own, with one info log", async () => {
     const { skew, log, installedDigest } = make("aa", "aa", null);
-    expect(await skew.check("a1")).toBe("unchecked");
-    expect(await skew.check("a2")).toBe("unchecked");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("unchecked");
+    expect(await skew.check({ kind: "agent", id: "a2-0001" })).toBe("unchecked");
     expect(named(log.lines, "vm_bundle_unchecked")).toHaveLength(1);
     expect(installedDigest).not.toHaveBeenCalled();
   });
@@ -76,9 +79,9 @@ describe("createBundleSkew", () => {
   it("keeps the boot digest", async () => {
     let built = "aa";
     const { skew, treeDigest } = make("aa", () => built);
-    expect(await skew.check("a1")).toBe("ok");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("ok");
     built = "cc";
-    expect(await skew.check("a1")).toBe("ok");
+    expect(await skew.check({ kind: "agent", id: "a1-0001" })).toBe("ok");
     expect(treeDigest).toHaveBeenCalledTimes(1);
   });
 });

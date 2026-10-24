@@ -24,7 +24,7 @@ export interface AgentTasksDeps {
   readonly outbox: Pick<Outbox, "poke">;
   readonly events: AutomationEvents;
   readonly views: TaskViews;
-  readonly gates: Pick<Gates, "over">;
+  readonly gates: Pick<Gates, "over" | "ownerOver">;
   readonly newId: () => string;
 }
 
@@ -90,6 +90,8 @@ export function createAgentTasks(deps: AgentTasksDeps) {
     queuedDelegationsTo: deps.store.queuedDelegationsTo,
     reminders: deps.store.reminders,
     overBudget: (ownerId: string, agentId: string): boolean => deps.gates.over(ownerId, null, agentId),
+    /** The owner's own daily line (M10R66) alone: for a session that has no agent (a project's box). */
+    ownerOverBudget: (ownerId: string): boolean => deps.gates.ownerOver(ownerId),
 
     /**
      * A delegation (M11R78). Untainted: a thread task for the target, its prompt the fenced words (the fixed first line is

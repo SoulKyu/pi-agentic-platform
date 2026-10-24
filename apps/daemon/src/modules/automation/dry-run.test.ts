@@ -1,9 +1,6 @@
-import { mkdirSync } from "node:fs";
-import { join } from "node:path";
-import { AutomationSettings, methods, type PrecheckOutcome, type TriggerInput } from "@pap/contracts";
+import { AutomationSettings, methods, type TriggerInput } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDryRun } from "./dry-run.ts";
-import type { PrecheckPort } from "./manual.ts";
 import { manualInput, parsedInput } from "./testing/bed.ts";
 import { createRunnerBed, type RunnerBed } from "./testing/runner-bed.ts";
 
@@ -13,12 +10,8 @@ afterEach(() => {
   bed.dispose();
 });
 
-const passing: PrecheckOutcome = { verdict: "pass", exitCode: 0, durationMs: 12, output: "disk ok" };
-const skipping: PrecheckOutcome = { verdict: "skip", exitCode: 1, durationMs: 5, output: "nothing new" };
-
-function setup(outcome: PrecheckOutcome = passing) {
+function setup() {
   bed = createRunnerBed();
-  const spawn = vi.fn<PrecheckPort["run"]>(async () => outcome);
   const dry = createDryRun({
     clock: bed.clock,
     logger: bed.logger,
@@ -26,9 +19,8 @@ function setup(outcome: PrecheckOutcome = passing) {
     store: bed.engine.store,
     gates: bed.engine.gates,
     settings: { automation: (ownerId) => bed.settings.owners.get(ownerId) ?? bed.settings.value },
-    precheck: { run: spawn },
   });
-  return { dry, spawn };
+  return { dry };
 }
 const input = (over: Record<string, unknown> = {}, exec: Record<string, unknown> = {}): TriggerInput =>
   parsedInput({
@@ -176,7 +168,6 @@ describe("dry-run (M10R64)", () => {
         ownerId: "u1",
         source: "manual",
         payload: null,
-        precheck: null,
         dedupKey: null,
         title: "t",
         detail: null,
@@ -206,111 +197,29 @@ describe("dry-run (M10R64)", () => {
   });
 });
 
-describe("the dry-run precheck (RT-05)", () => {
+describe("the dry-run of a precheck (B6)", () => {
   const withPrecheck = (over: Record<string, unknown> = {}) =>
     input(over, { precheck: "make check", env: ["HOME_DIR"] });
+  const removed = { verdict: "error", exitCode: null, durationMs: 0, output: "precheck_removed" };
 
-  it("runs the saved trigger's precheck for a browser caller and reports its outcome", async () => {
-    const { dry, spawn } = setup(skipping);
+  it("answers a stored precheck as removed for a browser caller, a token and a draft, and runs nothing", async () => {
+    const { dry } = setup();
     const trigger = bed.trigger(withPrecheck());
-    const result = await dry.run(bed.owner(), { triggerId: trigger.id });
-    expect(spawn).toHaveBeenCalledTimes(1);
-    expect(spawn).toHaveBeenCalledWith({
-      command: "make check",
-      cwd: trigger.cwd,
-      env: ["HOME_DIR"],
-      triggerId: trigger.id,
-      origin: "manual",
-    });
-    expect(result.precheck).toEqual(skipping);
-    expect(result).toMatchObject({ verdict: "skip", reasons: ["precheck"] });
-  });
-
-  it("runs it for a draft equal to the saved trigger in precheck, folder and env, whatever else changed", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    const result = await dry.run(bed.owner(), {
-      triggerId: trigger.id,
-      draft: withPrecheck({ prompt: "A different prompt" }),
-    });
-    expect(spawn).toHaveBeenCalledTimes(1);
-    expect(result.precheck).toEqual(passing);
-    expect(result.prompt).toBe("A different prompt");
-  });
-
-  it("does not run an unsaved precheck: a draft with no saved trigger is not_run_unsaved", async () => {
-    const { dry, spawn } = setup();
-    const result = await dry.run(bed.owner(), { draft: withPrecheck() });
-    expect(result.precheck).toBe("not_run_unsaved");
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it("does not run the saved command in another folder: no process is spawned", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    const elsewhere = join(bed.dir, "elsewhere");
-    mkdirSync(elsewhere);
-    const result = await dry.run(bed.owner(), {
-      triggerId: trigger.id,
-      draft: input({}, { cwd: elsewhere, precheck: "make check", env: ["HOME_DIR"] }),
-    });
-    expect(result.precheck).toBe("not_run_unsaved");
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it("does not run a changed command or changed env names", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    const changedCommand = input({}, { precheck: "make other", env: ["HOME_DIR"] });
-    const changedEnv = input({}, { precheck: "make check", env: ["HOME_DIR", "EXTRA"] });
-    for (const draft of [changedCommand, changedEnv])
-      expect((await dry.run(bed.owner(), { triggerId: trigger.id, draft })).precheck).toBe("not_run_unsaved");
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it("never runs a precheck for a token caller, saved or not", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    expect((await dry.run(bed.token(), { triggerId: trigger.id })).precheck).toBe("not_run_token");
-    expect((await dry.run(bed.token(), { draft: withPrecheck() })).precheck).toBe("not_run_token");
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it("does not run the precheck of a paused owner: it reports paused and not_run_paused (ruling 3)", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    bed.settings.value = AutomationSettings.parse({ paused: true });
-    const result = await dry.run(bed.owner(), { triggerId: trigger.id });
-    expect(spawn).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ verdict: "skip", reasons: ["paused"], precheck: "not_run_paused" });
-  });
-
-  it("does not run the precheck of a fire the budget would refuse: not_run_budget (mirrors the real fire)", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(
-      withPrecheck({ source: { type: "schedule", rrule: "FREQ=HOURLY", timezone: "UTC" } }),
-    );
-    bed.settings.value = AutomationSettings.parse({ dailyBudgetUsd: 5 });
-    bed.runs.spent.value = 5;
-    const result = await dry.run(bed.owner(), { triggerId: trigger.id });
-    expect(spawn).not.toHaveBeenCalled();
-    expect(result).toMatchObject({ verdict: "skip", reasons: ["budget"], precheck: "not_run_budget" });
-  });
-
-  it("still runs the precheck of a manual trigger over budget: the owner's manual fire is exempt (M10R57)", async () => {
-    const { dry, spawn } = setup();
-    const trigger = bed.trigger(withPrecheck());
-    bed.settings.value = AutomationSettings.parse({ dailyBudgetUsd: 5 });
-    bed.runs.spent.value = 5;
-    const result = await dry.run(bed.owner(), { triggerId: trigger.id });
-    expect(spawn).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ verdict: "fire", reasons: [], precheck: passing });
+    for (const params of [
+      { triggerId: trigger.id },
+      { draft: withPrecheck() },
+      { triggerId: trigger.id, draft: withPrecheck({ prompt: "A different prompt" }) },
+    ])
+      for (const caller of [bed.owner(), bed.token()]) {
+        const result = await dry.run(caller, params);
+        expect(result.precheck).toEqual(removed);
+        expect(result).toMatchObject({ verdict: "skip", reasons: ["precheck_error"] });
+      }
   });
 
   it("answers null when the trigger has no precheck", async () => {
-    const { dry, spawn } = setup();
+    const { dry } = setup();
     const trigger = bed.trigger();
     expect((await dry.run(bed.owner(), { triggerId: trigger.id })).precheck).toBeNull();
-    expect(spawn).not.toHaveBeenCalled();
   });
 });

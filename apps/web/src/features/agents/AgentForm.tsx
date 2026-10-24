@@ -7,7 +7,8 @@ import type { PickerModel } from "../models/picker/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { AgentPackages } from "./AgentPackages.tsx";
-import { AgentResources } from "./AgentResources.tsx";
+import { HostsField } from "../boxes/HostsField.tsx";
+import { ResourceFields } from "../boxes/ResourceFields.tsx";
 import { AutonomyFields } from "./AutonomyFields.tsx";
 import { BudgetFields } from "./BudgetFields.tsx";
 import { derivedInitials, draftFromInput, type Draft, needsStepUp, toInput } from "./agent-form.vm.ts";
@@ -194,12 +195,8 @@ export function AgentForm({ agent, presetField, start, onSaved, onCancel, onRelo
           onChange={(value) => set({ ownHosts: value === "own" })}
         />
         {draft.ownHosts ? null : (
-          <TextField
-            label={t("agentForm.hosts.field")}
+          <HostsField
             hint={t("agentForm.hosts.hint")}
-            multiline
-            mono
-            rows={3}
             value={draft.hosts}
             error={fail("allowHosts")}
             onChange={(hosts) => set({ hosts })}
@@ -225,7 +222,7 @@ export function AgentForm({ agent, presetField, start, onSaved, onCancel, onRelo
         checked={draft.acceptsDelegation}
         onChange={(acceptsDelegation) => set({ acceptsDelegation })}
       />
-      <AgentResources draft={draft} errors={errors} set={set} />
+      <ResourceFields draft={draft} errors={errors} legend={t("agentVm.title")} set={set} />
       <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
       {widens ? (
         <p role="status" className="text-ui text-attn">

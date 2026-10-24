@@ -12,10 +12,7 @@ import {
   type AutomationDeps,
   type AutomationModule,
   createAutomationModule,
-  createPrecheckPort,
-  systemPrecheckDeps,
 } from "./modules/automation/index.ts";
-import type { WorkerScopes } from "./kernel/supervisor/scope.ts";
 import type { PolicyModule } from "./modules/policy/index.ts";
 import type { ProjectsModule } from "./modules/projects/index.ts";
 import type { RunsService } from "./modules/runs/index.ts";
@@ -54,18 +51,17 @@ export function composeOutbox(core: M10Core, tracer?: Tracer): Outbox {
 export interface AutomationModules {
   readonly audit: Pick<AuditModule, "port">;
   readonly policy: Pick<PolicyModule, "port">;
-  readonly projects: Pick<ProjectsModule, "port">;
+  /** `boxSource`: the owner's box projects, so a trigger or a task in a box root is never run from the host (boxes B1). */
+  readonly projects: Pick<ProjectsModule, "port"> & Partial<Pick<ProjectsModule, "boxSource">>;
   readonly sessions: Pick<SessionsModule, "automation">;
   readonly settings: Pick<SettingsModule, "port">;
-  /** The worker scopes: a precheck runs in a terminal-kind scope when they are on (agreement 9). */
-  readonly scopes?: Pick<WorkerScopes, "next">;
 }
 
 /** What the daemon built before any module: the recovered outbox and the runs registry. */
 export interface AutomationEarly {
   readonly outbox: Outbox;
   readonly runs: Pick<RunsService, "port">;
-  /** The trace file: the precheck's span. */
+  /** The trace file: the feed fetch's span. */
   readonly trace?: { readonly tracer: Tracer };
 }
 
@@ -88,6 +84,7 @@ export function composeAutomation(
     logger: core.logger,
     audit: modules.audit.port,
     projects: modules.projects.port,
+    ...(modules.projects.boxSource ? { boxes: () => modules.projects.boxSource } : {}),
     policy: modules.policy.port,
     config: core.config,
     requireStepUp,
@@ -100,13 +97,6 @@ export function composeAutomation(
     inboxRetention: () => late.inbox?.retention(),
     resume,
     feedSpan: early.trace && (() => (early.trace as { tracer: Tracer }).tracer.span("feed.fetch")),
-    precheck: createPrecheckPort({
-      logger: core.logger.child({ module: "automation" }),
-      env: core.env,
-      runner: systemPrecheckDeps(core.clock, core.logger),
-      scopes: modules.scopes,
-      span: early.trace && (() => (early.trace as { tracer: Tracer }).tracer.span("precheck")),
-    }),
   });
   const inbox = createInbox({
     db: core.db,

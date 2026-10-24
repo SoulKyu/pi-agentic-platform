@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, symlinkSync, utimesSync, writeFileSync } from "
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { createLaneConfig } from "./preview.ts";
 import { scriptHash } from "./project-config.ts";
@@ -28,6 +29,34 @@ const writeConfig = (text: string): string => {
   writeFileSync(path, text);
   return path;
 };
+
+describe("lanes.preview of a box root", () => {
+  it("preview of a box root never runs git", async () => {
+    const root = "/boxes/11111111-1111-4111-8111-111111111111/project";
+    const never = new Proxy(
+      {},
+      {
+        get: () => {
+          throw new Error("host git was called");
+        },
+      },
+    ) as typeof bed.git;
+    const boxes = createFakeProjectBoxSource({
+      p: {
+        ownerId: "u1",
+        root,
+        resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
+        hosts: [],
+        deleting: false,
+      },
+    });
+    const config = createLaneConfig({ ...bed.deps, git: never, roots: () => [root], boxes: () => boxes });
+    const view = await config.preview(caller(), root);
+    expect(view).toMatchObject({ repo: false, current: null, refs: [], remote: null, forge: null });
+    expect(await config.forgeLine("u1", root)).toBeUndefined();
+    expect(await config.approvedScript("u1", root, "setup")).toEqual({ ok: false, reason: "unapproved" });
+  });
+});
 
 describe("lanes.preview", () => {
   it("answers the branch, the refs newest first and no remote HEAD", async () => {

@@ -10,6 +10,7 @@ import {
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { newBoxCwdOf } from "./box-cwd.ts";
 import { resolveSessionCwd } from "./cwd.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { WorkerRoom } from "./worker-room.ts";
@@ -226,7 +227,8 @@ export function createAutomationPort(
   return {
     async createTaskSession({ ownerId, cwd, policy }) {
       if (policy.tools.length === 0) throw new PapError("bad_request");
-      const resolved = resolveSessionCwd(cwd, deps.worker.papHome);
+      const resolved =
+        newBoxCwdOf(deps.boxes?.(), ownerId, cwd)?.cwd ?? resolveSessionCwd(cwd, deps.worker.papHome);
       deps.admission?.task();
       keepOneFree();
       const now = deps.clock.now();
@@ -334,7 +336,10 @@ export function createAutomationPort(
       const file = row.piPath;
       let remove: (() => void) | null = null;
       if (file && isPiSessionFile(deps.worker.agentDir, file)) remove = () => rmSync(file, { force: true });
-      else if (file && mirrorFileOf(deps.worker.papHome, row) !== null)
+      else if (
+        file &&
+        mirrorFileOf(deps.worker.papHome, { ...row, projectId: projectId ?? undefined }) !== null
+      )
         remove = () => removeMirrorFiles(file);
       try {
         remove?.();

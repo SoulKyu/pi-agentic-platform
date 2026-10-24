@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   closeSync,
@@ -15,6 +16,7 @@ import {
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { OKF_INDEX_TEXT, okfLogText, type VmLayout } from "@pap/contracts";
+import { guestGitArgs, guestGitEnv } from "./ops/git-run.ts";
 import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 
 const PUBLIC_FOLDER = 0o755;
@@ -135,8 +137,33 @@ function seedKnowledge(rootFd: number, layout: VmLayout, now: Date, skipped: (li
   }
 }
 
+/** A project's repository is made once, when `.git` is absent in any form; a failure is told and the box starts without one. */
+function initRepository(project: string, home: string, skipped: (line: string) => void): void {
+  try {
+    lstatSync(join(project, ".git"));
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      skipped(
+        `the project repository could not be checked (${(error as NodeJS.ErrnoException).code ?? "unknown"})`,
+      );
+      return;
+    }
+  }
+  // The neutralised command line and environment every git of the guest uses (ops/git-run.ts).
+  const run = spawnSync("git", guestGitArgs(project, ["init", "-b", "main"]), {
+    cwd: project,
+    env: guestGitEnv({ PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: home }, project),
+    stdio: "ignore",
+    timeout: 30_000,
+  });
+  if (run.status !== 0)
+    skipped(`git init failed in the project (${run.error?.name ?? run.status ?? "signal"})`);
+}
+
 /**
- * R28 (RT-07) and AVM-P5. Makes the layout folders a blank disk lacks (`home`, `knowledge`, `inbox` 0755; Pi's `.pi`,
+ * R28 (RT-07) and AVM-P5. Makes the layout folders a blank disk lacks (`home`, `knowledge`, `inbox` 0755, or for a project
+ * box `project`, `home`, `inbox` with no `knowledge/` and a `git init -b main` in `project/` when it has no `.git`; Pi's `.pi`,
  * `sessions` and agent folder 0700), then copies every file of the image's agent folder over Pi's: image-owned files are
  * replaced, files only Pi made are kept. Every component is opened from its parent's descriptor with O_NOFOLLOW, so a link
  * or a file where a folder belongs is refused and nothing is written through it. Throws on the first refusal, except for the knowledge bundle's files, whose failure is told to `skipped` and skipped.
@@ -144,10 +171,13 @@ function seedKnowledge(rootFd: number, layout: VmLayout, now: Date, skipped: (li
 export function seedAgentFolder(layout: VmLayout, skipped: (line: string) => void = () => {}): void {
   const rootFd = openRootDir(layout.root);
   try {
-    for (const folder of [layout.home, layout.knowledge, layout.inbox]) {
-      closeSync(openChain(rootFd, layout.root, folder, PUBLIC_FOLDER));
-    }
-    seedKnowledge(rootFd, layout, new Date(), skipped);
+    // A project box has no `knowledge/` of its own to seed: OKF there is the owner's choice (ENABLE OKF).
+    const folders = layout.project
+      ? [layout.project, layout.home, layout.inbox]
+      : [layout.home, layout.knowledge, layout.inbox];
+    for (const folder of folders) closeSync(openChain(rootFd, layout.root, folder, PUBLIC_FOLDER));
+    if (layout.project) initRepository(layout.project, layout.home, skipped);
+    else seedKnowledge(rootFd, layout, new Date(), skipped);
     for (const folder of [layout.pi, layout.sessions]) {
       closeSync(openChain(rootFd, layout.root, folder, PRIVATE_FOLDER));
     }

@@ -8,7 +8,6 @@ import {
   effectiveMode,
   effectiveUsd,
   emptyDraft,
-  envProblem,
   fireNowEnabled,
   isDirty,
   rrulePreview,
@@ -93,11 +92,16 @@ describe("draft to TriggerInput", () => {
     );
   });
 
-  it("puts the {{precheck}} without-a-command error on the prompt", () => {
-    const parsed = toInput(draft({ prompt: "Result: {{precheck}}", precheck: "" }));
-    expect(parsed.ok).toBe(false);
-    expect(!parsed.ok && parsed.errors["prompt"]).toBe("{{precheck}} needs a precheck command");
-    expect(toInput(draft({ prompt: "Result: {{precheck}}", precheck: "true" })).ok).toBe(true);
+  it("refuses {{precheck}} on the prompt, and a stored precheck on its own field, in pap's words (B6)", () => {
+    const template = toInput(draft({ prompt: "Result: {{precheck}}", precheck: "" }));
+    expect(!template.ok && template.errors["prompt"]).toBe(
+      "Prechecks were removed: take {{precheck}} out of the prompt.",
+    );
+    const stored = toInput(draft({ precheck: "true", env: ["KUBECONFIG"] }));
+    expect(!stored.ok && stored.errors["execution.precheck"]).toBe(
+      "Prechecks were removed: clear this field.",
+    );
+    expect(toInput(draft({ precheck: "", env: [] })).ok).toBe(true);
   });
 
   it("hides an error on an empty field until the person tries, and shows it at once on a field with text", () => {
@@ -172,13 +176,10 @@ describe("the tool list", () => {
     expect(toolProblem("kubectl__get", ["read"])).toBeNull();
   });
 
-  it("refuses a 33rd tool and a 17th variable name (the contract's caps)", () => {
+  it("refuses a 33rd tool (the contract's cap)", () => {
     const tools = Array.from({ length: 32 }, (_, index) => `tool_${index}`);
     expect(toolProblem("one_more", tools)).toBe("limit");
     expect(toolProblem("one_more", tools.slice(1))).toBeNull();
-    const env = Array.from({ length: 16 }, (_, index) => `VAR_${index}`);
-    expect(envProblem("ONE_MORE", env)).toBe("limit");
-    expect(envProblem("ONE_MORE", env.slice(1))).toBeNull();
   });
 
   it("says exactly what asks under the chosen mode, once bash, edit or write is listed", () => {
@@ -200,16 +201,6 @@ describe("the tool list", () => {
     expect(words(toolNotes("supervised", ["read", "kubectl__apply"]))).toEqual([
       "The read-only preset is off: calls follow the approval mode",
     ]);
-  });
-});
-
-describe("precheck variables", () => {
-  it("shows the credential problem for GH_TOKEN and refuses A-B as no name", () => {
-    expect(envProblem("GH_TOKEN", [])).toBe("never");
-    expect(envProblem("AWS_REGION", [])).toBe("never");
-    expect(envProblem("A-B", [])).toBe("bad");
-    expect(envProblem("KUBECONFIG", [])).toBeNull();
-    expect(envProblem("KUBECONFIG", ["KUBECONFIG"])).toBe("duplicate");
   });
 });
 

@@ -27,7 +27,7 @@ import { createFakeClock, type FakeClock } from "./testing/fake-clock.ts";
 const hex = (n: number, ch: string): string => ch.repeat(n);
 const start = {
   op: "vm.start",
-  agentId: "helper-1a2b",
+  box: { kind: "agent", id: "helper-1a2b" },
   kind: "thread",
   taskKey: null,
   image: `pap-agent-agent-${hex(64, "b")}`,
@@ -145,13 +145,13 @@ describe("one request per connection", () => {
   it("answers a valid request with one response line, then closes; the handler gets the parsed request", async () => {
     handler = async () => ({ address: "10.213.0.2" });
     const raw = await exchange(
-      JSON.stringify({ op: "vm.status", agentId: "helper-1a2b", taskKey: null }),
+      JSON.stringify({ op: "vm.status", box: { kind: "agent", id: "helper-1a2b" }, taskKey: null }),
       "newline",
     );
     expect(raw.endsWith("\n")).toBe(true);
     expect(raw.split("\n").filter(Boolean)).toHaveLength(1);
     expect(JSON.parse(raw)).toEqual({ ok: true, result: { address: "10.213.0.2" } });
-    expect(handled).toEqual([{ op: "vm.status", agentId: "helper-1a2b", taskKey: null }]);
+    expect(handled).toEqual([{ op: "vm.status", box: { kind: "agent", id: "helper-1a2b" }, taskKey: null }]);
   });
 
   it("a request over 64 KiB is refused before it is parsed (a padded request that is valid JSON does not run)", async () => {
@@ -178,8 +178,8 @@ describe("one request per connection", () => {
   it.each([
     ["an unknown op", { op: "vm.destroy" }],
     ["an unknown key", { op: "vm.list", extra: 1 }],
-    ["a field of the wrong shape", { op: "vm.stop", agentId: "../x", taskKey: null }],
-    ["a missing field", { op: "vm.stop", agentId: "helper-1a2b" }],
+    ["a field of the wrong shape", { op: "vm.stop", box: { kind: "agent", id: "../x" }, taskKey: null }],
+    ["a missing field", { op: "vm.stop", box: { kind: "agent", id: "helper-1a2b" } }],
     ["an array", [{ op: "vm.list" }]],
     ["null", null],
     ["a token of the wrong length", { ...start, token: "ab" }],
@@ -240,12 +240,12 @@ describe("log (RT-33)", () => {
     await server().listen();
   });
 
-  it("the log line of a vm.start has no token, only op, agentId, taskKey, result and ms", async () => {
+  it("the log line of a vm.start has no token, only op, box, taskKey, result and ms", async () => {
     expect(await call(start)).toEqual({ ok: true, result: { done: true } });
     expect(records).toEqual([
       {
         event: "vmd_call",
-        fields: { op: "vm.start", agentId: "helper-1a2b", taskKey: null, result: "ok", ms: 0 },
+        fields: { op: "vm.start", box: "agent:helper-1a2b", taskKey: null, result: "ok", ms: 0 },
       },
     ]);
     const everything = JSON.stringify(records);
@@ -255,18 +255,33 @@ describe("log (RT-33)", () => {
 
   it("names the result of a refusal and a bad request", async () => {
     handler = () => Promise.reject(new VmdFailure("disk_low"));
-    await call({ op: "disk.grow", agentId: "helper-1a2b", taskKey: null, diskMb: 8192 });
+    await call({ op: "disk.grow", box: { kind: "agent", id: "helper-1a2b" }, taskKey: null, diskMb: 8192 });
     await call({ op: "nope", token: start.token });
     expect(records.map((r) => r.fields)).toEqual([
-      { op: "disk.grow", agentId: "helper-1a2b", taskKey: null, result: "disk_low", ms: 0 },
-      { op: null, agentId: null, taskKey: null, result: "bad_request", ms: 0 },
+      { op: "disk.grow", box: "agent:helper-1a2b", taskKey: null, result: "disk_low", ms: 0 },
+      { op: null, box: null, taskKey: null, result: "bad_request", ms: 0 },
     ]);
     expect(JSON.stringify(records)).not.toContain(start.token);
   });
 
-  it("an op with no agent logs a null agent id", async () => {
+  it("logs a project box by its key", async () => {
+    await call({
+      op: "vm.status",
+      box: { kind: "project", id: "0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0" },
+      taskKey: null,
+    });
+    expect(records[0]?.fields).toEqual({
+      op: "vm.status",
+      box: "project:0b1c2d3e-4f50-4162-8394-a5b6c7d8e9f0",
+      taskKey: null,
+      result: "ok",
+      ms: 0,
+    });
+  });
+
+  it("an op with no agent logs a null box", async () => {
     await call({ op: "vm.list" });
-    expect(records[0]?.fields).toEqual({ op: "vm.list", agentId: null, taskKey: null, result: "ok", ms: 0 });
+    expect(records[0]?.fields).toEqual({ op: "vm.list", box: null, taskKey: null, result: "ok", ms: 0 });
   });
 });
 

@@ -27,35 +27,33 @@ import { createHookRate } from "./hook-rate.ts";
 import { createDryRun } from "./dry-run.ts";
 import { createJournal } from "./journal.ts";
 import { createManual } from "./manual.ts";
-import { createPrecheckStep, type PrecheckPort } from "./precheck-step.ts";
 import { createHousekeeping } from "./housekeeping.ts";
 import { mountHookRoute } from "./hooks-http.ts";
+import { refuseStoredPrecheck } from "./precheck-refusal.ts";
 import { createReleaseTools } from "./release-tools.ts";
 import { createAgentScratchDropper, createAgentScratchSweeper } from "./runner-agent.ts";
 import { createScheduler, type Scheduler } from "./scheduler.ts";
 import { createAgentLink } from "./agent-link.ts";
+import { type AutomationProjectPort, createAutomationProjectPort } from "./project-port.ts";
+export type { AutomationProjectPort };
 import { createThreadQueue } from "./thread-queue.ts";
 import { type AutomationRpc, automationRpc, taskActions } from "./rpc.ts";
 import { createTriggerStore } from "./store.ts";
 import { type AgentPorts, createAgentBinding, createAgentTriggerLink } from "./trigger-agent.ts";
 import { triggerSecretsDir } from "./trigger-secrets.ts";
-import { createTriggers, type TriggerChanged, type Triggers } from "./triggers.ts";
+import { createTriggers, type TriggerChanged, type Triggers, type TriggersDeps } from "./triggers.ts";
 
 export type { AgentBinding, AgentPorts } from "./trigger-agent.ts";
-export { createTriggers } from "./triggers.ts";
-export type { TriggerChanged } from "./triggers.ts";
+export { createTriggers, type TriggerChanged } from "./triggers.ts";
 export { createTaskEngine, type Engine } from "./engine.ts";
 export { createReleaseTools } from "./release-tools.ts";
 export { createDryRun } from "./dry-run.ts";
 export { createJournal } from "./journal.ts";
 export { createManual } from "./manual.ts";
-export { createPrecheckPort, systemPrecheckDeps } from "./precheck-port.ts";
-export { createPrecheckStep, type PrecheckPort } from "./precheck-step.ts";
 export { createFeedPoller } from "./feed-poll.ts";
 export type { FeedFetchResult } from "./feed-fetch.ts";
-export type { Operations } from "./rpc.ts";
 export { createTriggerStore } from "./store.ts";
-export type { AutomationRpc } from "./rpc.ts";
+export type { AutomationRpc, Operations } from "./rpc.ts";
 export type { BootReport } from "./boot.ts";
 export type { FireInput, FireResult } from "./fire.ts";
 export { type AutomationEvent, type AutomationEvents, createAutomationEvents } from "./events.ts";
@@ -72,6 +70,7 @@ export interface AutomationDeps {
   readonly logger: Logger;
   readonly audit: Pick<AuditPort, "append">;
   readonly projects: Pick<ProjectsPort, "ensure">;
+  readonly boxes?: TriggersDeps["boxes"];
   readonly policy: Pick<
     PolicyPort,
     "scopeOf" | "endTaskPolicy" | "clearTaskPolicy" | "sessionPolicy" | "unattendedSessions"
@@ -125,8 +124,6 @@ export interface AutomationDeps {
   };
   /** A database written by a newer pap: the module arms nothing (M10R150). */
   readonly readOnly: boolean;
-  /** Runs a trigger's precheck (Task 9); none: a scheduled fire, a manual fire and a dry-run then skip the step. */
-  readonly precheck?: PrecheckPort;
   /** The `feed.fetch` span (closed values only); none: no span is written. */
   readonly feedSpan?: () => Span;
   /** Tests only: replaces the network fetch of a feed. Production leaves it out and gets the guarded fetch. */
@@ -154,6 +151,8 @@ export interface AutomationModule {
   taskOf(ownerId: string, sessionId: string): { taskId: string; overBudget: boolean } | null;
   /** What the agents registry asks of the triggers and tasks of an agent (M11, carry 1; quarantine, M11R115); bound by `agents.setLinks`. */
   readonly agentLink: ReturnType<typeof createAgentLink>;
+  /** What the projects module asks when a box project is deleted (boxes B1). */
+  readonly projectPort: AutomationProjectPort;
   /** The task makers of `agent.delegate` and `agent.remind` and the counts of their caps (M11R78, M11R80). */
   readonly agentTasks: Engine["agentTasks"];
   /** The agents' registry, sessions and cards (M11): bound once by `composeM11`, before the server listens. */
@@ -164,7 +163,7 @@ export interface AutomationModule {
   mountHooks(app: Hono): void;
   /** After `startServer`: arms the module's timers (the hourly housekeeping, the scheduler). */
   start(): void;
-  /** Stops hearing the runs and cancels the module's timers; running prechecks are aborted here (fetches too, later). */
+  /** Stops hearing the runs and cancels the module's timers; fetches in flight are aborted here. */
   stop(): Promise<void>;
 }
 
@@ -192,6 +191,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     audit: deps.audit,
     projects: deps.projects,
     scopeOf: (cwd) => deps.policy.scopeOf(cwd),
+    ...(deps.boxes ? { boxes: deps.boxes } : {}),
     config: deps.config,
     requireStepUp: deps.requireStepUp,
     onChange: triggerChanged,
@@ -218,16 +218,6 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     holdCancel: deps.config.testOutboxHold === "cancel",
   });
   late.engine = built;
-  const precheckStep = createPrecheckStep({
-    db: deps.db,
-    clock: deps.clock,
-    logger,
-    settings: deps.settings,
-    gates: built.gates,
-    triggers,
-    precheck: deps.precheck,
-    agents,
-  });
   const feeds = createFeedPoller({
     db: deps.db,
     clock: deps.clock,
@@ -238,13 +228,11 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     fire: built.fire,
     fetch:
       deps.feedFetch ?? ((url, signal) => fetchFeed(url, { resolve: lookup, clock: deps.clock, signal })),
-    precheck: precheckStep,
     span: deps.feedSpan,
   });
   deps.outbox.register("feed.poll", feeds.handler);
   const scheduler = createScheduler({
     outbox: deps.outbox,
-    precheck: precheckStep,
     db: deps.db,
     clock: deps.clock,
     logger,
@@ -336,6 +324,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
       triggerStore,
       triggers,
     }),
+    projectPort: createAutomationProjectPort(deps, logger, triggerStore, built.runner, triggerChanged),
     bindAgents: built.bindAgents,
     agentTasks: built.agentTasks,
     rpc: automationRpc(triggers, taskActions(built.runner, built.stream, releaseTools), {
@@ -345,10 +334,6 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
         logger,
         fire: built.fire,
         triggers,
-        settings: deps.settings,
-        gates: built.gates,
-        precheck: deps.precheck,
-        agents,
       }),
       dryRun: createDryRun({
         clock: deps.clock,
@@ -357,7 +342,6 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
         store: built.store,
         gates: built.gates,
         settings: deps.settings,
-        precheck: deps.precheck,
         agents,
       }),
       journal: createJournal({ db: deps.db, triggers, runs: deps.runs }),
@@ -378,6 +362,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
         backoff,
         rate,
         journal: createHookJournal({ db: deps.db, clock: deps.clock, logger }),
+        refusePrecheck: (record) => refuseStoredPrecheck(deps, record, "webhook"),
       }),
     recover: built.recover,
     start() {
@@ -387,7 +372,6 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     stop: async () => {
       scheduler.stop();
       feeds.stop();
-      deps.precheck?.stop?.();
       housekeeping.stop();
       built.stop();
     },

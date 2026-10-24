@@ -5,7 +5,13 @@ import { createFakeClock } from "./kernel/clock.ts";
 import { loopbackVmSeams } from "./modules/egress/testing/vm.ts";
 import { captureLogger } from "./testing/capture-logger.ts";
 
-const grant = { launchId: "l1", agentId: "atlas-1a2b", relayKey: "k", address: "127.0.0.1", taskKey: null };
+const grant = {
+  launchId: "l1",
+  box: { kind: "agent", id: "atlas-1a2b" } as const,
+  relayKey: "k",
+  address: "127.0.0.1",
+  taskKey: null,
+};
 
 /** One CONNECT to the listed host from 127.0.0.1 (the launch's address); resolves once the tunnel answers. */
 const tunnel = (port: number, host: string): Promise<Socket> =>

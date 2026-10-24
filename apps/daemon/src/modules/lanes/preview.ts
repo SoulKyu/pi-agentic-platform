@@ -12,6 +12,8 @@ import {
   type ResultOf,
   type ScriptKind,
 } from "@pap/contracts";
+import { boxOfPath } from "../../kernel/box-path.ts";
+import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { type BoundaryConfig, judgePath, type Scope } from "../../kernel/fs/boundary.ts";
@@ -45,6 +47,8 @@ export interface LaneConfigDeps {
   readonly readOnly: boolean;
   /** `Config.testGitProtocols` includes `file`: the push test seam (default false). */
   readonly allowFile?: boolean;
+  /** Late-bound (J1 wires it): a box project's folder is not a lane project and never reaches the host. */
+  readonly boxes?: () => ProjectBoxSource | undefined;
 }
 
 export interface LaneConfig {
@@ -118,6 +122,9 @@ export function createLaneConfig(deps: LaneConfigDeps): LaneConfig {
   const cache = createConfigCache();
 
   /** The project root is one of the caller's, exactly as stored (M9R26); another owner's or a subfolder is `not_found`. */
+  const inBox = (ownerId: string, projectRoot: string): boolean =>
+    boxOfPath(deps.boxes?.(), ownerId, projectRoot) !== null;
+
   function ownRoot(caller: Caller, projectRoot: string): void {
     if (!deps.roots(caller.userId).includes(projectRoot)) throw new PapError("not_found");
   }
@@ -252,7 +259,7 @@ export function createLaneConfig(deps: LaneConfigDeps): LaneConfig {
   return {
     async preview(caller, projectRoot) {
       ownRoot(caller, projectRoot);
-      const real = await realpath(projectRoot).catch(() => null);
+      const real = inBox(caller.userId, projectRoot) ? null : await realpath(projectRoot).catch(() => null);
       const repo = real !== null && (await isMainCheckout(real));
       if (!repo || real === null)
         return {
@@ -283,14 +290,15 @@ export function createLaneConfig(deps: LaneConfigDeps): LaneConfig {
     },
 
     async forgeLine(ownerId, projectRoot) {
-      if (!deps.roots(ownerId).includes(projectRoot)) return undefined;
+      if (!deps.roots(ownerId).includes(projectRoot) || inBox(ownerId, projectRoot)) return undefined;
       const real = await realpath(projectRoot).catch(() => null);
       return real === null ? undefined : forgeLineOf(await loadFile({ kind: "session" }, real, false));
     },
 
     async approvedScript(ownerId, projectRoot, kind) {
       // A project the owner no longer has, or a file pap may not read, runs nothing.
-      if (!deps.roots(ownerId).includes(projectRoot)) return { ok: false, reason: "unapproved" };
+      if (!deps.roots(ownerId).includes(projectRoot) || inBox(ownerId, projectRoot))
+        return { ok: false, reason: "unapproved" };
       const real = await realpath(projectRoot).catch(() => null);
       if (real === null) return { ok: false, reason: "none" };
       const state = await loadFile({ kind: "session" }, real, true);
@@ -306,6 +314,7 @@ export function createLaneConfig(deps: LaneConfigDeps): LaneConfig {
       requireStepUp(caller, deps.clock.now());
       if (deps.readOnly) throw new PapError("read_only");
       ownRoot(caller, params.projectRoot);
+      if (inBox(caller.userId, params.projectRoot)) throw new PapError("not_found");
       const wanted = new Map<ScriptKind, string>();
       for (const { kind, sha256 } of params.scripts) {
         if (wanted.get(kind) !== undefined && wanted.get(kind) !== sha256) return CHANGED;

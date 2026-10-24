@@ -35,7 +35,7 @@ const dial = async (port: number): Promise<{ socket: Socket; frames: Promise<unk
 describe("the TCP listener", () => {
   it("takes a guest hello over a real socket and sends the spawn command back", async () => {
     const tokens: LaunchTokens = createLaunchTokens();
-    const launch = tokens.issue("reviewer-0a1b");
+    const launch = tokens.issue({ kind: "agent", id: "reviewer-0a1b" });
     const imageTag = `pap-agent-agent-${"a".repeat(64)}`;
     gateway = createGateway({
       tokens,
@@ -50,7 +50,7 @@ describe("the TCP listener", () => {
       encodeSocketFrame({
         type: "hello",
         role: "guest",
-        agentId: "reviewer-0a1b",
+        box: { kind: "agent", id: "reviewer-0a1b" },
         launchId: launch.launchId,
         token: launch.token,
         protocol: AGENT_VM_PROTOCOL,

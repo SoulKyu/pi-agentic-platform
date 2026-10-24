@@ -2,7 +2,9 @@ import { createHash } from "node:crypto";
 import { APPROVAL_MODES, PLATFORM_OPS, PolicyRules } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPipelineBed } from "../testing/pipeline-bed.ts";
+import { makeVmWorld } from "../testing/vm-world.ts";
 import { PLATFORM_SOURCE } from "./tool-kind.ts";
+import { realVmRoots } from "./vm-paths.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeAll(async () => {
@@ -39,6 +41,36 @@ describe("network_request after the owner is asked (owner a2, M11R239)", () => {
         `network_request asks for ${HOST}. If you allow it, this agent's shell can reach that host until the thread is reset, and can send it data.`,
       );
       expect(h.asks[0]?.alwaysScopes).toBeUndefined();
+    }
+  });
+
+  it("asks for a project box in its own words, and a tainted session's card says so (task A7)", async () => {
+    const boxed = makeVmWorld({ project: true });
+    try {
+      const vm = { layout: boxed.layout, roots: await realVmRoots(boxed.layout) };
+      for (const taint of [false, true]) {
+        const h = bed.harness({
+          cwd: boxed.layout.project as string,
+          rules: () => rulesOf({ profile: "project", agentHome: boxed.layout.project }),
+          vm,
+          tools,
+          taint,
+        });
+        await h.run("network_request", { host: HOST });
+        expect(h.asks).toHaveLength(1);
+        expect(h.asks[0]).toMatchObject({
+          title: "pap: allow a host for this project?",
+          answers: ["deny", "host"],
+          host: HOST,
+          tainted: taint,
+        });
+        expect(h.asks[0]?.message).toContain(
+          `network_request asks for ${HOST}. If you allow it, this project's box can reach that host from now on, in every session of the project`,
+        );
+        expect(h.asks[0]?.message).not.toContain("until the thread is reset");
+      }
+    } finally {
+      boxed.cleanup();
     }
   });
 

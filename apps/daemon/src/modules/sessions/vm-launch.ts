@@ -1,4 +1,4 @@
-import { type InitRecord, PapError, TaskKey, type VmLayout } from "@pap/contracts";
+import { type BoxRef, boxKey, type InitRecord, PapError, TaskKey, type VmLayout } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import {
@@ -9,6 +9,7 @@ import {
   type WorkerSpawnInput,
 } from "../agent-vm/index.ts";
 import type { AgentLaunch } from "./agent-gate.ts";
+import type { ProjectLaunch } from "./project-gate.ts";
 import type { SessionRow } from "./store.ts";
 
 /** The image's bwrap (the guest runs it as root, R2). */
@@ -37,10 +38,10 @@ export interface VmStarted {
 
 export interface VmLaunch {
   /**
-   * Starts the agent's VM if needed and a worker in it. The VM's `init` is checked first (host rules or paths refuse the
+   * Starts the agent's VM (or the project's box) if needed and a worker in it. The VM's `init` is checked first (host rules or paths refuse the
    * launch with nothing spawned); it is sent by the session's own start, never the host's.
    */
-  spawn(row: SessionRow, launch: AgentLaunch, init: InitRecord): Promise<VmStarted>;
+  spawn(row: SessionRow, launch: AgentLaunch | ProjectLaunch, init: InitRecord): Promise<VmStarted>;
 }
 
 export interface VmLaunchDeps {
@@ -48,8 +49,11 @@ export interface VmLaunchDeps {
   readonly papHome: string;
   /** The shared VM predicate: the row's layout, null for a host row. */
   layoutOf(row: SessionRow): VmLayout | null;
-  /** Joins the session to the VM launch it runs in: the proxy taints the launch's sessions together (spec §4). */
-  joinLaunch(launchId: string, sessionId: string): void;
+  /**
+   * Joins the session to the VM launch it runs in: the proxy taints the launch's sessions together (spec §4). `project` is set
+   * for a project box's session, whose own taint (a task that starts tainted, a worker's report) taints the launch too.
+   */
+  joinLaunch(launchId: string, sessionId: string, project?: { readonly ownerId: string }): void;
   /** The image tag the agent's VM starts with (Kata: built first when it must be, so it may take minutes). */
   imageTagOf(
     agentId: string,
@@ -62,6 +66,13 @@ export interface VmLaunchDeps {
    */
   recheck?(ownerId: string, agentId: string): void;
   readonly mirrors: MirrorInputs;
+  /**
+   * The image a project's box starts with (the project's own, task A6); absent: a project row is refused. May build, so it may
+   * take minutes.
+   */
+  projectImageTagOf?(projectId: string): string | Promise<string>;
+  /** Like `recheck`, for a box: throws when the project was deleted or began to be deleted meanwhile. */
+  recheckProject?(ownerId: string, projectId: string): void;
   readonly logger: Pick<Logger, "warn">;
   /** The exact sources of the agent's package picks (it holds ids, AVM-E33); `null` stays `null` (every package). */
   packageSources(ids: readonly string[] | null): Promise<string[] | null>;
@@ -78,51 +89,97 @@ export interface VmLaunchDeps {
 export const taskKeyOf = (row: Pick<SessionRow, "agentRole" | "id">): string | null =>
   row.agentRole === "task" ? row.id.replaceAll("-", "") : null;
 
-/** Which VM the row runs in; refused before anything is built for it. */
-function whoOf(row: SessionRow): Pick<VmSpec, "agentId" | "kind" | "taskKey"> {
+/** Which of an agent's VMs the row runs in; refused before anything is built for it. */
+function whoOf(row: SessionRow): Pick<VmSpec, "box" | "kind" | "taskKey"> {
   const { agentId } = row;
   if (agentId === undefined) throw new PapError("internal");
+  const box: BoxRef = { kind: "agent", id: agentId };
   const key = taskKeyOf(row);
-  if (key === null) return { agentId, kind: "thread", taskKey: null };
+  if (key === null) return { box, kind: "thread", taskKey: null };
   const taskKey = TaskKey.safeParse(key);
   if (!taskKey.success) throw new PapError("bad_request");
-  return { agentId, kind: "isolated", taskKey: taskKey.data };
+  return { box, kind: "isolated", taskKey: taskKey.data };
+}
+
+/** What differs between an agent's launch and a project box's: the box, its resources, the image, the picks and the recheck. */
+interface BoxPlan {
+  readonly who: Pick<VmSpec, "box" | "kind" | "taskKey">;
+  readonly mirrorRow: SessionRow & { readonly projectId?: string };
+  readonly resources: VmSpec["resources"];
+  readonly claudeEnv: Readonly<Record<string, string>> | undefined;
+  image(): string | Promise<string>;
+  packages(image: string): Promise<string[] | null>;
+  recheck(): void;
+}
+
+function planOf(deps: VmLaunchDeps, row: SessionRow, launch: AgentLaunch | ProjectLaunch): BoxPlan {
+  if ("project" in launch) {
+    const projectId = launch.project.id;
+    // One VM per project: every row of a box, a task's included, runs in the thread-kind VM with no task key.
+    if (row.agentId !== undefined) throw new PapError("internal");
+    return {
+      who: { box: { kind: "project", id: projectId }, kind: "thread", taskKey: null },
+      mirrorRow: { ...row, projectId },
+      resources: launch.resources,
+      claudeEnv: launch.claudeEnv,
+      image() {
+        if (deps.projectImageTagOf === undefined) throw new PapError("sandbox_unavailable");
+        return deps.projectImageTagOf(projectId);
+      },
+      // A box's packages are its image's (task A6): the guest keeps every package the image holds.
+      packages: async () => null,
+      recheck: () => deps.recheckProject?.(row.ownerId, projectId),
+    };
+  }
+  const { agentId } = row;
+  if (agentId === undefined) throw new PapError("internal");
+  const who = whoOf(row);
+  return {
+    who,
+    mirrorRow: row,
+    resources: launch.input.resources,
+    claudeEnv: launch.claudeEnv,
+    image: () => deps.imageTagOf(agentId, launch.input, who.kind),
+    packages: async (image) =>
+      deps.toImageEntries(agentId, image, await deps.packageSources(launch.input.packages)),
+    recheck: () => deps.recheck?.(row.ownerId, agentId),
+  };
 }
 
 export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
   return {
     async spawn(row, launch, init) {
-      if (row.agentId === undefined || launch.vm !== true) throw new PapError("internal");
+      if (launch.vm !== true) throw new PapError("internal");
+      const plan = planOf(deps, row, launch);
       const layout = deps.layoutOf(row);
       if (layout === null) throw new PapError("internal");
-      const file = mirrorFileOf(deps.papHome, row);
+      const file = mirrorFileOf(deps.papHome, plan.mirrorRow);
       const fixed = { bwrap: VM_BWRAP, rootView: VM_ROOT_VIEW };
       // Fail closed before anything starts: host rules, a host path or no sandbox in the init refuse the launch here.
       try {
         vmInitOf(init, { layout, ...fixed, relayKey: CHECK_RELAY_KEY, slot: CHECK_SLOT }, file);
       } catch (error) {
-        deps.logger.warn("agent_vm_init_refused", { agentId: row.agentId });
+        deps.logger.warn("agent_vm_init_refused", { box: boxKey(plan.who.box) });
         throw error;
       }
-      const who = whoOf(row);
-      const image = await deps.imageTagOf(row.agentId, launch.input, who.kind);
-      const spec: VmSpec = { ...who, image, resources: launch.input.resources };
+      const image = await plan.image();
+      const spec: VmSpec = { ...plan.who, image, resources: plan.resources };
       const worker = {
-        ...deps.mirrors.inputFor(row, launch.input.resources),
+        ...deps.mirrors.inputFor(plan.mirrorRow, plan.resources),
         sessionsDir: layout.sessions,
-        ...(launch.claudeEnv ? { env: launch.claudeEnv } : {}),
+        ...(plan.claudeEnv ? { env: plan.claudeEnv } : {}),
       };
-      const packages = deps.toImageEntries(
-        row.agentId,
-        image,
-        await deps.packageSources(launch.input.packages),
-      );
+      const packages = await plan.packages(image);
       // Just before the runtime starts. `runtime.spawn` can still await (the boot, or the teardown of this key's previous VM) before
       // it has an entry a quarantine could stop: that residual leaves a VM up until its idle stop (resources only), and is accepted.
-      deps.recheck?.(row.ownerId, row.agentId);
+      plan.recheck();
       const started = await deps.runtime.spawn(spec, worker, packages);
       const { handle } = started;
-      deps.joinLaunch(started.launchId, row.id);
+      deps.joinLaunch(
+        started.launchId,
+        row.id,
+        plan.who.box.kind === "project" ? { ownerId: row.ownerId } : undefined,
+      );
       return {
         handle,
         bind(compose) {
@@ -149,7 +206,7 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
  */
 export function vmBranchOf(
   vmRow: boolean,
-  launch: Pick<AgentLaunch, "vm"> | null,
+  launch: Pick<AgentLaunch | ProjectLaunch, "vm"> | null,
   vmLaunch: VmLaunch | undefined,
 ): VmLaunch | null {
   const gated = launch?.vm === true;
