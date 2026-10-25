@@ -1,0 +1,287 @@
+<title>Décisions design</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Night Control (pap DESIGN.md): colour = role, mono uppercase HUD labels, sharp corners, faint grid, no gradient, no glow. Dark first. */
+:root {
+  color-scheme: dark;
+  --bg: #110F18; --bg-side: #14111D; --surface: #1A1724; --surface-2: #241F33;
+  --border: #2D2840; --border-strong: #3D3657; --control-border: #6B6485;
+  --text: #F2EFFA; --text-muted: #9C95B5; --text-dim: #6B6485; --grid: #FFFFFF06;
+  --agent: #A78BFA; --you: #FB923C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FB923C1A; --you-line: #FB923C66; --you-text: #FED7AA;
+  --attn: #EC4899; --ok: #34D399; --err: #F87171; --focus: #FB923C;
+  --ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm: 2px; --r-md: 3px;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+} }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg); color: var(--text); font: 13px/1.55 var(--ui);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 24px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+.hud { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+header { display: grid; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { font: 800 18px/1 var(--ui); letter-spacing: -.02em; }
+h1 { font: 800 28px/1.15 var(--ui); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--ui); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--text-muted); }
+code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--r-sm); }
+section.part { display: grid; gap: 14px; }
+.part-head { display: grid; gap: 6px; border-left: 2px solid var(--agent); padding-left: 12px; }
+.q { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.q-title { font: 700 14px/1.4 var(--ui); }
+.ctx { color: var(--text-muted); max-width: 72ch; }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); cursor: pointer; min-height: 44px; }
+.opt:hover { border-color: var(--control-border); }
+.opt input { margin: 3px 0 0; accent-color: var(--you-fill); width: 16px; height: 16px; }
+.opt:has(input:checked) { border-color: var(--you-line); background: var(--you-tint); }
+.opt-label { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opt-desc { color: var(--text-muted); grid-column: 2; }
+.chip { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid currentColor; }
+.chip.reco { color: var(--agent); }
+.chip.ok { color: var(--ok); }
+.chip.mut { color: var(--text-muted); }
+.chip.att { color: var(--attn); }
+textarea, input[type=text] { width: 100%; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 8px 10px; resize: vertical; min-height: 38px; }
+.bar { position: sticky; bottom: 0; background: var(--bg-side); border-top: 1px solid var(--border); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { max-width: 880px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; min-height: 36px; padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+.primary { background: var(--you-fill); color: var(--you-ink); border: 1px solid var(--you-fill); }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--control-border); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status { font: 12px var(--mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status.ok { color: var(--ok); } .status.err { color: var(--err); }
+@media (pointer: coarse) { button { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .opt { transition: border-color 120ms ease-out, background-color 120ms ease-out; } }
+
+/* Mockups: always Night Control, whatever the page theme (pap's default theme). */
+.demo { min-width: 0; }
+.cmp { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cmp.one { grid-template-columns: 1fr; }
+.pane { display: grid; gap: 6px; min-width: 0; }
+.pane .cap { font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.pane.reco .cap { color: var(--you); }
+.pane.reco .app { box-shadow: 0 0 0 1px var(--you-line); }
+.app { --a-bg:#110F18; --a-side:#14111D; --a-surface:#1A1724; --a-s2:#241F33; --a-border:#2D2840; --a-bs:#3D3657; --a-cb:#6B6485; --a-text:#F2EFFA; --a-muted:#9C95B5; --a-agent:#A78BFA; --a-youfill:#FB923C; --a-youink:#1B0D00;
+  background: var(--a-bg); color: var(--a-text); font: 13px/1.55 "Manrope", system-ui, sans-serif; padding: 12px; border: 1px solid var(--a-bs); border-radius: 3px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.app.scroll { overflow-x: auto; }
+.app .wide { width: 860px; display: grid; gap: 8px; }
+.app.nav { gap: 0; background: var(--a-side); }
+.app.tbg { padding: 0; }
+.hud-o, .hud-n, .hud-b { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 600; text-transform: uppercase; color: var(--a-muted); }
+.hud-o { font-size: 10.5px; letter-spacing: .12em; }
+.hud-n { font-size: 11px; letter-spacing: .08em; }
+.hud-b { font-size: 11px; letter-spacing: .1em; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mb { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--a-cb); border-radius: 2px; color: var(--a-text); font: 600 10.5px/1 "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.mb.hud-n { font-size: 11px; letter-spacing: .08em; } .mb.hud-b { font-size: 11px; letter-spacing: .1em; } .mb.hud-o { font-size: 10.5px; letter-spacing: .12em; }
+.mb.pri { background: var(--a-youfill); color: var(--a-youink); border-color: var(--a-youfill); }
+.mb.pressed { border-color: var(--a-agent); box-shadow: inset 0 -2px 0 var(--a-agent); }
+.mchip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--a-agent); color: var(--a-agent); border-radius: 2px; font-family: "JetBrains Mono", monospace; font-weight: 600; text-transform: uppercase; }
+.mchip.hud-o { font-size: 10.5px; letter-spacing: .12em; } .mchip.hud-n { font-size: 11px; letter-spacing: .08em; } .mchip.hud-b { font-size: 11px; letter-spacing: .1em; }
+.mfield { border: 1px solid var(--a-cb); background: var(--a-bg); color: #8f8aa3; border-radius: 2px; padding: 8px; min-height: 40px; font-size: 13px; }
+.mfield.sm { min-height: 0; padding: 6px 8px; }
+.msg { border-left: 2px solid var(--a-agent); padding-left: 10px; display: grid; gap: 4px; }
+.msg p, .wide p { margin: 0; }
+.p14 { font-size: 14px; line-height: 1.55; } .p15 { font-size: 15px; line-height: 1.65; }
+.m72 { max-width: 72ch; }
+.code { font: 12px/1.5 "JetBrains Mono", monospace; background: var(--a-s2); border: 1px solid var(--a-bs); padding: 8px; border-radius: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--a-cb); border-radius: 2px; }
+.seg span { padding: 4px 10px; font-size: 12px; color: var(--a-muted); }
+.seg span.on { color: var(--a-text); box-shadow: inset 0 -2px 0 var(--a-agent); background: var(--a-s2); }
+.navg { padding: 10px 8px 4px; } .navg:first-child { padding-top: 0; }
+.navi { padding: 3px 8px; font-size: 13px; color: var(--a-muted); }
+.navi.cur { color: var(--a-text); background: var(--a-s2); box-shadow: inset 2px 0 0 var(--a-agent); }
+.t16 { font: 700 16px/1.3 "Manrope", sans-serif; color: var(--a-text); }
+.t13 { font: 600 13px/1.4 "Manrope", sans-serif; color: var(--a-text); margin-top: 8px; }
+.l12 { font: 500 12px/1.4 "Manrope", sans-serif; color: var(--a-muted); }
+.okf { justify-content: space-between; border: 1px solid var(--a-border); padding: 6px 8px; border-radius: 2px; }
+.term { background: var(--a-bg); color: var(--a-text); font: 12px/1.6 "JetBrains Mono", monospace; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/></svg>
+      <b>pap</b><span class="hud">lot design · impeccable</span>
+    </div>
+    <h1>Décisions design</h1>
+    <p class="muted">Huit décisions du plan design qui touchent l'identité ou un défaut, chacune avec un avant / après rendu en HTML sur les vrais tokens Night (l'app réelle peut différer de quelques pixels). Chaque question a une option <span class="chip reco">reco</span> et une note libre. « Appliquer les recos » remplit ce qui reste vide, puis « Envoyer » m'enregistre tes réponses.</p>
+    <p class="muted">Plan : <code>docs/plans/2026-10-24-design-impeccable.md</code> · audit avec captures : <a href="https://claude.ai/artifact/PBgpv4hGBgcjeo91snrMvX">Audit design pap v2</a>.</p>
+  </header>
+  <form id="form" novalidate></form>
+</div>
+<div class="bar">
+  <div class="bar-in">
+    <span id="status" class="status" role="status" aria-live="polite">Brouillon</span>
+    <div class="btns">
+      <button type="button" class="secondary" id="recos">Appliquer les recos</button>
+      <button type="submit" class="primary" id="send" form="form">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = (cap, reco, body, extra = "") => `<div class="pane${reco ? " reco" : ""}"><div class="cap">${cap}</div><div class="app ${extra}">${body}</div></div>`;
+const btn = (t, k = "") => `<span class="mb ${k}">${t}</span>`;
+const LBL = (cls) => `<div class="${cls}">WHAT TO DO</div><div class="mfield">What do you want to do in work?</div><div class="row">${btn("LAUNCH", "pri " + cls)}${btn("SESSION OPTIONS", cls)}<span class="mchip ${cls}">RUNNING</span></div><div class="row">${btn("ENREGISTRER", cls)}${btn("PASSER EN ACCÈS COMPLET", cls)}</div>`;
+const PROSE = "The README currently holds a single line. A newcomer cannot tell what the project does, which runtime it needs, or how to start it. That is the first gap, and it is cheap to close: three short sections cover it, and the rest can wait until there is code to describe.";
+const MSG = (cls) => `<div class="msg"><div class="hud-o">AGENT</div><p class="${cls}">${PROSE}</p></div>`;
+const NAV = (groups) => groups.map(([g, items]) => `<div class="hud-n navg">${g}</div>` + items.map((i, n) => `<div class="navi${i === "Appearance" ? " cur" : ""}">${i}</div>`).join("")).join("");
+const TERM = (pal, sel) => { const n = ["black","red","green","yellow","blue","magenta","cyan","white"]; return `<div class="term"><div>$ printf colours</div><div>${n.map((x, i) => `<span style="color:${pal[i]}">${x}</span>`).join(" ")}</div><div>${n.map((x, i) => `<span style="color:${pal[8 + i]}">${x.toUpperCase()}</span>`).join(" ")}</div><div><span style="background:${sel}">drwxr-xr-x  src  →  selected text you copy</span></div><div>$ ls --color  <span style="color:${pal[4]}">src/</span> <span style="color:${pal[6]}">link →</span> <span style="color:${pal[2]}">run.sh</span></div></div>`; };
+const ROLE = ["#6B6485","#F87171","#34D399","#FB923C","#A78BFA","#EC4899","#A78BFA","#F2EFFA"];
+const PARTS = [
+  { id: "d", hud: "Lot design · huit décisions", title: "Ce qui change l'identité ou un défaut", intro: "Plan : docs/plans/2026-10-24-design-impeccable.md (25 tâches, après la fusion de M14). Audit avec captures : https://claude.ai/artifact/PBgpv4hGBgcjeo91snrMvX. Chaque exemple est rendu avec les vrais tokens Night ; « APRÈS » est l'option recommandée.",
+    questions: [
+      { id: "d1_label", title: "D1 · Taille des labels HUD (F01)", ctx: "Labels, boutons, onglets et chips sont en mono capitales 10,5 px à 0.12em ; le détecteur compte 366 textes sous le plancher de 11 px.",
+        demo: `<div class="cmp">${P("AVANT · 10,5 px · 0.12em", false, LBL("hud-o"))}${P("APRÈS (a) · 11 px · 0.08em", true, LBL("hud-n"))}${P("OPTION (b) · 11 px · 0.1em", false, LBL("hud-b"))}</div>`,
+        options: [ { v: "a", label: "(a) 11 px, 0.08em, capitales mono gardées", desc: "Un seul token passe le plancher ; l'espacement resserré garde les libellés FR aussi larges qu'aujourd'hui.", reco: true }, { v: "b", label: "(b) 11 px, 0.1em", desc: "Un peu plus aéré, libellés FR plus larges." }, { v: "c", label: "(\u200Cc) Garder 10,5 px à 0.12em", desc: "Aucun changement." } ] },
+      { id: "d2_density", title: "D2 · Densité par défaut (F14)", ctx: "Compact (décision 27) met la prose du transcript à 14 px / 1,55. « Mixed » ne change que la prose (15 px / 1,65), l'interface reste compacte. Un appareil qui a déjà choisi sa densité la garde.",
+        demo: `<div class="cmp">${P("AVANT · compact · 14/1,55", false, MSG("p14"))}${P("APRÈS (a) · mixed · 15/1,65", true, MSG("p15"))}</div>`,
+        options: [ { v: "a", label: "(a) mixed par défaut", desc: "La surface la plus lue devient plus confortable.", reco: true }, { v: "b", label: "(b) Garder compact", desc: "" }, { v: "c", label: "(\u200Cc) comfortable", desc: "Toute l'interface s'aère, pas seulement la prose." } ] },
+      { id: "d3_measure", title: "D3 · Largeur de la prose agent (F02)", ctx: "La décision 28 gardait la pleine largeur (pi-web avait refusé 72ch) ; à 1440 px les lignes font 202 caractères. Le code, les tableaux, les cartes d'outil et les diffs restent pleine largeur dans tous les cas. Note du planner : 72ch en Manrope ≈ 85–90 caractères ; 65ch ≈ 78 si tu veux le détecteur propre.",
+        demo: `<div class="cmp one">${P("AVANT · pleine largeur", false, `<div class="wide"><div class="hud-o">AGENT</div><p class="p14">${PROSE} ${PROSE}</p><div class="code">grep -q "^## Getting started" README.md || exit 1</div></div>`, "scroll")}${P("APRÈS (b) · 72ch par défaut + réglage « Longueur des lignes : Limitée | Pleine largeur »", true, `<div class="wide"><div class="hud-o">AGENT</div><p class="p14 m72">${PROSE} ${PROSE}</p><div class="code">grep -q "^## Getting started" README.md || exit 1</div><div class="row" style="margin-top:8px"><span class="hud-n" style="color:var(--a-muted)">LONGUEUR DES LIGNES</span><span class="seg"><span class="on">Limitée</span><span>Pleine largeur</span></span></div></div>`, "scroll")}</div>`,
+        options: [ { v: "b", label: "(b) 72ch par défaut + réglage par appareil (Limitée / Pleine largeur)", desc: "Corrige le défaut, la décision 28 reste à un interrupteur.", reco: true }, { v: "a", label: "(a) 72ch toujours", desc: "Pas de réglage." }, { v: "b65", label: "(b′) Comme (b) mais 65ch", desc: "≈ 78 caractères : le détecteur ne signale plus rien." }, { v: "c", label: "(\u200Cc) Pas de limite", desc: "Aucun changement." } ] },
+      { id: "d4_groups", title: "D4 · Groupes des Réglages (F17)", ctx: "14 liens (avec Users de M14) sous « Personal ». Un membre ne voit pas les sections propriétaire.",
+        demo: `<div class="cmp">${P("AVANT", false, NAV([["PERSONAL", ["Appearance","Keyboard shortcuts","Language","Approvals","Models","MCP servers","Skills","Automation","Health","GitHub","Agents","Notifications","Account & devices","Users"]]]), "nav")}${P("APRÈS (b) · Toi · Travail · Ce pap", true, NAV([["YOU", ["Appearance","Keyboard shortcuts","Language","Notifications","Account & devices"]],["WORK", ["Agents","Approvals","Automation","GitHub"]],["THIS PAP", ["Models","MCP servers","Skills","Users","Health"]]]), "nav")}${P("OPTION (a) · groupes de l'audit", false, NAV([["YOU", ["Appearance","Keyboard shortcuts","Language","Notifications","Account & devices"]],["AGENTS AND TOOLS", ["Models","MCP servers","Skills","Agents","Approvals"]],["PLATFORM", ["Automation","GitHub","Health","Users"]]]), "nav")}</div>`,
+        options: [ { v: "b", label: "(b) Toi · Travail · Ce pap", desc: "Suit la ligne de M14 : ce que chacun possède vs ce que l'install partage. Un membre ne voit que Health sous « Ce pap ».", reco: true }, { v: "a", label: "(a) Toi · Agents et outils · Plateforme", desc: "Les groupes proposés par l'audit." }, { v: "c", label: "(\u200Cc) Une seule liste, renommée « Settings »", desc: "" } ] },
+      { id: "d5_titles", title: "D5 · Titres de section et labels de champ (F15)", ctx: "Aujourd'hui un titre de section a exactement le style d'un label de champ : seule la couleur les sépare.",
+        demo: `<div class="cmp">${P("AVANT", false, `<div class="hud-o" style="color:var(--a-text)">APPEARANCE</div><div class="hud-o" style="margin-top:10px">THEME</div><div class="mfield sm">Night Control</div><div class="hud-o" style="margin-top:10px">DENSITY</div><span class="seg"><span class="on">Compact</span><span>Mixed</span><span>Comfortable</span></span>`)}${P("APRÈS (b) · titres Manrope, labels HUD", true, `<div class="t16">Appearance</div><div class="t13">Theme</div><div class="mfield sm">Night Control</div><div class="hud-n" style="margin-top:10px;color:var(--a-muted)">DENSITY</div><span class="seg"><span class="on">Compact</span><span>Mixed</span><span>Comfortable</span></span>`)}${P("OPTION (a) · labels en casse phrase", false, `<div class="t16">Appearance</div><div class="t13">Theme</div><div class="mfield sm">Night Control</div><div class="l12" style="margin-top:10px">Density</div><span class="seg"><span class="on">Compact</span><span>Mixed</span><span>Comfortable</span></span>`)}</div>`,
+        options: [ { v: "b", label: "(b) Titres en Manrope (16/700, 13/600), labels de champ en HUD mono capitales", desc: "La hiérarchie est corrigée et les labels gardent l'identité (DESIGN §1). Le réglage « labels en capitales » donne déjà la casse phrase à qui veut.", reco: true }, { v: "a", label: "(a) Titres Manrope + labels en casse phrase Manrope 12 px", desc: "Plus doux, moins « console »." }, { v: "c", label: "(\u200Cc) Titres en HUD couleur texte", desc: "Change le moins." } ] },
+      { id: "d6_composer", title: "D6 · Composer pendant un run (F12)", ctx: "Aujourd'hui : Steer et Follow up alternent le remplissage orange, Stop arrive en dernier après Attach.",
+        demo: `<div class="cmp one">${P("AVANT", false, `<div class="row">${btn("faux-1 ▾")}${btn("THINKING")}${btn("TOOLS")}${btn("STEER", "pri hud-o")}${btn("FOLLOW UP")}${btn("ATTACH")}${btn("STOP")}</div>`)}${P("APRÈS (a) · Stop d'abord, un choix, une action", true, `<div class="row">${btn("STOP")}${btn("faux-1 ▾")}${btn("THINKING")}${btn("TOOLS")}${btn("ATTACH")}<span class="seg"><span class="on">Steer</span><span>Follow up</span></span>${btn("SEND", "pri")}</div>`)}${P("OPTION (b) · Stop d'abord, deux boutons secondaires", false, `<div class="row">${btn("STOP")}${btn("faux-1 ▾")}${btn("THINKING")}${btn("TOOLS")}${btn("ATTACH")}${btn("STEER", "pressed")}${btn("FOLLOW UP")}</div>`)}</div>`,
+        options: [ { v: "a", label: "(a) Stop d'abord, Segmented « Steer | Follow up », un seul Send primaire", desc: "Un choix, une action, l'urgence en premier.", reco: true }, { v: "b", label: "(b) Stop d'abord, deux boutons secondaires, le mémorisé en aria-pressed", desc: "" }, { v: "c", label: "(\u200Cc) Seulement déplacer Stop en premier", desc: "" } ] },
+      { id: "d7_orange", title: "D7 · Un seul orange sur la home (F49)", ctx: "L'orange plein veut dire « ton action principale ». La home en a trois : Launch, Enable OKF et le filtre « All ».",
+        demo: `<div class="cmp">${P("AVANT", false, `<div class="t16" style="font-size:18px">work</div><div class="mfield sm">What do you want to do in work?</div><div class="row">${btn("LAUNCH", "pri")}${btn("SESSION OPTIONS")}</div><div class="row okf"><span class="l12">Knowledge is off for this project.</span>${btn("ENABLE OKF", "pri")}</div><div class="hud-o" style="margin-top:8px">RECENT WORK</div><div class="row">${btn("ALL", "pri")}${btn("SESSIONS")}${btn("LANES")}</div>`)}${P("APRÈS (a)", true, `<div class="t16" style="font-size:18px">work</div><div class="mfield sm">What do you want to do in work?</div><div class="row">${btn("LAUNCH", "pri")}${btn("SESSION OPTIONS")}</div><div class="row okf"><span class="l12">Knowledge is off for this project.</span>${btn("ENABLE OKF")}</div><div class="hud-o" style="margin-top:8px">RECENT WORK</div><span class="seg"><span class="on">All</span><span>Sessions</span><span>Lanes</span></span>`)}</div>`,
+        options: [ { v: "a", label: "(a) Enable OKF secondaire, le filtre devient un Segmented", desc: "L'orange redevient « ton action » ; un filtre est un état.", reco: true }, { v: "b", label: "(b) Enable OKF secondaire, filtre en boutons ghost aria-pressed", desc: "" }, { v: "c", label: "(\u200Cc) Garder les trois", desc: "" } ] },
+      { id: "d8_terminal", title: "D8 · Palette du terminal (F05)", ctx: "Aujourd'hui les 16 couleurs ANSI sont ramenées à 6 rôles : bleu = cyan, chaque « bright » = sa normale, le noir est text-dim, et la sélection est quasi invisible (1,19:1).",
+        demo: `<div class="cmp one">${P("AVANT · 6 rôles", false, TERM([...ROLE, ...ROLE], "#241F33"), "tbg")}${P("APRÈS (a) · 16 couleurs dérivées des rôles", true, TERM(["#9C95B5","#F87171","#34D399","#FB923C","#A78BFA","#EC4899","#6EAFCA","#F2EFFA","#BAB4CD","#F69DA1","#77DDBB","#F8B37F","#C1AEFA","#EE82BB","#9CC5DB","#F2EFFA"], "rgba(167,139,250,.35)"), "tbg")}${P("OPTION (b) · palette xterm classique", false, TERM(["#666666","#CD3131","#0DBC79","#E5E510","#2472C8","#BC3FBC","#11A8CD","#E5E5E5","#888888","#F14C4C","#23D18B","#F5F543","#3B8EEA","#D670D6","#29B8DB","#FFFFFF"], "rgba(255,255,255,.25)"), "tbg")}</div>`,
+        options: [ { v: "a", label: "(a) 16 couleurs dérivées des rôles", desc: "Noir → text-muted, un cyan distinct (agent + ok), brights 35 % vers le texte, contraste minimum 4,5, sélection agent à 35 %. Garde l'idée des rôles (§9.2) et l'éditeur de thèmes.", reco: true }, { v: "b", label: "(b) Palette xterm classique par thème, hors rôles", desc: "" }, { v: "c", label: "(\u200Cc) Garder les rôles, corriger seulement le noir et la sélection", desc: "" } ] }
+    ] },
+  { id: "run", hud: "Lot design · exécution", title: "Comment on l'exécute", intro: "Planner : Sonnet pour les tâches et les revues, une revue finale Opus ; ≈ 36 h, après la fusion de M14 ; budget bundle surveillé (244,7 → ≈ 248 KB sur 250).",
+    questions: [
+      { id: "go", title: "Lancer le lot après M14", ctx: "25 tâches en 2 lanes (packages/ui, apps/web), ADR 0086 pour les changements de DESIGN.md (décisions 27, 28 et ADR 0012 révisés).",
+        options: [ { v: "go", label: "Go après la fusion de M14, Sonnet + une revue finale Opus", desc: "", reco: true }, { v: "later", label: "Plus tard", desc: "" } ] }
+    ] }
+];
+
+const KEY = "pap-decisions-design-draft";
+const DOC = "answers/design";
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+let state = { choices: {}, notes: {}, general: "" };
+
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const k of kids) n.append(k);
+  return n;
+}
+function render() {
+  form.replaceChildren();
+  for (const part of PARTS) {
+    const sec = el("section", { class: "part", "aria-labelledby": "h-" + part.id });
+    sec.append(el("div", { class: "part-head" }, [el("span", { class: "hud", text: part.hud }), el("h2", { id: "h-" + part.id, text: part.title }), el("p", { class: "muted", text: part.intro })]));
+    for (const q of part.questions) {
+      const qid = part.id + "." + q.id;
+      const box = el("fieldset", { class: "q" });
+      const answered = state.choices[qid];
+      const chip = el("span", { class: "chip " + (answered ? "ok" : "mut"), text: answered ? "répondu" : "à choisir" });
+      box.append(el("div", { class: "q-head" }, [el("legend", { class: "q-title", text: q.title }), chip]));
+      if (q.ctx) box.append(el("p", { class: "ctx", text: q.ctx }));
+      if (q.demo) { const d = document.createElement("div"); d.className = "demo"; d.innerHTML = q.demo; box.append(d); }
+      const opts = el("div", { class: "opts" });
+      for (const o of q.options) {
+        const id = qid + "." + o.v;
+        const input = el("input", { type: "radio", name: qid, id, value: o.v, checked: state.choices[qid] === o.v });
+        input.addEventListener("change", () => { state.choices[qid] = o.v; save(); chip.className = "chip ok"; chip.textContent = "répondu"; });
+        const label = el("span", { class: "opt-label" }, [o.label]);
+        if (o.reco) label.append(el("span", { class: "chip reco", text: "reco" }));
+        const row = el("label", { class: "opt", for: id }, [input, label]);
+        if (o.desc) row.append(el("span", { class: "opt-desc", text: o.desc }));
+        opts.append(row);
+      }
+      box.append(opts);
+      const note = el("textarea", { id: qid + ".note", rows: "1", placeholder: "Note (optionnelle)", "aria-label": "Note pour : " + q.title });
+      note.value = state.notes[qid] || "";
+      note.addEventListener("input", () => { state.notes[qid] = note.value; save(); });
+      box.append(note);
+      sec.append(box);
+    }
+    form.append(sec);
+  }
+  const g = el("fieldset", { class: "q" }, [el("legend", { class: "q-title", text: "Note générale" })]);
+  const gt = el("textarea", { id: "general", rows: "3", placeholder: "Tout ce que tu veux ajouter" });
+  gt.value = state.general || "";
+  gt.addEventListener("input", () => { state.general = gt.value; save(); });
+  g.append(gt);
+  form.append(g);
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.choices) state = s; } catch {} }
+function count() { return PARTS.reduce((n, p) => n + p.questions.length, 0); }
+function answeredCount() { return Object.keys(state.choices).length; }
+
+document.getElementById("recos").addEventListener("click", () => {
+  for (const p of PARTS) for (const q of p.questions) { const qid = p.id + "." + q.id; if (!state.choices[qid]) { const r = q.options.find((o) => o.reco); if (r) state.choices[qid] = r.v; } }
+  save(); render(); statusEl.className = "status"; statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+});
+
+let dbPromise = null;
+function db() { if (!dbPromise) dbPromise = (window.claude?.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null); return dbPromise; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const send = document.getElementById("send");
+  const missing = count() - answeredCount();
+  if (missing > 0) { statusEl.className = "status err"; statusEl.textContent = missing + " question(s) sans choix : choisis ou applique les recos."; return; }
+  send.disabled = true; statusEl.className = "status"; statusEl.textContent = "Envoi…";
+  const store = await db();
+  if (!store) { send.disabled = false; statusEl.className = "status err"; statusEl.textContent = "Envoi impossible ici : ouvre la page connecté à claude.ai. Tes choix restent dans ce navigateur."; return; }
+  try {
+    await store.doc(DOC).set({ choices: state.choices, notes: state.notes, general: state.general || "", sentAt: new Date().toISOString() });
+    statusEl.className = "status ok"; statusEl.textContent = "Envoyé : je lis tes réponses.";
+  } catch (err) {
+    statusEl.className = "status err"; statusEl.textContent = "Envoi refusé (" + (err?.code || "erreur") + "). Tes choix restent dans ce navigateur ; réessaie.";
+  } finally { send.disabled = false; }
+});
+
+load();
+render();
+statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+db().then(async (store) => {
+  if (!store) return;
+  try { const snap = await store.doc(DOC).get(); if (snap.exists && answeredCount() === 0) { const d = snap.data(); state = { choices: d.choices || {}, notes: d.notes || {}, general: d.general || "" }; render(); statusEl.textContent = "Réponses déjà envoyées · " + answeredCount() + " / " + count(); } } catch {}
+});
+</script>
