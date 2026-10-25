@@ -70,13 +70,13 @@ Each step has:
 
 An image already built is `skipped`, shown as "already built". A failed step carries the error code the RPC already returns.
 
-### 3.2 Events
+### 3.2 Events (amended after the interface recon, 2026-10-25)
 
-**The shell stream gains a `launch` event.** The payload is the whole record, at most once a second per launch, and again at each state change. A last event marks the end, with `{ id, done: true, ok, code? }`. Each user receives only the launches of boxes they own (M14 scoping).
+**A new stream, `launches`, carries the records.** The shell stream's replay ring (128 events, shared with sessions and projects) would be flooded by one event a second, so launches get a stream of their own, keyed per owner like the shell stream; its snapshot lists the live launches and the helper counts. The payload is the whole record, at most once a second per launch, and again at each state change. A last event marks the end, with `{ id, done: true, ok, code? }`. Each user receives only the launches of boxes they own (M14 scoping).
 
 **The box phase follows the launch.** A box is `starting` from the first step of any launch, including one a session or task started. That fixes the box shown `stopped` during a session's image build.
 
-**A new session publishes `starting`.** When a session waits on a launch, its snapshot carries the launch id.
+**Where a launch shows is decided by its box, not by a session id.** `sessions.create`, `agents.openThread` and a task's session creation return only once the launch ends, so a new session has no screen while it starts: the project home's Launch form, the agent's thread screen and the task card find their launch by box (`project:<id>` or `agent:<id>`). A reopened cold session already publishes `starting`; its screen joins the launch by its project's box.
 
 **Step durations go to SQLite.** A small table `launch_steps(box_key, step, ms, at)` keeps the last 20 rows per box and step. A skipped image does not count.
 
@@ -84,9 +84,9 @@ An image already built is `skipped`, shown as "already built". A failed step car
 
 pap-vmd answers each call once, at the end.
 
-- **New pap-vmd op.** A new read-only op, `image.progress { taskKey }`, returns the last line BuildKit printed and its time.
+- **New pap-vmd op.** A new read-only op, `image.progress { tag }`, returns the last line BuildKit printed for that image tag and its time. A launch builds up to three tags in a row (base, profile, agent), and joined builds share one tail. The profile preparation before the builds runs in pap's own worker thread and has no line.
   - pap-vmd keeps a rolling tail of the build's output.
-  - It keeps only the last line and the line count; it stores no file, and nothing secret is printed by a build step.
+  - It keeps the last 200 lines in memory while the build runs (for Show the log) and drops them when the build ends; it stores no file. Today `exec` buffers a child's output until it exits, so pap-vmd gains a streaming variant for builds.
   - The op is new protocol, so `sudo pap vm setup` must run after the update.
 - **Polling.** The daemon polls the op every 2 s while an image step runs and puts the line in `detail`.
 - **Redaction.** The line passes through the existing log redactor before it reaches the web.
@@ -126,7 +126,7 @@ The web words each reason with the action that frees it:
 - "Box memory full · 6.0 / 6.0 GB · Stop a box to start this one".
 
 **Trigger tasks.**
-- `TaskView` gains `waiting`, filled from the outbox defer and its reason.
+- `TaskView` gains `waiting`. The outbox stores no reason with a defer, so the runner keeps the reason with the deferral it already records in memory, and announces the task again when its waiting changes.
 - A task whose box is building an image waits for the build (reason `image_build`). It no longer runs into the 90 s `task.start` deadline and silent retries.
 
 ### 3.6 Pi reads queue (L5)
@@ -134,9 +134,10 @@ The web words each reason with the action that frees it:
 The helper pool queues instead of refusing:
 - The queue is FIFO and bounded at 16 waiting calls; the 17th is refused `capacity`.
 - A call waits in the queue for at most 30 s before its own deadline starts, then it is refused.
-- The refusal copy names Pi reads, not worker slots.
+- The refusal has its own code, `pi_busy`, whose copy names Pi reads, not worker slots.
+- Interactive helper calls (provider sign-in flows, calls that prompt) never queue: they keep today's immediate refusal.
 
-The shell stream gains a `helpers` event, `{ active, max, waiting }`, throttled to 1 per second and sent only while it changes. It is install-wide counts with no ids, safe for members.
+The `launches` stream also carries a `helpers` event, to every owner with a subscriber, `{ active, max, waiting }`, throttled to 1 per second and sent only while it changes. It is install-wide counts with no ids, safe for members.
 
 ### 3.7 Where it shows (L1, L6, C2)
 
@@ -151,10 +152,10 @@ The shell stream gains a `helpers` event, `{ active, max, waiting }`, throttled 
   - It appears on task cards, the agent rail's waking state, the PhaseChip line, and the session's status chip.
 - **The live counter** (L2 (a)): the active step's elapsed time updates once a second, with tabular numerals. This is the one repaint DESIGN §7.2 now admits besides the running tool bar (ADR 0087). Under reduced motion the ring does not spin, but the number still counts.
 - **The activity indicator** (L6 (a)):
-  - "N in progress", in the rail and in the phone's bottom nav.
+  - "N in progress", in the rail, and in the phone's top bar (the bottom nav is a fixed four-section grid).
   - It opens a list of every live launch, background image build, clone, lane setup and waiting task. Each row shows its step or waiting reason and its time, and links to its screen.
   - It is hidden when the list is empty.
-- **Buttons** (C2 (a)): START, Restart, Rebuild, Launch and Send take their stage label from the launch's running step, for example "Building the image…" or "Starting the VM…", instead of the elapsed-time stages. Launch and Send gain the spinner.
+- **Buttons** (C2 (a)): START, Restart, Rebuild, Launch and Send take their stage label from the launch's running step, for example "Building the image…" or "Starting the VM…", instead of the elapsed-time stages. Launch and Send gain the spinner. Button gains a prop for a stage label shown from the start of the wait (today `stageLabel` appears only after 3 s).
 
 ## 4. Lot 2: short loads (C1)
 
