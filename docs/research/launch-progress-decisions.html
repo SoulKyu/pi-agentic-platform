@@ -1,0 +1,380 @@
+<title>Attentes et lancements</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap">
+<style>
+/* Night Control (pap DESIGN.md): colour = role, mono uppercase HUD labels, sharp corners, faint grid, no gradient, no glow. Dark first. */
+:root {
+  color-scheme: dark;
+  --bg: #110F18; --bg-side: #14111D; --surface: #1A1724; --surface-2: #241F33;
+  --border: #2D2840; --border-strong: #3D3657; --control-border: #6B6485;
+  --text: #F2EFFA; --text-muted: #9C95B5; --text-dim: #6B6485; --grid: #FFFFFF06;
+  --agent: #A78BFA; --you: #FB923C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FB923C1A; --you-line: #FB923C66; --you-text: #FED7AA;
+  --attn: #EC4899; --ok: #34D399; --err: #F87171; --focus: #FB923C;
+  --ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r-sm: 2px; --r-md: 3px;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+} }
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #FAF9F6; --bg-side: #F3F1EC; --surface: #FFFFFF; --surface-2: #EEEBE4;
+  --border: #E2DED5; --border-strong: #CFC9BC; --control-border: #8F877A;
+  --text: #1C1917; --text-muted: #6B645A; --text-dim: #A8A196; --grid: #1C19170A;
+  --agent: #6D28D9; --you: #C2410C; --you-fill: #FB923C; --you-ink: #1B0D00;
+  --you-tint: #FFF4EA; --you-line: #FDBA74; --you-text: #431407;
+  --attn: #BE185D; --ok: #047857; --err: #DC2626; --focus: #EA580C;
+}
+* { box-sizing: border-box; }
+body {
+  background-color: var(--bg); color: var(--text); font: 13px/1.55 var(--ui);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 880px; margin: 0 auto; padding-block: 24px 96px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 24px; }
+.hud { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+header { display: grid; gap: 10px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand b { font: 800 18px/1 var(--ui); letter-spacing: -.02em; }
+h1 { font: 800 28px/1.15 var(--ui); letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+h2 { font: 700 16px/1.3 var(--ui); margin: 0; text-wrap: balance; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--text-muted); }
+code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--r-sm); }
+section.part { display: grid; gap: 14px; }
+.part-head { display: grid; gap: 6px; border-left: 2px solid var(--agent); padding-left: 12px; }
+.q { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.q-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.q-title { font: 700 14px/1.4 var(--ui); }
+.ctx { color: var(--text-muted); max-width: 72ch; }
+.opts { display: grid; gap: 8px; }
+.opt { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-side); cursor: pointer; min-height: 44px; }
+.opt:hover { border-color: var(--control-border); }
+.opt input { margin: 3px 0 0; accent-color: var(--you-fill); width: 16px; height: 16px; }
+.opt:has(input:checked) { border-color: var(--you-line); background: var(--you-tint); }
+.opt-label { font-weight: 600; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.opt-desc { color: var(--text-muted); grid-column: 2; }
+.chip { font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 3px 6px; border-radius: var(--r-sm); border: 1px solid currentColor; }
+.chip.reco { color: var(--agent); }
+.chip.ok { color: var(--ok); }
+.chip.mut { color: var(--text-muted); }
+.chip.att { color: var(--attn); }
+textarea, input[type=text] { width: 100%; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 8px 10px; resize: vertical; min-height: 38px; }
+.bar { position: sticky; bottom: 0; background: var(--bg-side); border-top: 1px solid var(--border); padding-block: 10px calc(10px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.bar-in { max-width: 880px; margin: 0 auto; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; }
+button { font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; min-height: 36px; padding: 0 14px; border-radius: var(--r-sm); cursor: pointer; }
+.primary { background: var(--you-fill); color: var(--you-ink); border: 1px solid var(--you-fill); }
+.secondary { background: transparent; color: var(--text); border: 1px solid var(--control-border); }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.status { font: 12px var(--mono); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.status.ok { color: var(--ok); } .status.err { color: var(--err); }
+@media (pointer: coarse) { button { min-height: 44px; } }
+@media (prefers-reduced-motion: no-preference) { .opt { transition: border-color 120ms ease-out, background-color 120ms ease-out; } }
+
+/* Mockups: always Night Control, whatever the page theme (pap's default theme). */
+.demo { min-width: 0; }
+.cmp { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.cmp.one { grid-template-columns: 1fr; }
+.pane { display: grid; gap: 6px; min-width: 0; }
+.pane .cap { font: 600 11px/1.3 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+.pane.reco .cap { color: var(--you); }
+.pane.reco .app { box-shadow: 0 0 0 1px var(--you-line); }
+.app { --a-bg:#110F18; --a-side:#14111D; --a-surface:#1A1724; --a-s2:#241F33; --a-border:#2D2840; --a-bs:#3D3657; --a-cb:#6B6485; --a-text:#F2EFFA; --a-muted:#9C95B5; --a-agent:#A78BFA; --a-youfill:#FB923C; --a-youink:#1B0D00;
+  background: var(--a-bg); color: var(--a-text); font: 13px/1.55 "Manrope", system-ui, sans-serif; padding: 12px; border: 1px solid var(--a-bs); border-radius: 3px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.app.scroll { overflow-x: auto; }
+.app .wide { width: 860px; display: grid; gap: 8px; }
+.app.nav { gap: 0; background: var(--a-side); }
+.app.tbg { padding: 0; }
+.hud-o, .hud-n, .hud-b { font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 600; text-transform: uppercase; color: var(--a-muted); }
+.hud-o { font-size: 10.5px; letter-spacing: .12em; }
+.hud-n { font-size: 11px; letter-spacing: .08em; }
+.hud-b { font-size: 11px; letter-spacing: .1em; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.mb { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border: 1px solid var(--a-cb); border-radius: 2px; color: var(--a-text); font: 600 10.5px/1 "JetBrains Mono", monospace; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; }
+.mb.hud-n { font-size: 11px; letter-spacing: .08em; } .mb.hud-b { font-size: 11px; letter-spacing: .1em; } .mb.hud-o { font-size: 10.5px; letter-spacing: .12em; }
+.mb.pri { background: var(--a-youfill); color: var(--a-youink); border-color: var(--a-youfill); }
+.mb.pressed { border-color: var(--a-agent); box-shadow: inset 0 -2px 0 var(--a-agent); }
+.mchip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 6px; border: 1px solid var(--a-agent); color: var(--a-agent); border-radius: 2px; font-family: "JetBrains Mono", monospace; font-weight: 600; text-transform: uppercase; }
+.mchip.hud-o { font-size: 10.5px; letter-spacing: .12em; } .mchip.hud-n { font-size: 11px; letter-spacing: .08em; } .mchip.hud-b { font-size: 11px; letter-spacing: .1em; }
+.mfield { border: 1px solid var(--a-cb); background: var(--a-bg); color: #8f8aa3; border-radius: 2px; padding: 8px; min-height: 40px; font-size: 13px; }
+.mfield.sm { min-height: 0; padding: 6px 8px; }
+.msg { border-left: 2px solid var(--a-agent); padding-left: 10px; display: grid; gap: 4px; }
+.msg p, .wide p { margin: 0; }
+.p14 { font-size: 14px; line-height: 1.55; } .p15 { font-size: 15px; line-height: 1.65; }
+.m72 { max-width: 72ch; }
+.code { font: 12px/1.5 "JetBrains Mono", monospace; background: var(--a-s2); border: 1px solid var(--a-bs); padding: 8px; border-radius: 2px; }
+.seg { display: inline-flex; border: 1px solid var(--a-cb); border-radius: 2px; }
+.seg span { padding: 4px 10px; font-size: 12px; color: var(--a-muted); }
+.seg span.on { color: var(--a-text); box-shadow: inset 0 -2px 0 var(--a-agent); background: var(--a-s2); }
+.navg { padding: 10px 8px 4px; } .navg:first-child { padding-top: 0; }
+.navi { padding: 3px 8px; font-size: 13px; color: var(--a-muted); }
+.navi.cur { color: var(--a-text); background: var(--a-s2); box-shadow: inset 2px 0 0 var(--a-agent); }
+.t16 { font: 700 16px/1.3 "Manrope", sans-serif; color: var(--a-text); }
+.t13 { font: 600 13px/1.4 "Manrope", sans-serif; color: var(--a-text); margin-top: 8px; }
+.l12 { font: 500 12px/1.4 "Manrope", sans-serif; color: var(--a-muted); }
+.okf { justify-content: space-between; border: 1px solid var(--a-border); padding: 6px 8px; border-radius: 2px; }
+.term { background: var(--a-bg); color: var(--a-text); font: 12px/1.6 "JetBrains Mono", monospace; padding: 10px 12px; overflow-x: auto; white-space: nowrap; }
+/* Waiting mockups (pap after the design pass: 11 px labels, Manrope body, mono times). */
+.app { --a-ok:#34D399; --a-err:#F87171; --a-attn:#EC4899; --a-attn-tint:#EC48991F; }
+.hudx { font: 600 11px/1.3 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--a-muted); }
+.mono { font-family: "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; }
+.dim { color: var(--a-muted); }
+.chipx { display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--a-bs); border-radius: 2px; font: 600 11px/1 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--a-muted); white-space: nowrap; }
+.chipx.run { border-color: var(--a-agent); color: var(--a-agent); }
+.chipx .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border-bottom: 1px solid var(--a-border); padding-bottom: 8px; }
+.head b { font: 700 15px/1.2 "Manrope", sans-serif; }
+.steps { display: grid; gap: 2px; border: 1px solid var(--a-border); border-radius: 2px; background: var(--a-surface); padding: 8px 10px; }
+.steps .t { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding-bottom: 6px; }
+.st { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; padding: 3px 0; font-size: 13px; }
+.st .g { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--a-cb); justify-self: center; }
+.st.done .g { border-color: var(--a-ok); background: var(--a-ok); box-shadow: inset 0 0 0 2px var(--a-surface); }
+.st.done { color: var(--a-muted); }
+.st.now .g { border-color: var(--a-agent); border-top-color: transparent; }
+@media (prefers-reduced-motion: no-preference) { .st.now .g { animation: spin 1.1s linear infinite; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+.st.now { color: var(--a-text); font-weight: 600; }
+.st.todo { color: var(--a-muted); }
+.st.fail .g { border-color: var(--a-err); background: var(--a-err); }
+.st .r { font: 12px "JetBrains Mono", monospace; font-variant-numeric: tabular-nums; color: var(--a-muted); white-space: nowrap; }
+.st.now .r { color: var(--a-text); }
+.sub { grid-column: 2 / 4; font: 12px/1.4 "JetBrains Mono", monospace; color: var(--a-muted); overflow-wrap: anywhere; }
+.slow { grid-column: 2 / 4; font-size: 12px; color: var(--a-muted); }
+.ask { border: 1px solid var(--a-attn); background: var(--a-attn-tint); border-radius: 2px; padding: 8px 10px; display: grid; gap: 6px; }
+.ask p { margin: 0; }
+.strip { display: grid; gap: 4px; }
+.strip .l { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; font-size: 12px; }
+.segs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+.segs i { height: 3px; background: var(--a-bs); }
+.segs i.d { background: var(--a-ok); } .segs i.n { background: var(--a-agent); }
+.bar { height: 4px; background: var(--a-bs); position: relative; }
+.bar i { position: absolute; inset: 0 auto 0 0; background: var(--a-agent); }
+.card { border: 1px solid var(--a-border); background: var(--a-surface); border-radius: 2px; padding: 8px 10px; display: grid; gap: 6px; }
+.card .ttl { font-weight: 600; font-size: 13px; }
+.wait { border-left: 2px solid var(--a-cb); padding-left: 10px; display: grid; gap: 4px; font-size: 13px; }
+.lnk { color: var(--a-agent); text-decoration: underline; text-underline-offset: 2px; }
+.tray { border: 1px solid var(--a-bs); background: var(--a-surface); border-radius: 2px; display: grid; }
+.tray .it { display: grid; gap: 3px; padding: 8px 10px; border-top: 1px solid var(--a-border); font-size: 13px; }
+.tray .it:first-child { border-top: 0; }
+.railx { display: flex; gap: 10px; align-items: center; background: var(--a-side); border: 1px solid var(--a-border); padding: 6px 10px; border-radius: 2px; }
+.act { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--a-agent); color: var(--a-agent); padding: 3px 8px; border-radius: 2px; font: 600 11px/1 "JetBrains Mono", monospace; letter-spacing: .08em; text-transform: uppercase; }
+.ring { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; }
+@media (prefers-reduced-motion: no-preference) { .ring { animation: spin 1.1s linear infinite; } }
+.loading { display: flex; gap: 8px; align-items: center; font-size: 13px; color: var(--a-muted); }
+.fake { color: var(--a-muted); font-size: 13px; }
+.btnd { opacity: .55; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/></svg>
+      <b>pap</b><span class="hud">attentes · propositions</span>
+    </div>
+    <h1>Attentes et lancements</h1>
+    <p class="muted">Aujourd'hui, pap connaît chaque étape d'un lancement (vérifications, image, disque, VM, invité, worker) mais n'envoie qu'un mot au navigateur : « starting ». Lancer une session sur une box arrêtée grise juste le bouton, parfois plusieurs minutes si l'image se construit. Chaque question montre l'avant et les options, rendues avec les vrais tokens Night ; <span class="chip reco">reco</span> marque ma recommandation. Les exemples sont en anglais, la langue par défaut de l'app.</p>
+    <p class="muted">Base factuelle : la recon du code (<code>.superpowers/recon-loading.md</code>). Démarrage à froid mesuré : 6 s en médiane, 12 s au tout premier ; une première image se compte en minutes.</p>
+  </header>
+  <form id="form" novalidate></form>
+</div>
+<div class="bar">
+  <div class="bar-in">
+    <span id="status" class="status" role="status" aria-live="polite">Brouillon</span>
+    <div class="btns">
+      <button type="button" class="secondary" id="recos">Appliquer les recos</button>
+      <button type="submit" class="primary" id="send" form="form">Envoyer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const P = (cap, reco, body, extra = "") => `<div class="pane${reco ? " reco" : ""}"><div class="cap">${cap}</div><div class="app ${extra}">${body}</div></div>`;
+const btn = (t, k = "") => `<span class="mb hud-n ${k}">${t}</span>`;
+const spinBtn = (t, k = "") => `<span class="mb hud-n ${k}" style="gap:6px"><span class="ring" style="color:var(--a-text)"></span>${t}</span>`;
+const st = (cls, name, right = "", extra = "") => `<div class="st ${cls}"><span class="g"></span><span>${name}</span><span class="r">${right}</span>${extra}</div>`;
+const HEAD = (chip) => `<div class="head"><b>release-notes</b>${chip}</div>`;
+const YOU = `<div class="row" style="justify-content:flex-end"><span style="border:1px solid #FB923C66;background:#FB923C1A;color:#FED7AA;padding:6px 10px;border-radius:2px;font-size:13px">Summarise the release</span></div>`;
+const STEPS = (now, time, more = "") => {
+  const names = ["Checks", "Project image", "Disk", "VM start", "Guest ready", "Session ready"];
+  const done = ["0.2 s", "already built", "0.4 s", "2.1 s", "0.9 s"];
+  return names.map((n, i) => i < now ? st("done", n, done[i]) : i === now ? st("now", n, time, more) : st("todo", n)).join("");
+};
+const PANEL = (title, now, time, more = "") => `<div class="steps"><div class="t"><span class="hudx">${title}</span><span class="mono dim" style="font-size:12px">${now + 1} / 6</span></div>${STEPS(now, time, more)}</div>`;
+const TASK = (line) => `<div class="card"><div class="row" style="justify-content:space-between"><span class="ttl">nightly · summarise</span><span class="chipx">QUEUED</span></div>${line}</div>`;
+const STRIP = (label, now, time) => `<div class="strip"><div class="l"><span class="hudx" style="color:var(--a-text)">${label}</span><span class="dim">· ${now + 1}/6 ·</span><span class="mono">${time}</span></div><div class="segs">${[0,1,2,3,4].map((i) => `<i class="${i < now ? "d" : i === now ? "n" : ""}"></i>`).join("")}</div></div>`;
+const COMPOSER = (k = "") => `<div class="row" style="justify-content:space-between;border-top:1px solid #2D2840;padding-top:8px"><span class="fake">Reply to the agent…</span>${btn("SEND", "pri " + k)}</div>`;
+
+const PARTS = [
+  { id: "l", hud: "Lancements longs · box, session, agent, tâche", title: "Savoir où en est un lancement",
+    intro: "Ces lancements enchaînent jusqu'à six étapes ; seule la première image est vraiment longue. Les questions L1 à L6 portent sur ce que tu vois pendant ce temps et sur ce qui doit te dire « c'est bloqué ».",
+    questions: [
+      { id: "l1_shape", title: "L1 · Forme du suivi",
+        ctx: "Où tu attends (le transcript d'une session, le fil d'un agent, la ligne de box sur la home), il y a de la place pour une liste d'étapes. Une carte de tâche, une puce ou le rail n'ont qu'une ligne.",
+        demo: `<div class="cmp">${P("AVANT · session neuve sur une box arrêtée", false, HEAD("") + YOU + `<div style="min-height:90px"></div>` + COMPOSER("btnd"))}${P("(a) liste d'étapes là où tu attends, bandeau compact ailleurs", true, HEAD(`<span class="chipx run"><span class="dot"></span>STARTING</span>`) + YOU + PANEL("Starting the box", 3, "3 s · usually 2 s") + COMPOSER("btnd") + `<div class="hudx" style="margin-top:6px">AILLEURS, UNE LIGNE</div>` + TASK(STRIP("VM start", 3, "3 s")))}</div><div class="cmp" style="margin-top:12px">${P("(b) bandeau compact partout", false, HEAD(`<span class="chipx run"><span class="dot"></span>STARTING</span>`) + YOU + `<div style="padding:8px 0">${STRIP("Starting the box · VM start", 3, "3 s")}</div>` + COMPOSER("btnd"))}${P("(‌c) une barre avec estimation", false, HEAD(`<span class="chipx run"><span class="dot"></span>STARTING</span>`) + YOU + `<div style="padding:8px 0;display:grid;gap:6px"><div class="row" style="justify-content:space-between"><span class="hudx" style="color:var(--a-text)">Starting the box</span><span class="mono dim" style="font-size:12px">≈ 60 % · about 4 s left</span></div><div class="bar"><i style="width:60%"></i></div></div>` + COMPOSER("btnd"))}</div>`,
+        options: [
+          { v: "a", label: "(a) Liste d'étapes là où tu attends, bandeau compact dans les cartes, puces et rail", desc: "Le détail quand tu regardes le lancement, une ligne qui dit la même chose ailleurs. Les deux lisent le même flux d'étapes.", reco: true },
+          { v: "b", label: "(b) Bandeau compact partout", desc: "Plus discret, mais les étapes finies et leur durée disparaissent." },
+          { v: "c", label: "(‌c) Une seule barre avec estimation", desc: "Familière, mais un pourcentage ment dès qu'une image se construit (40 s ou 10 min selon le cache)." } ] },
+      { id: "l2_time", title: "L2 · Les temps affichés",
+        ctx: "pap ne garde aujourd'hui aucune durée par étape. Pour « d'habitude », le daemon retiendrait la médiane des derniers lancements de chaque box, par étape (pap-vmd mesure déjà chaque appel). Le compteur de l'étape active se met à jour une fois par seconde : c'est une exception à §7.2 (rien ne se repeint en continu), à écrire dans une ADR.",
+        demo: `<div class="cmp">${P("(a) écoulé + d'habitude", true, `<div class="steps">${st("done", "Disk", "0.4 s")}${st("now", "VM start", "3 s · usually 2 s")}${st("todo", "Guest ready")}</div>`)}${P("(b) écoulé seul", false, `<div class="steps">${st("done", "Disk", "0.4 s")}${st("now", "VM start", "3 s")}${st("todo", "Guest ready")}</div>`)}${P("(‌c) temps restant estimé", false, `<div class="steps">${st("done", "Disk", "")}${st("now", "VM start", "about 1 s left")}${st("todo", "Guest ready")}</div>`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Temps écoulé par étape, plus « usually N s » quand l'historique existe", desc: "Tu vois tout de suite si c'est normal. Coût : une petite table de durées dans le daemon.", reco: true },
+          { v: "b", label: "(b) Temps écoulé seul", desc: "Rien à stocker, mais « 3 s », c'est beaucoup ou pas ?" },
+          { v: "c", label: "(‌c) Temps restant estimé", desc: "Rassurant quand c'est juste, trompeur dès qu'une image ou un disque est neuf." } ] },
+      { id: "l3_stuck", title: "L3 · En cours ou bloqué ?",
+        ctx: "Chaque étape a déjà un délai maximum dans le code (invité 60 s, appel VM 60 s, image 30 min) mais tu ne le vois pas. Pendant un build, pap pourrait montrer la dernière ligne de BuildKit ; pendant le démarrage de l'invité, le dernier signe de vie.",
+        demo: `<div class="cmp">${P("(a) signe de vie, « plus lent que d'habitude », puis on te demande", true, `<div class="steps">${st("done", "Checks", "0.2 s")}${st("now", "Project image", "1 min 40 · usually 40 s", `<span class="sub">RUN npm ci · 2 s ago</span><span class="slow">Slower than usual. It gives up at 30 min.</span>`)}${st("todo", "Disk")}</div><div class="ask"><p style="font-size:13px">No news from the guest for 45 s. pap gives up at 60 s.</p><div class="row">${btn("SHOW THE LOG")}${btn("STOP")}</div></div>`)}${P("(b) un message après 30 s", false, `<div class="steps">${st("now", "Starting the box", "35 s")}</div><p class="dim" style="font-size:13px">This is taking longer than expected…</p>`)}${P("(‌c) rien de plus", false, `<div class="steps">${st("now", "Starting the box", "35 s")}</div>`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Dernier signe de vie, « plus lent que d'habitude » au-delà de 2× la médiane, et une question en rose avant le délai max", desc: "Rose = il faut répondre (DESIGN §2). La question propose Voir le journal et Arrêter, jamais un relancement automatique.", reco: true },
+          { v: "b", label: "(b) Un message générique après 30 s", desc: "Simple, mais il ne dit ni quoi ni pourquoi." },
+          { v: "c", label: "(‌c) Rien : l'erreur arrive à la fin", desc: "C'est aujourd'hui." } ] },
+      { id: "l4_blocker", title: "L4 · Bloqué par quoi",
+        ctx: "Aujourd'hui une tâche reste « Queued » sans dire qu'elle attend une place (pap réessaie toutes les 10 ou 30 s), et une box attend en silence qu'une autre image finisse de se construire.",
+        demo: `<div class="cmp">${P("AVANT", false, TASK(`<span class="dim" style="font-size:13px">created 4 min ago</span>`))}${P("(a) la raison en clair et quoi faire", true, TASK(`<div class="wait"><span>Waiting for a session slot · <span class="mono">4/4</span> in use</span><span class="dim">Next try in 8 s. <span class="lnk">See the sessions</span></span></div>`) + `<div class="wait" style="margin-top:6px"><span>Waiting for another image build (project <b>api</b>) · you are 2nd</span></div><div class="wait" style="margin-top:6px"><span>Box memory full · <span class="mono">6.0 / 6.0 GB</span></span><span class="dim">Stop a box to start this one.</span></div>`)}${P("(b) un mot générique", false, TASK(`<span class="dim" style="font-size:13px">Waiting…</span>`))}</div>`,
+        options: [
+          { v: "a", label: "(a) Dire ce qu'on attend, la file, et l'action qui débloque", desc: "Places de session, mémoire des box, build d'une autre image, budget, pause après crashs.", reco: true },
+          { v: "b", label: "(b) Un mot générique « Waiting… »", desc: "" } ] },
+      { id: "l5_helpers", title: "L5 · Les lectures Pi (MCP, skills, modèles)",
+        ctx: "Chaque lecture de la config Pi lance un petit processus, 4 au plus. La cinquième est refusée tout de suite avec un texte qui parle de « worker slots ».",
+        demo: `<div class="cmp">${P("AVANT", false, `<p style="color:var(--a-err);font-size:13px;margin:0">pap is at capacity: every worker slot is in use. Nothing was started.</p>`)}${P("(a) faire la queue et le dire", true, `<div class="loading"><span class="ring"></span><span>Reading the MCP servers · queued, 2nd · 4 Pi reads running</span></div>`)}${P("(b) garder le refus, avec le bon texte", false, `<p style="color:var(--a-err);font-size:13px;margin:0">Pi is busy: 4 reads are already running. Nothing was read. Try again in a moment.</p>${btn("RETRY")}`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Mettre en file d'attente (bornée) au lieu de refuser, et afficher la position", desc: "Plus de refus surprise quand trois onglets ouvrent les réglages en même temps.", reco: true },
+          { v: "b", label: "(b) Garder le refus immédiat, avec un texte juste et Retry", desc: "" } ] },
+      { id: "l6_tray", title: "L6 · Un seul endroit pour tout voir",
+        ctx: "Une box qui démarre pour une tâche, un build d'image, un clone GitHub, un setup de lane : aujourd'hui il faut aller sur le bon écran pour savoir.",
+        demo: `<div class="cmp">${P("(a) un indicateur dans le rail, qui ouvre la liste", true, `<div class="railx"><svg width="18" height="18" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="#F2EFFA"/><rect x="10.4" y="12" width="3.2" height="13" fill="#A78BFA"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="#FB923C"/></svg><span class="act"><span class="ring"></span>3 IN PROGRESS</span></div><div class="tray"><div class="it"><span><b>Box api</b> · Project image</span><span class="mono dim" style="font-size:12px">1 min 10 · usually 40 s</span></div><div class="it"><span><b>Task nightly</b> · waiting for a session slot (4/4)</span><span class="mono dim" style="font-size:12px">next try in 8 s</span></div><div class="it"><span><b>Clone</b> soulkyu/site</span><span class="mono dim" style="font-size:12px">22 s</span></div></div>`)}${P("(b) chaque écran pour lui-même", false, `<div class="railx"><svg width="18" height="18" viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="9" width="20" height="3.2" fill="#F2EFFA"/><rect x="10.4" y="12" width="3.2" height="13" fill="#A78BFA"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="#FB923C"/></svg></div><p class="dim" style="font-size:13px;margin:0">Each launch shows only where it happens.</p>`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Un indicateur « N in progress » dans le rail et la barre du bas, qui ouvre la liste de ce qui démarre, construit ou attend", desc: "Même flux d'étapes que L1 ; il disparaît quand rien ne tourne.", reco: true },
+          { v: "b", label: "(b) Chaque écran pour lui-même", desc: "Moins de travail ; tu dois savoir où regarder." } ] }
+    ] },
+  { id: "c", hud: "Chargements courts · réglages, fichiers, listes", title: "Les petites attentes",
+    intro: "Une page de réglages fait deux attentes à la suite (le code de la page, puis les données via Pi), chacune avec une ligne grise qui apparaît tout de suite.",
+    questions: [
+      { id: "c1_short", title: "C1 · Une ligne qui dit quoi et depuis combien de temps",
+        ctx: "§7.3 de DESIGN.md : rien sous 100 ms, un spinner jusqu'à 3 s, un libellé ensuite. Aujourd'hui seul le code de la page respecte les 100 ms ; les données s'affichent à la seconde.",
+        demo: `<div class="cmp">${P("AVANT · Settings › MCP", false, `<div class="t16">MCP servers</div><p class="dim" style="font-size:13px;margin:0">Loading…</p><p class="dim" style="font-size:13px;margin:0">Loading servers…</p>`)}${P("(a) une seule ligne, qui s'enrichit", true, `<div class="t16">MCP servers</div><div class="hudx">AFTER 1 S</div><div class="loading"><span class="ring"></span><span>Reading the MCP servers…</span></div><div class="hudx">AFTER 10 S</div><div class="loading"><span class="ring"></span><span>Reading the MCP servers… <span class="mono">12 s</span> · Pi is reading 3 things at once</span></div>`)}${P("(b) juste le spinner et le délai", false, `<div class="t16">MCP servers</div><div class="loading"><span class="ring"></span><span>Loading servers…</span></div>`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Rien sous 100 ms, puis une ligne qui dit ce qui est lu, son temps après 3 s, et la cause après 10 s", desc: "Une ligne au lieu de deux ; pas de squelette (refusé par l'audit).", reco: true },
+          { v: "b", label: "(b) Juste le spinner et le délai de 100 ms", desc: "" },
+          { v: "c", label: "(‌c) Ne rien changer", desc: "" } ] },
+      { id: "c2_buttons", title: "C2 · Les boutons qui lancent",
+        ctx: "Launch, Send, Start, Restart, Rebuild : aujourd'hui leur texte change selon le temps écoulé (spinner à 1 s, « Starting the box… » à 3 s), ou pas du tout (Launch, Send).",
+        demo: `<div class="cmp">${P("AVANT", false, `<div class="row">${btn("LAUNCH", "pri btnd")}${spinBtn("STARTING THE BOX…")}</div>`)}${P("(a) le bouton dit l'étape réelle", true, `<div class="row">${spinBtn("BUILDING THE IMAGE…", "pri")}${spinBtn("STARTING THE VM…")}</div>`)}${P("(b) garder les paliers de temps", false, `<div class="row">${spinBtn("LAUNCH", "pri")}${spinBtn("STARTING THE BOX…")}</div>`)}</div>`,
+        options: [
+          { v: "a", label: "(a) Le libellé suit l'étape réelle du lancement", desc: "Même source que L1 ; Launch et Send gagnent un spinner.", reco: true },
+          { v: "b", label: "(b) Garder les paliers de temps, en ajoutant le spinner à Launch et Send", desc: "" } ] }
+    ] },
+  { id: "s", hud: "Mise en place", title: "Découpage",
+    intro: "Le daemon doit publier les étapes (un événement par étape avec son heure), garder les durées, et la file des lectures Pi ; le web affiche. Ensuite je fais le plan, comme pour les autres lots.",
+    questions: [
+      { id: "s1_split", title: "S1 · Un lot ou deux",
+        options: [
+          { v: "two", label: "Deux lots : d'abord les lancements longs (L1–L6, C2), puis les chargements courts (C1)", desc: "Le premier règle la vraie douleur (box, session, agent, tâche) ; le second est surtout du web.", reco: true },
+          { v: "one", label: "Un seul lot", desc: "" } ] }
+    ] }
+];
+
+const KEY = "pap-decisions-loading-draft";
+const DOC = "answers/loading";
+const form = document.getElementById("form");
+const statusEl = document.getElementById("status");
+let state = { choices: {}, notes: {}, general: "" };
+
+function el(tag, attrs = {}, kids = []) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) { if (k === "text") n.textContent = v; else if (v !== false && v != null) n.setAttribute(k, v === true ? "" : v); }
+  for (const k of kids) n.append(k);
+  return n;
+}
+function render() {
+  form.replaceChildren();
+  for (const part of PARTS) {
+    const sec = el("section", { class: "part", "aria-labelledby": "h-" + part.id });
+    sec.append(el("div", { class: "part-head" }, [el("span", { class: "hud", text: part.hud }), el("h2", { id: "h-" + part.id, text: part.title }), el("p", { class: "muted", text: part.intro })]));
+    for (const q of part.questions) {
+      const qid = part.id + "." + q.id;
+      const box = el("fieldset", { class: "q" });
+      const answered = state.choices[qid];
+      const chip = el("span", { class: "chip " + (answered ? "ok" : "mut"), text: answered ? "répondu" : "à choisir" });
+      box.append(el("div", { class: "q-head" }, [el("legend", { class: "q-title", text: q.title }), chip]));
+      if (q.ctx) box.append(el("p", { class: "ctx", text: q.ctx }));
+      if (q.demo) { const d = document.createElement("div"); d.className = "demo"; d.innerHTML = q.demo; box.append(d); }
+      const opts = el("div", { class: "opts" });
+      for (const o of q.options) {
+        const id = qid + "." + o.v;
+        const input = el("input", { type: "radio", name: qid, id, value: o.v, checked: state.choices[qid] === o.v });
+        input.addEventListener("change", () => { state.choices[qid] = o.v; save(); chip.className = "chip ok"; chip.textContent = "répondu"; });
+        const label = el("span", { class: "opt-label" }, [o.label]);
+        if (o.reco) label.append(el("span", { class: "chip reco", text: "reco" }));
+        const row = el("label", { class: "opt", for: id }, [input, label]);
+        if (o.desc) row.append(el("span", { class: "opt-desc", text: o.desc }));
+        opts.append(row);
+      }
+      box.append(opts);
+      const note = el("textarea", { id: qid + ".note", rows: "1", placeholder: "Note (optionnelle)", "aria-label": "Note pour : " + q.title });
+      note.value = state.notes[qid] || "";
+      note.addEventListener("input", () => { state.notes[qid] = note.value; save(); });
+      box.append(note);
+      sec.append(box);
+    }
+    form.append(sec);
+  }
+  const g = el("fieldset", { class: "q" }, [el("legend", { class: "q-title", text: "Note générale" })]);
+  const gt = el("textarea", { id: "general", rows: "3", placeholder: "Une attente que j'ai oubliée, une idée, un exemple vécu" });
+  gt.value = state.general || "";
+  gt.addEventListener("input", () => { state.general = gt.value; save(); });
+  g.append(gt);
+  form.append(g);
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && s.choices) state = s; } catch {} }
+function count() { return PARTS.reduce((n, p) => n + p.questions.length, 0); }
+function answeredCount() { return Object.keys(state.choices).length; }
+
+document.getElementById("recos").addEventListener("click", () => {
+  for (const p of PARTS) for (const q of p.questions) { const qid = p.id + "." + q.id; if (!state.choices[qid]) { const r = q.options.find((o) => o.reco); if (r) state.choices[qid] = r.v; } }
+  save(); render(); statusEl.className = "status"; statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+});
+
+let dbPromise = null;
+function db() { if (!dbPromise) dbPromise = (window.claude?.use ? window.claude.use("db") : Promise.resolve(null)).catch(() => null); return dbPromise; }
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const send = document.getElementById("send");
+  const missing = count() - answeredCount();
+  if (missing > 0) { statusEl.className = "status err"; statusEl.textContent = missing + " question(s) sans choix : choisis ou applique les recos."; return; }
+  send.disabled = true; statusEl.className = "status"; statusEl.textContent = "Envoi…";
+  const store = await db();
+  if (!store) { send.disabled = false; statusEl.className = "status err"; statusEl.textContent = "Envoi impossible ici : ouvre la page connecté à claude.ai. Tes choix restent dans ce navigateur."; return; }
+  try {
+    await store.doc(DOC).set({ choices: state.choices, notes: state.notes, general: state.general || "", sentAt: new Date().toISOString() });
+    statusEl.className = "status ok"; statusEl.textContent = "Envoyé : je lis tes réponses.";
+  } catch (err) {
+    statusEl.className = "status err"; statusEl.textContent = "Envoi refusé (" + (err?.code || "erreur") + "). Tes choix restent dans ce navigateur ; réessaie.";
+  } finally { send.disabled = false; }
+});
+
+load();
+render();
+statusEl.textContent = answeredCount() + " / " + count() + " choisies";
+db().then(async (store) => {
+  if (!store) return;
+  try { const snap = await store.doc(DOC).get(); if (snap.exists && answeredCount() === 0) { const d = snap.data(); state = { choices: d.choices || {}, notes: d.notes || {}, general: d.general || "" }; render(); statusEl.textContent = "Réponses déjà envoyées · " + answeredCount() + " / " + count(); } } catch {}
+});
+</script>
