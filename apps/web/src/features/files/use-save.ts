@@ -35,12 +35,20 @@ const FRAME_SOFT_LIMIT_BYTES = 900_000;
 const encoder = new TextEncoder();
 const frameBytes = (text: string): number => encoder.encode(JSON.stringify(text)).byteLength;
 
-/** The etag the daemon gives a text: the first 32 hex digits of its SHA-256. Null where the page cannot hash (not a secure context). */
-async function etagOf(text: string): Promise<string | null> {
-  const subtle = globalThis.isSecureContext ? globalThis.crypto?.subtle : undefined;
-  if (!subtle) return null;
-  const digest = new Uint8Array(await subtle.digest("SHA-256", encoder.encode(text)));
-  return Array.from(digest.slice(0, 16), (byte) => byte.toString(16).padStart(2, "0")).join("");
+/**
+ * The file as it is now, chunk by chunk, compared as text: no hash, so a page over plain HTTP (no `crypto.subtle`) decides the
+ * same way as one over HTTPS. Reading stops once it holds more than the saved text, which then cannot match.
+ */
+async function holds(path: string, text: string): Promise<FileMeta | null> {
+  const { rpc } = getRuntime();
+  let answer = await rpc.call("files.read", { path, offset: 0 });
+  const meta = answer.meta;
+  let whole = answer.text;
+  while (answer.nextOffset !== null && whole.length <= text.length) {
+    answer = await rpc.call("files.read", { path, offset: answer.nextOffset });
+    whole += answer.text;
+  }
+  return whole === text ? meta : null;
 }
 
 /** Files with a write on its way: a viewer remounted mid-save (tab left and reopened) must not start a second one. */
@@ -104,9 +112,8 @@ export function useSave({ path, file, buffer, stepUp, drop }: SaveInput): Save {
 
   const verify = async (text: string) => {
     try {
-      const answer = await getRuntime().rpc.call("files.read", { path, offset: 0 });
-      const hash = await etagOf(text);
-      if (hash !== null && answer.meta.etag === hash) finish(answer.meta, text);
+      const meta = await holds(path, text);
+      if (meta !== null) finish(meta, text);
       else set({ kind: "unknown" });
     } catch {
       set({ kind: "unknown" }); // the person is told; nothing is sent again

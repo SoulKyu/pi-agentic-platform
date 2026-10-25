@@ -322,52 +322,53 @@ describe("editing", () => {
   });
 
   describe("a save whose outcome is unknown (timeout)", () => {
-    const digestOf = (bytes: number) =>
-      vi.fn(async () => new Uint8Array(32).fill(bytes).buffer as ArrayBuffer);
     const timeout = () => {
       world.bed.handlers["files.write"] = () => {
         throw new RpcError("timeout");
       };
     };
 
-    it("re-reads and says Saved when the new etag is the SHA-256 prefix of the saved text", async () => {
+    it.each([true, false])(
+      "re-reads and says Saved when the file now holds the saved text (secure context: %s)",
+      async (secure) => {
+        timeout();
+        vi.stubGlobal("isSecureContext", secure);
+        const c = await show();
+        await open(c, "a.ts");
+        await type(c, "maybe");
+        Object.assign(diskOf("/p/a.ts"), { etag: "a".repeat(32), text: "maybe" });
+        await save(c);
+        expect(text(c)).toContain("Saved");
+        expect(writes()).toHaveLength(1);
+        expect(button(c, "Save").disabled).toBe(true);
+      },
+    );
+
+    it("reads every chunk before it compares", async () => {
       timeout();
-      vi.stubGlobal("isSecureContext", true);
-      vi.stubGlobal("crypto", { subtle: { digest: digestOf(0xaa) } });
       const c = await show();
       await open(c, "a.ts");
       await type(c, "maybe");
-      Object.assign(diskOf("/p/a.ts"), { etag: "a".repeat(32), text: "maybe" });
+      const read = world.bed.handlers["files.read"];
+      world.bed.handlers["files.read"] = (params) => {
+        const offset = (params as { offset?: number }).offset ?? 0;
+        const whole = (read?.(params) as { text: string; meta: unknown }) ?? { text: "", meta: null };
+        return { ...whole, text: offset === 0 ? "may" : "be", offset, nextOffset: offset === 0 ? 3 : null };
+      };
       await save(c);
       expect(text(c)).toContain("Saved");
-      expect(writes()).toHaveLength(1);
-      expect(button(c, "Save").disabled).toBe(true);
     });
 
-    it("warns and never resends when the etag differs", async () => {
+    it("warns and never resends when the file holds something else", async () => {
       timeout();
-      vi.stubGlobal("isSecureContext", true);
-      vi.stubGlobal("crypto", { subtle: { digest: digestOf(0xbb) } });
       const c = await show();
       await open(c, "a.ts");
       await type(c, "maybe");
-      Object.assign(diskOf("/p/a.ts"), { etag: "a".repeat(32) });
       await save(c);
       expect(text(c)).toContain("The save may not have completed");
       expect(hasButton(c, "Reload")).toBe(true);
       expect(writes()).toHaveLength(1);
       expect(editor(c).value).toBe("maybe");
-    });
-
-    it("warns when the page cannot hash (not a secure context)", async () => {
-      timeout();
-      vi.stubGlobal("isSecureContext", false);
-      const c = await show();
-      await open(c, "a.ts");
-      await type(c, "maybe");
-      await save(c);
-      expect(text(c)).toContain("The save may not have completed");
-      expect(writes()).toHaveLength(1);
     });
   });
 
