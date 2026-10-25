@@ -1,5 +1,5 @@
 import { HMAC_HEADERS } from "@pap/contracts";
-import { Button, Segmented, Select, Switch, TextField } from "@pap/ui";
+import { Button, copyText, Segmented, Select, Switch, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import type { SectionProps } from "./EditorSection.tsx";
@@ -9,15 +9,6 @@ export interface WebhookFieldsProps extends SectionProps {
   readonly webhookUrl: string | null;
   readonly canRotate: boolean;
   onRotate(): void;
-}
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /** The hook's address with Copy, how it authenticates, how its body is read, its limits, and Rotation. The secret itself is never here. */

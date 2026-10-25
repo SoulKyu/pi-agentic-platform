@@ -1,5 +1,5 @@
 import { TOKEN_LIFETIMES_DAYS, TOKEN_PERMISSIONS, type TokenView } from "@pap/contracts";
-import { Button, Checkbox, Segmented, TextField } from "@pap/ui";
+import { Button, Checkbox, copyText, Segmented, TextField } from "@pap/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -49,16 +49,6 @@ async function createToken(
     if (failure instanceof RpcError && (failure.code === "timeout" || failure.code === "connection_lost"))
       return "unknown";
     throw failure;
-  }
-}
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    // Shown to the person as "Select the text and copy it": the refusal never stays silent.
-    return false;
   }
 }
 

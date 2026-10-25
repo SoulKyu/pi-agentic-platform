@@ -1,5 +1,5 @@
 import { USERS_LIMITS } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, copyText, TextField } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useId, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -11,15 +11,6 @@ import { useUserAction } from "./use-users.ts";
 interface Props {
   readonly stepUp: StepUpRunner;
   onClose(): void;
-}
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 /**

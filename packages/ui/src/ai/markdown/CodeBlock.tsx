@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { copyText } from "../../clipboard.ts";
 import { cn } from "../../cn.ts";
 import { IconCheck, IconCopy } from "../../icons.ts";
 import { MessageAction } from "../Message.tsx";
@@ -10,29 +11,6 @@ const COPIED_MS = 1500;
 export interface CodeCopyLabels {
   readonly copy: string;
   readonly copied: string;
-}
-
-/** The Clipboard API exists only in a secure context: over plain HTTP on a LAN (ADR 0004) a selected textarea copies instead. */
-async function copyText(text: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(text);
-    return true;
-  } catch {
-    const back = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const area = document.createElement("textarea");
-    area.value = text;
-    area.readOnly = true;
-    area.className = "fixed top-0 left-0 opacity-0";
-    document.body.append(area);
-    area.focus();
-    area.select();
-    try {
-      return document.execCommand("copy");
-    } finally {
-      area.remove();
-      back?.focus();
-    }
-  }
 }
 
 function CopyCode({ code, labels }: { readonly code: string; readonly labels: CodeCopyLabels }) {

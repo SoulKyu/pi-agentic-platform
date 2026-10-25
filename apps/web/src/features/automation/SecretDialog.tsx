@@ -1,16 +1,7 @@
-import { Button } from "@pap/ui";
+import { Button, copyText } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * A webhook secret, shown once (Task 3): after a create, an update that made the trigger a webhook, or a rotation. The value lives

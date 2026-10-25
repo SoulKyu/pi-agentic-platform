@@ -21,6 +21,7 @@ export { DaySeparator } from "./ai/DaySeparator.tsx";
 export { RunStatusChip, type RunStatus } from "./ai/RunStatusChip.tsx";
 export { Fence } from "./ai/Fence.tsx";
 export { Markdown } from "./ai/Markdown.tsx";
+export { copyText } from "./clipboard.ts";
 export type { CodeCopyLabels } from "./ai/markdown/CodeBlock.tsx";
 export { Mark, type MarkProps } from "./brand/Mark.tsx";
 export { Wordmark } from "./brand/Wordmark.tsx";

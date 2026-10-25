@@ -1,5 +1,5 @@
 import type { LoginPrompt } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, copyText, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { codeText } from "./failure.ts";
@@ -83,11 +83,8 @@ function DeviceCode({ device }: { readonly device: NonNullable<FlowView["device"
   const t = useT();
   const [copy, setCopy] = useState<"idle" | "copied" | "failed">("idle");
   const copyCode = () => {
-    navigator.clipboard.writeText(device.userCode).then(
-      () => setCopy("copied"),
-      // Said to the person as "Select the code and copy it": the refusal never stays silent.
-      () => setCopy("failed"),
-    );
+    // Said to the person as "Select the code and copy it" when it fails: the refusal never stays silent.
+    void copyText(device.userCode).then((copied) => setCopy(copied ? "copied" : "failed"));
   };
   return (
     <div className="flex flex-col gap-s2">

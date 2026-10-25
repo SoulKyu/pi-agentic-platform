@@ -1,16 +1,7 @@
 import "./register-space-catalog.ts";
-import { Button } from "@pap/ui";
+import { Button, copyText } from "@pap/ui";
 import { useId, useState } from "react";
 import { useT } from "../../i18n/index.ts";
-
-async function copyText(value: string): Promise<boolean> {
-  try {
-    await navigator.clipboard.writeText(value);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** One secret shown once: a read-only field and a copy button. The value is a prop; nothing here keeps it elsewhere. */
 export function SecretReveal({ name, secret }: { readonly name: string; readonly secret: string }) {
