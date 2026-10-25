@@ -169,12 +169,14 @@ describe("adapterSecrets", () => {
 });
 
 describe("the credential vocabulary", () => {
-  // The daemon reads the list from @pap/contracts (credentialName); pi-host's MCP masker re-exports the same one.
+  // The daemon reads the list from @pap/contracts (credentialName); pi-host's MCP masker re-exports the same one through @pap/contracts/pi-host.
   it("pi-host's credential-words file still re-exports contracts' list, so both maskers agree", () => {
     const text = readFileSync(
       join(import.meta.dirname, "../../../../../packages/pi-host/src/helper/credential-words.ts"),
       "utf8",
     );
-    expect(text).toContain('export { COMMENT_WORD, CREDENTIAL_WORDS, credentialName } from "@pap/contracts"');
+    expect(text).toContain(
+      'export { COMMENT_WORD, CREDENTIAL_WORDS, credentialName } from "@pap/contracts/pi-host"',
+    );
   });
 });

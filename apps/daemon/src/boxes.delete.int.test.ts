@@ -47,7 +47,11 @@ describe("deleting a project in a box", () => {
       taskId,
     )[0]?.session_id;
     expect(taskSession).toBeDefined();
-    expect(await statusOf(taskSession ?? "")).toBe("running");
+    // The task row reads `running` once its session exists; the session itself reads `running` once the prompt has started.
+    await vi.waitFor(async () => expect(await statusOf(taskSession ?? "")).toBe("running"), {
+      timeout: 60_000,
+      interval: 250,
+    });
 
     // A pause told in the Inbox (the box crashed three times): the item carries the project.
     bed.vm.boxes.crashPause({ kind: "project", id: project.id }, () => {});

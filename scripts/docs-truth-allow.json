@@ -134,6 +134,12 @@
   {
     "note": "docs/agents/policy.md",
     "rule": "method",
+    "token": "search.db",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/policy.md",
+    "rule": "method",
     "token": "models.classify",
     "reason": "Pi codemode API (the models object scripts would see; pap turns it off), not a pap RPC method"
   },
