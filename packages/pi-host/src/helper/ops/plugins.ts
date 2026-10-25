@@ -22,7 +22,7 @@ import {
   sourceOf,
   stateOf,
 } from "../plugin-entries.ts";
-import { pluginIdKey, pluginIdOf } from "../plugin-id.ts";
+import { identityOf, pluginIdKey, pluginIdsOf } from "../plugin-id.ts";
 import { pluginSource } from "../plugin-source.ts";
 import { withInstallEnv } from "./install-env.ts";
 import { commit } from "./models-defaults.ts";
@@ -294,8 +294,10 @@ export async function listPlugins(ctx: Ctx & Pick<HelperContext, "papHome">): Pr
       offline(async () => {
         const plugins: PluginView[] = [];
         let truncated = false;
-        for (const scope of scopes)
-          for (const entry of packagesOf(settings.manager, scope)) {
+        for (const scope of scopes) {
+          const entries = packagesOf(settings.manager, scope);
+          const ids = pluginIdsOf(idKey, scope, entries.map(sourceOf), identityOf(pm));
+          for (const [index, entry] of entries.entries()) {
             const source = clip(maskSource(sourceOf(entry)), PLUGIN_LIMITS.source + 1);
             if (
               source === "" ||
@@ -319,13 +321,14 @@ export async function listPlugins(ctx: Ctx & Pick<HelperContext, "papHome">): Pr
                 ? path
                 : null;
             plugins.push({
-              id: pluginIdOf(idKey, scope, sourceOf(entry)),
+              id: ids[index] as string,
               source,
               scope,
               installedPath,
               ...stateOf(entry),
             });
           }
+        }
         return { plugins, truncated };
       }),
     ctx.agentDir,

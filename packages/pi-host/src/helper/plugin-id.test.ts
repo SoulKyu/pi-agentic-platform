@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { pluginIdKey } from "./plugin-id.ts";
+import { identityOf, pluginIdKey, pluginIdOf, pluginIdsOf } from "./plugin-id.ts";
 
 /*
  * Mutants (S2 m1), run for real: the key removed after a read that saw nothing ("never removes a key a concurrent creator
@@ -66,5 +66,26 @@ describe("pluginIdKey", () => {
     expect(key).toHaveLength(32);
     expect(statSync(file()).mode & 0o777).toBe(0o600);
     expect(readFileSync(file()).equals(key)).toBe(true);
+  });
+});
+
+describe("identityOf", () => {
+  it("falls back to the exact source when Pi has no identity method or it throws", () => {
+    expect(identityOf({})("npm:a@1.0.0", "user")).toBe("npm:a@1.0.0");
+    const throwing = {
+      getPackageIdentity() {
+        throw new Error("untrusted");
+      },
+    };
+    expect(identityOf(throwing)("npm:a@1.0.0", "project")).toBe("npm:a@1.0.0");
+  });
+
+  it("gives a later entry of one identity its exact source's id, so two entries never share one", () => {
+    const key = Buffer.alloc(32, 1);
+    const ids = pluginIdsOf(key, "user", ["npm:a@1", "npm:a@2", "npm:b@1"], (source) =>
+      source.replace(/@.*/, ""),
+    );
+    expect(new Set(ids).size).toBe(3);
+    expect(ids[1]).toBe(pluginIdOf(key, "user", "npm:a@2"));
   });
 });

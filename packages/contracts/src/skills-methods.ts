@@ -138,7 +138,8 @@ const PluginScope = z.enum(["user", "project"]);
 /** A package source as the owner typed it or as Pi's settings hold it: the helper validates it (M7R115). */
 const PluginSourceText = z.string().min(1).max(PLUGIN_LIMITS.source);
 /**
- * A package's id (AVM-E33): 32 hex characters the helper makes from the scope and the exact source. It names the package without
+ * A package's id (AVM-E33): 32 hex characters the helper makes from the scope and Pi's package identity (version and ref
+ * ignored, so a pick survives an upgrade); a second entry of one identity gets its exact source's. It names the package without
  * the source, which may hold a secret, and tells apart two sources that mask alike. The daemon resolves it; a browser never does.
  */
 export const PluginId = z.string().regex(/^[0-9a-f]{32}$/);

@@ -87,6 +87,53 @@ export function pluginIdKey(papHome: string, hooks: { afterRead?: () => void } =
   throw new Error("plugin id key");
 }
 
-/** AVM-E33: the id a package is known by outside the helper: a keyed hash of its scope and exact source, never the source itself. */
-export const pluginIdOf = (key: Buffer, scope: "user" | "project", source: string): string =>
+type Scope = "user" | "project";
+
+/** AVM-E33: the id of a package's exact source, a keyed hash of its scope and source, never the source itself. Picks saved before the identity ids hold these. */
+export const pluginIdOf = (key: Buffer, scope: Scope, source: string): string =>
   createHmac("sha256", key).update(`pap-plugin\0${scope}\0${source}`).digest("hex").slice(0, 32);
+
+/** The id of a package identity (its own domain: it never equals an exact source's id). */
+const identityIdOf = (key: Buffer, scope: Scope, identity: string): string =>
+  createHmac("sha256", key).update(`pap-plugin-identity\0${scope}\0${identity}`).digest("hex").slice(0, 32);
+
+/** Pi's identity of a source, version and ref ignored; the exact source when Pi has no answer. */
+export type IdentityOf = (source: string, scope: Scope) => string;
+
+/**
+ * Pi's own rule for "the same package" (`DefaultPackageManager.getPackageIdentity`, private in Pi's types, used by its update and
+ * dedupe): `npm:name@1` and `npm:name@2` are one package, a git URL is its host and path. Without the method, or when it throws,
+ * the exact source stands in (the ids of before).
+ */
+export function identityOf(pm: object): IdentityOf {
+  const method: unknown = (pm as { getPackageIdentity?: unknown }).getPackageIdentity;
+  return (source, scope) => {
+    if (typeof method !== "function") return source;
+    try {
+      const identity: unknown = method.call(pm, source, scope);
+      return typeof identity === "string" && identity.length > 0 ? identity : source;
+    } catch {
+      return source;
+    }
+  };
+}
+
+/**
+ * The id each entry of one scope is listed under. The first entry of a package identity gets the identity's id, so a pick
+ * survives a new version or ref in `settings.json`; a later entry of an identity already seen gets its exact source's id, so
+ * two entries never share an id.
+ */
+export function pluginIdsOf(
+  key: Buffer,
+  scope: Scope,
+  sources: readonly string[],
+  identity: IdentityOf,
+): string[] {
+  const seen = new Set<string>();
+  return sources.map((source) => {
+    const id = identity(source, scope);
+    if (seen.has(id)) return pluginIdOf(key, scope, source);
+    seen.add(id);
+    return identityIdOf(key, scope, id);
+  });
+}

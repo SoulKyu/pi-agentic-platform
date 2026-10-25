@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { pluginIdKey, pluginIdOf } from "../plugin-id.ts";
 import { listPlugins } from "./plugins.ts";
 import { agentDir, ctxFor, cwd, papHome, root, trust } from "./plugins-bed.ts";
 import { resolvePlugins } from "./plugins-resolve.ts";
@@ -72,6 +73,22 @@ describe("plugins.resolve (AVM-E33)", () => {
     const ids = (await listPlugins(ctxFor(null))).plugins.map((plugin) => plugin.id);
     const answer = await resolvePlugins({ ids: [ids[2] as string, ids[0] as string] }, ctxFor(null));
     expect(answer).toEqual({ sources: [SECRET_B, SECRET_A] });
+  });
+
+  it("a pick survives a new version or ref of its package in settings.json (the Claude bridge, 2026-10-23)", async () => {
+    settings(["npm:pi-claude-bridge@0.9.1", "git:github.com/org/tool@aaa111"]);
+    const before = (await listPlugins(ctxFor(null))).plugins.map((plugin) => plugin.id);
+    settings(["npm:pi-claude-bridge@0.9.3", "git:github.com/org/tool@bbb222"]);
+    expect((await listPlugins(ctxFor(null))).plugins.map((plugin) => plugin.id)).toEqual(before);
+    expect(await resolvePlugins({ ids: before }, ctxFor(null))).toEqual({
+      sources: ["npm:pi-claude-bridge@0.9.3", "git:github.com/org/tool@bbb222"],
+    });
+  });
+
+  it("a pick saved under the exact-source id still resolves while that source is unchanged", async () => {
+    settings(["npm:left-pad@1.0.0"]);
+    const saved = pluginIdOf(pluginIdKey(papHome), "user", "npm:left-pad@1.0.0");
+    expect(await resolvePlugins({ ids: [saved] }, ctxFor(null))).toEqual({ sources: ["npm:left-pad@1.0.0"] });
   });
 
   it("answers null for an id nothing holds, and never throws for it", async () => {
