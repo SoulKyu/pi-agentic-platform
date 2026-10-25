@@ -1,5 +1,5 @@
 {
-  "initialBundleGzipKb": 250,
+  "initialBundleGzipKb": 300,
   "serviceWorkerGzipKb": 5,
   "sessionOpenPayloadKb": 24,
   "idleWorkerRssMb": 200,

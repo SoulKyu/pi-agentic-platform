@@ -54,7 +54,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 ## Bundle
 
 - `@pap/ui` declares `"sideEffects": ["*.css"]` and `@pap/contracts` `"sideEffects": false`. Without it, barrel re-exports pin every re-exported module (and its dependencies) into the initial graph even when unused. Import lazy-only features from their own file, not from a feature `index.ts`.
-- The ceiling is `initialBundleGzipKb` in `budgets.json` (250 KB gzip, JS and CSS); `pnpm budgets` prints the measured size and the lazy chunks. After the design pass the initial bundle is 247.4 KB (it was 244.9 KB before; the stop line of the lot was 248.5 KB). Lazy loading stays the rule for the editor, terminal, diff and highlighting, and `build-output.int.test.ts` catches a lazy-only module that lands in the initial closure.
+- The ceiling is `initialBundleGzipKb` in `budgets.json` (300 KB gzip, JS and CSS; owner, 2026-10-25); `pnpm budgets` prints the measured size and the lazy chunks. After the design pass the initial bundle is 247.4 KB (it was 244.9 KB before; the stop line of the lot was 248.5 KB). Lazy loading stays the rule for the editor, terminal, diff and highlighting, and `build-output.int.test.ts` catches a lazy-only module that lands in the initial closure.
 - Biggest initial item after the entry: `settings-*` (zod and the contracts settings schemas). Not reduced (`zod/mini` and a lazy `MobileShell` were left out).
 
 ## Sidebar, projects and search (M4)
