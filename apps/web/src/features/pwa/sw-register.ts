@@ -143,11 +143,14 @@ export function applyUpdate(): void {
 function watch(container: SwContainer, worker: SwWorker | null): void {
   if (!worker) return;
   let installed = false;
+  // An update is a worker found while the page is controlled. Read now: WebKit can let a first worker claim the page
+  // before its `installed` statechange arrives, and a first install is silent.
+  const update = Boolean(container.controller);
   const look = () => {
     if (worker.state === "installed") {
       installed = true;
       usePwa.getState().setRegistrationFailed(false);
-      if (container.controller) usePwa.getState().markUpdateReady(); // a first install is silent
+      if (update) usePwa.getState().markUpdateReady();
     } else if (worker.state === "redundant" && !installed) {
       // Never installed. With no controller there is no worker at all and no `ready` will come; with one, the
       // current shell keeps working and the next check retries.

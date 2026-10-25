@@ -55,6 +55,16 @@ describe("the update flow (M12R30)", () => {
     expect(usePwa.getState().updateReady).toBe(false);
   });
 
+  it("stays silent on a first install the page is claimed by before installed is seen (WebKit)", async () => {
+    const page = fakePwaEnv();
+    registerServiceWorker(page.env);
+    await settled();
+    const first = page.container.registration.found();
+    page.container.controller = {};
+    first.become("installed");
+    expect(usePwa.getState().updateReady).toBe(false);
+  });
+
   it("picks up a worker that was already waiting when the page loaded", async () => {
     const page = fakePwaEnv();
     page.container.controller = {};
