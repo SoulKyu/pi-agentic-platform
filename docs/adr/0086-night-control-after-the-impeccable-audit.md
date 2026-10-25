@@ -10,7 +10,7 @@ An audit of the built app with the impeccable detector (58 active findings, `doc
 
 - **D1. HUD labels.** 11 px, weight 600, 0.08em, mono capitals kept (`--text-label`, `--tracking-label`). The identity stays; the size was the defect.
 - **D2. Density.** `mixed` is the default (compact controls, 15 px chat prose). This replaces decision 27's compact default. Comfortable gains a sixth step (`--space-6` 48 px).
-- **D3. Line length.** Agent prose is capped at 72ch (`--prose-measure`, `max-w-measure`). A per-device setting, Limited or Full width, sets `data-prose` on `<html>`. This replaces decision 28's full-width prose by default. Code blocks, tables and tool output stay full width.
+- **D3. Line length.** A per-device setting, Limited or Full width, sets `data-prose` on `<html>`; Limited caps agent prose at 72ch (`--prose-measure`, `max-w-measure`). Code blocks, tables and tool output stay full width. Amended by decision 133 (owner, 2026-10-25): the default is Full width, as decision 28 had it; the owner read the capped prose as a bug, and 72ch in Manrope measured 94 to 97 characters a line.
 - **D4. Settings groups.** You (appearance, shortcuts, language, notifications, account) · Work (agents, approvals, automation, GitHub) · This pap (models, MCP, skills, users, health). M14's roles stand: a member sees what they could before, and a deep link to an owner section opens Appearance.
 - **D5. Headings.** Section 16/700 and group 13/600 in Manrope (`Heading`); card labels and field labels stay HUD.
 - **D6. Composer during a run.** Stop (secondary), model pills, Steer | Follow up (Segmented, label hidden), one Send (primary), Attach files.
@@ -31,6 +31,6 @@ The audit's refusals stand, each for a reason in DESIGN.md: the background grid 
 
 ## Consequences
 
-- Density `mixed` and Limited line length change the first impression for every user without a stored choice; both are one setting away from the old look.
+- Density `mixed` changes the first impression for every user without a stored choice; it is one setting away from the old look. Line length stays full width by default (decision 133).
 - Custom themes keep 6-digit hex tokens, since the terminal palette mixes them.
 - The example theme in §13.1 leaves cyan on navy for a blue agent on a warm neutral ground.

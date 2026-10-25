@@ -283,11 +283,11 @@
   --motion-base: 200ms;
   --grid-size: 24px;
   --chat-max-width: none;
-  --prose-measure: 72ch;
+  --prose-measure: none;
 }
 
-[data-prose="full"] {
-  --prose-measure: none;
+[data-prose="limited"] {
+  --prose-measure: 72ch;
 }
 
 [data-font-ui="system"] {

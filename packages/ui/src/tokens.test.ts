@@ -318,11 +318,11 @@ describe("motion, labels and fonts", () => {
     ).toBe("none");
   });
 
-  it('the prose measure is 72ch on :root and none under data-prose="full"', () => {
+  it('agent prose takes the whole column on :root and 72ch only under data-prose="limited"', () => {
     const root = blocks.filter((b) => b.selector === ":root").find((b) => b.decls.has("--prose-measure"));
-    expect(root?.decls.get("--prose-measure")).toBe("72ch");
-    expect(blocks.find((b) => b.selector === '[data-prose="full"]')?.decls.get("--prose-measure")).toBe(
-      "none",
+    expect(root?.decls.get("--prose-measure")).toBe("none");
+    expect(blocks.find((b) => b.selector === '[data-prose="limited"]')?.decls.get("--prose-measure")).toBe(
+      "72ch",
     );
   });
 

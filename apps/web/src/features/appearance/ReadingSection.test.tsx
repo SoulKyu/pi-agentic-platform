@@ -15,15 +15,15 @@ beforeEach(() => {
 });
 
 describe("Settings › Appearance › Reading", () => {
-  it("Line length sets data-prose to full and back", async () => {
+  it("Line length starts at Full width and sets data-prose to limited and back", async () => {
     const page = await mount(<ReadingSection />);
     const group = segmentedGroup(page.container, "Line length");
     expect(group).not.toBeNull();
-    expect(group?.querySelector('[aria-checked="true"]')?.textContent).toBe("Limited");
-    await click(button(page.container, "Full width"));
-    expect(useAppearanceStore.getState().device.proseMeasure).toBe("full");
+    expect(group?.querySelector('[aria-checked="true"]')?.textContent).toBe("Full width");
     await click(button(page.container, "Limited"));
     expect(useAppearanceStore.getState().device.proseMeasure).toBe("limited");
+    await click(button(page.container, "Full width"));
+    expect(useAppearanceStore.getState().device.proseMeasure).toBe("full");
   });
 
   it("chat width and motion show their labels", async () => {

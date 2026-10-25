@@ -52,7 +52,7 @@ export const DEFAULT_DEVICE: DeviceAppearance = {
   codeSize: null,
   motion: "system",
   chatWidth: "full",
-  proseMeasure: "limited",
+  proseMeasure: "full",
   completionSound: false,
 };
 export const SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] } as const;

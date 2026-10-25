@@ -281,7 +281,7 @@ All live in `packages/ui/src/ai`.
 | Component | Spec |
 |---|---|
 | Message · you | right-aligned box with `--you-tint`, a `--you-line` border and `--you-text`; label `YOU` |
-| Message · agent | 2 px agent rule on the left, mono uppercase name and meta (time, "thought Ns"). Prose is capped at 72ch (`max-w-measure`) unless Line length is Full width (§13); code blocks stay full width and carry an always-visible copy button, which copies the same way over HTTP and HTTPS (one `copyText` in `@pap/ui`) |
+| Message · agent | 2 px agent rule on the left, mono uppercase name and meta (time, "thought Ns"). Prose takes the whole column by default; Line length Limited caps it at 72ch (`max-w-measure`, §13); code blocks stay full width and carry an always-visible copy button, which copies the same way over HTTP and HTTPS (one `copyText` in `@pap/ui`) |
 | AuthorGroup | consecutive messages share one avatar and header (pi-web conversation view) |
 | Reasoning | collapsed "▸ thought for 14s", expandable; it stays collapsed while it streams |
 | ToolCard | header with tool name (mono uppercase, agent colour), argument summary and duration; output body; indeterminate bar while running. Detail level compact (one line) / expanded / full is selectable in Settings. Renderers for bash, edit (a `{path} · +{added} −{removed}` summary and an expandable diff, at most 8 edits drawn), read, MCP (server/tool from result details), codemode (nested calls) |
@@ -359,7 +359,7 @@ Everything visual can be changed in **Settings › Appearance**, with a live pre
 | Scope | Settings |
 |---|---|
 | Per account (server) | mode Night / Day / System (default System); theme preset (Night Control, Day · Papier, High contrast) or custom theme; UI and mono fonts; uppercase labels on/off; grid on/off; rail position left/right; avatar style; tool card detail level |
-| Per device (local) | density (default `mixed`); UI, chat and code sizes; motion; Line length (Limited or Full width, default Limited; `data-prose` on `<html>`, ADR 0086, D3) |
+| Per device (local) | density (default `mixed`); UI, chat and code sizes; motion; Line length (Limited or Full width, default Full width since decision 133; `data-prose` on `<html>`, ADR 0086, D3) |
 
 ### 13.1 Custom themes
 

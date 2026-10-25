@@ -113,7 +113,10 @@ test("J16: line length, no sideways scroll at 320, the first Tab and Day's focus
   await page.setViewportSize(DESKTOP);
 
   await test.step("an agent paragraph fits 72ch and holds a sane number of characters a line", async () => {
-    await signedIn.goto(pap.origin);
+    // Full width is the default (decision 133); the measure applies once the device picks Limited.
+    await signedIn.goto(`${pap.origin}/settings/appearance`);
+    await page.getByRole("radio", { name: t("settings.appearance.prose.limited"), exact: true }).click();
+    await page.goto(pap.origin);
     await page.getByLabel(t("launch.field"), { exact: true }).fill("Summarise the release");
     await page.getByRole("button", { name: t("launch.go.session"), exact: true }).click();
     await page.getByRole("button", { name: basename(pap.work), exact: true }).click();
