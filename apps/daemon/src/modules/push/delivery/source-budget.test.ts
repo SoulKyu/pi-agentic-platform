@@ -27,6 +27,8 @@ function rig(options: { timezone?: string | null; dailyBudgetUsd?: number | null
   const state = {
     ownerSpent: 0,
     owner: OWNER as string | null,
+    members: [] as string[],
+    memberSpent: 0,
     settings: {
       dailyBudgetUsd: options.dailyBudgetUsd === undefined ? 5 : options.dailyBudgetUsd,
       timezone: options.timezone === undefined ? "UTC" : options.timezone,
@@ -52,7 +54,7 @@ function rig(options: { timezone?: string | null; dailyBudgetUsd?: number | null
         listeners.add(listener);
         return () => void listeners.delete(listener);
       },
-      spentToday: () => state.ownerSpent,
+      spentToday: (userId) => (state.members.includes(userId) ? state.memberSpent : state.ownerSpent),
     },
     spend: {
       agentSpentToday: (_owner, agentId) => ({
@@ -72,7 +74,7 @@ function rig(options: { timezone?: string | null; dailyBudgetUsd?: number | null
     },
     kindOf: (sessionId) =>
       state.sessions.has(sessionId) ? { agentId: state.sessions.get(sessionId) ?? null } : null,
-    ownerId: () => state.owner,
+    userIds: () => [...(state.owner === null ? [] : [state.owner]), ...state.members],
   });
   stop = source.stop;
   const end = (sessionId = "s1"): void => {
@@ -337,7 +339,7 @@ describe("restart and boot (M12R26)", () => {
       settings: () => first.state.settings,
       agents: { get: () => null },
       kindOf: () => null,
-      ownerId: () => OWNER,
+      userIds: () => [OWNER],
     });
     again.boot();
     expect(events()).toHaveLength(1);
@@ -351,6 +353,16 @@ describe("restart and boot (M12R26)", () => {
     agent("b", { usd: 0.1 });
     source.boot();
     expect(refs().sort()).toEqual(["agent:a:2023-11-14", "owner:2023-11-14"]);
+  });
+
+  it("the boot check covers every user, a member's budget as well as the owner's", () => {
+    const { state, source } = rig();
+    state.members = ["m1"];
+    state.ownerSpent = 1;
+    state.memberSpent = 6;
+    source.boot();
+    const rows = t.bed.db.all<{ owner_id: string }>("SELECT owner_id FROM push_events");
+    expect(rows.map((row) => row.owner_id)).toEqual(["m1"]);
   });
 
   it("boot with no owner yet, or a failing lookup, pushes nothing and does not throw", () => {

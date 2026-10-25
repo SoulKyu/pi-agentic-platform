@@ -1,7 +1,9 @@
 import type { BoxRef, Caller } from "@pap/contracts";
+import type { IsMember } from "./kernel/box-path.ts";
 import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
+import { type ClientPathGate, createClientPathGate } from "./kernel/ws/client-path-gate.ts";
 import type { Boxes, BoxesLate } from "./compose-boxes.ts";
 import {
   createBoxControl,
@@ -53,6 +55,7 @@ export interface BoxWiringDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly home: string;
+  readonly isMember: IsMember;
   requireStepUp(caller: Caller, now: number): void;
 }
 
@@ -62,6 +65,9 @@ export interface WorkspaceBoxes {
   readonly boxOps: () => BoxOps;
   readonly boxControl: () => BoxControl;
   readonly boxTerminals: () => BoxTerminals;
+  readonly isMember: IsMember;
+  /** The walk over a request's client paths: a member's request carries box paths only (M14). */
+  readonly gate: ClientPathGate;
 }
 
 export interface BoxWiring {
@@ -134,6 +140,8 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
       boxOps: () => ops,
       boxControl: () => control,
       boxTerminals: () => terminals,
+      isMember: deps.isMember,
+      gate: createClientPathGate({ isMember: deps.isMember, boxes: () => source }),
     },
     bind({ sessions, automation, inbox }) {
       cleanup = sessions;

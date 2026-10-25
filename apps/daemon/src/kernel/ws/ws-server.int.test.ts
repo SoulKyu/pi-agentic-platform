@@ -23,6 +23,7 @@ import {
   type WsServer,
 } from "./ws-server.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 const ORIGIN = "http://localhost:7777";
 const EXPLODING_ID = 666;
@@ -64,6 +65,7 @@ beforeEach(async () => {
     ) => ({ sub: ctx.openSubscription("session", sessionId, after) }),
   } as unknown as HandlerTable;
   const inner = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers,
     receipts: { find: () => null, save: () => {}, purge: () => 0, readOnly: false },
     logger: silentLogger,

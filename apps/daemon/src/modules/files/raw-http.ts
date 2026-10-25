@@ -71,7 +71,7 @@ export function mountRawRoute(
   },
 ): void {
   app.get("/files/raw", async (c) => {
-    const caller = deps.caller(c, "files:read");
+    const caller = deps.caller(c, "files:read", [c.req.query("path")]);
     if (caller instanceof Response) return caller;
     const path = c.req.query("path");
     if (path === undefined) return notFound(c);

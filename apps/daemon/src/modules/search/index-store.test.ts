@@ -119,6 +119,36 @@ describe("search index store", () => {
   });
 });
 
+describe("forgetOwner (a member's delete, A5b)", () => {
+  let dir: string;
+  let db: Db;
+  let store: SearchIndexStore;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "pap-search-forget-"));
+    db = openSearchIndex(join(dir, "search.db"), silentLogger);
+    store = createSearchIndexStore(db);
+  });
+  afterEach(() => {
+    db.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("drops the rows, the full-text entries and the cursors of the owner's files and no other owner's", () => {
+    store.commit(cursor("/s/m1.jsonl", { sessionId: "s1", ownerId: "m1" }), [
+      { entryId: "e1", role: "user", at: 1, text: "secret plan" },
+    ]);
+    store.commit(cursor("/s/o1.jsonl", { sessionId: "s2", ownerId: "u1" }), [
+      { entryId: "e2", role: "user", at: 1, text: "owner note" },
+    ]);
+    expect(store.forgetOwner("m1")).toBe(1);
+    expect(store.paths()).toEqual(["/s/o1.jsonl"]);
+    expect(db.get<{ n: number }>("SELECT count(*) AS n FROM rows WHERE owner_id = 'm1'")?.n).toBe(0);
+    expect(db.all("SELECT rowid FROM rows_fts WHERE rows_fts MATCH 'secret'")).toEqual([]);
+    expect(db.all("SELECT rowid FROM rows_fts WHERE rows_fts MATCH 'owner'")).toHaveLength(1);
+    expect(store.forgetOwner("m1")).toBe(0);
+  });
+});
+
 describe("indexText", () => {
   it("turns controls (the snippet markers included) into spaces, drops format characters, cuts without splitting a pair", () => {
     expect(indexText("a\u0002b\u0003c\u0000d\u001be")).toBe("a b c d e");

@@ -22,6 +22,8 @@ describe("token contract", () => {
       p === "agents:admin" ||
       p === "sessions:admin" ||
       p === "settings:admin" ||
+      p === "system:admin" ||
+      p.startsWith("users:") ||
       p.startsWith("secrets:");
     expect(TOKEN_PERMISSIONS).toEqual(ALL_PERMISSIONS.filter((p) => !neverForTokens(p)));
     for (const p of ["automation:read", "automation:operate", "usage:operate", "inbox:operate"])
@@ -31,6 +33,8 @@ describe("token contract", () => {
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");
     expect(TOKEN_PERMISSIONS).not.toContain("pi:admin");
     expect(TOKEN_PERMISSIONS).not.toContain("settings:admin");
+    expect(TOKEN_PERMISSIONS).not.toContain("system:admin");
+    expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("users:"))).toBe(false);
     expect(TokenPermission.safeParse("settings:admin").success).toBe(false);
     expect(TokenPermission.safeParse("pi:admin").success).toBe(false);
     expect(TokenPermission.safeParse("pi:read").success).toBe(true);
@@ -38,7 +42,7 @@ describe("token contract", () => {
   });
 
   it("keeps agents and secrets administration away from tokens, but lets them read and operate agents (M11R4)", () => {
-    expect(DOMAINS.slice(DOMAINS.indexOf("inbox"))).toEqual(["inbox", "agents", "secrets"]);
+    expect(DOMAINS.slice(DOMAINS.indexOf("inbox"))).toEqual(["inbox", "agents", "secrets", "users"]);
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("secrets:"))).toBe(false);
     for (const p of ["agents:admin", "sessions:admin", "secrets:read", "secrets:operate", "secrets:admin"]) {
       expect(TOKEN_PERMISSIONS, p).not.toContain(p);

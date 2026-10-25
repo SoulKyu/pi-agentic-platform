@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createDispatcher } from "../kernel/ws/dispatcher.ts";
 import { silentLogger } from "../kernel/logger.ts";
 import { testCaller } from "../testing/caller.ts";
+import { NO_CLIENT_PATHS } from "../kernel/ws/client-path-gate.ts";
 
 const catalogue = Object.values(methods) as MethodDef[];
 const piAdmin = catalogue.filter((def) => def.permission === "pi:admin");
@@ -86,7 +87,7 @@ function bed() {
   // Every method of the catalogue is wired to the same recorder: a handler that runs would show in `ran`.
   const handlers = Object.fromEntries(catalogue.map((def) => [def.name, ran])) as unknown as HandlerTable;
   const receipts = { find: () => null, save: () => {}, purge: () => 0, readOnly: false };
-  const dispatch = createDispatcher({ handlers, receipts, logger: silentLogger });
+  const dispatch = createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger });
   const ctx = (caller: Caller): HandlerContext => ({
     caller,
     connectionId: "c1",

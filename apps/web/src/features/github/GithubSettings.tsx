@@ -3,6 +3,7 @@ import { GITHUB_WEB_ORIGIN, type GithubStatusView } from "@pap/contracts";
 import { Button } from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
 import { getRuntime } from "../../runtime/index.ts";
 import { DeleteAppDialog } from "./DeleteAppDialog.tsx";
@@ -34,6 +35,8 @@ function Row({ children }: { readonly children: ReactNode }) {
  */
 export function GithubSettings({ stepUp, go }: Props) {
   const t = useT();
+  // A member authorizes and installs the owner's App; creating and deleting it is the owner's (UX only: the daemon refuses).
+  const member = useRole() === "member";
   const navigate = go ?? goTo;
   const { state, reload } = useGithubStatus();
   const [deleting, setDeleting] = useState(false);
@@ -87,8 +90,22 @@ export function GithubSettings({ stepUp, go }: Props) {
       await rpc.call("github.disconnect", {}, { commandId: rpc.newCommandId() });
       reload();
     });
-  const openGithub =
-    appUrl === null ? null : <Button onClick={() => openTab(appUrl)}>{t("github.openGithub")}</Button>;
+  const installUrl =
+    status.app === null || githubUrl(status.app.htmlUrl) === null
+      ? null
+      : `${status.app.htmlUrl.replace(/\/$/, "")}/installations/new`;
+  const openGithub = member ? (
+    installUrl === null ? null : (
+      <Button onClick={() => openTab(installUrl)}>{t("github.install")}</Button>
+    )
+  ) : appUrl === null ? null : (
+    <Button onClick={() => openTab(appUrl)}>{t("github.openGithub")}</Button>
+  );
+  const deleteApp = member ? null : (
+    <Button variant="danger" onClick={() => setDeleting(true)}>
+      {t("github.delete")}
+    </Button>
+  );
   const problem =
     create.problem ??
     authorize.problem ??
@@ -99,12 +116,14 @@ export function GithubSettings({ stepUp, go }: Props) {
     <div data-github-settings="" className="flex max-w-prose flex-col gap-s3">
       {status.state === "absent" ? (
         <>
-          <p className="text-ui text-muted">{t("github.absent")}</p>
-          <Row>
-            <Button variant="primary" pendingSince={create.since} onClick={startCreate}>
-              {t("github.create")}
-            </Button>
-          </Row>
+          <p className="text-ui text-muted">{t(member ? "github.memberAbsent" : "github.absent")}</p>
+          {member ? null : (
+            <Row>
+              <Button variant="primary" pendingSince={create.since} onClick={startCreate}>
+                {t("github.create")}
+              </Button>
+            </Row>
+          )}
         </>
       ) : null}
       {status.state === "created" ? (
@@ -117,9 +136,7 @@ export function GithubSettings({ stepUp, go }: Props) {
               {t("github.authorize")}
             </Button>
             {openGithub}
-            <Button variant="danger" onClick={() => setDeleting(true)}>
-              {t("github.delete")}
-            </Button>
+            {deleteApp}
           </Row>
         </>
       ) : null}
@@ -132,9 +149,7 @@ export function GithubSettings({ stepUp, go }: Props) {
             <Button variant="primary" pendingSince={authorize.since} onClick={startAuthorize}>
               {t("github.reconnect")}
             </Button>
-            <Button variant="danger" onClick={() => setDeleting(true)}>
-              {t("github.delete")}
-            </Button>
+            {deleteApp}
           </Row>
         </>
       ) : null}
@@ -160,9 +175,8 @@ export function GithubSettings({ stepUp, go }: Props) {
             <Button pendingSince={disconnect.since} onClick={startDisconnect}>
               {t("github.disconnect")}
             </Button>
-            <Button variant="danger" onClick={() => setDeleting(true)}>
-              {t("github.delete")}
-            </Button>
+            {member ? openGithub : null}
+            {deleteApp}
           </Row>
         </>
       ) : null}

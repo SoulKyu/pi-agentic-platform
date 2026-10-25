@@ -46,6 +46,13 @@ function setup() {
 }
 
 describe("project box source", () => {
+  it("ownerBoxes lists the owner's box projects and no one else's", () => {
+    const { source } = setup();
+    expect(source.ownerBoxes("u1")).toEqual([A]);
+    expect(source.ownerBoxes("u2")).toEqual([B]);
+    expect(source.ownerBoxes("ghost")).toEqual([]);
+  });
+
   it("byPath matches the root and below by segment and refuses look-alikes (../, another uuid, projectX)", () => {
     const { source } = setup();
     const hit = { projectId: A, root: `/boxes/${A}/project` };

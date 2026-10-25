@@ -30,7 +30,7 @@ export const githubMethods = {
   /** The browser posts `manifest` to `postUrl` (GitHub's manifest flow); `state` comes back on the callback, single use. */
   "github.startCreate": defineMethod({
     name: "github.startCreate",
-    permission: "settings:admin",
+    permission: "system:admin",
     idempotent: false,
     params: Params({}),
     result: Params({
@@ -42,7 +42,7 @@ export const githubMethods = {
   }),
   "github.authorizeUrl": defineMethod({
     name: "github.authorizeUrl",
-    permission: "settings:admin",
+    permission: "settings:operate",
     idempotent: false,
     params: Params({}),
     result: Params({ url: z.string().url().max(2048) }),
@@ -50,7 +50,7 @@ export const githubMethods = {
   }),
   "github.disconnect": defineMethod({
     name: "github.disconnect",
-    permission: "settings:admin",
+    permission: "settings:operate",
     idempotent: false,
     params: Params({}),
     result: Ok,
@@ -59,7 +59,7 @@ export const githubMethods = {
   /** Deletes the App file and every GitHub token pap holds. Asks the password again. */
   "github.forget": defineMethod({
     name: "github.forget",
-    permission: "settings:admin",
+    permission: "system:admin",
     idempotent: false,
     params: Params({}),
     result: Ok,

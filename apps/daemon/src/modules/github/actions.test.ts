@@ -103,7 +103,12 @@ describe("pull request", () => {
     bed.fake.state.addRepo("octo/lib");
     bed.fake.state.respond("GET /repos/:o/:r", {
       status: 200,
-      body: { full_name: "octo/lib", default_branch: "main", parent: { default_branch: "trunk" } },
+      body: {
+        full_name: "octo/lib",
+        default_branch: "main",
+        parent: { default_branch: "trunk" },
+        permissions: { push: true },
+      },
     });
     const id = link("octo/lib", "acme/lib");
     const out = await actions()["projects.prCreate"]({ projectId: id, title: "t", body: "b" }, ctx());

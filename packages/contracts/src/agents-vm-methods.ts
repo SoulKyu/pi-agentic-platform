@@ -43,7 +43,7 @@ export const agentsVmMethods = {
   // receipt hashes no params (`sensitiveParams: []`: the only field is the secret, MC30). timeout: the outcome is unknown.
   "agents.vm.setClaudeToken": defineMethod({
     name: "agents.vm.setClaudeToken",
-    permission: "pi:admin",
+    permission: "settings:operate",
     idempotent: false,
     sensitiveParams: [],
     params: Params({ token: ClaudeToken }),
@@ -52,7 +52,7 @@ export const agentsVmMethods = {
   }),
   "agents.vm.clearClaudeToken": defineMethod({
     name: "agents.vm.clearClaudeToken",
-    permission: "pi:admin",
+    permission: "settings:operate",
     idempotent: false,
     params: Params({}),
     result: Ok,

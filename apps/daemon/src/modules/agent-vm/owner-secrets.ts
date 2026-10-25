@@ -52,16 +52,21 @@ export interface OwnerSecretsDeps {
   readonly logger: Logger;
   /** Pi's auth.json through Pi's own storage. */
   readonly auth: () => Promise<AuthValues>;
-  /** Every value of the vault (all owners, all scopes). */
+  /** The vault values the image build scans for: the install's owner's (R13). */
   readonly vault: () => readonly string[];
-  /** The Claude token, or null. */
-  readonly claudeToken: () => string | null;
+  /** The values the redactor masks: every user's. Absent: `vault`. */
+  readonly redactVault?: () => readonly string[];
   /** Other values to mask by value (the GitHub App's key and client secret); the user's tokens are in the vault already. */
   readonly extra?: () => readonly string[];
+  /**
+   * How many users keep a vault (M14): the caps are one user's, so they scale with the count and a second user cannot make the
+   * first one's build fail. Absent or less than one: one.
+   */
+  readonly users?: () => number;
 }
 
 /**
- * Every string of 8 characters or more the owner keeps in `auth.json`, the vault and the Claude token (the floor is the
+ * Every string of 8 characters or more the owner keeps in `auth.json` and the vault (the install owner's for the build, every user's for the redactor; the floor is the
  * redactor's: a shorter value is not a secret pap can tell from text). Called at each build and each redactor refresh, never
  * kept; a source that fails, or a count or size past the caps, fails closed with a fixed error, and the log names the source
  * and a class or the counts, never a value.
@@ -79,18 +84,14 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
   const tolerant = <T>(name: string, read: () => T | Promise<T>, empty: T): Promise<T> =>
     source(name, read).catch(() => empty);
   /** The distinct values of 8 characters or more, within the caps. */
-  function distinctOf(
-    auth: AuthValues,
-    vault: readonly string[],
-    claude: string | null,
-    extra: readonly string[],
-  ): string[] {
+  function distinctOf(auth: AuthValues, vault: readonly string[], extra: readonly string[]): string[] {
     const distinct = new Set<string>();
-    for (const value of [...auth.values, ...vault, ...extra, ...(claude === null ? [] : [claude])])
+    for (const value of [...auth.values, ...vault, ...extra])
       if (value.length >= MIN_SECRET_LENGTH) distinct.add(value);
     let bytes = 0;
     for (const value of distinct) bytes += Buffer.byteLength(value);
-    if (distinct.size > MAX_OWNER_SECRETS || bytes > MAX_OWNER_SECRET_BYTES) {
+    const scale = Math.max(1, Math.floor(deps.users?.() ?? 1));
+    if (distinct.size > MAX_OWNER_SECRETS * scale || bytes > MAX_OWNER_SECRET_BYTES * scale) {
       logger.warn("owner_secrets_capped", { count: distinct.size, bytes });
       throw new OwnerSecretsError("too_many");
     }
@@ -99,16 +100,14 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
   const collect: OwnerSecretsCollector = async () => {
     const auth = await source("auth", deps.auth);
     const vault = await source("vault", deps.vault);
-    const claude = await source("claude", deps.claudeToken);
     const extra = await source("extra", deps.extra ?? (() => []));
-    return { secrets: distinctOf(auth, vault, claude, extra), providers: [...new Set(auth.providers)] };
+    return { secrets: distinctOf(auth, vault, extra), providers: [...new Set(auth.providers)] };
   };
   return Object.assign(collect, {
     partial: async () => ({
       secrets: distinctOf(
         await tolerant("auth", deps.auth, { values: [], providers: [] }),
-        await tolerant("vault", deps.vault, []),
-        await tolerant("claude", deps.claudeToken, null),
+        await tolerant("vault", deps.redactVault ?? deps.vault, []),
         await tolerant("extra", deps.extra ?? (() => []), []),
       ),
     }),

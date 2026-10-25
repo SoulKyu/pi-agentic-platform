@@ -6,6 +6,7 @@ import type { AuditPort } from "../audit/index.ts";
 import { requireStepUp } from "../auth/index.ts";
 import type { GithubCore } from "./index.ts";
 import { appName, buildManifest } from "./manifest.ts";
+import { createParked } from "./parked.ts";
 import { assertBrowserCaller } from "./browser-only.ts";
 
 const CODE = /^[A-Za-z0-9_-]{1,128}$/;
@@ -45,6 +46,7 @@ export type CallbackOutcome =
       readonly installationsUrl: string;
       readonly home: string;
     }
+  | { readonly kind: "exchanged"; readonly ticket: string; readonly retry?: true }
   | { readonly kind: "authorized"; readonly home: string }
   | { readonly kind: "refused" }
   | { readonly kind: "github"; readonly home: string | null };
@@ -64,7 +66,14 @@ export interface GithubService {
   /** `GET /github/app/new`: the state a cookie-bearing owner started with, spent for a fresh one GitHub will return. */
   beginCreate(userId: string, state: string): ManifestStart | null;
   completeCreate(code: string, state: string): Promise<CallbackOutcome>;
+  /** `GET /github/app/authorized` (cross site, no cookie): exchanges the code and parks the pair under the state. Binds nothing. */
   completeAuthorize(code: string, state: string): Promise<CallbackOutcome>;
+  /**
+   * `GET /github/app/authorized/finish?ticket=` (same site, with the cookie): binds the parked pair to `userId` only if they started
+   * the sign-in. The ticket goes only to the browser that hit the callback; the state alone finishes nothing. No session (`null`)
+   * keeps the ticket for a retry; another user spends it and is refused.
+   */
+  finishAuthorize(ticket: string, userId: string | null): CallbackOutcome;
   /** `GET /github/app/authorize`: the GitHub URL to sign in at (back to the App's own origin), or null without an App. */
   reconnectUrl(userId: string): string | null;
   readonly webOrigin: string;
@@ -79,12 +88,15 @@ export interface GithubServiceDeps {
   readonly hostLabel: string;
   /** The origins pap answers to: the App's callbacks are never built on any other. */
   readonly allowedOrigins: ReadonlySet<string>;
+  /** Every user of this pap: forgetting the App leaves no one "connected" to an App that is gone. */
+  readonly userIds: () => readonly string[];
 }
 
 export function createGithubService(deps: GithubServiceDeps): GithubService {
   const { core, audit, clock, logger } = deps;
   const { client, appSecrets, userTokens, states } = core;
   const logins = new Map<string, string>();
+  const parked = createParked({ clock });
   let permissionMissing = false;
 
   const record = (ownerId: string, reason: string): void =>
@@ -174,7 +186,8 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
       requireStepUp(caller, clock.now());
       appSecrets.forget();
       states.clear();
-      forgetUser(caller.userId);
+      parked.clear();
+      for (const userId of new Set([...deps.userIds(), caller.userId])) forgetUser(userId);
       record(caller.userId, "github_forgotten");
     },
     beginCreate(userId, state) {
@@ -234,6 +247,7 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
       const origin = entry.data ?? app.callbackOrigin;
       if (origin !== app.callbackOrigin && !deps.allowedOrigins.has(origin)) return { kind: "refused" };
       const home = `${origin}/`;
+      let ticket: string;
       try {
         const answer = await client.json(Exchange, {
           origin: "web",
@@ -247,17 +261,34 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
           },
         });
         if ("error" in answer) return { kind: "github", home };
-        userTokens.store(entry.userId, answer);
-        // GitHub accepted this origin as a callback: the mismatch notice has nothing left to say about it.
-        if (origin !== app.callbackOrigin) appSecrets.addAuthorizedOrigin(origin);
+        // The callback proves nothing about the browser: the pair waits for the starting user's own session.
+        ticket = parked.park({ userId: entry.userId, origin, pair: answer });
       } catch (error) {
         logger.warn("github_authorize_failed", { code: codeOf(error) });
         return { kind: "github", home };
       }
+      return { kind: "exchanged", ticket };
+    },
+    finishAuthorize(ticket, userId) {
+      // A browser that sent no session cookie may click Continue again until the ticket expires.
+      if (userId === null)
+        return parked.peek(ticket) ? { kind: "exchanged", ticket, retry: true } : { kind: "refused" };
+      const entry = parked.take(ticket);
+      if (!entry) return { kind: "refused" };
+      if (userId !== entry.userId) {
+        // Someone else's GitHub account: the pair is dropped and nothing is stored.
+        record(entry.userId, "github_link_refused");
+        record(userId, "github_link_refused");
+        return { kind: "refused" };
+      }
+      userTokens.store(entry.userId, entry.pair);
+      // GitHub accepted this origin as a callback: the mismatch notice has nothing left to say about it.
+      const app = appSecrets.load();
+      if (app && entry.origin !== app.callbackOrigin) appSecrets.addAuthorizedOrigin(entry.origin);
       logins.delete(entry.userId);
       permissionMissing = false;
       record(entry.userId, "github_authorized");
-      return { kind: "authorized", home };
+      return { kind: "authorized", home: `${entry.origin}/` };
     },
   };
 }

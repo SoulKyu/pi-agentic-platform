@@ -218,6 +218,7 @@ describe("a request that waits for its credential (I3)", () => {
       box: { kind: "agent", id: "scout-0001" },
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: true,
+      claudeToken: null,
       blocked: "paused",
     });
     release();
@@ -232,6 +233,7 @@ describe("a request that waits for its credential (I3)", () => {
       box: { kind: "agent", id: "scout-0001" },
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: true,
+      claudeToken: null,
       blocked: "budget",
     });
     release();

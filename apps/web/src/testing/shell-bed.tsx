@@ -1,3 +1,4 @@
+import type { Role } from "@pap/contracts";
 import { Toaster, TooltipProvider } from "@pap/ui";
 import { createMemoryHistory, RouterProvider, type AnyRouter } from "@tanstack/react-router";
 import { vi } from "vitest";
@@ -10,6 +11,7 @@ const PHONE_QUERY = "(max-width: 767.98px)";
 
 export interface ShellOptions {
   readonly username?: string | null;
+  readonly role?: Role;
   onSignedOut?(): void;
   readonly phone?: boolean;
   readonly passkeysAvailable?: boolean;
@@ -36,6 +38,7 @@ export async function renderShell(
   const Shell = () => (
     <AppShell
       username={options.username === undefined ? "ana" : options.username}
+      role={options.role ?? "owner"}
       passkeysAvailable={options.passkeysAvailable ?? false}
       onSignedOut={options.onSignedOut ?? (() => {})}
     />

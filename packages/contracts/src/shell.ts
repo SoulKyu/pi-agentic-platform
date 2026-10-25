@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { BoxPhase } from "./boxes.ts";
 import { defineMethod } from "./define.ts";
 import { Cursor } from "./frames.ts";
@@ -28,11 +29,7 @@ const Id = z.string().min(1).max(128);
 const Millis = z.number().int().min(0).max(8.64e15);
 
 /** An absolute path as a caller writes it; the daemon resolves it (`invalid_cwd`). */
-const AbsolutePath = z
-  .string()
-  .min(1)
-  .max(4096)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "an absolute path");
+const AbsolutePath = ClientPath;
 
 /** A project as `projects.add` answers it (decision 85). */
 export const ProjectView = z.object({

@@ -1,6 +1,7 @@
-import { act, type ReactElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach } from "vitest";
+import { RoleContext } from "../lib/role-context.ts";
 
 export { flush } from "../runtime/testing.ts";
 
@@ -32,12 +33,16 @@ export async function unmountAll(): Promise<void> {
 afterEach(unmountAll);
 
 /** Renders into the happy-dom document, with effects and pending state updates settled. */
+// Existing screens are tested as the owner sees them; a test of the member's view nests its own provider.
+const asOwner = (element: ReactElement): ReactElement =>
+  createElement(RoleContext.Provider, { value: "owner" }, element);
+
 export async function mount(element: ReactElement): Promise<Mounted> {
   const container = document.createElement("div");
   document.body.append(container);
   const root = createRoot(container);
   await act(async () => {
-    root.render(element);
+    root.render(asOwner(element));
   });
   const unmount = async () => {
     if (!live.delete(unmount)) return;
@@ -51,7 +56,7 @@ export async function mount(element: ReactElement): Promise<Mounted> {
     container,
     rerender: async (next: ReactElement) => {
       await act(async () => {
-        root.render(next);
+        root.render(asOwner(next));
       });
     },
     unmount,

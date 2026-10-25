@@ -58,6 +58,7 @@ describe("the relay link: grants and policy", () => {
         box: { kind: "agent", id: "scout-0001" },
         models: [],
         claude: false,
+        claudeToken: null,
         blocked: null,
       },
     ]);
@@ -147,21 +148,24 @@ describe("the relay link: grants and policy", () => {
       box: { kind: "agent", id: "scout-0001" },
       models: [],
       claude: false,
+      claudeToken: null,
       blocked: null,
     });
     expect(lines.some((line) => line.msg === "relay_policy_failed")).toBe(true);
   });
 
-  it("pushes the Claude token and its removal", async () => {
-    const { link, last } = bed();
+  it("pushes the Claude token inside the policy, and a revoked box leaves none behind", async () => {
+    const { link, last, settle } = bed({ token: TOKEN });
     await link.start();
     last().ready();
-    link.setClaudeToken(TOKEN);
-    link.setClaudeToken(null);
-    expect(last().sent).toEqual([
-      { type: "claude_token", token: TOKEN },
-      { type: "claude_token", token: null },
-    ]);
+    link.grant(grant(1));
+    await settle();
+    link.revoke(grant(1).launchId);
+    const policies = (last().sent as Array<{ type: string; claudeToken?: string | null }>).filter(
+      (m) => m.type === "box_policy",
+    );
+    expect(policies.map((m) => m.claudeToken)).toEqual([TOKEN, null]);
+    expect((last().sent as Array<{ type: string }>).some((m) => m.type === "claude_token")).toBe(false);
   });
 });
 
@@ -196,7 +200,7 @@ describe("the relay link: a restart (RT-36)", () => {
       type: string;
       launchId?: string;
       box?: { id: string };
-      token?: string;
+      claudeToken?: string | null;
     }>;
     expect(replayed.filter((m) => m.type === "relay_grant").map((m) => m.launchId)).toEqual([
       grant(1).launchId,
@@ -208,7 +212,7 @@ describe("the relay link: a restart (RT-36)", () => {
         .map((m) => m.box?.id)
         .sort(),
     ).toEqual(["other-0002", "scout-0001"]);
-    expect(replayed.find((m) => m.type === "claude_token")?.token).toBe(TOKEN);
+    expect(replayed.filter((m) => m.type === "box_policy").map((m) => m.claudeToken)).toEqual([TOKEN, TOKEN]);
   });
 
   it("does not replay a revoked grant (M-replay-revoked)", async () => {

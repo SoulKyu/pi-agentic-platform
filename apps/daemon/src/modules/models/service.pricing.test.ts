@@ -43,6 +43,7 @@ beforeEach(() => {
     db,
     clock,
     logger: createLogger({ level: "warn", clock, write: (line) => lines.push(line) }),
+    members: { capOf: () => null, ownerId: () => null, disabled: () => false },
   });
 });
 afterEach(() => {

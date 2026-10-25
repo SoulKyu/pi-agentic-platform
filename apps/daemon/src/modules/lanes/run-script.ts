@@ -27,6 +27,7 @@ export interface RunScriptDeps {
   readonly scripts: Pick<ScriptRunner, "run">;
   readonly tainted: (lane: LaneRow) => boolean;
   readonly readOnly: boolean;
+  readonly isMember: (userId: string) => boolean;
   /** A script started: the lane's view (its setup or test state) goes out. */
   publish(laneId: string): void;
 }
@@ -38,6 +39,7 @@ export function createRunScript(deps: RunScriptDeps) {
     params: ParamsOf<"lanes.runScript">,
   ): Promise<ResultOf<"lanes.runScript">> {
     // The lane comes from the store, by id and owner: the runner never gets a lane the caller described.
+    if (deps.isMember(caller.userId)) throw new PapError("forbidden"); // a script is a host process (M14)
     const lane = deps.store.getOwned(caller.userId, params.laneId);
     if (!lane) throw new PapError("not_found");
     if (deps.readOnly) throw new PapError("read_only");

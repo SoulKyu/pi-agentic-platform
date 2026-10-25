@@ -4,6 +4,7 @@ import { settingsAgentsEn, settingsAgentsFr } from "../../i18n/catalog/settings-
 import { settingsAppearanceEn, settingsAppearanceFr } from "../../i18n/catalog/settings-appearance.ts";
 import { settingsApprovalsEn, settingsApprovalsFr } from "../../i18n/catalog/settings-approvals.ts";
 import { settingsScreenEn, settingsScreenFr } from "../../i18n/catalog/settings-screen.ts";
+import { usersEn, usersFr } from "../../i18n/catalog/users.ts";
 import { settingsShortcutsEn, settingsShortcutsFr } from "../../i18n/catalog/settings-shortcuts.ts";
 
 // Evaluated with the Settings chunk, before any of its components renders.
@@ -14,5 +15,6 @@ for (const entries of [
   { en: settingsShortcutsEn, fr: settingsShortcutsFr },
   { en: settingsApprovalsEn, fr: settingsApprovalsFr },
   { en: settingsAccessEn, fr: settingsAccessFr },
+  { en: usersEn, fr: usersFr },
 ])
   registerCatalog(entries);

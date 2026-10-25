@@ -48,7 +48,8 @@ async function open(
 ) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["plugins.list"] =
+  // `agents.packages` lists the caller's user-scope packages only; the mock keeps the old fixture shape and filters.
+  const fixture: () => unknown =
     list ??
     (() => ({
       plugins: [
@@ -58,6 +59,15 @@ async function open(
       ],
       truncated: false,
     }));
+  bed.handlers["agents.packages"] = () => {
+    const answer = fixture();
+    if (answer instanceof Promise) return answer;
+    return {
+      packages: (answer as { plugins: Array<{ id: string; source: string; scope: string }> }).plugins
+        .filter((one) => one.scope === "user")
+        .map(({ id, source }) => ({ id, source })),
+    };
+  };
   await mount(<Host system={system} picks={picks} />);
   await settle();
   return bed;
@@ -172,12 +182,20 @@ describe("Pi packages", () => {
     await click(tick("All") as HTMLElement);
     expect(seen.picks).toBeNull();
     expect((tick("All") as HTMLButtonElement).disabled).toBe(true);
-    bed.handlers["plugins.list"] = () => ({ plugins: [plugin("npm:pi-mem0")], truncated: false });
+    bed.handlers["agents.packages"] = () => ({
+      packages: [{ id: plugin("npm:pi-mem0").id, source: "npm:pi-mem0" }],
+    });
     await click(button(document.body, "Try again"));
     await settle();
     expect(body()).not.toContain("could not be read");
     await click(tick("All") as HTMLElement);
     expect(seen.picks).toEqual([idOf("npm:pi-mem0")]);
+  });
+
+  it("reads the packages through agents.packages, never plugins.list", async () => {
+    const bed = await open();
+    expect(bed.called("agents.packages")).toHaveLength(1);
+    expect(bed.called("plugins.list")).toEqual([]);
   });
 
   it("keeps All locked and says nothing about an empty profile while the read is pending", async () => {

@@ -1,12 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentInput } from "@pap/contracts";
@@ -16,12 +8,7 @@ import { composeKata } from "./compose-agents-vm-kata.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { createFakeVmd, type FakeVmd } from "./modules/agent-vm/testing/fake-vmd.ts";
-import {
-  createClaudeTokenStore,
-  createStderrRedactor,
-  redactionSource,
-  secretsDirOf,
-} from "./modules/agent-vm/index.ts";
+import { createStderrRedactor, redactionSource, secretsDirOf } from "./modules/agent-vm/index.ts";
 import { OWNER_SECRETS_CAP_NOTICE, OwnerSecretsError } from "./modules/agent-vm/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 import { captureLogger } from "./testing/capture-logger.ts";
@@ -49,6 +36,7 @@ function parts() {
     home: p.home,
     piAgentDir: p.agent,
     logger: log.logger,
+    ownerId: () => "owner1",
   });
   const kata = composeKata(
     { home: p.home, piAgentDir: p.agent, clock, logger: log.logger, ownerSecrets },
@@ -59,8 +47,6 @@ function parts() {
 }
 const build = (kata: ReturnType<typeof parts>["kata"]) =>
   kata.imageTagOf(ID, AgentInput.parse({ name: "Scout" }), "thread");
-const claudeStore = () =>
-  createClaudeTokenStore({ secretsDir: join(paths().home, "secrets"), logger: captureLogger().logger });
 const plant = (rel: string, text: string): void => {
   const file = join(paths().agent, rel);
   mkdirSync(join(file, ".."), { recursive: true });
@@ -88,27 +74,25 @@ beforeEach(() => {
     VAULT_VALUE,
     1,
   );
-  claudeStore().set(CLAUDE);
+  createVaultStore(vaultRootOf(p.home)).set("owner1", { kind: "user" }, "CLAUDE_TOKEN", CLAUDE, 1);
   fake = createFakeVmd();
   notices = [];
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-// S1 item 8: one folder for the token. Mutant: the RPC's store reads another spelling of the folder -> this case fails.
-describe("the Claude token's folder is computed once", () => {
-  it("the RPC's store writes where the collector reads", async () => {
+// S1 item 8 (M14: the token is in the vault). Mutant: the RPC's store seals into another vault root -> this case fails.
+describe("the Claude token's vault is the collector's", () => {
+  it("the RPC's store writes where the collector reads, for any user", async () => {
     const home = paths().home;
     expect(secretsDirOf(home)).toBe(join(home, "secrets"));
     const { claudeToken } = composeAgentsVmRpc({ home }, captureLogger().logger, createFakeClock(), {
       append: () => {},
     } as never);
     const NEW = `claude-token-${"G".repeat(16)}`;
-    claudeToken.set(NEW);
-    const collected = await composeOwnerSecrets({
-      home,
-      piAgentDir: paths().agent,
-      logger: captureLogger().logger,
-    })();
+    claudeToken.set("member1", NEW);
+    const collected = await redactionSource(
+      composeOwnerSecrets({ home, piAgentDir: paths().agent, logger: captureLogger().logger }),
+    )();
     expect(collected.secrets).toContain(NEW);
   });
 });
@@ -116,7 +100,7 @@ describe("the Claude token's folder is computed once", () => {
 // S1 item 9. Mutant: the redactor reads the all-or-nothing collector again -> "keeps the values of the sources that read" fails.
 describe("the relay's stderr redactor with a broken source", () => {
   it("keeps the values of the sources that read, while the build still refuses", async () => {
-    writeFileSync(join(paths().home, "secrets", "claude-token"), "bad\u0001token");
+    writeFileSync(join(paths().agent, "auth.json"), "{ not json");
     const collector = composeOwnerSecrets({
       home: paths().home,
       piAgentDir: paths().agent,
@@ -124,39 +108,57 @@ describe("the relay's stderr redactor with a broken source", () => {
     });
     await expect(collector()).rejects.toBeInstanceOf(OwnerSecretsError);
     const redact = createStderrRedactor({ clock: createFakeClock(), collect: redactionSource(collector) });
-    const masked = await redact(`a ${VAULT_VALUE} b ${AUTH_KEY} c`);
-    expect(masked).not.toContain(VAULT_VALUE);
-    expect(masked).not.toContain(AUTH_KEY);
+    const masked = await redact(`a ${VAULT_VALUE} b ${CLAUDE} c`);
     expect(masked).toBe("a [REDACTED] b [REDACTED] c");
   });
 });
 
-describe("the profile scan knows the owner's secrets (AVM-E46)", () => {
-  // I1: the real store over a temp folder; every failure but "no file" refuses the build.
-  it.each([
-    ["a link", (file: string) => (rmSync(file), symlinkSync(join(root, "elsewhere"), file))],
-    ["an invalid token", (file: string) => writeFileSync(file, "bad\u0001token")],
-    ["a folder", (file: string) => (rmSync(file), mkdirSync(file))],
-    ["a file past the size limit", (file: string) => writeFileSync(file, "x".repeat(4096))],
-  ])(
-    "refuses the build when the Claude token file is %s, with no value in the log",
-    async (_name, damage) => {
-      damage(join(paths().home, "secrets", "claude-token"));
-      const { kata, log } = parts();
-      await expect(build(kata)).rejects.toMatchObject({ code: "config_invalid" });
-      expect(JSON.stringify(log.lines)).not.toContain(CLAUDE);
-      expect(log.lines.find((line) => line.msg === "owner_secrets_unreadable")).toMatchObject({
-        source: "claude",
-      });
-    },
-  );
+describe("the profile scan uses the install's secrets only (R13)", () => {
+  const MEMBER_VALUE = "extensions";
+  const memberVault = (value: string) =>
+    createVaultStore(vaultRootOf(paths().home)).set("member1", { kind: "user" }, "NOTE", value, 1);
 
-  it("builds when there is no Claude token file at all", async () => {
-    rmSync(join(paths().home, "secrets", "claude-token"));
-    const { kata } = parts();
-    await expect(build(kata)).resolves.toMatch(/^pap-agent-/);
+  it("a member's vault value equal to a profile file's name or text leaves the build unchanged", async () => {
+    plant("skills/extensions/SKILL.md", "uses extensions and package.json everywhere");
+    const before = await build(parts().kata);
+    memberVault(MEMBER_VALUE);
+    memberVault("package.json");
+    await expect(build(parts().kata)).resolves.toBe(before);
   });
 
+  it("the owner's own vault value in a profile file still refuses the build", async () => {
+    plant("skills/leak/SKILL.md", `token ${VAULT_VALUE}`);
+    await expect(build(parts().kata)).rejects.toMatchObject({ code: "config_invalid" });
+  });
+
+  it("a damaged member vault does not block the build, and a damaged owner vault does", async () => {
+    memberVault(MEMBER_VALUE);
+    writeFileSync(join(paths().home, "secrets", "vault", "member1", "user.json"), "{ not json");
+    await expect(build(parts().kata)).resolves.toMatch(/^pap-agent-/);
+    writeFileSync(join(paths().home, "secrets", "vault", "owner1", "user.json"), "{ not json");
+    await expect(build(parts().kata)).rejects.toMatchObject({ code: "config_invalid" });
+  });
+
+  it("every user's values are still redacted from relay logs; a damaged vault of another user is skipped", async () => {
+    const MEMBER_SECRET = `member-secret-${"H".repeat(10)}`;
+    memberVault(MEMBER_SECRET);
+    const log = captureLogger();
+    const collector = composeOwnerSecrets({
+      home: paths().home,
+      piAgentDir: paths().agent,
+      logger: log.logger,
+      ownerId: () => "owner1",
+    });
+    const redact = createStderrRedactor({ clock: createFakeClock(), collect: redactionSource(collector) });
+    expect(await redact(`a ${MEMBER_SECRET} b ${CLAUDE}`)).toBe("a [REDACTED] b [REDACTED]");
+    createVaultStore(vaultRootOf(paths().home)).set("member2", { kind: "user" }, "X", "other-value-12345", 1);
+    writeFileSync(join(paths().home, "secrets", "vault", "member2", "user.json"), "{ not json");
+    const again = createStderrRedactor({ clock: createFakeClock(), collect: redactionSource(collector) });
+    expect(await again(`a ${MEMBER_SECRET} b`)).toBe("a [REDACTED] b");
+  });
+});
+
+describe("the profile scan knows the owner's secrets (AVM-E46)", () => {
   // AVM-E50: a README naming the reference is not a leak.
   it("builds a profile whose README names $OPENAI_API_KEY when auth.json holds that reference", async () => {
     writeFileSync(

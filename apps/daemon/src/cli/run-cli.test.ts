@@ -25,7 +25,7 @@ describe("runCli", () => {
     [["user", "add", "a", "b"]],
     [["user", "add", "owner", "--password", "x"]],
     [["passkey"]],
-    [["passkey", "reset", "extra"]],
+    [["passkey", "reset", "a", "b"]],
     [["passkey", "reset", "--bogus"]],
     [["trace"]],
     [["trace", "summary", "--since", "nope"]],
@@ -34,8 +34,10 @@ describe("runCli", () => {
     expect(await runCli(argv, io)).toBe(64);
     expect(stderr()).toContain("usage: pap serve");
     expect(stderr()).toContain("pap audit prune");
-    expect(stderr()).toContain("pap user add <username> [--password-stdin]");
-    expect(stderr()).toContain("pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]");
+    expect(stderr()).toContain("pap user add <username> [--role owner|member] [--password-stdin]");
+    expect(stderr()).toContain(
+      "pap passkey reset [<username>] [--revoke-tokens] [--keep-password] [--password-stdin]",
+    );
     expect(stderr()).toContain("pap trace summary [--since <15m|2h|1d>]");
     expect(stderr()).toContain("pap service install [--node <abs>]");
     expect(stderr()).toContain("pap service uninstall [--bin-dir <abs>]");

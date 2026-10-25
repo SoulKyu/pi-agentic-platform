@@ -13,6 +13,7 @@ afterEach(() => bed.dispose());
 
 const service = (roots: Record<string, string[]>) =>
   createFilesService({
+    isMember: () => false,
     roots: (owner) => roots[owner] ?? [],
     boundary: bed.bb.config(),
     deny: bed.deny,

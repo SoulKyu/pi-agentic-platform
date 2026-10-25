@@ -64,7 +64,6 @@ describe("secrets never leave", () => {
         logger: bed.logger,
         auth: async () => ({ values: [], providers: [] }),
         vault: () => vault.everyValue(),
-        claudeToken: () => null,
         extra: () => githubAppSecretValues(join(bed.home, "secrets"), bed.logger),
       });
       const { secrets } = await collector();

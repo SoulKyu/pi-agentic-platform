@@ -35,8 +35,9 @@ export async function readJson<T>(c: Context, schema: z.ZodType<T>): Promise<T |
 // Every client error carries a code and nothing else: no field name, no value, never the password (decision 34).
 export const badRequest = (c: Context): Response => c.json({ error: { code: "bad_request" } }, 400);
 
-const STATUS_OF: Partial<Record<ErrorCode, 401 | 404 | 409>> = {
+const STATUS_OF: Partial<Record<ErrorCode, 401 | 403 | 404 | 409>> = {
   unauthenticated: 401,
+  account_disabled: 403,
   conflict: 409,
   not_found: 404,
 };

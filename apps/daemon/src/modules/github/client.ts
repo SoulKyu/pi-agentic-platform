@@ -57,6 +57,13 @@ interface Raw {
   readonly body: string;
 }
 
+/** A 401: the credential itself is refused (revoked or expired). `github_unavailable` to everyone, but a user-token check can tell it from an outage. */
+export class GithubUnauthorized extends PapError {
+  constructor() {
+    super("github_unavailable");
+  }
+}
+
 /** What a non-2xx answer means to pap. A rate limit is `capacity`, a refused permission `forbidden`. */
 export function errorOf(status: number, headers: Raw["headers"]): PapError {
   const rateLimited =
@@ -176,6 +183,7 @@ export function createGithubClient(options: GithubClientOptions): GithubClient {
 
   async function ok(request: RequestOptions): Promise<Raw> {
     const raw = await send(request);
+    if (raw.status === 401) throw new GithubUnauthorized();
     if (raw.status < 200 || raw.status >= 300) throw errorOf(raw.status, raw.headers);
     return raw;
   }

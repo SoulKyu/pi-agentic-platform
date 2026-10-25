@@ -77,7 +77,7 @@ export const composeDeliverySide: (deps: PushDeps, ports: DeliveryPorts) => Deli
     settings: (ownerId) => deps.settings.port.automation(ownerId),
     agents: deps.agents.port,
     kindOf: (sessionId) => deps.sessions.kindOf(sessionId),
-    ownerId: () => deps.auth.ownerId(),
+    userIds: () => deps.auth.userIds(),
   });
   deps.closers.push({ name: "push_budget_source", close: budgetSource.stop });
   // One whole line per source, by the ref the event is about. A kind of ref with no line is an approval that no source

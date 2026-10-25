@@ -1,4 +1,5 @@
 import {
+  type AvailableModels,
   AvailableModelsData,
   type Caller,
   type CommandInput,
@@ -26,6 +27,11 @@ export interface SessionModelsDeps {
   presetChanged(row: SessionRow): void;
   /** An agent thread's preset never goes wider than its start-time profile's (W5-R26). */
   clampPreset(row: SessionRow, preset: ToolPreset): ToolPreset;
+  /** A member sees only the providers the owner shares (M14); the owner sees all. */
+  readonly providers: {
+    sessionModels(userId: string, data: AvailableModelsData): Promise<AvailableModelsData>;
+    available(caller: Caller): Promise<AvailableModels>;
+  };
 }
 
 export interface SessionModels {
@@ -34,6 +40,8 @@ export interface SessionModels {
    * capacity applies and extension providers and the project's trust are what the session really has.
    */
   models(sessionId: string, caller: Caller): Promise<AvailableModelsData>;
+  /** The models to pick from before a session exists. It names no folder, so no host helper reads a project (M14). */
+  availableModels(caller: Caller): Promise<AvailableModels>;
   /** The slash commands of the session's own runtime (M7R119). A cold session's worker is started for it, like `models`. */
   commands(sessionId: string, caller: Caller): Promise<SessionCommandsData>;
   /** Switches the session's model; `session_busy` while a run goes on (M7R43). Never written to Pi's settings (M7R42). */
@@ -72,8 +80,9 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
         deps.logger.warn("models_answer_unreadable", { sessionId });
         throw new PapError("command_failed");
       }
-      return parsed.data;
+      return deps.providers.sessionModels(caller.userId, parsed.data);
     },
+    availableModels: (caller) => deps.providers.available(caller),
     async commands(sessionId, caller) {
       const data = await ask(sessionId, caller, { type: "get_commands" }, false);
       const parsed = SessionCommandsData.safeParse(data);

@@ -29,7 +29,8 @@ describe("the daemon's M11 entry", () => {
   it("keeps the migrations in stamp order, M11's after every earlier one", () => {
     const ids = discoverMigrations(MIGRATION_SOURCES).map((migration) => migration.id);
     // The agent tasks' migration (1120), the runs' (1130) and the thread tasks' (1131) sort between the agents' (1110) and the Inbox's (1140).
-    expect(ids.slice(-15, -7)).toEqual([
+    const agentTasks = ids.indexOf("automation/202610151120_agent_tasks.sql");
+    expect(ids.slice(agentTasks, agentTasks + 8)).toEqual([
       "automation/202610151120_agent_tasks.sql",
       "runs/202610151130_run_agents.sql",
       "automation/202610151131_thread_tasks.sql",
@@ -40,7 +41,8 @@ describe("the daemon's M11 entry", () => {
       "subagents/202610151155_subagents.sql",
     ]);
     // The trash entry's table (J1b): an agents migration, stamped after the approvals fix's audit one; then the refused-host card's kind.
-    expect(ids.slice(-7)).toEqual([
+    const push = ids.indexOf("push/202610172000_push.sql");
+    expect(ids.slice(push, push + 7)).toEqual([
       "push/202610172000_push.sql",
       "audit/202610191000_audit_card_timing.sql",
       "agents/202610201300_agent_trash.sql",

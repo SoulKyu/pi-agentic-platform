@@ -52,6 +52,17 @@ export const agentsMethods = {
     result: Params({ agents: z.array(AgentView).max(AGENT_LIMITS.perOwner), truncated: z.boolean() }),
     errors: [],
   }),
+  /** The caller's user-scope Pi packages, for the agent form: the id an agent saves and its masked source. */
+  "agents.packages": defineMethod({
+    name: "agents.packages",
+    permission: "agents:read",
+    idempotent: true,
+    params: Params({}),
+    result: Params({
+      packages: z.array(Params({ id: z.string().min(1).max(512), source: z.string().max(1024) })).max(500),
+    }),
+    errors: ["capacity", "timeout", "helper_failed"],
+  }),
   "agents.get": defineMethod({
     name: "agents.get",
     permission: "agents:read",

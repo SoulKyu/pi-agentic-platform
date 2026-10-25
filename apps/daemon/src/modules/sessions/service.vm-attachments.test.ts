@@ -72,7 +72,11 @@ afterEach(() => {
 async function world(host: string) {
   const claimed = { images: [], files: [{ id: "f".repeat(22), path: host, name: "notes.txt", size: 4 }] };
   const released: string[][] = [];
-  bed = create({ claim: async () => claimed, release: (_owner, ids) => void released.push([...ids]) });
+  bed = create({
+    claim: async () => claimed,
+    release: (_owner, ids) => void released.push([...ids]),
+    dropOwner: () => {},
+  });
   mkdirSync(join(bed.dir, "pap", "agents", ID), { recursive: true, mode: 0o700 });
   bed.service.agent.setAgentPorts({
     agents: {

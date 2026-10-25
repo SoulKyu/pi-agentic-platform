@@ -15,6 +15,8 @@ const PROVIDER = "scripted-auth";
 const WAIT = { timeout: 30_000 };
 
 const authFile = (t: TestDaemon) => join(t.root, "agent", "auth.json");
+// The boot reads the providers' overview (shared providers, M14), which may create an empty auth.json: no credential is what counts.
+const hasNoCredential = (t: TestDaemon) => !existsSync(authFile(t)) || Object.keys(readAuth(t)).length === 0;
 const readAuth = (t: TestDaemon) => JSON.parse(readFileSync(authFile(t), "utf8")) as Record<string, unknown>;
 
 interface Wire {
@@ -160,7 +162,7 @@ describe("provider sign-in through a real daemon and helper", () => {
       await waitFor(client, sub, "prompt");
       expect(await client.call("models.loginCancel", { flowId })).toMatchObject({ ok: true });
       expect(await waitFor(client, sub, "done")).toEqual({ kind: "done", ok: false });
-      expect(existsSync(authFile(t))).toBe(false);
+      expect(hasNoCredential(t)).toBe(true);
       // Cancelling again is quiet; another flow for the same provider may start.
       expect(await client.call("models.loginCancel", { flowId })).toMatchObject({ ok: true });
       client.close();
@@ -175,7 +177,7 @@ describe("provider sign-in through a real daemon and helper", () => {
       const { cookie, client } = await session(t);
       const { sub } = await startFlow(t, cookie, client, "cerebras", "oauth");
       expect(await waitFor(client, sub, "done")).toEqual({ kind: "done", ok: false, code: "bad_request" });
-      expect(existsSync(authFile(t))).toBe(false);
+      expect(hasNoCredential(t)).toBe(true);
       client.close();
     } finally {
       await t.stop();

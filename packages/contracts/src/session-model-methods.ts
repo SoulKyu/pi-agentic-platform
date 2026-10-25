@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { AGENT_GATE_ERRORS } from "./errors.ts";
+import { AvailableModels } from "./models-available.ts";
 import { AvailableModelsData, SessionCommandsData, ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 
 const SessionId = z.string().min(1).max(128);
@@ -15,6 +16,15 @@ export const sessionModelMethods = {
     // The session's own runtime lists them; a cold session's worker is started for it (M7R41), so capacity applies.
     result: AvailableModelsData,
     errors: ["not_found", "capacity", "worker_failed", "command_failed", "timeout", ...AGENT_GATE_ERRORS],
+  }),
+  /** The models a member may pick before a session exists: no `cwd`, so no host Pi helper runs (M14). */
+  "sessions.availableModels": defineMethod({
+    name: "sessions.availableModels",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({}).strict(),
+    result: AvailableModels,
+    errors: ["capacity", "timeout", "helper_failed"],
   }),
   "sessions.commands": defineMethod({
     name: "sessions.commands",

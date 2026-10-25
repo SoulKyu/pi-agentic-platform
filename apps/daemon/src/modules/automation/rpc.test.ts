@@ -5,6 +5,7 @@ import { sha256Hex } from "../../kernel/ids.ts";
 import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { automationRpc } from "./rpc.ts";
 import { createAutomationBed, type AutomationBed } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 let bed: AutomationBed;
 const noTasks = {
@@ -26,6 +27,7 @@ afterEach(() => bed.dispose());
 function setup() {
   bed = createAutomationBed();
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: automationRpc(bed.triggers, noTasks, noOperations) as unknown as HandlerTable,
     receipts: createReceiptStore(bed.db, bed.clock),
     logger: bed.logger,

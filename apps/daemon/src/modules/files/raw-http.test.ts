@@ -17,6 +17,7 @@ afterEach(() => bed.dispose());
 
 const realService = (): FilesService =>
   createFilesService({
+    isMember: () => false,
     roots: () => [bed.repo],
     boundary: bed.bb.config(),
     deny: bed.deny,
@@ -159,6 +160,7 @@ describe("GET /files/raw", () => {
   it("judges against the caller's own roots", async () => {
     const path = bed.file(join(bed.repo, "a.png"));
     const stranger = createFilesService({
+      isMember: () => false,
       roots: () => [],
       boundary: bed.bb.config(),
       deny: bed.deny,

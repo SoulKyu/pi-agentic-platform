@@ -9,6 +9,7 @@ import {
   createAgentReads,
   createAgentSafety,
   createAgents,
+  createAgentsOwnerCascade,
   createApprove,
   createNetworkRequest,
   createNotify,
@@ -258,6 +259,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   return {
     platform,
     agents: agents.port,
+    agentsCascade: createAgentsOwnerCascade(agents),
     vmLate: {
       agents: agents.port,
       ownerHosts: (ownerId: string) => modules.policy?.port.settings(ownerId).allowHosts ?? null,

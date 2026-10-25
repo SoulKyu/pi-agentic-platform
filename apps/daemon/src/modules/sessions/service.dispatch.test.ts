@@ -10,6 +10,7 @@ import { createSessionsStore } from "./store.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const owner: Caller = testCaller();
 const ctx: HandlerContext = {
@@ -27,7 +28,10 @@ afterEach(() => bed.dispose());
 function dispatcherOver(service: SessionsService) {
   const receipts = createReceiptStore(bed.db, bed.clock);
   const handlers = { ...systemHandlers(bed.clock), ...sessionsRpc(service) } as HandlerTable;
-  return { dispatch: createDispatcher({ handlers, receipts, logger: silentLogger }), receipts };
+  return {
+    dispatch: createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger }),
+    receipts,
+  };
 }
 const prompt = (id: number, commandId?: string) => ({
   id,

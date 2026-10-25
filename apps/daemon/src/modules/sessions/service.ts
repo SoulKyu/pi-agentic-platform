@@ -4,6 +4,7 @@ import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
 import { type AutomationContext, createAttention, createAutomationPort } from "./automation-port.ts";
 import { createSessionsProjectPort } from "./project-port.ts";
+import { createSessionsOwnerCascade } from "./owner-cascade.ts";
 import { createAgentPort } from "./agent-port.ts";
 import { createChildPort } from "./child-port.ts";
 import { createSidebarHub } from "./sidebar-hub.ts";
@@ -68,6 +69,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     store: marks,
     projects: deps.projects,
     scopeOf: deps.policy.scopeOf,
+    isMember: deps.isMember,
     boxes: deps.boxes,
     logger: deps.logger,
   });
@@ -211,6 +213,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     // The worker is sent the whole rules, which now say whether the preset is read-only.
     presetChanged: (row) => grants.pushWhere((tracked) => tracked.id === row.id),
     clampPreset: agent.clampPreset,
+    providers: deps.providers,
   });
   const forks = createForks({
     store: deps.store,
@@ -284,13 +287,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const self: SessionsServiceWithAutomation = {
     automation,
     projectCleanup: createSessionsProjectPort(automationCtx),
+    ownerCascade: createSessionsOwnerCascade(automationCtx),
     agent,
     agentSessions,
     child,
     modeOf: (ownerId, sessionId) => policyLink.viewOf(owned(sessionId, { userId: ownerId } as Caller)).mode,
     async create(cwdInput, caller, preset) {
       const cwd =
-        newBoxCwdOf(deps.boxes?.(), caller.userId, cwdInput)?.cwd ??
+        newBoxCwdOf(deps.boxes?.(), caller.userId, cwdInput, deps.isMember)?.cwd ??
         resolveSessionCwd(cwdInput, deps.worker.papHome);
       const now = deps.clock.now();
       const toolPreset = preset === undefined ? null : storedPresetOf(preset);
@@ -332,6 +336,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
     models: (sessionId, caller) => modelCommands.models(sessionId, caller),
+    availableModels: (caller) => modelCommands.availableModels(caller),
     commands: (sessionId, caller) => modelCommands.commands(sessionId, caller),
     setModel: (input, caller) => modelCommands.setModel(input, caller),
     setThinking: (input, caller) => modelCommands.setThinking(input, caller),

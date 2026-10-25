@@ -22,7 +22,7 @@ type PiSources =
   | { readonly state: "ready"; readonly packages: readonly PiPackage[]; retry(): void };
 
 /**
- * The owner's Pi packages (user scope) as `plugins.list` gives them; loading and failed stay distinct from an empty profile.
+ * The owner's Pi packages (user scope) as `agents.packages` gives them (the member-safe list); loading and failed stay distinct from an empty profile.
  * The source is masked and is only shown: the agent saves the package's id, which the daemon resolves (AVM-E33).
  */
 function usePiSources(): PiSources {
@@ -35,7 +35,7 @@ function usePiSources(): PiSources {
   useEffect(() => {
     let live = true;
     getRuntime()
-      .rpc.call("plugins.list", {})
+      .rpc.call("agents.packages", {})
       .then(
         (answer) => {
           if (live)
@@ -43,9 +43,7 @@ function usePiSources(): PiSources {
               state: "ready",
               packages: [
                 ...new Map(
-                  answer.plugins
-                    .filter((plugin) => plugin.scope === "user")
-                    .map((plugin) => [plugin.id, { id: plugin.id, source: plugin.source }] as const),
+                  answer.packages.map((one) => [one.id, { id: one.id, source: one.source }] as const),
                 ).values(),
               ],
             });

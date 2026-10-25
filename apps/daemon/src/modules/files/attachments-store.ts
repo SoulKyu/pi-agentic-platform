@@ -37,6 +37,8 @@ export interface AttachmentsPort {
   claim(ownerId: string, sessionId: string, ids: readonly string[]): Promise<ClaimedAttachments>;
   /** The prompt was accepted: the claimed images are read and the files copied, so the uploads are spent (MC38 m3). */
   release(ownerId: string, ids: readonly string[]): void;
+  /** A member was deleted (A5b): their pending uploads, and the copies made for their sessions, are removed. */
+  dropOwner(ownerId: string, sessionIds: readonly string[]): void;
 }
 
 export interface Reservation {
@@ -269,6 +271,17 @@ export function createAttachmentsStore(options: AttachmentsOptions): Attachments
       for (const id of ids) {
         const entry = entries.get(id);
         if (entry !== undefined && entry.ownerId === ownerId) forget(id, entry);
+      }
+    },
+    dropOwner(ownerId, sessionIds) {
+      for (const [id, entry] of [...entries]) if (entry.ownerId === ownerId) forget(id, entry);
+      for (const sessionId of sessionIds) {
+        if (!SESSION_ID.test(sessionId) || sessionId === "pending") continue;
+        try {
+          rmSync(join(root, sessionId), { recursive: true, force: true });
+        } catch (error) {
+          logger.warn("attachment_folder_remove_failed", { code: (error as NodeJS.ErrnoException).code });
+        }
       }
     },
     stop() {

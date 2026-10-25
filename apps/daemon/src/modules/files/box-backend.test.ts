@@ -52,6 +52,7 @@ function serviceOf(
   over: { root?: string; git?: GitRunner; roots?: string[] } = {},
 ): FilesService & UploadService {
   return createFilesService({
+    isMember: () => false,
     roots: () => over.roots ?? [bed.repo],
     boundary: bed.bb.config(),
     deny: bed.deny,
@@ -161,6 +162,7 @@ describe("a box project's files", () => {
     });
     const lax = { ...source(), byPath: () => ({ projectId: PROJECT, root: ROOT }) };
     const files = createFilesService({
+      isMember: () => false,
       roots: () => [],
       boundary: bed.bb.config(),
       deny: bed.deny,
@@ -179,6 +181,7 @@ describe("a box project's files", () => {
 
   it("with no box ops bound a box path answers box_stopped and sends nothing", async () => {
     const files = createFilesService({
+      isMember: () => false,
       roots: () => [],
       boundary: bed.bb.config(),
       deny: bed.deny,

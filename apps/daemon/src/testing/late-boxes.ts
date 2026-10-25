@@ -5,6 +5,7 @@ import { createFakeClock } from "../kernel/clock.ts";
 import { silentLogger } from "../kernel/logger.ts";
 import type { ProjectBoxRow } from "../kernel/boxes.ts";
 import { createFakeProjectBoxSource } from "../kernel/testing/fake-boxes.ts";
+import { sharesAllProviders } from "./shares-all.ts";
 
 export const PROJECT = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
 
@@ -24,7 +25,17 @@ export function lateWithBoxes(
     ownerHosts?: (ownerId: string) => readonly string[] | null;
     models?: Array<{ provider: string; id: string }>;
     token?: boolean;
+    /** The Claude token of each owner (M14); replaces `token`. */
+    tokens?: Record<string, string>;
     overBudget?: (ownerId: string) => boolean;
+    /** The providers gate (M14); everything is shared by default. */
+    providers?: AgentsVmLate["providers"];
+    /** The member line (M14); nobody is over by default. */
+    memberLine?: AgentsVmLate["memberLine"];
+    /** The runs port the policy follows (default: none ends); and the relay it pushes to (default: no relay). */
+    runs?: AgentsVmLate["runs"]["port"];
+    relay?: { refresh: (box: unknown) => void; refreshAll: () => void };
+    cwdOf?: (ownerId: string, sessionId: string) => string | null;
   } = {},
 ) {
   const available = vi.fn(async () => ({
@@ -39,13 +50,19 @@ export function lateWithBoxes(
   }));
   const ownerOverBudget = vi.fn(over.overBudget ?? (() => false));
   const late = {
-    sessions: { mirror: { notice: () => {}, taint: () => {} }, kindOf: () => null },
+    providers: over.providers ?? sharesAllProviders,
+    memberLine: over.memberLine ?? { over: () => false, disabled: () => false },
+    sessions: {
+      mirror: { notice: () => {}, taint: () => {} },
+      kindOf: () => null,
+      ...(over.cwdOf ? { cwdOf: over.cwdOf } : {}),
+    },
     pi: {
       plugins: { sourcesOf: async () => null, check: async () => {} },
       models: { available, onChanged: () => {} },
     },
     agents: { list: () => [], ownerOf: () => null, get: () => null, onChange: () => () => {} },
-    runs: { port: { onLiveCost: () => () => {}, onRunEnd: () => () => {} } },
+    runs: { port: over.runs ?? { onLiveCost: () => () => {}, onRunEnd: () => () => {} } },
     automation: { agentTasks: { overBudget: () => false, ownerOverBudget } },
     ...(over.ownerHosts ? { ownerHosts: over.ownerHosts } : {}),
     boxes: { source: createFakeProjectBoxSource(over.rows ?? { [PROJECT]: boxRow() }) },
@@ -55,8 +72,11 @@ export function lateWithBoxes(
       clock: createFakeClock(),
       logger: silentLogger,
       closers: [],
-      relay: null,
-      claudeToken: { status: () => (over.token ? "set" : "missing") },
+      relay: (over.relay ?? null) as never,
+      claudeToken: {
+        get: (ownerId: string) =>
+          over.tokens ? (over.tokens[ownerId] ?? null) : over.token ? "tok-x" : null,
+      },
       readOnly: false,
       bindMirrorHooks: () => {},
       bindTaint: () => {},

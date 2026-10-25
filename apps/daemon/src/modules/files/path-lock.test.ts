@@ -45,6 +45,7 @@ describe("two writers of one file (MC38 m1)", () => {
   const etagOf = (text: string): string => createHash("sha256").update(text).digest("hex").slice(0, 32);
   const files = () =>
     createFilesService({
+      isMember: () => false,
       roots: () => [bed.repo],
       boundary: bed.bb.config(),
       deny: bed.deny,

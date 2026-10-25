@@ -9,6 +9,7 @@ import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { createLogger } from "../../kernel/logger.ts";
 import { createSettingsService, type SettingsService } from "./service.ts";
 import { createSettingsStore } from "./store.ts";
+import { noCap } from "./testing/no-cap.ts";
 import { SETTINGS_MIGRATIONS } from "./index.ts";
 import { testCaller } from "../../testing/caller.ts";
 
@@ -51,6 +52,7 @@ beforeEach(() => {
     store: createSettingsStore(db),
     clock,
     logger: createLogger({ level: "warn", clock, write: (line) => lines.push(line) }),
+    members: noCap,
   });
 });
 afterEach(() => {

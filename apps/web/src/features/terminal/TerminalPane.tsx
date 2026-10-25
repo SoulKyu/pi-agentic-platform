@@ -3,6 +3,8 @@ import { Banner, Button } from "@pap/ui";
 import { useCallback, useRef, useState, type ReactNode } from "react";
 import "../../i18n/register-terminal.ts";
 import { useT, type Translate } from "../../i18n/index.ts";
+import { isBoxPath } from "../../stores/box-path.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { basename } from "../../lib/session-label.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { randomId } from "../../runtime/random-id.ts";
@@ -31,6 +33,8 @@ export function TerminalPane({ id, onClose, onOpen }: TerminalPaneProps) {
   }, [id, onClose]);
   const { view, surface, controller } = useTerminal(id, closeTerminal);
 
+  const role = useRole();
+  const boxCwd = useShellStore((state) => (known ? isBoxPath(state.view, known.cwd) : false));
   const openHere = (): void => {
     if (!known) return;
     setNewFailed(false);
@@ -85,7 +89,7 @@ export function TerminalPane({ id, onClose, onOpen }: TerminalPaneProps) {
         view={view}
         t={t}
         newFailed={newFailed}
-        onNew={known ? openHere : null}
+        onNew={known && (role === "owner" || boxCwd) ? openHere : null}
         onRetry={() => controller()?.retry()}
       />
       <div className="min-h-0 flex-1">

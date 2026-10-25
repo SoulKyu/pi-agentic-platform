@@ -46,6 +46,8 @@ export interface SearchModule {
   /** Starts the scanner; called once the HTTP server listens, so a first scan never delays the boot (M4R74). */
   start(): void;
   stop(): Promise<void>;
+  /** A member was deleted (A5b): the index rows of their sessions go. A closed or unusable index has none to drop. */
+  dropOwner(ownerId: string): void;
 }
 
 interface Parts {
@@ -80,6 +82,7 @@ export function createSearchModule(deps: {
       rpc: { "search.query": async () => ({ hits: [] }) },
       start: () => {},
       stop: async () => {},
+      dropOwner: () => {},
     };
   }
   const dbPath = join(deps.home, "search.db");
@@ -98,6 +101,7 @@ export function createSearchModule(deps: {
       },
       start: () => {},
       stop: async () => {},
+      dropOwner: () => {},
     };
   }
   // No global cap: the size is said at boot and documented (owner Q14). A count that fails must not stop the boot: the
@@ -227,6 +231,9 @@ export function createSearchModule(deps: {
       }
       // During a rebuild the old scanner is stopped for good; the new one starts when the rebuild ends.
       if (!unusable && !rebuilding) parts.scanner.start();
+    },
+    dropOwner(ownerId) {
+      if (parts.db !== null) createSearchIndexStore(parts.db).forgetOwner(ownerId);
     },
     async stop() {
       if (stopped) return;

@@ -1,16 +1,13 @@
-import { randomBytes } from "node:crypto";
 import { rmSync } from "node:fs";
 import {
   AGENT_LIMITS,
   type AgentRailState,
-  AgentId,
   AgentInput,
   type AgentView,
   type Caller,
   PapError,
   type ParamsOf,
   type ResultOf,
-  slugOf,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -18,6 +15,7 @@ import type { GitRunner } from "../../kernel/git/runner.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { withDeadline } from "./deadline.ts";
+import { agentIdOf, randomAgentHex } from "./ids.ts";
 import { checkAgentSave } from "./resources-check.ts";
 import { homeExists, HomeMovedRunsLeft, homePath, initHome, makeHome, trashHomeOrFind } from "./homes.ts";
 import { changedFields, type ReachDeps, stepUpIfWider } from "./reach.ts";
@@ -36,7 +34,7 @@ export interface AgentsDeps extends ReachDeps {
   /** The kernel runner: the only way pap runs git (M9R11). */
   readonly git: Pick<GitRunner, "run">;
   readonly papHome: string;
-  /** Four hex digits of a new id; tests replace it. */
+  /** The hex digits of a new id; tests replace it. */
   readonly randomHex?: () => string;
   /** Shared with the thread's open: a delete and an open of one agent never run together (M11R59). */
   readonly guard?: AgentGuard;
@@ -116,13 +114,13 @@ export function createAgents(deps: AgentsDeps) {
     });
   }
 
-  const randomHex = deps.randomHex ?? ((): string => randomBytes(2).toString("hex"));
+  const randomHex = deps.randomHex ?? randomAgentHex;
 
   /** A fresh id and its folder: an id that exists as a row or a folder is skipped, never reused. */
   function newHome(name: string): { id: string; home: string } {
     for (let attempt = 0; attempt < ID_TRIES; attempt += 1) {
-      const id = `${slugOf(name)}-${randomHex()}`;
-      if (!AgentId.safeParse(id).success || store.exists(id)) continue;
+      const id = agentIdOf(name, randomHex());
+      if (id === null || store.exists(id)) continue;
       try {
         return { id, home: makeHome(papHome, id) };
       } catch (error) {
@@ -229,6 +227,45 @@ export function createAgents(deps: AgentsDeps) {
     return owned(ownerId, agentId);
   }
 
+  /**
+   * Pauses first, then checks (M11R183): the runner's admission reads `paused` and marks a task running in one step, so
+   * a task admitted before the pause is seen here and none is admitted after it. No step-up: `remove` asks it, and a
+   * member's delete (A5b) has asked it for the whole account.
+   */
+  async function removeNow(caller: Caller, agentId: string): Promise<ResultOf<"agents.delete">> {
+    const record = owned(caller.userId, agentId);
+    if (deleting.has(agentId)) throw new PapError("session_busy");
+    deleting.add(agentId);
+    try {
+      store.setPaused(record.ownerId, agentId, true);
+      let busy: boolean;
+      try {
+        busy = busyReason(record);
+      } catch (error) {
+        store.setPaused(record.ownerId, agentId, record.paused);
+        throw error;
+      }
+      if (busy) {
+        store.setPaused(record.ownerId, agentId, record.paused);
+        throw new PapError("session_busy");
+      }
+      let trashedAs: string;
+      try {
+        trashedAs = await removeSteps(caller, record);
+      } catch (error) {
+        // Busy again after the await: the agent goes back to the switch it had; a retry finds the rest done.
+        if (error instanceof PapError && error.code === "session_busy")
+          store.setPaused(record.ownerId, agentId, record.paused);
+        throw error;
+      }
+      audit(caller, "deleted", agentId, null);
+      notify(record.ownerId, agentId, true);
+      return { trashedAs };
+    } finally {
+      deleting.delete(agentId);
+    }
+  }
+
   const port: AgentsPort = {
     get: store.get,
     byName: store.byName,
@@ -332,44 +369,11 @@ export function createAgents(deps: AgentsDeps) {
       return viewOf(after);
     },
 
-    /**
-     * Pauses first, then checks (M11R183): the runner's admission reads `paused` and marks a task running in one step, so
-     * a task admitted before the pause is seen here and none is admitted after it.
-     */
-    async remove(caller: Caller, agentId: string): Promise<ResultOf<"agents.delete">> {
+    remove(caller: Caller, agentId: string): Promise<ResultOf<"agents.delete">> {
       deps.requireStepUp(caller, clock.now());
-      const record = owned(caller.userId, agentId);
-      if (deleting.has(agentId)) throw new PapError("session_busy");
-      deleting.add(agentId);
-      try {
-        store.setPaused(record.ownerId, agentId, true);
-        let busy: boolean;
-        try {
-          busy = busyReason(record);
-        } catch (error) {
-          store.setPaused(record.ownerId, agentId, record.paused);
-          throw error;
-        }
-        if (busy) {
-          store.setPaused(record.ownerId, agentId, record.paused);
-          throw new PapError("session_busy");
-        }
-        let trashedAs: string;
-        try {
-          trashedAs = await removeSteps(caller, record);
-        } catch (error) {
-          // Busy again after the await: the agent goes back to the switch it had; a retry finds the rest done.
-          if (error instanceof PapError && error.code === "session_busy")
-            store.setPaused(record.ownerId, agentId, record.paused);
-          throw error;
-        }
-        audit(caller, "deleted", agentId, null);
-        notify(record.ownerId, agentId, true);
-        return { trashedAs };
-      } finally {
-        deleting.delete(agentId);
-      }
+      return removeNow(caller, agentId);
     },
+    removeNow,
 
     /** `agents.setPaused` (M11R75): the switch, answered as the owner's view of the agent. */
     pause(caller: Caller, agentId: string, paused: boolean): AgentView {

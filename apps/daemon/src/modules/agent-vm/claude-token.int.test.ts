@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { captureLogger } from "../../testing/capture-logger.ts";
 import { startTestDaemon, type TestDaemon } from "../../testing/harness.ts";
 import { startVmBed, type VmBed } from "../../testing/vm-bed.ts";
@@ -11,7 +11,7 @@ import type { RelayChild } from "./relay-link.ts";
 /*
  * AVM-P17, AVM-E2, RT-46 through a whole daemon: the two Claude-token methods are real in host and vm modes. Mutants (RT-43),
  * each run for real: the handlers dropped from `daemon.ts` (the stub answers sandbox_unavailable) -> both cases fail; the
- * store's listener not registered in vm mode -> "pushes it to the relay" fails; the value in a log line -> "no log line".
+ * (M14) the token is in the owner's vault and never a separate relay message; the value in a log line -> "no log line".
  */
 const TOKEN = "sk-ant-oat01-OWNER-SETUP-TOKEN-0123456789";
 let t: TestDaemon | undefined;
@@ -31,15 +31,24 @@ describe("the Claude token methods", () => {
     const { logger, lines } = captureLogger();
     t = await startTestDaemon({ steps: [{ text: "ok" }] }, { deps: { logger } });
     owner = await openOwner(t);
-    const file = join(t.home, "secrets", "claude-token");
+    const legacy = join(t.home, "secrets", "claude-token");
+    const vaultDir = join(t.home, "secrets", "vault");
     const set = await owner.client.call("agents.vm.setClaudeToken", { token: TOKEN });
     expect(set).toMatchObject({ ok: true, result: { ok: true } });
     expect(JSON.stringify(set).includes(TOKEN)).toBe(false);
-    expect(readFileSync(file, "utf8")).toBe(TOKEN);
-    expect(statSync(file).mode & 0o777).toBe(0o600);
-    expect(statSync(join(t.home, "secrets")).mode & 0o777).toBe(0o700);
+    // M14: the token is sealed in the owner's vault, not in the old install-wide file.
+    expect(existsSync(legacy)).toBe(false);
+    expect(statSync(vaultDir).mode & 0o777).toBe(0o700);
+    expect(readdirSync(vaultDir).length).toBeGreaterThan(1);
+    expect(await owner.client.call("agents.vmStatus", {})).toMatchObject({
+      ok: true,
+      result: { claudeToken: "set" },
+    });
     expect(await owner.client.call("agents.vm.clearClaudeToken", {})).toMatchObject({ ok: true });
-    expect(existsSync(file)).toBe(false);
+    expect(await owner.client.call("agents.vmStatus", {})).toMatchObject({
+      ok: true,
+      result: { claudeToken: "missing" },
+    });
     // M7: both changes are in the audit, without the value.
     const audited = rows<{ reason: string; kind: string; detail: string | null }>(
       t.home,
@@ -65,13 +74,13 @@ describe("the Claude token methods", () => {
     try {
       const answer = await client.call("agents.vm.setClaudeToken", { token: TOKEN });
       expect(answer).toMatchObject({ ok: false, error: { code: "step_up_required" } });
-      expect(existsSync(join(t.home, "secrets", "claude-token"))).toBe(false);
+      expect(existsSync(join(t.home, "secrets", "vault"))).toBe(false);
     } finally {
       client.close();
     }
   }, 60_000);
 
-  it("push the token to the relay in vm mode, and again after the relay restarted", async () => {
+  it("never sends a claude_token message to the relay: the token travels in the box policy", async () => {
     const child = Object.assign(new EventEmitter(), {
       sent: [] as unknown[],
       send(message: unknown) {
@@ -86,12 +95,11 @@ describe("the Claude token methods", () => {
     );
     child.emit("message", { type: "relay_ready", port: 1234 });
     await bed.call("agents.vm.setClaudeToken", { token: TOKEN });
-    expect(child.sent).toContainEqual({ type: "claude_token", token: TOKEN });
-    // A restarted relay is told again from the stored file, not from a copy in the daemon's memory.
-    child.sent.length = 0;
+    expect(await bed.call("agents.vmStatus", {})).toMatchObject({ claudeToken: "set" });
     child.emit("message", { type: "relay_ready", port: 1235 });
-    await vi.waitFor(() => expect(child.sent).toContainEqual({ type: "claude_token", token: TOKEN }));
     await bed.call("agents.vm.clearClaudeToken", {});
-    expect(child.sent).toContainEqual({ type: "claude_token", token: null });
+    expect(await bed.call("agents.vmStatus", {})).toMatchObject({ claudeToken: "missing" });
+    expect(JSON.stringify(child.sent)).not.toContain(TOKEN);
+    expect(child.sent.some((message) => (message as { type: string }).type === "claude_token")).toBe(false);
   }, 60_000);
 });

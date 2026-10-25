@@ -13,6 +13,7 @@ import { VERSION } from "./kernel/version.ts";
 import { createFakeVmd, type FakeVmd } from "./modules/agent-vm/testing/fake-vmd.ts";
 import type { SessionRow, VmLaunch } from "./modules/sessions/index.ts";
 import { testCaller } from "./testing/caller.ts";
+import { bed as lateBed } from "./testing/late-bed.ts";
 
 /*
  * Mutants (RT-43), each run for real in the T18 report:
@@ -44,11 +45,13 @@ afterEach(async () => {
 });
 
 const claudeToken = (state: "set" | "missing" = "missing") => ({
+  get: () => (state === "set" ? TOKEN : null),
+  read: () => (state === "set" ? { state: "set" as const, token: TOKEN } : { state: "missing" as const }),
   status: () => state,
   set: () => {},
   clear: () => {},
-  load: () => null,
-  onChange: () => {},
+  onChange: () => () => {},
+  migrateLegacy: () => {},
 });
 const core = (): AgentsVmCore => ({
   config: {
@@ -102,6 +105,7 @@ describe("vm mode (the Kata composition)", () => {
 
   it("refuses a launch `sandbox_unavailable` before anything is built when pap-vmd runs another version (M-guard, M-order)", async () => {
     const vm = await vmMode();
+    vm.bindLate(lateBed().late as never); // a launch fails closed before the late binding (M14 J1)
     fake.handle("vmd.health", () => ({ version: "0.0.1", ruleset: true, bridge: true, stateFreeMb: 1 }));
     await clock.advance(10_000);
     const before = fake.ops().length;
@@ -137,6 +141,7 @@ describe("the relay gates the launches on Kata (S1)", () => {
       },
     });
     if (vm === null) throw new Error("no vm composition");
+    vm.bindLate(lateBed().late as never);
     await vi.waitFor(() => expect(children).toHaveLength(1));
     const before = fake.ops().length;
     // The child exits at once: it could not bind (the port is held by another process). It never becomes ready.
@@ -349,18 +354,18 @@ describe("agents.vmStatus", () => {
 
   it("reports the Claude token `set` after a set, `missing` after a clear, and never the value (J1a M10)", async () => {
     const { rpc: handlers, claudeToken: store, bindStatus } = rpc();
-    bindStatus(async () => ({
+    bindStatus(async (ownerId) => ({
       usable: true,
       reason: null,
       vmdVersion: null,
-      claudeToken: store.status(),
+      claudeToken: store.status(ownerId),
       agents: [],
     }));
-    store.set(TOKEN);
+    store.set("u1", TOKEN);
     const view = await handlers["agents.vmStatus"]({}, ctxOf());
     expect(view.claudeToken).toBe("set");
     expect(JSON.stringify(view)).not.toContain(TOKEN);
-    store.clear();
+    store.clear("u1");
     expect((await handlers["agents.vmStatus"]({}, ctxOf())).claudeToken).toBe("missing");
   });
 

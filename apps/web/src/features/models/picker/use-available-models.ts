@@ -1,5 +1,6 @@
 import { AvailableModels } from "@pap/contracts";
 import { useCallback, useEffect, useState } from "react";
+import { useRole } from "../../../lib/role-context.ts";
 import { isStaleChunk } from "../../../lib/lazy.tsx";
 import { reportClientIssue } from "../../../lib/report.ts";
 import { getRuntime } from "../../../runtime/index.ts";
@@ -55,6 +56,8 @@ export const isStale = (error: unknown): boolean =>
  * for another folder or another opening is dropped.
  */
 export function useAvailableModels(cwd: string | null, enabled: boolean): AvailableState {
+  // A member has no host folder: the list is the one `sessions.availableModels` gives, shared providers only.
+  const member = useRole() === "member";
   const [attempt, setAttempt] = useState(0);
   const [wasEnabled, setWasEnabled] = useState(enabled);
   const [result, setResult] = useState<{
@@ -72,22 +75,24 @@ export function useAvailableModels(cwd: string | null, enabled: boolean): Availa
   useEffect(() => {
     if (!enabled) return;
     let live = true;
-    getRuntime()
-      .rpc.call("models.available", cwd === null ? {} : { cwd })
-      .then(
-        (answer) => {
-          const ready = parseAvailable(answer);
-          if (ready === null) reportClientIssue("setting_load_failed");
-          if (live) setResult({ for: cwd, state: ready ?? { status: "failed", stale: false, reload } });
-        },
-        (error: unknown) => {
-          reportClientIssue("setting_load_failed");
-          if (live) setResult({ for: cwd, state: { status: "failed", stale: isStale(error), reload } });
-        },
-      );
+    const rpc = getRuntime().rpc;
+    (member
+      ? rpc.call("sessions.availableModels", {})
+      : rpc.call("models.available", cwd === null ? {} : { cwd })
+    ).then(
+      (answer) => {
+        const ready = parseAvailable(answer);
+        if (ready === null) reportClientIssue("setting_load_failed");
+        if (live) setResult({ for: cwd, state: ready ?? { status: "failed", stale: false, reload } });
+      },
+      (error: unknown) => {
+        reportClientIssue("setting_load_failed");
+        if (live) setResult({ for: cwd, state: { status: "failed", stale: isStale(error), reload } });
+      },
+    );
     return () => {
       live = false;
     };
-  }, [cwd, enabled, attempt, reload]);
+  }, [cwd, enabled, attempt, reload, member]);
   return enabled && result !== null && result.for === cwd ? result.state : LOADING;
 }

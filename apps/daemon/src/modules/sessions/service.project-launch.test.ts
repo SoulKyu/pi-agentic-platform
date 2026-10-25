@@ -55,6 +55,7 @@ function setup(row: Partial<ProjectBoxRow> = {}) {
   let current: ProjectBoxSource | null = null;
   const source: ProjectBoxSource = {
     box: (id) => current?.box(id) ?? null,
+    ownerBoxes: (ownerId) => current?.ownerBoxes(ownerId) ?? [],
     byPath: (ownerId, path) => current?.byPath(ownerId, path) ?? null,
     addHost: () => {},
   };

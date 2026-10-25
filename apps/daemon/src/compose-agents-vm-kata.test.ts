@@ -94,11 +94,13 @@ const core = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore => ({
   env: {},
   readOnly: false,
   claudeToken: {
+    get: () => null,
+    read: () => ({ state: "missing" as const }),
     status: () => "missing",
     set: () => {},
     clear: () => {},
-    load: () => null,
-    onChange: () => {},
+    onChange: () => () => {},
+    migrateLegacy: () => {},
   },
 });
 const seams = (extra: AgentsVmSeams = {}): AgentsVmSeams => ({

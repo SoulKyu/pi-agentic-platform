@@ -16,6 +16,7 @@ import { createAuthService, RateLimitedError, type AuthService } from "./service
 import { createSetupToken } from "./setup-token.ts";
 import { createAuthStore } from "./store.ts";
 import { createThrottle, type Throttle } from "./throttle.ts";
+import { insertUserRow } from "./testing/users.ts";
 
 // Both calls go through to the real implementation; the spies only record who verifies what.
 vi.mock("./passwords.ts", async (importOriginal) => {
@@ -175,7 +176,7 @@ describe("auth service", () => {
 
   it("keeps at most 64 characters of the address and stores no address when the socket had none", () => {
     const userId = "u1";
-    db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'x', 'x', 0)");
+    insertUserRow(db, { id: "u1", username: "x", role: "owner" });
     service.startSession(userId, undefined, { ip: "9".repeat(100), method: "password" });
     service.startSession(userId, undefined, { ip: "unknown", method: "password" });
     expect(

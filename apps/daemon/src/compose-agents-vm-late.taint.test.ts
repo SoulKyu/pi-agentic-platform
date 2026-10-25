@@ -1,3 +1,4 @@
+import { sharesAllProviders } from "./testing/shares-all.ts";
 import { describe, expect, it, vi } from "vitest";
 import { type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { createFakeClock } from "./kernel/clock.ts";
@@ -23,6 +24,7 @@ function bed(cwds: Record<string, string>, tainted: Set<string>, agentOf: Record
       },
       sessionPolicy: (_owner: string, id: string) => ({ taint: { tainted: tainted.has(id) } }),
     },
+    providers: sharesAllProviders,
     pi: {
       plugins: { sourcesOf: async () => null, check: async () => {} },
       models: { available: async () => ({ models: [] }), onChanged: () => {} },
@@ -38,7 +40,7 @@ function bed(cwds: Record<string, string>, tainted: Set<string>, agentOf: Record
       logger: silentLogger,
       closers: [],
       relay: null,
-      claudeToken: { status: () => "missing" },
+      claudeToken: { get: () => null },
       readOnly: false,
       bindMirrorHooks: () => {},
       bindTaint: () => {},

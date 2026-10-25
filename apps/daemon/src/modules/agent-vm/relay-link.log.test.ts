@@ -122,7 +122,7 @@ describe("the relay link: what it logs", () => {
     await link.start();
     last().ready();
     link.grant(grant(1));
-    link.setClaudeToken(TOKEN);
+    link.refreshAll();
     await settle();
     // A malformed report and a child that prints a key on stderr never reach the log.
     last().emit("message", { type: "relay_usage", boxes: "no", key: KEY });

@@ -5,8 +5,8 @@ import { METHOD_IDEMPOTENT } from "./methods-idempotent.ts";
 
 describe("agentsVmMethods", () => {
   it("declares the permissions", () => {
-    expect(agentsVmMethods["agents.vm.setClaudeToken"].permission).toBe("pi:admin");
-    expect(agentsVmMethods["agents.vm.clearClaudeToken"].permission).toBe("pi:admin");
+    expect(agentsVmMethods["agents.vm.setClaudeToken"].permission).toBe("settings:operate");
+    expect(agentsVmMethods["agents.vm.clearClaudeToken"].permission).toBe("settings:operate");
     expect(agentsVmMethods["agents.vmStatus"].permission).toBe("agents:read");
     expect(agentsVmMethods["agents.purgeTrash"].permission).toBe("agents:admin");
   });

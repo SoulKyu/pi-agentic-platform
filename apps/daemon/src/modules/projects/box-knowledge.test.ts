@@ -18,6 +18,7 @@ beforeEach(() => {
 function world() {
   const enabled: string[] = [];
   const service = createProjectsService({
+    isMember: () => false,
     store: createProjectsStore(bed.db),
     boxes: createBoxStore(bed.db),
     clock: bed.clock,

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 
 /**
@@ -27,11 +28,8 @@ export const SKILL_LIMITS = {
  */
 export const PLUGIN_LIMITS = { list: 200, items: 100, source: 2048, path: 4096 } as const;
 
-const Cwd = z.string().min(1).max(4096);
-const AbsolutePath = z
-  .string()
-  .max(SKILL_LIMITS.path)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+const Cwd = ClientPath;
+const AbsolutePath = ClientPath;
 /** `true` or absent: the "Save anyway?" confirmation of a protected file (M7R133). */
 const ConfirmProtected = z.literal(true).optional();
 

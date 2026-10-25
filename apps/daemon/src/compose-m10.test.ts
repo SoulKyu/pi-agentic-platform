@@ -30,6 +30,7 @@ const seedLeased = (test: M10TestCore): number => {
   return id;
 };
 const modules = {
+  auth: { isMember: () => false },
   audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
   projects: { port: { ensure: () => null } as unknown as ProjectsPort },
   policy: {

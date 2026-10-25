@@ -7,7 +7,7 @@ import { createFakeClock } from "../kernel/clock.ts";
 import type { Db } from "../kernel/db/database.ts";
 import { migrate } from "../kernel/db/migrate.ts";
 import { silentLogger } from "../kernel/logger.ts";
-import { createOwnerFromCli, resetCredentials } from "../modules/auth/index.ts";
+import { createUserFromCli, resetCredentials } from "../modules/auth/index.ts";
 
 let scratch: string;
 let db: Db;
@@ -29,7 +29,7 @@ afterEach(() => {
 describe("resetCredentials is one transaction with its audit line", () => {
   it("rolls everything back, key file included, when the audit append throws", async () => {
     const clock = createFakeClock(1_000);
-    await createOwnerFromCli(
+    await createUserFromCli(
       db,
       clock,
       { append() {} },

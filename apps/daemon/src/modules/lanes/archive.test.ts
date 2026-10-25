@@ -14,8 +14,7 @@ let dirty = false;
 afterEach(async () => {
   await bed?.service.shutdown();
   bed?.dispose();
-  bed = undefined;
-  dirty = false;
+  [bed, dirty] = [undefined, false];
 });
 
 /** Lane git calls answer from here (the fake git dir cannot run real ones); the checkpoint ref calls run for real and are traced. */
@@ -379,6 +378,7 @@ describe("the archive rpc", () => {
     const b = make();
     const id = await lane(b, null);
     const dispatch = createDispatcher({
+      gate: { allows: () => true },
       handlers: lanesArchiveRpc(b.service) as never,
       receipts: undefined as never,
       logger: silentLogger,

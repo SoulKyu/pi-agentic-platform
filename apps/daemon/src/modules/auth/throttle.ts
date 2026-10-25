@@ -1,4 +1,5 @@
 import type { Clock } from "../../kernel/clock.ts";
+import type { Db } from "../../kernel/db/database.ts";
 
 const BASE_MS = 1000;
 export const MAX_BACKOFF_MS = 60_000;
@@ -81,5 +82,54 @@ export function createAuthThrottles(clock: Clock): {
     password: createThrottle(clock, { whenFull: "refuse" }),
     session: createThrottle(clock, { whenFull: "refuse" }),
     passkey: createThrottle(clock, { whenFull: "evict" }),
+  };
+}
+
+const INVITE_MAX_KEYS = 10_000;
+
+/**
+ * The invitation throttle (RT-15): a table of its own, never the sign-in or setup one, so a spray of bad invitation
+ * links from a shared address cannot delay the owner's password sign-in. Same backoff as the others, kept in
+ * `invite_throttle`; when full it forgets the oldest failure (nothing behind it can be guessed: tokens are 256 bits).
+ */
+export function createInviteThrottle(db: Db, clock: Clock): Throttle {
+  interface Row {
+    failures: number;
+    lastFailureAt: number;
+    blockedUntil: number;
+  }
+  const read = (key: string): Row | undefined => {
+    const row = db.get<Row>(
+      "SELECT failures, last_failure_at AS lastFailureAt, blocked_until AS blockedUntil FROM invite_throttle WHERE key = $key",
+      { key },
+    );
+    return row && clock.now() - row.lastFailureAt < RESET_AFTER_MS ? row : undefined;
+  };
+  return {
+    retryAfterMs: (keys) => Math.max(0, ...keys.map((key) => (read(key)?.blockedUntil ?? 0) - clock.now())),
+    fail(keys) {
+      const now = clock.now();
+      db.transaction(() => {
+        db.run("DELETE FROM invite_throttle WHERE last_failure_at <= $cutoff", {
+          cutoff: now - RESET_AFTER_MS,
+        });
+        for (const key of keys) {
+          const failures = (read(key)?.failures ?? 0) + 1;
+          db.run(
+            "INSERT OR REPLACE INTO invite_throttle (key, failures, last_failure_at, blocked_until) VALUES ($key, $failures, $now, $blockedUntil)",
+            { key, failures, now, blockedUntil: now + backoffMs(failures) },
+          );
+        }
+        db.run(
+          "DELETE FROM invite_throttle WHERE key IN (SELECT key FROM invite_throttle ORDER BY last_failure_at DESC, rowid DESC LIMIT -1 OFFSET $max)",
+          { max: INVITE_MAX_KEYS },
+        );
+      });
+      return true;
+    },
+    succeed(keys) {
+      for (const key of keys) db.run("DELETE FROM invite_throttle WHERE key = $key", { key });
+    },
+    size: () => db.get<{ c: number }>("SELECT count(*) AS c FROM invite_throttle")?.c ?? 0,
   };
 }

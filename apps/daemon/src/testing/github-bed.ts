@@ -126,6 +126,11 @@ export async function startGithubBoxBed(
       const authState = new URL(url).searchParams.get("state");
       const authorized = await get(`/github/app/authorized?code=user-code&state=${authState}`);
       if (authorized.status !== 200) throw new Error(`authorized callback ${authorized.status}`);
+      const ticket = /finish\?ticket=([0-9a-f]{32})/.exec(authorized.body)?.[1];
+      if (ticket === undefined) throw new Error("authorized callback: no ticket");
+      // The page navigates on, same site, with the owner's cookie: that is what binds the token.
+      const finished = await get(`/github/app/authorized/finish?ticket=${ticket}`, ownerHeaders);
+      if (finished.status !== 200) throw new Error(`authorized finish ${finished.status}`);
     },
     githubOf,
     async cloneProject(repository, mode = "clone") {

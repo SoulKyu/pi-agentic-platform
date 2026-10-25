@@ -78,12 +78,14 @@ export async function bed(
       { provider: "gem", id: "gemini-2.5-pro" },
     ],
     claude: over.claude ?? true,
+    claudeToken: over.claudeToken === undefined ? TOKEN : over.claudeToken,
     blocked: over.blocked ?? null,
   });
   policy.set({
     box: OTHER_AGENT,
     models: [{ provider: "zai", id: "glm-4.6" }],
     claude: true,
+    claudeToken: TOKEN,
     blocked: null,
   });
   const clock = fakeClock();
@@ -108,7 +110,6 @@ export async function bed(
     policy,
     usage,
     resolveProvider,
-    claudeToken: () => (over.claudeToken === undefined ? TOKEN : over.claudeToken),
     claudeUpstream: `http://127.0.0.1:${upstreamPort}`,
     upstreamIdleMs: over.idleMs ?? 300_000,
     log: (line) => logs.push(line),

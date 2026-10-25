@@ -21,7 +21,7 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
 
 registerCatalog({ en: settingsAccessEn, fr: settingsAccessFr });
 
-const shell = { username: "me", passkeysAvailable: true, onSignedOut: vi.fn() };
+const shell = { username: "me", role: "owner" as const, passkeysAvailable: true, onSignedOut: vi.fn() };
 
 describe("the shell's password prompt over the trust dialog (MC49)", () => {
   it("stacks the real prompt on the open dialog, and Trust goes through once the password is confirmed", async () => {

@@ -12,6 +12,7 @@ import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { modelsRpc } from "./rpc.ts";
 import { modelsBed } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const found: ExtensionProviders = {
   truncated: false,
@@ -42,6 +43,7 @@ function bedOf(answer: (op: string) => unknown) {
   const bed = modelsBed((call) => answer(call.op));
   const handlers = modelsRpc(bed.service) as unknown as HandlerTable;
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers,
     receipts: { find: () => null, save: () => {}, purge: () => 0, readOnly: false },
     logger: silentLogger,

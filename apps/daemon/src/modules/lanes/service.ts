@@ -54,6 +54,7 @@ export interface LanesServiceDeps {
   readonly scripts: Pick<ScriptRunner, "run" | "state" | "idle" | "logTail" | "deleteLogs">;
   /** The owner's running terminals in a folder or below: a lane is not archived under a shell. */
   readonly terminals: { runningIn(ownerId: string, folder: string): number };
+  readonly isMember: (userId: string) => boolean;
   readonly boundary: BoundaryConfig;
   readonly deny: DenySet;
   readonly denyFolders: readonly string[];
@@ -220,6 +221,7 @@ export function createLanesService(deps: LanesServiceDeps): LanesService {
     deny: deps.deny,
     denyFolders: deps.denyFolders,
     readOnly: deps.readOnly,
+    isMember: deps.isMember,
     diskFloor: deps.diskFloor,
     copyLink: deps.copyLink ?? applyCopyLink,
     publish,
@@ -266,6 +268,7 @@ export function createLanesService(deps: LanesServiceDeps): LanesService {
     scripts: deps.scripts,
     tainted,
     readOnly: deps.readOnly,
+    isMember: deps.isMember,
     publish,
   });
 

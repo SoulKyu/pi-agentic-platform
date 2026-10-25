@@ -9,6 +9,7 @@ import { createLogger, silentLogger } from "../../../kernel/logger.ts";
 import { testCaller } from "../../../testing/caller.ts";
 import { AUDIT_MIGRATIONS, type AuditPort } from "../../audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthTestHarness } from "../index.ts";
+import { insertUserRow } from "./users.ts";
 
 export const OWNER_ID = "owner-1";
 export const DAY = 24 * 3600 * 1000;
@@ -35,9 +36,7 @@ export function createTokenBed(
   }
   const logLines: string[] = [];
   const logger = createLogger({ level: "debug", clock, write: (line) => void logLines.push(line) });
-  db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ($id, 'owner', 'x', 0)", {
-    id: OWNER_ID,
-  });
+  insertUserRow(db, { id: OWNER_ID, username: "owner", role: "owner" });
   let lookups = 0;
   let writes = 0;
   const audit = { lines: [] as Array<Parameters<AuditPort["append"]>[0]> };

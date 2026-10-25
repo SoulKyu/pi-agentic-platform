@@ -35,6 +35,8 @@ interface Raw {
 
 export interface GithubProjectStore {
   get(projectId: string): GithubProjectRow | undefined;
+  /** Every row of the owner, unlinked ones with a key still on GitHub included (a deleted member, A5b). */
+  ofOwner(ownerId: string): GithubProjectRow[];
   /** Rows whose key removal failed, or was cut short by a restart: the sweep retries them. */
   withPendingRemoval(): GithubProjectRow[];
   /** A new row, or a relinked one (an unlinked row whose key is gone): the key and clone fields start over. */
@@ -69,6 +71,7 @@ export function createGithubProjectStore(db: Db): GithubProjectStore {
       const raw = db.get<Raw>(`${SELECT} WHERE project_id = $projectId`, { projectId });
       return raw && rowOf(raw);
     },
+    ofOwner: (ownerId) => db.all<Raw>(`${SELECT} WHERE owner_id = $ownerId`, { ownerId }).map(rowOf),
     withPendingRemoval: () => db.all<Raw>(`${SELECT} WHERE key_state IN ('failed', 'removing')`).map(rowOf),
     put: (row) => {
       db.run(

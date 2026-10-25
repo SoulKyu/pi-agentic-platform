@@ -37,7 +37,7 @@ const add = (id: string, cwd: string, ownerId = "u1") =>
   store.insert({ id, piPath: null, piSessionId: null, cwd, ownerId, name: null, createdAt: 1, updatedAt: 1 });
 const scopeOf = (cwd: string) => cwd.replace(/\/sub$/, "");
 const linkWith = (projects: ProjectsPort, logger = silentLogger) =>
-  createProjectLink({ store: store.marks, projects, scopeOf, logger });
+  createProjectLink({ store: store.marks, projects, scopeOf, isMember: () => false, logger });
 
 describe("project link", () => {
   it("assigns the project of the normalised scope root", () => {
@@ -130,6 +130,7 @@ describe("a box cwd", () => {
       store: store.marks,
       projects,
       scopeOf,
+      isMember: () => false,
       logger: silentLogger,
       boxes: () => boxes,
     });
@@ -137,5 +138,18 @@ describe("a box cwd", () => {
     expect(link.assign("s1", "u1", "/boxes/p1/project/src")).toBe("p1");
     expect(link.projectOf("u1", "/boxes/p1/projectX")).toBeNull();
     expect(ensured).toEqual(["/boxes/p1/projectX"]);
+  });
+
+  it("never asks the host for the scope of a gated owner's folder", () => {
+    const looked: string[] = [];
+    const link = createProjectLink({
+      store: store.marks,
+      projects: fakeProjectsPort(),
+      scopeOf: (cwd) => (looked.push(cwd), cwd),
+      isMember: () => true,
+      logger: silentLogger,
+    });
+    expect(link.projectOf("u1", "/home/ubuntu/x")).toBeNull();
+    expect(looked).toEqual([]);
   });
 });

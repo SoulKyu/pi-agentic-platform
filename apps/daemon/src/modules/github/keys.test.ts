@@ -116,7 +116,9 @@ describe("signing keys", () => {
     // The owner fixes the permission and reconnects: the flag clears, and the next start uploads the key.
     bed.fake.state.respond("POST /user/ssh_signing_keys", { status: 201, body: { id: 77 } }, 0);
     const state = bed.core.states.issue(OWNER, "authorize");
-    expect((await bed.account.service.completeAuthorize("code-2", state)).kind).toBe("authorized");
+    const exchanged = await bed.account.service.completeAuthorize("code-2", state);
+    if (exchanged.kind !== "exchanged") throw new Error("not exchanged");
+    expect(bed.account.service.finishAuthorize(exchanged.ticket, OWNER).kind).toBe("authorized");
     expect((await bed.account.service.status(bed.caller, undefined)).permissionMissing).toBe(false);
     bed.control.setPhase(project.id, "stopped");
     bed.control.setPhase(project.id, "running");

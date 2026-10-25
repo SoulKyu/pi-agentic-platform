@@ -52,6 +52,7 @@ describe("lanes.create: refusals (phase 1, nothing written)", () => {
       git: () => throwing,
       boxes: () => ({
         box: () => null,
+        ownerBoxes: () => [],
         addHost: () => undefined,
         byPath: (_owner, path) => (path === root ? { projectId: "p", root } : null),
       }),

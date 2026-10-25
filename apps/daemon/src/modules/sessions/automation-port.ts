@@ -228,7 +228,8 @@ export function createAutomationPort(
     async createTaskSession({ ownerId, cwd, policy }) {
       if (policy.tools.length === 0) throw new PapError("bad_request");
       const resolved =
-        newBoxCwdOf(deps.boxes?.(), ownerId, cwd)?.cwd ?? resolveSessionCwd(cwd, deps.worker.papHome);
+        newBoxCwdOf(deps.boxes?.(), ownerId, cwd, deps.isMember)?.cwd ??
+        resolveSessionCwd(cwd, deps.worker.papHome);
       deps.admission?.task();
       keepOneFree();
       const now = deps.clock.now();

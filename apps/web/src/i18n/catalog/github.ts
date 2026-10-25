@@ -11,6 +11,8 @@ export const githubEn = {
   "github.permissionMissing":
     "Set “SSH signing keys: Read and write” in the App's permissions on GitHub, accept it on the installation, then reconnect.",
   "github.openGithub": "OPEN GITHUB",
+  "github.install": "INSTALL ON GITHUB",
+  "github.memberAbsent": "The owner of this pap has not created the GitHub App yet.",
   "github.reconnect": "RECONNECT",
   "github.connected": "Connected as {login}.",
   "github.disconnect": "DISCONNECT",
@@ -110,6 +112,8 @@ export const githubFr: { readonly [K in keyof typeof githubEn]: string } = {
   "github.permissionMissing":
     "Réglez « SSH signing keys : Read and write » dans les permissions de l'App sur GitHub, acceptez-la sur l'installation, puis reconnectez-vous.",
   "github.openGithub": "OUVRIR GITHUB",
+  "github.install": "INSTALLER SUR GITHUB",
+  "github.memberAbsent": "Le propriétaire de ce pap n'a pas encore créé la GitHub App.",
   "github.reconnect": "RECONNECTER",
   "github.connected": "Connecté en tant que {login}.",
   "github.disconnect": "DÉCONNECTER",

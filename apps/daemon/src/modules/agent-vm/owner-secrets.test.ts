@@ -18,7 +18,7 @@ import { readPiAuth } from "./pi-auth-values.ts";
  *  - M-auth-nested: the walk of auth.json stops at the top level -> "collects every string of 8 characters or more" fails.
  *  - M-auth-source: auth.json left out of the collector -> the same case fails.
  *  - M-vault-source: vault values left out -> the same case fails.
- *  - M-claude-source: the Claude token left out -> the same case fails.
+ *  - M-claude-source: a user's Claude token (a vault entry) left out -> the same case fails.
  *  - M-short: the 8-character floor removed -> "leaves a 7-character value out" fails.
  *  - M-fail-open: a failing source is swallowed -> "refuses when a source fails" fails (three sources).
  *  - M-cap-count / M-cap-bytes: a cap removed -> "refuses past the caps" fails.
@@ -58,13 +58,12 @@ const authFile = {
   short: { type: "api_key", key: SEVEN },
 };
 
-function collector(extra: { vault?: () => readonly string[]; claude?: () => string | null } = {}) {
+function collector(extra: { vault?: () => readonly string[] } = {}) {
   const log = captureLogger();
   const collect: OwnerSecretsCollector = createOwnerSecrets({
     logger: log.logger,
     auth: () => readPiAuth(agentDir),
     vault: extra.vault ?? (() => store.everyValue()),
-    claudeToken: extra.claude ?? (() => CLAUDE),
   });
   return { collect, log };
 }
@@ -77,20 +76,22 @@ describe("the caps hold a legitimate vault (m6)", () => {
 });
 
 describe("the owner's secrets (AVM-E46)", () => {
-  it("collects every string of 8 characters or more from auth.json (nested too), the vault and the Claude token", async () => {
+  it("collects every string of 8 characters or more from auth.json (nested too), the vault and every user's Claude token", async () => {
     writeAuth(authFile);
     store.set("owner1", { kind: "agent", agentId: "scout-0001" }, "TOKEN", VAULT_VALUE, 1);
     store.set("owner1", { kind: "user" }, "FORGE", EIGHT.repeat(2), 1);
+    store.set("owner1", { kind: "user" }, "CLAUDE_TOKEN", CLAUDE, 1);
+    store.set("owner2", { kind: "user" }, "CLAUDE_TOKEN", `${CLAUDE}-two`, 1);
     const { secrets } = await collector().collect();
     expect([...secrets].sort()).toEqual(
-      [KEY, ACCESS, REFRESH, NESTED, VAULT_VALUE, EIGHT.repeat(2), CLAUDE].sort(),
+      [KEY, ACCESS, REFRESH, NESTED, VAULT_VALUE, EIGHT.repeat(2), CLAUDE, `${CLAUDE}-two`].sort(),
     );
   });
 
   it("leaves a 7-character value out and keeps an 8-character one", async () => {
     writeAuth({ a: { type: "api_key", key: SEVEN }, b: { type: "api_key", key: EIGHT } });
     store.set("owner1", { kind: "user" }, "SHORT", SEVEN, 1);
-    const { secrets } = await collector({ claude: () => null }).collect();
+    const { secrets } = await collector().collect();
     expect(secrets).toEqual([EIGHT]);
   });
 
@@ -101,38 +102,25 @@ describe("the owner's secrets (AVM-E46)", () => {
   });
 
   it("collects nothing from a missing auth.json, an empty vault and no token", async () => {
-    const result = await collector({ claude: () => null }).collect();
+    const result = await collector().collect();
     expect(result).toEqual({ secrets: [], providers: [] });
   });
 
   it.each([
-    ["auth", () => writeAuth(`{ "x": ${JSON.stringify(KEY)} oops`), undefined, undefined, "Error"],
+    ["auth", () => writeAuth(`{ "x": ${JSON.stringify(KEY)} oops`), undefined, "Error"],
     [
       "vault",
       () => writeAuth({}),
       () => {
         throw Object.assign(new Error(`cannot open ${VAULT_VALUE}`), { code: "unreadable" });
       },
-      undefined,
       "unreadable",
-    ],
-    [
-      "claude",
-      () => writeAuth({}),
-      undefined,
-      () => {
-        throw new Error(`broken ${CLAUDE}`);
-      },
-      "Error",
     ],
   ] as const)(
     "refuses when the %s source fails, and the log holds the source and a class, never a value",
-    async (source, setup, vault, claude, err) => {
+    async (source, setup, vault, err) => {
       setup();
-      const { collect, log } = collector({
-        ...(vault ? { vault } : {}),
-        ...(claude ? { claude } : {}),
-      });
+      const { collect, log } = collector(vault ? { vault } : {});
       await expect(collect()).rejects.toBeInstanceOf(OwnerSecretsError);
       for (const value of [KEY, VAULT_VALUE, CLAUDE]) expect(JSON.stringify(log.lines)).not.toContain(value);
       const failed = log.lines.filter((line) => line.msg === "owner_secrets_unreadable");
@@ -173,7 +161,7 @@ describe("the owner's secrets (AVM-E46)", () => {
       d: { type: "api_key", key: "$$literal-dollar-key" },
       e: { type: "oauth", access: "$notarefaccess-value", refresh: REFRESH, expires: 1 },
     });
-    const { secrets } = await collector({ claude: () => null }).collect();
+    const { secrets } = await collector().collect();
     expect([...secrets].sort()).toEqual(["$literal-dollar-key", "$notarefaccess-value", REFRESH].sort());
   });
 
@@ -193,9 +181,9 @@ describe("the owner's secrets (AVM-E46)", () => {
       { length: MAX_OWNER_SECRETS + 1 },
       (_, i) => `value-${String(i).padStart(8, "0")}`,
     );
-    const count = collector({ vault: () => many, claude: () => null });
+    const count = collector({ vault: () => many });
     await expect(count.collect()).rejects.toBeInstanceOf(OwnerSecretsError);
-    const big = collector({ vault: () => ["x".repeat(MAX_OWNER_SECRET_BYTES + 1)], claude: () => null });
+    const big = collector({ vault: () => ["x".repeat(MAX_OWNER_SECRET_BYTES + 1)] });
     await expect(big.collect()).rejects.toBeInstanceOf(OwnerSecretsError);
     for (const { log } of [count, big]) {
       const line = log.lines.find((one) => one.msg === "owner_secrets_capped");
@@ -209,9 +197,32 @@ describe("the owner's secrets (AVM-E46)", () => {
     }
   });
 
+  it("scales the caps with the number of users, so a second user's vault cannot fail the first's build (M14)", async () => {
+    const many = Array.from(
+      { length: MAX_OWNER_SECRETS + 1 },
+      (_, i) => `value-${String(i).padStart(8, "0")}`,
+    );
+    const log = captureLogger();
+    const three = createOwnerSecrets({
+      logger: log.logger,
+      auth: () => readPiAuth(agentDir),
+      vault: () => many,
+      users: () => 3,
+    });
+    expect((await three()).secrets.length).toBeGreaterThan(MAX_OWNER_SECRETS);
+    const tooMany = [...many, ...many.map((value) => `${value}-x`), ...many.map((value) => `${value}-y`)];
+    const refused = createOwnerSecrets({
+      logger: log.logger,
+      auth: () => readPiAuth(agentDir),
+      vault: () => tooMany,
+      users: () => 3,
+    });
+    await expect(refused()).rejects.toBeInstanceOf(OwnerSecretsError);
+  });
+
   it("reads each time, never from a cache", async () => {
     writeAuth({ a: { type: "api_key", key: KEY } });
-    const { collect } = collector({ claude: () => null });
+    const { collect } = collector();
     expect((await collect()).secrets).toEqual([KEY]);
     writeAuth({ a: { type: "api_key", key: ACCESS } });
     expect((await collect()).secrets).toEqual([ACCESS]);
@@ -223,18 +234,11 @@ describe("the partial read for the relay's redactor (S1)", () => {
   it("keeps the values of the sources that read when one fails, and says which one failed", async () => {
     writeAuth(authFile);
     store.set("owner1", { kind: "user" }, "FORGE", VAULT_VALUE, 1);
-    for (const broken of ["auth", "vault", "claude"] as const) {
+    for (const broken of ["auth", "vault"] as const) {
       const { collect, log } = collector({
         ...(broken === "vault"
           ? {
               vault: () => {
-                throw new Error("boom");
-              },
-            }
-          : {}),
-        ...(broken === "claude"
-          ? {
-              claude: () => {
                 throw new Error("boom");
               },
             }
@@ -244,9 +248,8 @@ describe("the partial read for the relay's redactor (S1)", () => {
       await expect(collect()).rejects.toBeInstanceOf(OwnerSecretsError);
       const partial = await collect.partial?.();
       const expected = {
-        auth: [VAULT_VALUE, CLAUDE],
-        vault: [KEY, ACCESS, REFRESH, NESTED, CLAUDE],
-        claude: [KEY, ACCESS, REFRESH, NESTED, VAULT_VALUE],
+        auth: [VAULT_VALUE],
+        vault: [KEY, ACCESS, REFRESH, NESTED],
       }[broken];
       expect([...(partial?.secrets ?? [])].sort()).toEqual([...expected].sort());
       expect(
@@ -261,7 +264,7 @@ describe("the partial read for the relay's redactor (S1)", () => {
       { length: MAX_OWNER_SECRETS + 1 },
       (_, i) => `value-${String(i).padStart(8, "0")}`,
     );
-    const { collect } = collector({ vault: () => many, claude: () => null });
+    const { collect } = collector({ vault: () => many });
     await expect(collect.partial?.()).rejects.toMatchObject({ reason: "too_many" });
   });
 });

@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 
 /** What the MCP overview holds at most (M7R84): a file with more servers lists none of them. */
 export const MCP_LIMITS = { servers: 200, names: 32, nameLength: 64, target: 2048 } as const;
 
-const Cwd = z.string().min(1).max(4096);
+const Cwd = ClientPath;
 const Name = z.string().min(1).max(MCP_LIMITS.nameLength);
 
 /** Why a whole file is not listed (M7R84). A file that is simply missing has no problem and no servers. */

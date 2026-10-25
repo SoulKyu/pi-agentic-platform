@@ -1,7 +1,8 @@
 import { AutomationSettings } from "@pap/contracts";
 import { Button, Switch, TextField, usePendingAction } from "@pap/ui";
 import { useEffect, useState } from "react";
-import { useT } from "../../i18n/index.ts";
+import { errorKey, useT } from "../../i18n/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { usePauseReread } from "../../lib/use-pause-reread.ts";
 import { RpcError, getRuntime } from "../../runtime/index.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
@@ -29,6 +30,9 @@ export function AutomationForm({
 }) {
   const t = useT();
   const zoneOf = browserZone ?? ownBrowserZone;
+  const member = useRole() === "member";
+  // The owner capped this member's budget (M14): `settings.get` answers the effective value, so a refusal re-reads the cap.
+  const [refused, setRefused] = useState(false);
   const [loaded, setLoaded] = useState<Loaded>({ kind: "loading" });
   const [notice, setNotice] = useState<Notice>(null);
   const saving = usePendingAction();
@@ -83,6 +87,7 @@ export function AutomationForm({
   const failure = (error: unknown): Notice => {
     const code = error instanceof RpcError ? error.code : "internal";
     if (code === "forbidden") return { tone: "error", text: t("settingsAutomation.forbidden") };
+    if (code === "budget_cap") return { tone: "error", text: t(errorKey(code)) };
     if (code === "conflict") return { tone: "error", text: t("settingsAutomation.conflict") };
     return {
       tone: "error",
@@ -107,6 +112,22 @@ export function AutomationForm({
       }
     });
 
+  const rereadCap = () =>
+    void rpc.call("settings.get", { key: "automation" }).then(
+      (answer) => {
+        const parsed = AutomationSettings.safeParse(answer.value ?? {});
+        if (parsed.success)
+          setLoaded((now) => (now.kind === "ready" ? { ...now, stored: parsed.data } : now));
+      },
+      () => {},
+    );
+  const cap = stored.dailyBudgetUsd;
+  const typed = checked.value?.dailyBudgetUsd;
+  const capped =
+    member &&
+    typeof cap === "number" &&
+    ((refused && !(typeof typed === "number" && typed <= cap)) || (typeof typed === "number" && typed > cap));
+
   const save = () =>
     void saving.run(async () => {
       if (checked.value === null) return;
@@ -120,9 +141,14 @@ export function AutomationForm({
           timezone: current.timezone ?? zoneOf(),
         }));
         setLoaded({ kind: "ready", stored: saved, draft: draftOf(saved) });
+        setRefused(false);
         setNotice({ tone: "ok", text: t("settingsAutomation.saved") });
       } catch (error) {
         setNotice(failure(error));
+        if (member && error instanceof RpcError && error.code === "budget_cap") {
+          setRefused(true);
+          rereadCap();
+        }
       }
     });
 
@@ -178,6 +204,11 @@ export function AutomationForm({
         value={draft.budget}
         onChange={(budget) => edit({ budget })}
       />
+      {capped ? (
+        <p role="status" className="text-ui text-attn">
+          {t("settingsAutomation.cap", { cap })}
+        </p>
+      ) : null}
       <Switch
         label={t("settingsAutomation.autoResume.label")}
         hint={t("settingsAutomation.autoResume.hint")}

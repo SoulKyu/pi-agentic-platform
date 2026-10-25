@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 import { ERROR_CODES } from "./errors.ts";
 import { Cursor } from "./frames.ts";
@@ -17,7 +18,7 @@ export const MODELS_LIMITS = { providers: 300, models: 2000, warnings: 50 } as c
 export const ENABLED_PATTERNS_MAX = 256;
 export const ENABLED_PATTERN_MAX_LENGTH = 256;
 
-const Cwd = z.string().min(1).max(4096);
+const Cwd = ClientPath;
 const Ok = z.object({ ok: z.literal(true) });
 
 export const ListedModel = ModelSummary.extend({ enabled: z.boolean() }).strict();

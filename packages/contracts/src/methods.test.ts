@@ -130,6 +130,12 @@ describe("method catalogue", () => {
       "trust.set",
       "usage.cancelResume",
       "usage.resumeNow",
+      "users.delete",
+      "users.invite",
+      "users.revokeInvite",
+      "users.setBudget",
+      "users.setDisabled",
+      "users.setProviderShared",
     ]);
   });
 

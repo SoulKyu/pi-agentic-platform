@@ -22,3 +22,6 @@ export function parseBoxKey(text: string): BoxRef | null {
   const parsed = BoxRef.safeParse({ kind: text.slice(0, colon), id: text.slice(colon + 1) });
   return parsed.success ? parsed.data : null;
 }
+
+/** The Pi provider id of the Claude bridge: it bills the box owner's own Claude subscription, never the pap owner's keys. */
+export const CLAUDE_BRIDGE_PROVIDER = "claude-bridge";

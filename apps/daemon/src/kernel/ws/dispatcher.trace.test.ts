@@ -4,6 +4,7 @@ import { silentLogger } from "../logger.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { createDispatcher } from "./dispatcher.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 const receipts: ReceiptStore = {
   find: () => null,
@@ -38,6 +39,7 @@ const RESPOND = { sessionId: "s", dialogId: "d", response: { confirmed: true } }
 function setup(onCall?: (method: string, durationMs: number, outcome: string) => void) {
   const calls: Array<{ method: string; durationMs: number; outcome: string }> = [];
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers,
     receipts,
     logger: silentLogger,

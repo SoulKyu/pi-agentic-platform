@@ -31,7 +31,7 @@ export function promptOf(source: Source, text: string): string {
 export interface SendService {
   send(
     caller: Caller,
-    project: { projectId: string; root: string; repository: RepoFullName },
+    project: { projectId: string; root: string; repository: RepoFullName; ownerId: string },
     source: Source,
     sessionId: string | undefined,
   ): Promise<{ sessionId: string }>;
@@ -43,14 +43,14 @@ export function createSend(deps: {
 }): SendService {
   const { sessions, lists } = deps;
   return {
-    async send(caller, { root, repository }, source, sessionId) {
+    async send(caller, { root, repository, ownerId }, source, sessionId) {
       if (sessionId !== undefined && !sessions.sessionIdsIn(caller.userId, root).includes(sessionId))
         throw new PapError("not_found");
       // The daemon fetches the text, with the read-only token: the model never does.
       const text =
         source.kind === "check"
-          ? (await lists.log(repository, source.checkId)).text
-          : await lists.issueText(repository, source.number);
+          ? (await lists.log(ownerId, repository, source.checkId)).text
+          : await lists.issueText(ownerId, repository, source.number);
       const target = sessionId ?? (await sessions.create(caller, root)).sessionId;
       // Tainted before it reads the text; a failure here sends nothing.
       sessions.markTainted(caller.userId, target);

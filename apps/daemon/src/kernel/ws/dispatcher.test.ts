@@ -7,6 +7,7 @@ import { sha256Hex } from "../ids.ts";
 import { canonicalJson, createDispatcher } from "./dispatcher.ts";
 import { systemHandlers } from "./system-handlers.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 const owner: Caller = testCaller();
 const ctx = (caller: Caller = owner): HandlerContext => ({
@@ -60,7 +61,7 @@ function setup(overrides: Partial<ReceiptStore> = {}) {
     },
   } as unknown as HandlerTable;
   return {
-    dispatch: createDispatcher({ handlers, receipts, logger }),
+    dispatch: createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger }),
     create: createHandler,
     prompt: promptHandler,
     stored,

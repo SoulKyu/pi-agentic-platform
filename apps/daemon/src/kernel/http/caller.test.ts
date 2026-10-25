@@ -3,13 +3,14 @@ import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, type Caller, type Permission } from "@pap/contracts";
 import { testCaller } from "../../testing/caller.ts";
 import { httpCaller } from "./caller.ts";
+import { NO_CLIENT_PATHS } from "../ws/client-path-gate.ts";
 
 const COOKIE = "pap_session=good";
 
 function appWith(permission: Permission, caller: Caller | null = testCaller({ stepUpUntil: 77 })) {
   const authenticate = (header: string | undefined): Caller | null => (header === COOKIE ? caller : null);
   const app = new Hono();
-  const via = httpCaller(authenticate);
+  const via = httpCaller(authenticate, NO_CLIENT_PATHS);
   app.get("/x", (c) => {
     const found = via(c, permission);
     return found instanceof Response ? found : c.json({ kind: found.kind, stepUpUntil: found.stepUpUntil });

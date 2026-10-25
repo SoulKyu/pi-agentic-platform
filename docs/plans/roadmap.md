@@ -23,7 +23,7 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | Google Fonts; extension models for agents (outside the milestones) | done | 9c968aa, 4179f7e | 101, 102 |
 | AGPL Source link (owner, before the tag) | done | see decision 103 | 103 |
 | v1.0.0 (flip, release-please, tag) | done: released 2026-10-18; npm publication is the owner's | b494c38, 9a7a7be | 105 |
-| M14 (GitHub) | to come | — | — |
+| M14 (owner and members) | built on `feat/m14` (ADR 0085); merge sha pending | — | 128, 129, 130 |
 
 Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
 
@@ -119,7 +119,8 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 - **Depends on:** M9 (forge port), M11 (secrets). It pairs with the after-v1 multi-user work (teams and OIDC).
 - **Boxes (decision 124):** clone, fork and the per-project token move to the Boxes programme (lot B2, a pap GitHub App). M14 keeps GitHub accounts per user and user-scoped projects (owner, 2026-10-23: to discuss later).
 - **Directions (owner, 2026-10-24, decision 126):** trusted people with their own projects, agents and triggers; roles owner and member (the owner administers the install); invitations from Settings › Users (one-use link, then passkey; `pap user add` stays); shared providers and models with a daily budget per member; a Claude token per user; each user authorizes the same pap GitHub App on their own account; no project sharing in M14; the owner sees members' usage and costs, not their content; one global VM memory cap. The other M14 integrations (CI logs, issues, releases) moved to Boxes B2, PR review comments in the lane review to B3.
-- **Spec (owner, 2026-10-24, decision 128):** `docs/specs/2026-10-24-m14-multi-user-design.md` approved; the pap GitHub App is public; API-key providers are shared with members, subscriptions stay the owner's unless shared. Plan next.
+- **Spec (owner, 2026-10-24, decision 128):** `docs/specs/2026-10-24-m14-multi-user-design.md` approved; the pap GitHub App is public; API-key providers are shared with members, subscriptions stay the owner's unless shared.
+- **Built (decisions 129 and 130):** plan `docs/plans/2026-10-24-m14-multi-user.md` after an Opus red team; ADR 0085. Owner and members, invitations, disable and delete, a Claude token and a GitHub account per user, member budgets and shared providers, a deny-by-default host gate. Known limit: a member's budget is a guard against mistakes, not a hard cap (OQ5). Merge sha pending; run `sudo pap vm setup` after the update.
 
 ## Agents in microVMs (post-v1, decisions 106 to 115)
 - **Why:** an agent is a closed box: a Kata Containers microVM (Cloud Hypervisor) with bwrap and seccomp around its shell, its own block disk, CPU and memory, no credential inside (pap's relay and proxy inject them), no path to the host or another VM. It replaces today's host-bwrap agents.
@@ -130,7 +131,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 - **Why (owner, 2026-10-23):** the host is only an orchestrator and an interface with the VMs; every component that runs code (sessions, lanes, trigger tasks, the terminal, MCP servers, package installs) runs in a microVM box, as agents do. Spec `docs/specs/2026-10-23-boxes-design.md`.
 - **Lots:** B0 spike (terminal in the guest, git timings on a VM disk, the GitHub App manifest flow); B1 box identity, projects from a name, sessions and tasks in the box, Files and OKF through the guest, search over mirrors, the Scratch project; B2 terminal in the box, the GitHub App (clone, fork, tokens, signing key), push and PR; B3 lanes in the box; B4 host clean-up (host workers, git, node-pty, `gh`, scanner, pi-web coexistence, prechecks). Real work in boxes starts after B2.
 - **Status:** B0 done (83b40f3c). B1 merged 2026-10-24 as 84bcea21 (decision 125). B2 specified 2026-10-24 (spec `docs/specs/2026-10-24-boxes-b2-design.md`, decision 126: the whole GitHub integration, PR review comments in lanes move to B3), merged 2026-10-24 as 44fd3196 (ADR 0084, decision 127). B3 and B4 not started.
-- **Later:** disk backups (sub-project 4), GitHub accounts per user (M14).
+- **Later:** disk backups (sub-project 4). GitHub accounts per user are done in M14 (decision 130).
 - **Box launch progress (owner, 2026-10-24):** a progress bar with live tracking while a box starts, so that opening a session or an agent on a box that is stopped or otherwise not ready shows each step (image build, disk, VM start, guest ready) instead of a bare wait.
 
 ## Hindsight memory trial (owner, 2026-10-23; maybe)

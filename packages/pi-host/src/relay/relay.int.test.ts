@@ -224,10 +224,58 @@ const policy = (bed: Bed, model = MODEL) =>
     box: AGENT,
     models: [{ provider: "acme", id: model }],
     claude: false,
+    claudeToken: null,
     blocked: null,
   });
 
 describe("the relay process", () => {
+  it("refuses the bridge with no_claude_token to a box whose owner has none, and takes no separate token message (M14)", async () => {
+    const bed = await startRelay();
+    const port = await ready(bed);
+    grant(bed);
+    bed.child.send({
+      type: "box_policy",
+      box: AGENT,
+      models: [],
+      claude: true,
+      claudeToken: null,
+      blocked: null,
+    });
+    // The old install-wide token message is gone: the relay drops it, and the box still has no token.
+    bed.child.send({ type: "claude_token", token: "sk-ant-oat01-NOT-A-COMMAND" });
+    const body = JSON.stringify({ model: "claude-sonnet-4-5", messages: [] });
+    const reply = await until(
+      () =>
+        new Promise<{ status: number; text: string }>((resolve, reject) => {
+          const req = http.request(
+            {
+              host: "127.0.0.1",
+              port,
+              method: "POST",
+              path: "/v1/messages",
+              headers: {
+                host: "claude.internal:7842",
+                "content-length": String(Buffer.byteLength(body)),
+                authorization: `Bearer ${KEY}`,
+              },
+            },
+            (res) => {
+              const chunks: Buffer[] = [];
+              res.on("data", (chunk: Buffer) => chunks.push(chunk));
+              res.on("end", () =>
+                resolve({ status: res.statusCode ?? 0, text: Buffer.concat(chunks).toString("utf8") }),
+              );
+            },
+          );
+          req.on("error", reject);
+          req.end(body);
+        }),
+      (answer) => answer.status === 503,
+    );
+    expect(JSON.parse(reply.text)).toEqual({ error: "no_claude_token" });
+    expect(bed.stderr()).not.toContain("NOT-A-COMMAND");
+  });
+
   it("serves a VM request with the real key from Pi's files, never the relay key, and the stream comes back unchanged", async () => {
     const bed = await startRelay();
     const port = await ready(bed);

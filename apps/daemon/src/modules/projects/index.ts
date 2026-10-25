@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { Caller } from "@pap/contracts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
@@ -55,6 +56,8 @@ export interface ProjectsModule {
   hasRoom(ownerId: string): boolean;
   /** The composition gives the real box control and the cleanups once they exist (late); until then the box methods answer `internal`. */
   bindBoxes(wiring: ProjectBoxWiring): void;
+  /** A member's delete (A5b): all their box projects to the trash, as a project delete does, with no step-up. */
+  removeAll(ownerId: string): Promise<number>;
 }
 
 export function createProjectsModule(deps: {
@@ -67,6 +70,7 @@ export function createProjectsModule(deps: {
   readonly knowledge?: ProjectKnowledge;
   /** The audit rows of a box project's creation, change, delete and added hosts. */
   readonly audit?: Pick<AuditPort, "append">;
+  readonly isMember: IsMember;
   newId(): string;
 }): ProjectsModule {
   const boxes = createBoxStore(deps.db);
@@ -75,6 +79,7 @@ export function createProjectsModule(deps: {
     boxes,
     ...(deps.audit ? { audit: deps.audit } : {}),
     clock: deps.clock,
+    isMember: deps.isMember,
     logger: deps.logger.child({ module: "projects" }),
     newId: deps.newId,
     ...(deps.folders ? { folders: deps.folders } : {}),
@@ -84,6 +89,7 @@ export function createProjectsModule(deps: {
     rpc: projectsRpc(service),
     boxSource: createProjectBoxSource(boxes, deps.audit),
     bindBoxes: service.bindBoxes,
+    removeAll: service.removeAll,
     create: service.create,
     hasRoom: service.hasRoom,
     port: {

@@ -36,6 +36,7 @@ describe("composeLanes", () => {
   it("answers recover() within its 60 s budget when the worktrees module never settles, and logs it", async () => {
     const worktrees = { recover: () => new Promise<void>(() => {}) } as unknown as WorktreesPort;
     const lanes = composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: workspace(),
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
@@ -58,6 +59,7 @@ describe("composeLanes", () => {
   it("recovers a failing module without throwing: the boot goes on", async () => {
     const worktrees = { recover: () => Promise.reject(new Error("boom")) } as unknown as WorktreesPort;
     const lanes = composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: workspace(),
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
@@ -74,6 +76,7 @@ describe("composeLanes", () => {
 
   it("starts with no lane roots, scopes or closed lanes: its paths answer from the store", () => {
     const lanes = composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: workspace(),
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
@@ -92,6 +95,7 @@ describe("composeLanes", () => {
 describe("composeLanes bind and recovery", () => {
   const build = (worktrees: Partial<WorktreesPort> = { recover: async () => {} }) =>
     composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: workspace(),
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
@@ -171,6 +175,7 @@ describe("composeLanes bind and recovery", () => {
 describe("composeLanes rpc", () => {
   it("serves lanes.preview and lanes.approveScripts (not_found for a stranger's folder), and no lanes method answers internal any more", async () => {
     const lanes = composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: workspace(),
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
@@ -204,6 +209,7 @@ describe("composeLanes rpc", () => {
 describe("composeLanes outward operations (Task 14)", () => {
   const build = (wk: Partial<ReturnType<typeof workspace>> & { remoteProtocols?: string } = {}) =>
     composeLanes({
+      isMember: () => false,
       db: bed.db,
       wk: { ...workspace(), ...wk },
       audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },

@@ -30,6 +30,7 @@ afterEach(() => {
 const etagOf = (text: string): string => createHash("sha256").update(text).digest("hex").slice(0, 32);
 const service = (roots: string[]) =>
   createFilesService({
+    isMember: () => false,
     roots: () => roots,
     boundary: bed.bb.config(),
     deny: bed.deny,
@@ -243,6 +244,7 @@ describe("what the boundary refuses answers not_found", () => {
 describe("read-only database mode", () => {
   it("refuses a write with read_only and leaves the disk alone", async () => {
     const files = createFilesService({
+      isMember: () => false,
       roots: () => [bed.repo],
       boundary: bed.bb.config(),
       deny: bed.deny,

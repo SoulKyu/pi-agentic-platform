@@ -3,6 +3,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { bearerOf, createFakeAccess, type FakeGithubAccess } from "./fake-github-access.ts";
 import { apiRoutes } from "./fake-github-api.ts";
 import { serveGit } from "./fake-github-git.ts";
 import { makeBare, match, readBody, type Json } from "./fake-github-util.ts";
@@ -66,6 +67,8 @@ export interface FakeGithubState {
     logLocations: Map<string, string>;
     blobs: Map<string, string>;
   };
+  /** Who sees which repository through `GET /repos/:o/:r`, and with what permission. */
+  readonly access: FakeGithubAccess;
   /** Creates `owner/name` with a local bare repository holding one commit on `main`. */
   addRepo(fullName: string, options?: { private?: boolean }): FakeGithubRepo;
   /** The calls to routes that start with `prefix`, in order. */
@@ -122,6 +125,7 @@ export async function startFakeGithub(): Promise<FakeGithub> {
     fail(route, status, message = "fake failure", times) {
       state.respond(route, { status, body: { message } }, times);
     },
+    access: createFakeAccess(),
     addRepo(fullName, options = {}) {
       const bare = join(dir, `${fullName.replace("/", "__")}.git`);
       makeBare(bare, null);
@@ -232,9 +236,11 @@ export async function startFakeGithub(): Promise<FakeGithub> {
     ],
     [
       "GET /repos/:o/:r",
-      (p) => {
+      (p, _body, request) => {
         const repo = state.repos.get(`${p.o}/${p.r}`);
-        return repo ? ok(repoJson(repo)) : error(404, "Not Found");
+        const token = bearerOf(request.headers.authorization);
+        const permissions = repo ? state.access.permissionsFor(repo.fullName, token) : null;
+        return repo && permissions ? ok({ ...repoJson(repo), permissions }) : error(404, "Not Found");
       },
     ],
     ["GET /user", () => ok({ login, id: 1, name: "Octo Cat", email: null })],
@@ -245,9 +251,10 @@ export async function startFakeGithub(): Promise<FakeGithub> {
     ],
     [
       "POST /repos/:o/:r/forks",
-      (p) => {
+      (p, _body, request) => {
         const source = state.repos.get(`${p.o}/${p.r}`);
-        if (!source) return error(404, "Not Found");
+        if (!source || !state.access.permissionsFor(source.fullName, bearerOf(request.headers.authorization)))
+          return error(404, "Not Found");
         const fullName = `${login}/${p.r}`;
         const existing = state.repos.get(fullName);
         if (existing) return ok(repoJson(existing), 202);

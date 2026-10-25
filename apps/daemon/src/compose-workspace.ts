@@ -4,6 +4,7 @@ import type { Hono } from "hono";
 import type { Caller } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
 import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
+import type { IsMember } from "./kernel/box-path.ts";
 import type { Config } from "./kernel/config.ts";
 import type { BoundaryConfig } from "./kernel/fs/boundary.ts";
 import { createDenySet, type DenySet, type DenySources } from "./kernel/fs/deny-set.ts";
@@ -13,6 +14,7 @@ import { guardFilters } from "./kernel/git/filters.ts";
 import { createGitRunner, type GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { WorkerScopes } from "./kernel/supervisor/scope.ts";
+import type { ClientPathGate } from "./kernel/ws/client-path-gate.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { type AttachmentsPort, createFilesModule, type FilesRpc } from "./modules/files/index.ts";
 import { createTerminalModule, type TerminalRpc } from "./modules/terminal/index.ts";
@@ -104,6 +106,9 @@ export interface WorkspaceDeps {
   readonly boxOps?: () => BoxOps | undefined;
   readonly boxControl?: () => BoxControl | undefined;
   readonly boxTerminals?: () => BoxTerminals | undefined;
+  /** Members reach box paths only (M14): the modules refuse a host path before any file-system call. */
+  readonly isMember: IsMember;
+  readonly gate: ClientPathGate;
 }
 
 export interface WorkspaceModules {
@@ -164,6 +169,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     attachmentsDir: join(deps.config.home, ATTACHMENTS),
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
+    isMember: deps.isMember,
   });
   const vcs = createVcsModule({
     roots: deps.roots,
@@ -176,6 +182,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
     ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
+    isMember: deps.isMember,
   });
   const terminal = createTerminalModule({
     roots: deps.roots,
@@ -192,6 +199,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
     ...(deps.boxTerminals ? { boxTerminals: deps.boxTerminals } : {}),
+    isMember: deps.isMember,
   });
   // The deny set's first walk starts now, with its deadline: the first file read does not pay for it.
   deny.warm();
@@ -206,7 +214,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     remoteProtocols: deps.config.testGitProtocols ?? "https:ssh",
     runningIn: terminal.runningIn,
     runtime: { scopes: deps.scopes, env: deps.env, umask: workerUmask },
-    mount: (app, authenticate) => files.mount(app, httpCaller(authenticate)),
+    mount: (app, authenticate) => files.mount(app, httpCaller(authenticate, deps.gate)),
     shutdown: () => {
       stopping ??= terminal.shutdown().finally(() => {
         // A throw here must not keep `stop()` from cutting the worker groups.

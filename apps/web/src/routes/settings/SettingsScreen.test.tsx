@@ -74,11 +74,13 @@ describe("SettingsScreen", () => {
       "Agents",
       "Notifications",
       "Account & devices",
+      "Users",
     ]);
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
       null,
       null,
       "page",
+      null,
       null,
       null,
       null,

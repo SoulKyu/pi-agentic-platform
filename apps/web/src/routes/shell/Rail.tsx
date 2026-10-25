@@ -6,6 +6,7 @@ import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { AgentRail } from "./AgentRail.tsx";
 import { signOut } from "./sign-out.ts";
+import { RoleChip } from "./RoleChip.tsx";
 import { go } from "./tab-actions.ts";
 import { useShortcut } from "./shortcut.ts";
 
@@ -49,7 +50,16 @@ export function Rail({ username, onSignedOut }: RailProps) {
         text={lazyText}
         trigger={(ask) => <IconButton icon={IconAccount} label={t("shell.rail.account")} onClick={ask} />}
         items={[
-          ...(username ? [{ id: "user", label: username, disabled: true, onSelect: () => {} }] : []),
+          ...(username
+            ? [
+                {
+                  id: "user",
+                  label: username,
+                  disabled: true,
+                  onSelect: () => {},
+                },
+              ]
+            : []),
           {
             id: "shortcuts",
             label: t("shell.rail.shortcuts"),
@@ -58,6 +68,7 @@ export function Rail({ username, onSignedOut }: RailProps) {
           { id: "sign-out", label: t("shell.rail.signOut"), onSelect: () => signOut(onSignedOut) },
         ]}
       />
+      {username ? <RoleChip /> : null}
     </nav>
   );
 }

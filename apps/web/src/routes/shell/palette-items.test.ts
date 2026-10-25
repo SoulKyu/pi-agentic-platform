@@ -90,7 +90,7 @@ describe("buildPaletteItems", () => {
       { key: "home", item: { kind: "home" }, split: null },
       { key: "session:a", item: { kind: "session", id: "a" }, split: null },
     ];
-    const { items, navigate } = build({ tabs, sessions: [session("a", "/x/proj", 1)] });
+    const { items, navigate } = build({ tabs, sessions: [session("a", "/x/proj", 1)], role: "owner" });
     const open = items.filter((i) => i.group === "open");
     expect(open.map((i) => i.title)).toEqual(["New session", "proj"]);
     open[1]?.run();
@@ -111,6 +111,7 @@ describe("buildPaletteItems", () => {
 
       "Notifications",
       "Account",
+      "Users",
     ]);
     settings[1]?.run();
     expect(navigate).toHaveBeenLastCalledWith({ kind: "settings", section: "shortcuts" });
@@ -195,5 +196,15 @@ describe("tasks and triggers in the palette (M10R112)", () => {
     const groups = rankItems(items, "").groups.map((entry) => entry.group);
     expect(groups.indexOf("sessions")).toBeLessThan(groups.indexOf("tasks"));
     expect(groups.indexOf("tasks")).toBeLessThan(groups.indexOf("settings"));
+  });
+
+  it("lists no owner section for a member, and the default is the member's view", () => {
+    for (const extra of [{ role: "member" as const }, {}]) {
+      const ids = build(extra)
+        .items.filter((i) => i.group === "settings")
+        .map((i) => i.id);
+      for (const gone of ["models", "mcp", "skills", "users"]) expect(ids).not.toContain(`settings:${gone}`);
+      expect(ids).toContain("settings:health");
+    }
   });
 });

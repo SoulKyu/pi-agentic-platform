@@ -1,3 +1,4 @@
+import { sharesAllProviders } from "./testing/shares-all.ts";
 import { describe, expect, it } from "vitest";
 import { type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { createFakeClock } from "./kernel/clock.ts";
@@ -7,6 +8,7 @@ import { silentLogger } from "./kernel/logger.ts";
 function hostsOf(input: { allowHosts: string[] | null } | null, ownerHosts?: AgentsVmLate["ownerHosts"]) {
   const late = {
     sessions: { mirror: { notice: () => {}, taint: () => {} }, kindOf: () => null },
+    providers: sharesAllProviders,
     pi: {
       plugins: { sourcesOf: async () => null, check: async () => {} },
       models: { available: async () => ({}), onChanged: () => {} },
@@ -27,7 +29,7 @@ function hostsOf(input: { allowHosts: string[] | null } | null, ownerHosts?: Age
       logger: silentLogger,
       closers: [],
       relay: null,
-      claudeToken: { status: () => "missing" },
+      claudeToken: { get: () => null },
       readOnly: false,
       bindMirrorHooks: () => {},
       bindTaint: () => {},

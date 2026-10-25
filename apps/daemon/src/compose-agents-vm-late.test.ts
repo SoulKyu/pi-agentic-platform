@@ -1,14 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import {
-  type AgentsVmLate,
-  bindAgentsVmLate,
-  CLAUDE_BRIDGE_PROVIDER,
-  POLICY_MAX_MODELS,
-  POLICY_RECHECK_MS,
-} from "./compose-agents-vm-late.ts";
+import { CLAUDE_BRIDGE_PROVIDER } from "@pap/contracts";
+import { describe, expect, it } from "vitest";
+import { bindAgentsVmLate, POLICY_MAX_MODELS, POLICY_RECHECK_MS } from "./compose-agents-vm-late.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import type { MirrorHooks } from "./modules/agent-vm/index.ts";
+import { AGENT, bed, OWNER } from "./testing/late-bed.ts";
 
 /*
  * Mutants (RT-43), each run for real:
@@ -19,94 +15,6 @@ import type { MirrorHooks } from "./modules/agent-vm/index.ts";
  *  - M-cut: more than 512 pairs are sent -> "cuts at 512" fails;
  *  - M-trigger-*: a trigger (models changed, an agent changed, a run ended, the timer) no longer refreshes -> its case fails.
  */
-const OWNER = "u1";
-const AGENT = "scout-0001";
-
-function bed(
-  over: {
-    paused?: boolean;
-    over?: boolean;
-    models?: Array<{ provider: string; id: string }>;
-    token?: boolean;
-    input?: { model: { provider: string } | null; packages: string[] | null };
-  } = {},
-) {
-  const clock = createFakeClock();
-  const hooks: { value: MirrorHooks | null } = { value: null };
-  const mirror = { notice: vi.fn(), taint: vi.fn() };
-  const listeners = {
-    models: [] as Array<() => void>,
-    agent: [] as Array<(change: { agentId: string }) => void>,
-    start: [] as Array<(sessionId: string) => void>,
-    end: [] as Array<(event: { sessionId: string }) => void>,
-  };
-  const relay = { refresh: vi.fn(), refreshAll: vi.fn() };
-  const closers: Array<{ name: string; close(): void | Promise<void> }> = [];
-  const state = {
-    paused: over.paused ?? false,
-    over: over.over ?? false,
-    fail: false,
-    token: over.token ?? false,
-    quarantinedAt: null as number | null,
-  };
-  const late: AgentsVmLate = {
-    sessions: { mirror, kindOf: (id) => (id === "s1" ? { agentId: AGENT } : null) },
-    pi: {
-      // The tests give the picks as the sources themselves: the identity stands for the helper's resolution.
-      plugins: { sourcesOf: async (ids) => (ids === null ? null : [...ids]), check: async () => {} },
-      models: {
-        available: vi.fn(async () => {
-          if (state.fail) throw new Error("helper pool is full");
-          return {
-            models: (over.models ?? [{ provider: "acme", id: "m-1" }]).map((m) => ({
-              ...m,
-              name: m.id,
-              reasoning: false,
-            })),
-            providers: [],
-            origin: "signed-in" as const,
-            truncated: false,
-          };
-        }),
-        onChanged: (listener) => void listeners.models.push(listener),
-      },
-    },
-    agents: {
-      list: () => [],
-      ownerOf: (id) => (id === AGENT ? OWNER : null),
-      get: (_owner, id) =>
-        id === AGENT
-          ? ({
-              paused: state.paused,
-              quarantinedAt: state.quarantinedAt,
-              input: over.input ?? { model: null, packages: null },
-            } as never)
-          : null,
-      onChange: (listener) => (listeners.agent.push(listener as never), () => {}),
-    },
-    runs: {
-      port: {
-        onLiveCost: (listener) => (listeners.start.push(listener as never), () => {}),
-        onRunEnd: (listener) => (listeners.end.push(listener as never), () => {}),
-      },
-    },
-    automation: { agentTasks: { overBudget: () => state.over, ownerOverBudget: () => state.over } },
-  };
-  const derived = bindAgentsVmLate(
-    {
-      clock,
-      logger: silentLogger,
-      closers,
-      relay: relay as never,
-      claudeToken: { status: () => (state.token ? "set" : "missing") },
-      readOnly: false,
-      bindMirrorHooks: (next) => void (hooks.value = next),
-      bindTaint: () => {},
-    },
-    late,
-  );
-  return { clock, hooks, mirror, listeners, relay, closers, state, derived, late };
-}
 
 describe("the mirror hooks (AVM-E21, M-hooks)", () => {
   it("binds the mirror's notice and taint to the sessions, and canWrite to the database mode", () => {
@@ -130,7 +38,7 @@ describe("the mirror hooks (AVM-E21, M-hooks)", () => {
         logger: silentLogger,
         closers: [],
         relay: null,
-        claudeToken: { status: () => "missing" },
+        claudeToken: { get: () => null },
         readOnly: true,
         bindMirrorHooks: (next) => void (hooks.value = next),
         bindTaint: () => {},
@@ -147,6 +55,7 @@ describe("an agent's policy (R13)", () => {
     expect(await derived.policyOf(AGENT)).toEqual({
       models: [{ provider: "acme", id: "m-1" }],
       claude: false,
+      claudeToken: null,
       blocked: null,
     });
   });
@@ -162,8 +71,12 @@ describe("an agent's policy (R13)", () => {
       [packaged, false, false],
       [modelled, false, false],
       [plain, true, false],
-    ] as const)
-      expect((await bed({ input, token }).derived.policyOf(AGENT)).claude).toBe(expected);
+    ] as const) {
+      const policy = await bed({ input, token }).derived.policyOf(AGENT);
+      expect(policy.claude).toBe(expected);
+      // A4a review M2: the token travels only to a box that declares the bridge.
+      expect(policy.claudeToken).toBe(expected ? "tok-x" : null);
+    }
   });
 
   // AVM-E41 m6. Mutant: the match is `/pi-claude-bridge/.test(source)` again -> "a package whose name only contains it" fails.
@@ -286,6 +199,7 @@ describe("an agent's policy (R13)", () => {
     expect(await first.derived.policyOf(AGENT)).toEqual({
       models: [{ provider: "acme", id: "m-1" }],
       claude: false,
+      claudeToken: null,
       blocked: "paused",
     });
     const never = bed();
@@ -304,8 +218,19 @@ describe("an agent's policy (R13)", () => {
     expect((await derived.policyOf(AGENT)).blocked).toBeNull();
   });
 
+  it("blocks an agent of a disabled owner paused, and names its box to the launch gate (M14 RT-03)", async () => {
+    const { derived, state } = bed();
+    state.disabled = true;
+    expect((await derived.policyOf(AGENT)).blocked).toBe("paused");
+    expect(derived.boxDisabled({ kind: "agent", id: AGENT })).toBe(true);
+    state.disabled = false;
+    expect((await derived.policyOf(AGENT)).blocked).toBeNull();
+    expect(derived.boxDisabled({ kind: "agent", id: AGENT })).toBe(false);
+  });
+
   it("allows nothing for an agent nobody knows", async () => {
-    expect(await bed().derived.policyOf("ghost-0000")).toEqual({ models: [], claude: false, blocked: null });
+    const none = { models: [], claude: false, claudeToken: null, blocked: null };
+    expect(await bed().derived.policyOf("ghost-0000")).toEqual(none);
   });
 
   it("cuts the list at 512 pairs (M-cut)", async () => {
@@ -369,7 +294,7 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
         logger: silentLogger,
         closers,
         relay: null,
-        claudeToken: { status: () => "missing" },
+        claudeToken: { get: () => null },
         readOnly: false,
         bindMirrorHooks: () => {},
         bindTaint: () => {},

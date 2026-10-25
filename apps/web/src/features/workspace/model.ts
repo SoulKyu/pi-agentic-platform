@@ -1,3 +1,5 @@
+import type { Role } from "@pap/contracts";
+
 export const SETTINGS_SECTIONS = [
   "appearance",
   "shortcuts",
@@ -12,8 +14,22 @@ export const SETTINGS_SECTIONS = [
   "agents",
   "notifications",
   "account",
+  "users",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
+
+/** Pi's configuration and user management: a member's pap has none of it. Health stays (a member sees their own failures). */
+export const OWNER_SECTIONS: readonly SettingsSection[] = ["models", "mcp", "skills", "users"];
+
+/** The sections a role is shown (UX only: the daemon refuses what a member may not do). */
+export const sectionsFor = (role: Role): readonly SettingsSection[] =>
+  role === "owner"
+    ? SETTINGS_SECTIONS
+    : SETTINGS_SECTIONS.filter((section) => !OWNER_SECTIONS.includes(section));
+
+/** A deep link to a section the role is not shown opens Appearance. */
+export const sectionFor = (role: Role, section: SettingsSection): SettingsSection =>
+  sectionsFor(role).includes(section) ? section : "appearance";
 
 export type ItemRef =
   | { readonly kind: "home" }
@@ -138,3 +154,30 @@ export const setSplitRatio = (ws: Workspace, key: string, ratio: number): Worksp
     const next = clampRatio(ratio);
     return tab.split && tab.split.ratio !== next ? { ...tab, split: { ...tab.split, ratio: next } } : tab;
   });
+
+const restrictItem = (item: ItemRef, role: Role): ItemRef =>
+  item.kind === "settings" && sectionFor(role, item.section) !== item.section
+    ? { kind: "settings", section: sectionFor(role, item.section) }
+    : item;
+
+/** A workspace saved by an owner (or a tab opened by URL) holds no section the role is not shown: the tab becomes Appearance. */
+export function restrictWorkspace(ws: Workspace, role: Role): Workspace {
+  const seen = new Set<string>();
+  const remap = new Map<string, string>();
+  const tabs: Tab[] = [];
+  for (const tab of ws.tabs) {
+    const item = restrictItem(tab.item, role);
+    const key = itemKey(item);
+    remap.set(tab.key, key);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const split = tab.split === null ? null : { ...tab.split, item: restrictItem(tab.split.item, role) };
+    tabs.push(
+      item === tab.item && split?.item === tab.split?.item && key === tab.key
+        ? tab
+        : { key, item, split: split !== null && itemKey(split.item) === key ? null : split },
+    );
+  }
+  if (tabs.every((tab, index) => tab === ws.tabs[index]) && tabs.length === ws.tabs.length) return ws;
+  return { tabs, active: ws.active === null ? null : (remap.get(ws.active) ?? tabs[0]?.key ?? null) };
+}

@@ -4,6 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useContext } from "react";
 import { pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { RoleChip } from "./RoleChip.tsx";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { ShellContext } from "./shell-context.ts";
 import { signOut } from "./sign-out.ts";
@@ -24,13 +25,23 @@ export function MobileListsMenu({ onSettings }: { readonly onSettings: () => voi
         go(navigate, pathOfItem({ kind: "settings", section: "appearance" }));
       },
     },
-    ...(shell?.username ? [{ id: "user", label: shell.username, disabled: true, onSelect: () => {} }] : []),
+    ...(shell?.username
+      ? [
+          {
+            id: "user",
+            label: shell.username,
+            disabled: true,
+            onSelect: () => {},
+          },
+        ]
+      : []),
     ...(shell
       ? [{ id: "sign-out", label: t("shell.rail.signOut"), onSelect: () => signOut(shell.onSignedOut) }]
       : []),
   ];
   return (
-    <div className="flex items-center justify-end border-b border-border px-s2 py-s1">
+    <div className="flex items-center justify-end gap-s2 border-b border-border px-s2 py-s1">
+      {shell?.username ? <RoleChip /> : null}
       <LazyMenu
         label={t("shell.mobile.more")}
         closeLabel={t("ui.close")}

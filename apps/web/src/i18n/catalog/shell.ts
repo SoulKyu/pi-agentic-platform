@@ -47,6 +47,8 @@ export const shellEn = {
   "shell.rail.settings": "Settings",
   "shell.rail.account": "Account",
   "shell.rail.signOut": "Sign out",
+  "shell.role.owner": "OWNER",
+  "shell.role.member": "MEMBER",
   "shell.rail.tasks": "Tasks",
   "shell.rail.shortcuts": "Keyboard shortcuts",
   "shell.rail.newAgent": "New agent",
@@ -111,6 +113,11 @@ export const shellEn = {
     "Terminals are not available on this server: the terminal module did not load.",
   "error.helper_failed": "The Pi configuration helper failed. Try again.",
   "error.extensions_failed": "An extension did not load: nothing was changed.",
+  "error.budget_cap": "Your daily budget is capped by the owner of this pap.",
+  "error.account_disabled": "This account is disabled. Ask the owner of this pap.",
+  "error.invite_invalid":
+    "This invitation link does not work: it expired, was used, or was revoked. Ask for a new one.",
+  "error.username_taken": "This username is taken. Choose another; your invitation is still valid.",
   "error.project_scope":
     "This project sets its own value in .pi/settings.json, which wins over the global one.",
   "error.config_invalid": "A Pi configuration file is not valid. Fix the file, then try again.",
@@ -193,6 +200,8 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.rail.settings": "Réglages",
   "shell.rail.account": "Compte",
   "shell.rail.signOut": "Se déconnecter",
+  "shell.role.owner": "PROPRIÉTAIRE",
+  "shell.role.member": "MEMBRE",
   "shell.rail.tasks": "Tâches",
   "shell.rail.shortcuts": "Raccourcis clavier",
   "shell.rail.newAgent": "Nouvel agent",
@@ -260,6 +269,12 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Les terminaux ne sont pas disponibles sur ce serveur : le module terminal ne s'est pas chargé.",
   "error.helper_failed": "L'assistant de configuration de Pi a échoué. Réessayez.",
   "error.extensions_failed": "Une extension ne s'est pas chargée : rien n'a été modifié.",
+  "error.budget_cap": "Votre budget quotidien est plafonné par le propriétaire de ce pap.",
+  "error.account_disabled": "Ce compte est désactivé. Demandez au propriétaire de ce pap.",
+  "error.invite_invalid":
+    "Ce lien d'invitation ne fonctionne pas : il a expiré, a déjà servi ou a été révoqué. Demandez-en un nouveau.",
+  "error.username_taken":
+    "Ce nom d'utilisateur est déjà pris. Choisissez-en un autre ; votre invitation reste valable.",
   "error.project_scope":
     "Ce projet définit sa propre valeur dans .pi/settings.json, qui l'emporte sur la valeur globale.",
   "error.config_invalid": "Un fichier de configuration de Pi n'est pas valide. Corrigez-le, puis réessayez.",

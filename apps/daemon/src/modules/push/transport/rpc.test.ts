@@ -10,6 +10,7 @@ import { fakeAudit, openTransportBed, subInput, type TransportBed } from "../tes
 import { createPushMeta } from "./meta.ts";
 import { transportRpc } from "./rpc.ts";
 import { createTransportService } from "./service.ts";
+import { NO_CLIENT_PATHS } from "../../../kernel/ws/client-path-gate.ts";
 
 let bed: TransportBed;
 afterEach(() => bed.close());
@@ -39,6 +40,7 @@ function rpcBed() {
     readOnly: false,
   });
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: pushRpc(transportRpc(service), deliveryRpc()) as unknown as HandlerTable,
     receipts: createReceiptStore(bed.db, bed.clock),
     logger: silentLogger,

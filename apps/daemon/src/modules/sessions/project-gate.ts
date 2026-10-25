@@ -12,8 +12,8 @@ export interface SessionBoxes {
   /** The project whose box the row runs in: a row with no agent whose cwd is in a box project's folder; null for any other row. */
   projectOf(row: Pick<SessionRow, "ownerId" | "cwd" | "agentId">): string | null;
   box(projectId: string): ProjectBoxRow | null;
-  /** The owner's Claude token is set: the bridge's environment goes to a box only then. */
-  claudeTokenSet(): boolean;
+  /** The box owner's own Claude token is set: the bridge's environment goes to a box only then. */
+  claudeTokenSet(ownerId: string): boolean;
   /** The owner allowed a host for this project's box: the project's list, audited (the source's `addHost`). */
   addHost(projectId: string, host: string, actor: BoxAuditActor): void;
 }

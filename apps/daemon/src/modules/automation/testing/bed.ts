@@ -17,7 +17,12 @@ import { type AgentBinding, AUTOMATION_MIGRATIONS, createTriggers, type TriggerC
 
 /** A real database through `migrate`, a fake clock, a temporary `$PAP_HOME` and Pi folder, and the triggers service over them. */
 export function createAutomationBed(
-  options: { startAt?: number; agents?: AgentBinding; boxes?: () => ProjectBoxSource | undefined } = {},
+  options: {
+    startAt?: number;
+    agents?: AgentBinding;
+    boxes?: () => ProjectBoxSource | undefined;
+    isMember?: (userId: string) => boolean;
+  } = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "pap-automation-"));
   const clock = createFakeClock(options.startAt ?? Date.now());
@@ -46,9 +51,10 @@ export function createAutomationBed(
   const folder = join(dir, "work");
   for (const path of [home, piAgentDir, folder]) mkdirSync(path, { recursive: true });
   const audit = createAuditModule({ db, clock, logger });
-  const projects = createProjectsModule({ db, clock, logger, newId });
+  const projects = createProjectsModule({ isMember: () => false, db, clock, logger, newId });
   const changeListeners: Array<(change: TriggerChanged) => void> = [];
   const triggers = createTriggers({
+    isMember: options.isMember ?? (() => false),
     ...(options.agents ? { agents: options.agents } : {}),
     onChange: (change) => changeListeners.forEach((listener) => listener(change)),
     db,

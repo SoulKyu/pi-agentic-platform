@@ -23,6 +23,7 @@ export function createProjectBoxSource(store: BoxStore, audit?: Pick<AuditPort, 
           }
         : null;
     },
+    ownerBoxes: (ownerId) => store.ofOwner(ownerId).map((record) => record.projectId),
     byPath(ownerId, path) {
       if (!isCleanPath(path)) return null;
       const found = store

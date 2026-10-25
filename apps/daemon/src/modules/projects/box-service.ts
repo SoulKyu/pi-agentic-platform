@@ -159,6 +159,26 @@ export function createBoxService(deps: {
       return { ok: true };
     };
 
+  /**
+   * The project is marked `deleting`, its tasks and triggers go, then its sessions, then the box stops and its disk goes to
+   * the trash, then the rows: a failure in between leaves the mark, and a retry finishes the job.
+   */
+  async function dispose(ownerId: string, projectId: string): Promise<void> {
+    const { control, sessions, automation } = wired();
+    try {
+      deps.boxes.markDeleting(projectId);
+    } catch (error) {
+      throw isReadOnlyError(error) ? new PapError("read_only") : error;
+    }
+    // Tasks first: cancelled while their workers still run they end `cancelled`; after the box is down they would end
+    // `interrupted`, a state the board offers to retry. Then the sessions, then the box and its disk.
+    await automation.removeProject(ownerId, projectId);
+    await sessions.removeProject(ownerId, projectId);
+    await control.dispose(projectId, deps.clock.now());
+    deps.boxes.remove(projectId);
+    deps.removed(ownerId, projectId);
+  }
+
   return {
     viewOf,
     /** The wiring once bound (the knowledge of a box project reads its control and ops). */
@@ -217,24 +237,33 @@ export function createBoxService(deps: {
      * sessions is a `conflict`.
      */
     async remove(caller: Caller, projectId: string): Promise<{ ok: true }> {
-      const { control, sessions, automation, requireStepUp } = wired();
+      const { sessions, requireStepUp } = wired();
       requireStepUp(caller, deps.clock.now());
       const record = boxOf(caller.userId, projectId);
       if (record.scratch && sessions.count(caller.userId, projectId) > 0) throw new PapError("conflict");
-      try {
-        deps.boxes.markDeleting(projectId);
-      } catch (error) {
-        throw isReadOnlyError(error) ? new PapError("read_only") : error;
-      }
-      // Tasks first: cancelled while their workers still run they end `cancelled`; after the box is down they would end
-      // `interrupted`, a state the board offers to retry. Then the sessions, then the box and its disk.
-      await automation.removeProject(caller.userId, projectId);
-      await sessions.removeProject(caller.userId, projectId);
-      await control.dispose(projectId, deps.clock.now());
-      deps.boxes.remove(projectId);
-      deps.removed(caller.userId, projectId);
+      await dispose(caller.userId, projectId);
       audit(caller, "project_box_deleted", projectId);
       return { ok: true };
+    },
+    /**
+     * A member's delete (A5b): every box project of the owner goes to the trash as `remove` does it, with no caller and no
+     * step-up (the delete asked it for the account). The scratch box goes with its sessions, which a delete does not refuse.
+     * The first failure is thrown, the mark `deleting` stays, and a retry finishes the job. Returns how many.
+     */
+    async removeAll(ownerId: string): Promise<number> {
+      wired();
+      const records = deps.boxes.ofOwner(ownerId);
+      for (const record of records) {
+        await dispose(ownerId, record.projectId);
+        deps.audit?.append({
+          ownerId,
+          actor: "system",
+          kind: "policy",
+          reason: "project_box_deleted",
+          detail: { projectId: record.projectId },
+        });
+      }
+      return records.length;
     },
   };
 }

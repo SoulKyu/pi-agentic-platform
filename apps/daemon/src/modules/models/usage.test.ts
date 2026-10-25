@@ -12,6 +12,7 @@ import { testCaller } from "../../testing/caller.ts";
 import { modelsRpc } from "./rpc.ts";
 import { USAGE_CACHE_MS } from "./usage.ts";
 import { modelsBed } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const report = {
   providerId: "openrouter",
@@ -33,6 +34,7 @@ describe("models.usage", () => {
     const { service, calls } = modelsBed(() => ready);
     const handlers = modelsRpc(service) as unknown as HandlerTable;
     const dispatch = createDispatcher({
+      gate: NO_CLIENT_PATHS,
       handlers,
       receipts: { find: () => null, save: () => {}, purge: () => 0, readOnly: false },
       logger: silentLogger,

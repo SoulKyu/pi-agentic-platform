@@ -1,4 +1,4 @@
-import { PapError, type VmLayout } from "@pap/contracts";
+import { type BoxRef, PapError, type VmLayout } from "@pap/contracts";
 import type { BoxStack } from "./compose-boxes-wiring.ts";
 import { type Boxes, composeBoxes, TEST_IMAGE_TAG } from "./compose-boxes.ts";
 import { scriptCopier } from "./compose-agents-vm-script.ts";
@@ -23,7 +23,9 @@ import {
   resourceHostOf,
   skewOf,
 } from "./compose-agents-vm-status.ts";
+import { ownerIdOf } from "./modules/auth/index.ts";
 import type { Clock } from "./kernel/clock.ts";
+import type { Db } from "./kernel/db/database.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
@@ -31,7 +33,7 @@ import {
   type AgentRuntimeBackend,
   type AgentFilesPort,
   createFilesDelivery,
-  type ClaudeTokenStore,
+  type ClaudeTokens,
   createImageEntries,
   createAgentRuntime,
   createGateway,
@@ -72,6 +74,8 @@ export interface AgentsVmCore {
     Partial<Pick<Config, "testGithubOrigin">>;
   readonly clock: Clock;
   readonly logger: Logger;
+  /** Names the install's owner, whose vault the image build scans (R13). Absent: nobody. */
+  readonly db?: Db;
   /** The GitHub box tokens in use (`GithubTokens.liveValues`): masked by value like the owner's other secrets. */
   readonly githubLive?: () => readonly string[];
   /** The daemon's environment: the relay child's allowlist is cut from it. */
@@ -79,7 +83,7 @@ export interface AgentsVmCore {
   /** The database is read-only: a mirror's notice and taint wait (RT-42). */
   readonly readOnly: boolean;
   /** The owner's Claude token (host and vm modes keep it; only vm mode has a relay to push it to). */
-  readonly claudeToken: ClaudeTokenStore;
+  readonly claudeToken: ClaudeTokens;
   /** The agent file store: its trash is purged and swept with the agent's disk. */
   readonly agentFiles?: AgentFilesPort | undefined;
 }
@@ -145,6 +149,7 @@ export async function composeAgentsVm(
     home: config.home,
     piAgentDir: config.piAgentDir,
     logger: agentsLogger,
+    ownerId: () => (core.db ? ownerIdOf(core.db) : null),
     ...(core.githubLive ? { githubLive: core.githubLive } : {}),
   });
   const lateHolder: { late: AgentsVmDerived | null } = { late: null };
@@ -332,14 +337,19 @@ export async function composeAgentsVm(
         : {}),
     });
     const relayGate = kata && relay && !down ? relayGateOf(relay, clock) : undefined;
+    // Before the late binding nothing says whose a box is: a launch then fails closed, never open (M14 J1).
+    const disabledBox = (box: BoxRef): boolean => {
+      if (lateHolder.late === null) throw new PapError("sandbox_unavailable");
+      return lateHolder.late.boxDisabled(box);
+    };
     const skew = seams.bundleSkew ?? (kata ? skewOf(kata.images, agentsLogger) : undefined);
     const composed: AgentsVm = {
       runtime,
-      launch: guardedLaunch(baseLaunch, vmStatus.status, relayGate, skew),
+      launch: guardedLaunch(baseLaunch, vmStatus.status, relayGate, skew, disabledBox),
       boxStack: {
         backend: kata ? "kata" : "process",
         client: kata?.client ?? null,
-        gate: launchGate(vmStatus.status, relayGate, skew),
+        gate: launchGate(vmStatus.status, relayGate, skew, disabledBox),
       },
       vmLayoutOf,
       boxes,

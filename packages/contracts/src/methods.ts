@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { agentsMethods } from "./agents-methods.ts";
 import { agentsVmMethods } from "./agents-vm-methods.ts";
 import { auditMethods } from "./audit.ts";
@@ -38,6 +39,7 @@ import { subagentsMethods } from "./subagents.ts";
 import { terminalMethods } from "./terminal.ts";
 import { trustMethods } from "./trust-methods.ts";
 import { usageMethods } from "./usage.ts";
+import { usersMethods } from "./users-methods.ts";
 import { vcsMethods } from "./vcs.ts";
 
 const SessionId = z.string().min(1).max(128);
@@ -86,6 +88,7 @@ export const methods = catalogue({
   ...subagentsMethods,
   ...pushMethods,
   ...fontsMethods,
+  ...usersMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",
@@ -106,7 +109,7 @@ export const methods = catalogue({
     name: "sessions.create",
     permission: "sessions:operate",
     idempotent: false,
-    params: z.object({ cwd: z.string().min(1).max(4096), preset: ToolPreset.optional() }),
+    params: z.object({ cwd: ClientPath, preset: ToolPreset.optional() }),
     result: z.object({ sessionId: SessionId }),
     errors: ["capacity", "worker_failed", ...AGENT_GATE_ERRORS],
   }),
@@ -376,7 +379,7 @@ export const methods = catalogue({
     name: "policy.listRules",
     permission: "policy:read",
     idempotent: true,
-    params: z.object({ cwd: z.string().min(1).max(4096).optional() }),
+    params: z.object({ cwd: ClientPath.optional() }),
     result: z.object({
       rules: z.array(RuleView).max(MAX_ALWAYS_RULES),
       /** The oldest rules were left out to stay in the 1 MiB frame. */

@@ -27,7 +27,12 @@ const REAL = "sk-REAL-PROVIDER-KEY-IN-PI-FILES";
 const AGENT = { kind: "agent", id: "scout-0001" } as const;
 const LAUNCH = "a".repeat(32);
 const MODEL = "m-1";
-const POLICY: PolicyView = { models: [{ provider: "acme", id: MODEL }], claude: false, blocked: null };
+const POLICY: PolicyView = {
+  models: [{ provider: "acme", id: MODEL }],
+  claude: false,
+  claudeToken: null,
+  blocked: null,
+};
 
 interface Bed {
   readonly link: RelayLink;
@@ -117,7 +122,6 @@ async function start(over: { daemonEnv?: Record<string, string> } = {}): Promise
     clock,
     logger,
     policyOf: async () => bed.policy,
-    claudeToken: () => null,
   });
   (bed as { link: RelayLink }).link = link;
   cleanups.push(() => link.stop());

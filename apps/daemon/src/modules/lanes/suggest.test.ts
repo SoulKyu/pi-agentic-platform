@@ -10,6 +10,7 @@ import { createLaneSuggest, type LaneSuggestDeps } from "./suggest.ts";
 import { createLanesStore } from "./store.ts";
 import { createLanesBed, type LanesBed } from "./testing/bed.ts";
 import { insertLane } from "./testing/lane-rows.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const TREE = "c".repeat(40);
 const caller = testCaller({ userId: "u1" });
@@ -174,7 +175,7 @@ describe("lanes.suggestCommit behind the dispatcher", () => {
     const t = make();
     const receipts = createReceiptStore(bed.db, bed.clock);
     const handlers = lanesSuggestRpc(t.suggest) as unknown as HandlerTable;
-    const dispatch = createDispatcher({ handlers, receipts, logger: silentLogger });
+    const dispatch = createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger });
     const ctx: HandlerContext = {
       caller: caller as Caller,
       connectionId: "c1",

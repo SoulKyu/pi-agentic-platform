@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 
 import { isNeverPassedEnvKey } from "./child-env.ts";
 import { AgentId } from "./platform.ts";
@@ -165,11 +166,7 @@ export const EnvName = z
   .regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/)
   .refine((name) => !isNeverPassedEnvKey(name), "never passed to an unattended child");
 
-const AbsoluteFolder = z
-  .string()
-  .min(1)
-  .max(4096)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "an absolute path");
+const AbsoluteFolder = ClientPath;
 
 export const PrecheckCommand = z
   .string()
@@ -309,6 +306,8 @@ export const AutomationSettings = z
     quietHours: z.object({ from: HHMM, to: HHMM }).strict().nullable().default(null),
     /** Automatic runs stop once today's API-equivalent cost reaches it; 0 refuses every one; null: no budget. */
     dailyBudgetUsd: z.number().min(0).max(1000).nullable().default(5),
+    /** A member's cap, set by the owner (users.budget_usd); null for the owner. Read only: the server fills it on a read and drops it on a write (M14 RT-06). */
+    dailyBudgetCapUsd: z.number().min(0).max(1000).nullable().default(null),
     autoResume: z.boolean().default(true),
   })
   .strict();

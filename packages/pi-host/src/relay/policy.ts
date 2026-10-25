@@ -17,6 +17,7 @@ const MAX_BOXES = 4096;
 interface Entry {
   readonly pairs: ReadonlyMap<string, ReadonlySet<string>>;
   readonly claude: boolean;
+  readonly claudeToken: string | null;
   readonly blocked: BoxPolicy["blocked"];
 }
 
@@ -37,11 +38,20 @@ export function createRelayPolicy() {
       }
       const key = boxKey(policy.box);
       boxes.delete(key);
-      boxes.set(key, { pairs, claude: policy.claude, blocked: policy.blocked });
+      boxes.set(key, {
+        pairs,
+        claude: policy.claude,
+        claudeToken: policy.claudeToken,
+        blocked: policy.blocked,
+      });
       if (boxes.size > MAX_BOXES) {
         const oldest = boxes.keys().next().value;
         if (oldest !== undefined) boxes.delete(oldest);
       }
+    },
+    /** The Claude token of the box's owner, as the daemon's last policy for the box carried it; null for a box nobody told about. */
+    claudeTokenOf(box: BoxRef): string | null {
+      return boxes.get(boxKey(box))?.claudeToken ?? null;
     },
     check(box: BoxRef, query: PolicyQuery): PolicyVerdict {
       const entry = boxes.get(boxKey(box));

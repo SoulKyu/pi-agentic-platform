@@ -44,7 +44,7 @@ export function mountUploadRoute(
 ): void {
   const inflight = createInflight(MAX_INFLIGHT_PER_OWNER);
   app.put("/files/raw", async (c) => {
-    const caller = deps.caller(c, "files:operate");
+    const caller = deps.caller(c, "files:operate", [c.req.query("path")]);
     if (caller instanceof Response) return caller;
     if (deps.service.readOnly) return refuse(c, "read_only");
     const leave = inflight.enter(caller.userId);

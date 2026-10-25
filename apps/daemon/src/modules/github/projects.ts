@@ -51,8 +51,13 @@ export interface GithubProjectsService {
   cloneAgain(caller: Caller, projectId: string): Promise<void>;
   /** The project's GitHub state; the lists stay empty until B4 reads them. */
   view(row: GithubProjectRow): ProjectGithubView;
-  /** The project and its rows are gone: its signing key goes too. */
-  removed(ownerId: string, projectId: string): void;
+  /** The project and its rows are gone: its signing key goes too. Settles once the key is released; a failure is logged, never thrown. */
+  removed(ownerId: string, projectId: string): Promise<void>;
+  /**
+   * A member's delete (A5b): every signing key of the owner is released on GitHub, awaited, so it runs while the owner's user
+   * token is still in the vault. Returns the ids of the keys left on GitHub (their removal failed): the delete goes on and says so.
+   */
+  releaseKeysOf(ownerId: string): Promise<number[]>;
 }
 
 export function createGithubProjects(deps: {
@@ -133,8 +138,27 @@ export function createGithubProjects(deps: {
     };
   }
 
+  async function removed(ownerId: string, projectId: string): Promise<void> {
+    const row = store.get(projectId);
+    if (!row || row.ownerId !== ownerId) return;
+    let delivery: Delivery | undefined;
+    try {
+      delivery = deps.boxes().delivery;
+      void delivery.forget(projectId);
+    } catch {
+      // No box wiring: nothing was being delivered.
+    }
+    const release = (): Promise<void> => keys.release(row);
+    try {
+      await (delivery ? delivery.exclusive(projectId, release) : release());
+    } catch (error) {
+      logger.warn("github_key_release_failed", { code: error instanceof PapError ? error.code : "error" });
+    }
+  }
+
   return {
     view,
+    removed,
     async repositories(caller, query) {
       assertBrowserCaller("github.repositories", caller);
       requireApp();
@@ -147,8 +171,10 @@ export function createGithubProjects(deps: {
       // Every refusal that can be known comes before the fork: a refused call never leaves a fork behind.
       if (!deps.projects.hasRoom(caller.userId)) throw new PapError("capacity");
       // A fork's upstream is someone else's: only the fork counts, and the owner needs an installation to receive it.
-      if (mode === "clone") await appReaches(core, repository);
-      else await requireInstallation(core, caller.userId);
+      if (mode === "clone") {
+        await core.access.check(caller.userId, repository, { fresh: true });
+        await appReaches(core, repository);
+      } else await requireInstallation(core, caller.userId);
       const linked = mode === "fork" ? await fork(caller.userId, repository) : repository;
       if (mode === "fork") await appReaches(core, linked);
       const project = deps.projects.create(caller, name ?? repository.split("/")[1] ?? repository);
@@ -174,6 +200,7 @@ export function createGithubProjects(deps: {
       const existing = store.get(projectId);
       if (existing?.linked) throw new PapError("conflict");
       if (control.phase(projectId) !== "running") throw new PapError("box_stopped");
+      await core.access.check(caller.userId, repository, { fresh: true });
       await appReaches(core, repository);
       // An earlier unlink left its key behind: it goes first, so the new row never loses its id.
       if (existing && !(await keys.remove(existing))) throw new PapError("conflict");
@@ -225,20 +252,12 @@ export function createGithubProjects(deps: {
       guard(() => store.setClone(projectId, "pending", null));
       void delivery.begin(projectId);
     },
-    removed(ownerId, projectId) {
-      const row = store.get(projectId);
-      if (!row || row.ownerId !== ownerId) return;
-      let delivery: Delivery | undefined;
-      try {
-        delivery = deps.boxes().delivery;
-        void delivery.forget(projectId);
-      } catch {
-        // No box wiring: nothing was being delivered.
-      }
-      const release = (): Promise<void> => keys.release(row);
-      void (delivery ? delivery.exclusive(projectId, release) : release()).catch((error: unknown) => {
-        logger.warn("github_key_release_failed", { code: error instanceof PapError ? error.code : "error" });
-      });
+    async releaseKeysOf(ownerId) {
+      for (const row of store.ofOwner(ownerId)) await removed(ownerId, row.projectId);
+      return store
+        .ofOwner(ownerId)
+        .filter((row) => row.keyState !== "absent" && row.keyId !== null)
+        .map((row) => row.keyId as number);
     },
   };
 }

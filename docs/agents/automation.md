@@ -104,3 +104,9 @@ Project triggers keep everything above (ADR 0041). A trigger that runs as an age
 
 - Lines: `outbox_recovered`, `outbox_unknown_kinds`, `outbox_handler_overdue`, `outbox_handler_error`, `automation_boot_recovered`, `hook_unauthorized`, `hook_backoff`, `hook_unknown_flood`, `hook_failed`, `scheduler_trigger_failed`, `task_*_failed` (abort, release, end step, orphan session), `inbox_full`.
 - Tests: `PAP_TEST_OUTBOX_HOLD` (daemon.md), the `feed-bed` resolver seam (`modules/automation/testing/feed-bed.ts`: a local HTTPS server, `allowed` set only in tests), `security/testing/steppable-clock.ts`; security suites in `apps/daemon/src/security/automation-*.int.test.ts` and `webhook.int.test.ts`.
+
+## Disabled owners (M14, ADR 0085)
+
+- A disabled user's automation is paused through one seam, not a list of paths: `SettingsService.automation(id).paused` is true for them, and every gate already reads it (fire, resume, queued and thread tasks, reminders, feed polls, limits). Their boxes and agent VMs cannot start (`account_disabled`, `agents-vm.md`) and the relay answers `blocked: "paused"`. The journey test `apps/daemon/src/m14.disable.int.test.ts` drives fire, queued tasks and the launch gate.
+- A member's `dailyBudgetUsd` is clamped to their cap (`finops.md`, "Members: budget line and shared providers"). Deleting a member cancels their tasks and deletes triggers and sessions before agents go to the trash, so a busy agent task cannot leave the account stuck disabled.
+

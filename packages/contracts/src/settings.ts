@@ -192,6 +192,6 @@ export const settingsMethods = {
     params: SettingWrite,
     result: z.object({ revision: z.number().int().positive() }),
     // conflict: the stored revision is not baseRevision any more; the client re-reads, merges and retries once.
-    errors: ["payload_too_large", "conflict", "forbidden"],
+    errors: ["payload_too_large", "conflict", "forbidden", "budget_cap"],
   }),
 } as const;

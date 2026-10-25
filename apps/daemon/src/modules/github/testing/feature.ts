@@ -5,11 +5,15 @@ import { httpCaller } from "../../../kernel/http/caller.ts";
 import { testCaller } from "../../../testing/caller.ts";
 import { createGithubFeature, type GithubFeature } from "../index.ts";
 import { type GithubBed, OWNER, startGithubBed } from "./bed.ts";
+import { NO_CLIENT_PATHS } from "../../../kernel/ws/client-path-gate.ts";
 
 export const PAP_ORIGIN = "http://pap.test";
 /** Another address pap answers to (a LAN name beside the one the App was created on). */
 export const SECOND_ORIGIN = "http://pap-lan.test";
 export const COOKIE = "pap_session=good";
+/** A second signed-in user (a member), for the sign-in binding tests. */
+export const MEMBER_COOKIE = "pap_session=member";
+export const MEMBER = "member-1";
 
 export interface FeatureBed extends GithubBed {
   readonly feature: GithubFeature;
@@ -28,8 +32,13 @@ export async function startFeatureBed(options: { withApp?: boolean } = {}): Prom
     audit: { append: (line) => audit.push({ ownerId: line.ownerId ?? "", reason: line.reason }) },
     clock: bed.clock,
     logger: bed.logger,
-    httpCaller: httpCaller((header) => (header === COOKIE ? caller : null)),
+    httpCaller: httpCaller(
+      (header) =>
+        header === COOKIE ? caller : header === MEMBER_COOKIE ? testCaller({ userId: MEMBER }) : null,
+      NO_CLIENT_PATHS,
+    ),
     allowedOrigins: new Set([PAP_ORIGIN, SECOND_ORIGIN]),
+    userIds: () => [OWNER, MEMBER],
     hostLabel: "my.host",
   });
   const app_ = createHttpApp({

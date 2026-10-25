@@ -18,6 +18,7 @@ import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
 import { testCaller } from "../../../testing/caller.ts";
 import { noAttachments } from "./no-attachments.ts";
+import { sharesAll } from "./providers.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const EXEC_ARGV = [
@@ -91,7 +92,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
     const log = options.logger ?? silentLogger;
-    const projects = createProjectsModule({ db, clock, logger: log, newId });
+    const projects = createProjectsModule({ isMember: () => false, db, clock, logger: log, newId });
     const audit = createAuditModule({ db, clock, logger: log });
     let ownerOf: (sessionId: string) => string | null = () => null;
     const policy = createPolicyModule({
@@ -103,6 +104,8 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       sessionOwner: (sessionId) => ownerOf(sessionId),
     });
     const sessions: SessionsModule = createSessionsModule({
+      isMember: () => false,
+      providers: sharesAll,
       db,
       clock,
       logger: log,

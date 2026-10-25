@@ -21,6 +21,7 @@ import type { boxesEn } from "./catalog/boxes.ts";
 import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
+import type { inviteEn } from "./catalog/invite.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { githubEn } from "./catalog/github.ts";
 import type { healthEn } from "./catalog/health.ts";
@@ -63,6 +64,7 @@ import type { subagentsEn } from "./catalog/subagents.ts";
 import type { terminalEn } from "./catalog/terminal.ts";
 import type { trustBannerEn, trustEn } from "./catalog/trust.ts";
 import type { usageEn } from "./catalog/usage.ts";
+import type { usersEn } from "./catalog/users.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
@@ -74,6 +76,7 @@ export type MessageKey =
   | keyof typeof settingsShortcutsEn
   | keyof typeof settingsApprovalsEn
   | keyof typeof settingsAccessEn
+  | keyof typeof usersEn
   | keyof typeof galleryEn
   | keyof typeof serverEn
   | keyof typeof sidebarEn
@@ -96,6 +99,7 @@ export type MessageKey =
   | keyof typeof settingsSkillsEn
   | keyof typeof settingsAutomationEn
   | keyof typeof firstRunEn
+  | keyof typeof inviteEn
   | keyof typeof addProjectEn
   | keyof typeof trustBannerEn
   | keyof typeof trustEn

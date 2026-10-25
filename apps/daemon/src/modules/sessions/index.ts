@@ -2,6 +2,7 @@ import { freemem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ApprovalMode } from "@pap/contracts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -25,6 +26,7 @@ import { createExports } from "./exports.ts";
 import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
 import { createSessionsLanePort, laneInfoOf, type SessionsLanePort } from "./lane-port.ts";
 import { createHeldNotices } from "./held-notices.ts";
+import type { SessionModelsDeps } from "./service-models.ts";
 import { outsideToolResultsTaint } from "./outside-taint.ts";
 import { createAdmission, DEFAULT_MIN_FREE_DISK_MB } from "./fork-quota.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
@@ -37,15 +39,17 @@ import type { SessionsAgentPort } from "./agent-port.ts";
 import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { SessionsProjectPort } from "./project-port.ts";
+import type { SessionsOwnerCascade } from "./owner-cascade.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
 
-export { boxCwdOf } from "./box-cwd.ts";
+export { boxCwdOf, gatedBoxCwdOf } from "./box-cwd.ts";
 export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
 export type { SessionsAutomationPort } from "./automation-port.ts";
 export type { SessionsProjectPort } from "./project-port.ts";
+export type { SessionsOwnerCascade } from "./owner-cascade.ts";
 export type { SessionsAgentPort } from "./agent-port.ts";
 export type { ChildProfile, SessionsChildPort } from "./child-port.ts";
 export type { Admission } from "./fork-quota.ts";
@@ -95,6 +99,10 @@ export interface SessionsModuleDeps {
   readonly vmLaunch?: VmLaunch | undefined;
   /** The owner's box projects (the projects module's source): a cwd under a box root is a box session, never a host path (boxes B1). */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  /** A member runs in a box only: a host row never launches a worker for them (M14). */
+  readonly isMember: IsMember;
+  /** The providers a member may use in the model pickers (M14). */
+  readonly providers: SessionModelsDeps["providers"];
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;
   /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
@@ -145,6 +153,8 @@ export interface SessionsModule {
   readonly automation: SessionsAutomationPort;
   /** What the projects module asks when a box project is deleted (boxes B1). */
   readonly projectCleanup: SessionsProjectPort;
+  /** What a member's delete asks (A5b): all their sessions and the files kept for them. */
+  readonly ownerCascade: SessionsOwnerCascade;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */
   readonly agentSessions: SessionsAgentPort;
   /** What the subagents module may do to the child sessions of a parent (M11R136). */
@@ -243,6 +253,8 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     ...(deps.runs ? { runs: deps.runs } : {}),
+    isMember: deps.isMember,
+    providers: deps.providers,
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.vmLaunch ? { vmLaunch: deps.vmLaunch } : {}),
     admission: createAdmission({
@@ -282,7 +294,11 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     runsInVm(sessionId) {
       const row = store.get(sessionId);
-      return row !== undefined && (row.agentId !== undefined || service.agent.vmLayoutOf(row) !== null);
+      // A gated owner's folder is never read on the host (the trust store, a helper's cwd): fails closed for them.
+      return (
+        row !== undefined &&
+        (row.agentId !== undefined || service.agent.vmLayoutOf(row) !== null || deps.isMember(row.ownerId))
+      );
     },
     inspect: (sessionId) => service.inspect(sessionId),
     mirror: {
@@ -307,6 +323,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     setLaneHooks: laneHooks.set,
     automation: service.automation,
     projectCleanup: service.projectCleanup,
+    ownerCascade: service.ownerCascade,
     agentSessions: service.agentSessions,
     child: service.child,
     modeOf: service.modeOf,

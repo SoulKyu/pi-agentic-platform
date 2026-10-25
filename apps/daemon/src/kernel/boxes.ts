@@ -37,6 +37,8 @@ export interface BoxControl {
   phase(projectId: string): BoxPhase;
   start(projectId: string): Promise<void>;
   restart(projectId: string): Promise<void>;
+  /** Stops every VM of the box and leaves its disk (a disabled owner's boxes, M14); a stopped box is a no-op. */
+  stop(projectId: string): Promise<void>;
   dispose(projectId: string, stamp: number): Promise<void>;
   purge(projectId: string): Promise<void>;
   rebuild(projectId: string): Promise<void>;
@@ -59,6 +61,8 @@ export interface ProjectBoxRow {
 
 export interface ProjectBoxSource {
   box(projectId: string): ProjectBoxRow | null;
+  /** The ids of the owner's box projects (a deleting one included): a disable stops them, the Users list counts the running ones. */
+  ownerBoxes(ownerId: string): readonly string[];
   byPath(ownerId: string, path: string): { readonly projectId: string; readonly root: string } | null;
   addHost(projectId: string, host: string, actor: BoxAuditActor): void;
 }

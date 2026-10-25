@@ -18,6 +18,7 @@ const sockets: Socket[] = [];
 beforeEach(async () => {
   bed = createFilesBed();
   const service = createFilesService({
+    isMember: () => false,
     roots: () => [bed.repo],
     boundary: bed.bb.config(),
     deny: bed.deny,

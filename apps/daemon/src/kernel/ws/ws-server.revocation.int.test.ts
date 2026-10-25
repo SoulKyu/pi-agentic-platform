@@ -16,6 +16,7 @@ import {
   type WsServer,
 } from "./ws-server.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 const ORIGIN = "http://localhost:7777";
 // More than the credential: nothing but the credential may be kept or asked about.
@@ -64,6 +65,7 @@ beforeEach(async () => {
       return credential?.value === "good" && session === "valid" ? owner : null;
     },
     dispatch: createDispatcher({
+      gate: NO_CLIENT_PATHS,
       handlers,
       receipts: { find: () => null, save: () => {}, purge: () => 0, readOnly: false },
       logger: silentLogger,

@@ -53,6 +53,10 @@ The installer run with no flags refuses it (the new release has no `update apply
 - A migration ran: the writes the new release made since the snapshot are lost. For a failure `apply` judged itself that is at most the deadline plus the settle window; for `pap update recover` or `rollback --restore-database` run long after a cut update (SSH lost, Ctrl-C) it can be days of writes. The database being replaced is therefore kept first as `backups/pre-rollback-<stamp>.db` (the messages print the real, absolute file name) (if that fails the rollback ends `rollback_failed` / `database` and changes nothing), and `pap restore` refuses while `update/pending.json` exists. Check `systemctl --user status <unit>` and the age of `pending.json` before you recover; `--keep-database` keeps the database as it is.
 - Outcome `rollback_failed` keeps `pending.json`, with the step that failed: `stop`, `lock`, `database`, `switch`, `restart`, `old_release_not_listening`, `old_release_unverified` (the old release's journal is unreadable and `/healthz` or the unit state does not confirm it), `error`. A `database` failure carries the snapshot primitive's fixed message as `code`. `pap update recover` runs the same `rollback()` from the journal.
 
+## Rollback below M14 loses the owner's Claude token
+
+The first M14 boot moves the legacy `secrets/claude-token` file into the vault. `pap update rollback` to a release older than M14 restores the database snapshot but not that file, so the owner's Claude bridge stops until the token is set again in Settings.
+
 ## Guards
 
 - Release ids go through `checkedId` (`[A-Za-z0-9._-]{1,64}`, never `.` or `..`) before any path is built; `current` is read only when it is `releases/<id>`.

@@ -25,6 +25,8 @@ export interface RelayChild {
 export interface PolicyView {
   readonly models: ReadonlyArray<{ readonly provider: string; readonly id: string }>;
   readonly claude: boolean;
+  /** The Claude token of the box's owner (M14), or null: the relay serves the bridge with it and answers `no_claude_token` without. Never logged. */
+  readonly claudeToken: string | null;
   readonly blocked: "paused" | "budget" | null;
 }
 
@@ -42,8 +44,6 @@ export interface RelayLinkDeps {
   listenerFault?(child: RelayChild): string | null;
   /** The box's allowed models and state now; a rejection makes the box use nothing until the next push (fail closed). */
   policyOf(box: BoxRef): Promise<PolicyView>;
-  /** The stored Claude token, replayed after a restart. */
-  claudeToken(): string | null;
   /** The turns (assistant messages) the box's workers reported in the window just ended (RT-17): each is one provider request. */
   reportedTurns?(box: BoxRef): number;
   /** A relay report was handled: the window's counts start again. */
@@ -58,7 +58,6 @@ export interface RelayLink {
   /** The box's policy changed (models, pause, budget): pushed when the box has a live launch. */
   refresh(box: BoxRef): void;
   refreshAll(): void;
-  setClaudeToken(token: string | null): void;
   /** Resolves when a child is ready to serve (it listens), or when `signal` aborts (the waiter is then removed, N6). */
   whenReady(signal?: AbortSignal): Promise<void>;
   /** How many callers wait for ready (a test aid: a given-up wait must not stay). */
@@ -68,7 +67,7 @@ export interface RelayLink {
   stop(): void;
 }
 
-const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
+const NOTHING: PolicyView = { models: [], claude: false, claudeToken: null, blocked: null };
 
 /**
  * The daemon's half of the provider relay (R13, T12): forks `pap-relay`, restarts it with backoff and replays what it forgot
@@ -131,6 +130,7 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       box,
       models: [...view.models],
       claude: view.claude,
+      claudeToken: view.claudeToken,
       blocked: view.blocked,
     });
   }
@@ -138,8 +138,6 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
   function replay(): void {
     for (const grant of grants.values()) sendGrant(grant);
     for (const box of liveBoxes().values()) void pushPolicy(box);
-    const token = deps.claudeToken();
-    if (token !== null) send({ type: "claude_token", token });
   }
 
   function onReport(raw: unknown): void {
@@ -248,14 +246,18 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       // The box's last launch is over: the relay keeps nothing it could allow at the next launch before a fresh policy
       // arrives, and an answer still in flight is stale (the counter only grows).
       seq.set(key, (seq.get(key) ?? 0) + 1);
-      send({ type: "box_policy", box: grant.box, models: [], claude: false, blocked: null });
+      send({
+        type: "box_policy",
+        box: grant.box,
+        models: [],
+        claude: false,
+        claudeToken: null,
+        blocked: null,
+      });
     },
     refresh: (box) => void pushPolicy(box),
     refreshAll() {
       for (const box of liveBoxes().values()) void pushPolicy(box);
-    },
-    setClaudeToken(token) {
-      send({ type: "claude_token", token });
     },
     port: () => port,
     whenReady: (signal) =>

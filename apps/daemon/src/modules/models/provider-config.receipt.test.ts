@@ -5,6 +5,7 @@ import { silentLogger } from "../../kernel/logger.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { modelsRpc } from "./rpc.ts";
 import { modelsBed } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const REV = "a".repeat(64);
 const OTHER_REV = "c".repeat(64);
@@ -29,6 +30,7 @@ function dispatching() {
   const bed = modelsBed(() => saved);
   const store = new Map<string, { method: string; result: unknown }>();
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: modelsRpc(bed.service) as unknown as HandlerTable,
     receipts: {
       find: (user, command) => store.get(`${user}/${command}`) ?? null,

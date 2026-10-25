@@ -9,8 +9,8 @@ describe("fonts methods", () => {
     for (const name of Object.keys(fontsMethods) as Array<keyof typeof fontsMethods>)
       expect(methods[name], name).toBe(fontsMethods[name]);
     expect(fontsMethods["fonts.list"]).toMatchObject({ permission: "settings:read", idempotent: true });
-    expect(fontsMethods["fonts.add"]).toMatchObject({ permission: "settings:operate", idempotent: false });
-    expect(fontsMethods["fonts.remove"]).toMatchObject({ permission: "settings:operate", idempotent: false });
+    expect(fontsMethods["fonts.add"]).toMatchObject({ permission: "system:admin", idempotent: false });
+    expect(fontsMethods["fonts.remove"]).toMatchObject({ permission: "system:admin", idempotent: false });
   });
 
   it("decode the family name at the trust boundary", () => {

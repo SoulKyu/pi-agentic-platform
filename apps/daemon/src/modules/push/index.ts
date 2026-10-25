@@ -6,6 +6,7 @@ export { pushRpc, type PushRpc } from "./rpc.ts";
 export * from "./service.ts";
 export * from "./transport/index.ts";
 export * from "./delivery/index.ts";
+export { forgetPushOwner } from "./forget-owner.ts";
 
 export const PUSH_MIGRATIONS: MigrationSource = {
   module: "push",

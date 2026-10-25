@@ -4,6 +4,7 @@ import type { ReceiptStore } from "../../kernel/db/receipts.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { makeModuleBed, REQUEST_ID } from "./testing/module-bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 let bed: ReturnType<typeof makeModuleBed>;
 afterEach(() => bed.cleanup());
@@ -19,7 +20,7 @@ function readOnlyDispatch() {
   };
   const write = vi.fn(async () => ({}));
   const handlers = { ...bed.rpc, "files.write": write } as unknown as HandlerTable;
-  const dispatch = createDispatcher({ handlers, receipts, logger: silentLogger });
+  const dispatch = createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger });
   return { dispatch, write };
 }
 

@@ -8,7 +8,7 @@ import { createFakeClock } from "../kernel/clock.ts";
 import { type Db, openDatabase } from "../kernel/db/database.ts";
 import { migrate } from "../kernel/db/migrate.ts";
 import { silentLogger } from "../kernel/logger.ts";
-import { createOwnerFromCli, createAuthTestHarness } from "../modules/auth/index.ts";
+import { createUserFromCli, createAuthTestHarness } from "../modules/auth/index.ts";
 import { startTestDaemon } from "../testing/harness.ts";
 import { httpRequest } from "../testing/http-client.ts";
 import { pap } from "./testing/pap.ts";
@@ -41,7 +41,7 @@ async function seed(): Promise<void> {
   });
   try {
     const clock = createFakeClock(1_000_000);
-    await createOwnerFromCli(db, clock, { append() {} }, { username: "owner", password: OLD });
+    await createUserFromCli(db, clock, { append() {} }, { username: "owner", password: OLD });
     const user = db.get<{ id: string }>("SELECT id FROM users")?.id ?? "";
     for (const id of ["c1", "c2"])
       db.run(
@@ -142,6 +142,46 @@ describe("pap passkey reset (the real entry point)", () => {
     expect(done.stderr).toBe("pap: the password needs 12 to 1024 characters\n");
     expect(readHome(counts)).toEqual([2, 3, 2]);
     expect(existsSync(keyPath())).toBe(true);
+  });
+
+  it("passkey reset bob touches only bob's sessions, passkeys and tokens and keeps device.key", async () => {
+    await seed();
+    expect(pap(["user", "add", "bob"], env, `${OLD}\n`).stdout).toBe("member bob created\n");
+    const bob = readHome(
+      (db) => db.get<{ id: string }>("SELECT id FROM users WHERE username = 'bob'")?.id ?? "",
+    );
+    const { db } = migrate({
+      dbPath: join(home, "state.db"),
+      backupsDir: join(home, "backups"),
+      sources: MIGRATION_SOURCES,
+      clock: createFakeClock(),
+      logger: silentLogger,
+    });
+    try {
+      db.run(
+        "INSERT INTO passkeys (id, user_id, public_key, counter, transports, created_at) VALUES ('bob-c', $bob, x'00', 0, '[]', 1)",
+        { bob },
+      );
+      db.run(
+        "INSERT INTO auth_sessions (id_hash, user_id, created_at, last_seen_at, expires_at, public_id) VALUES ('bob-h', $bob, 1, 1, 9999999999999, 'bob-p')",
+        { bob },
+      );
+      db.run(
+        "INSERT INTO api_tokens (id, user_id, name, hint, secret_hash, permissions, created_at, expires_at) VALUES ('bob-t', $bob, 't', 'abcd', $hash, '[]', 1, 9999999999999)",
+        { bob, hash: "b".repeat(64) },
+      );
+    } finally {
+      db.close();
+    }
+    const done = pap(["passkey", "reset", "bob", "--keep-password", "--revoke-tokens"], env);
+    expect(done.stderr).toBe("");
+    expect(done.status).toBe(0);
+    expect(done.stdout).toBe("removed 1 passkeys, 1 browser sessions, 1 tokens; password kept\n");
+    expect(readHome(counts)).toEqual([2, 3, 2]);
+    expect(existsSync(keyPath())).toBe(true);
+    const unknown = pap(["passkey", "reset", "nobody", "--keep-password"], env);
+    expect(unknown.status).toBe(1);
+    expect(unknown.stderr).toBe("pap: no user named nobody\n");
   });
 
   it("needs an owner", () => {

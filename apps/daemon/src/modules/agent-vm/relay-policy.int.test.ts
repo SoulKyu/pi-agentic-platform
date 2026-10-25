@@ -53,6 +53,7 @@ describe("the relay link inside the daemon (vm mode)", () => {
     expect(policies(relay.sent).at(-1)).toMatchObject({
       box: { kind: "agent", id: agentId },
       claude: false,
+      claudeToken: null,
       blocked: null,
     });
 

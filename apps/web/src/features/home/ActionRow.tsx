@@ -5,6 +5,7 @@ import { Badge, Button, Icon, IconSettings, Kbd } from "@pap/ui";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
+import { useRole } from "../../lib/role-context.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { randomId } from "../../runtime/random-id.ts";
 import { useInboxStore } from "../../stores/inbox-store.ts";
@@ -77,6 +78,8 @@ interface Props {
 export function ActionRow({ project, layout, actions, shortcuts }: Props) {
   const t = useT();
   const lazyText = useLazyFailureText();
+  // A member has a terminal only in a box project (UX only: the daemon refuses a host path).
+  const noTerminal = useRole() === "member" && project?.kind !== "box";
   const unread = useInboxStore((state) => state.view.unread);
   const archived = useLaneStore((state) => state.view.archived);
   const root = project?.root ?? null;
@@ -123,12 +126,14 @@ export function ActionRow({ project, layout, actions, shortcuts }: Props) {
               if (root !== null) actions.open({ kind: "files", root });
             }}
           />
-          <Action
-            label={t("home.action.terminal")}
-            reason={terminalReason}
-            notice={terminalNotice === null ? null : t(terminalNotice)}
-            onClick={openTerminal}
-          />
+          {noTerminal ? null : (
+            <Action
+              label={t("home.action.terminal")}
+              reason={terminalReason}
+              notice={terminalNotice === null ? null : t(terminalNotice)}
+              onClick={openTerminal}
+            />
+          )}
           <Action
             label={t("home.action.search")}
             reason={null}

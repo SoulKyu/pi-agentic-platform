@@ -29,6 +29,8 @@ export interface Exports {
   take(token: string, sessionId: string, ownerId: string): { path: string; title: string | null } | null;
   /** Forgets the token and deletes its file (and the half-patched copy beside it). */
   discard(token: string): void;
+  /** Every pending export of this owner (a deleted member, A5b). */
+  discardOwner(ownerId: string): void;
   /** Empties the directory: what an earlier daemon left behind, at boot. */
   purgeAll(): void;
   /** Deletes every pending file, clears every timer and takes no more. */
@@ -106,6 +108,13 @@ export function createExports(deps: ExportsDeps): Exports {
     discard(token) {
       const entry = forget(token);
       if (entry) remove(entry.path);
+    },
+    discardOwner(ownerId) {
+      for (const [token, entry] of [...pending])
+        if (entry.ownerId === ownerId) {
+          forget(token);
+          remove(entry.path);
+        }
     },
     purgeAll() {
       for (const token of [...pending.keys()]) forget(token);

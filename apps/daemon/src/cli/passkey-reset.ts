@@ -7,7 +7,7 @@ import type { Command } from "./run-cli.ts";
 import { UsageError } from "./usage.ts";
 
 /**
- * `pap passkey reset`: sign out everywhere (spec C §1.5). The home is locked before the new password is asked, and the
+ * `pap passkey reset [<username>]`: sign one user (the owner by default) out everywhere (spec C §1.5). The home is locked before the new password is asked, and the
  * lock is held until the rows are gone.
  */
 export const passkeyReset: Command = {
@@ -17,7 +17,8 @@ export const passkeyReset: Command = {
     "password-stdin": { type: "boolean" },
   },
   async run({ values, positionals, io }) {
-    if (positionals.length > 0) throw new UsageError("passkey reset takes no argument");
+    const [username, ...extra] = positionals;
+    if (extra.length > 0) throw new UsageError("passkey reset takes at most one username");
     const keep = values["keep-password"] === true;
     const revokeTokens = values["revoke-tokens"] === true;
     if (keep && values["password-stdin"] === true)
@@ -35,6 +36,7 @@ export const passkeyReset: Command = {
       const audit = createAuditModule({ db: opened.db, clock: io.clock, logger: silentLogger }).port;
       const done = await resetCredentials(opened.db, audit, opened.home, {
         revokeTokens,
+        ...(username === undefined ? {} : { username }),
         ...(newPassword === undefined ? {} : { newPassword }),
       });
       const tokens = revokeTokens ? `, ${done.tokens} tokens` : "";

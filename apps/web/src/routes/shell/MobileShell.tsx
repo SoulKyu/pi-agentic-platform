@@ -11,6 +11,7 @@ import {
   type Tab,
 } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { useCommand } from "../../lib/use-command.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { landingSegmentOf } from "../../features/notifications/landing-path.ts";
@@ -94,7 +95,7 @@ export function MobileShell() {
   useCommand("mobile.lists.open", () => setSection("lists"));
   // The home's Inbox entry and status line on a phone: the Inbox section, not the desktop drawer.
   useCommand("mobile.inbox.open", () => setSection("inbox"));
-  const item = itemFromPath(pathname, import.meta.env.DEV);
+  const item = itemFromPath(pathname, import.meta.env.DEV, useRole());
   const title = item
     ? itemTitle(item, sessions, views, t, lanes, triggers)
     : landingSegmentOf(pathname) !== null

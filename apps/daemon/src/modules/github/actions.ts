@@ -70,17 +70,18 @@ export function createGithubActions(deps: {
     });
 
   /** The upstream's default branch, read from the fork's own metadata (its parent), else the fork's. */
-  async function forkBase(fork: GithubProjectRow["repository"]): Promise<string> {
-    const found = await lists.branches(fork);
+  async function forkBase(ownerId: string, fork: GithubProjectRow["repository"]): Promise<string> {
+    const found = await lists.branches(ownerId, fork);
     return found.parent ?? found.own;
   }
 
   /** A token for this repository with `pull_requests: write` only, used once; a 422 (already open, bad head) is `conflict`. */
   async function openPull(
+    ownerId: string,
     repository: GithubProjectRow["repository"],
     pull: { title: string; body: string; head: string; base: string },
   ): Promise<z.output<typeof Pull>> {
-    const minted = await core.tokens.mint(repository, PULL_PERMISSIONS);
+    const minted = await core.mintFor(ownerId, repository, PULL_PERMISSIONS);
     try {
       return await core.client.json(Pull, {
         method: "POST",
@@ -114,7 +115,7 @@ export function createGithubActions(deps: {
         if (!row.upstream) throw new PapError("internal");
         // The fork's pull request is opened by the person on GitHub's compare page: the upstream's API is never called.
         const { branch } = await ops.call(projectId, { name: "git.push" });
-        const into = base ?? (await forkBase(row.repository));
+        const into = base ?? (await forkBase(row.ownerId, row.repository));
         const login = row.repository.split("/")[0] ?? "";
         lists.invalidate(projectId);
         record(caller, "github_pr_created", projectId);
@@ -124,9 +125,9 @@ export function createGithubActions(deps: {
         };
       }
       // The daemon opens the pull request (R9): no `gh` runs in the box on a repository a session can write.
-      const into = base ?? (await lists.branches(row.repository)).own;
+      const into = base ?? (await lists.branches(row.ownerId, row.repository)).own;
       const { branch } = await ops.call(projectId, { name: "git.push" });
-      const made = await openPull(row.repository, { title, body, head: branch, base: into });
+      const made = await openPull(row.ownerId, row.repository, { title, body, head: branch, base: into });
       lists.invalidate(projectId);
       record(caller, "github_pr_created", projectId);
       return { kind: "created", number: made.number, url: made.html_url };
@@ -137,18 +138,23 @@ export function createGithubActions(deps: {
       if (!row) return emptyView();
       const view = deps.baseView(row);
       if (!row.linked) return view;
-      return { ...view, ...(await lists.lists(projectId, row.repository)) };
+      return { ...view, ...(await lists.lists(row.ownerId, projectId, row.repository)) };
     },
     async checkLog(caller, { projectId, checkId }) {
       boxOf(caller, projectId);
       const row = store.get(projectId);
       if (!row?.linked) throw new PapError("not_found");
-      return lists.log(row.repository, checkId);
+      return lists.log(row.ownerId, row.repository, checkId);
     },
     async sendToSession(caller, { projectId, source: what, sessionId }) {
       assertBrowserCaller("projects.sendToSession", caller);
       const { root, row } = linkedOf(caller, projectId);
-      return send.send(caller, { projectId, root, repository: row.repository }, what, sessionId);
+      return send.send(
+        caller,
+        { projectId, root, repository: row.repository, ownerId: row.ownerId },
+        what,
+        sessionId,
+      );
     },
   };
 }

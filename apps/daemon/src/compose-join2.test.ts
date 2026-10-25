@@ -44,6 +44,7 @@ function rig(options: { autoResume?: boolean } = {}): Rig {
   const prompts: string[] = [];
   const early = composeM10Early(test.core);
   const modules = {
+    auth: { isMember: () => false },
     audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
     projects: { port: { ensure: () => null } as unknown as ProjectsPort },
     policy: {

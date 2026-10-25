@@ -16,6 +16,8 @@ export interface DaemonHandle {
     workerRssMb(sessionId: string): number | null;
     /** Tests: what the runs registry says the session cost, its subagents included (M11R141). */
     sessionCost(sessionId: string): number | null;
+    /** Tests: every route the HTTP app serves, as `METHOD /path` (the M14 route classification). */
+    routes(): string[];
   };
   /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
   stop(): Promise<void>;

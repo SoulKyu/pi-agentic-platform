@@ -1,5 +1,6 @@
 import { PapError } from "@pap/contracts";
 import type { ProjectBoxSource } from "../../kernel/boxes.ts";
+import { type IsMember, routeBoxPath } from "../../kernel/box-path.ts";
 
 /**
  * A folder of a box project: its root or a path below it by whole segments (the source's own lexical rule). The cwd keeps
@@ -15,13 +16,28 @@ export function boxCwdOf(
   return found ? { projectId: found.projectId, cwd } : null;
 }
 
-/** `boxCwdOf` for a session or a task that is about to be made: a box being deleted takes no new work (`not_found`, before any row). */
+/**
+ * `boxCwdOf` for a place that starts host work (a session, a task, a trigger's folder, a terminal): a member's folder that is
+ * not in one of their boxes is `forbidden` here, before any host path rule runs (M14).
+ */
+export function gatedBoxCwdOf(
+  source: ProjectBoxSource | undefined,
+  ownerId: string,
+  cwd: string,
+  isMember: IsMember,
+): { readonly projectId: string; readonly cwd: string } | null {
+  const found = routeBoxPath({ isMember }, source, ownerId, cwd);
+  return found ? { projectId: found.projectId, cwd } : null;
+}
+
+/** `gatedBoxCwdOf` for a session or a task that is about to be made: a box being deleted takes no new work (`not_found`, before any row). */
 export function newBoxCwdOf(
   source: ProjectBoxSource | undefined,
   ownerId: string,
   cwd: string,
+  isMember: IsMember,
 ): { readonly projectId: string; readonly cwd: string } | null {
-  const found = boxCwdOf(source, ownerId, cwd);
+  const found = gatedBoxCwdOf(source, ownerId, cwd, isMember);
   if (found && source?.box(found.projectId)?.deleting !== false) throw new PapError("not_found");
   return found;
 }

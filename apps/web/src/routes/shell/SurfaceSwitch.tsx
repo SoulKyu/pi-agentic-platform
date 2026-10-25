@@ -1,8 +1,9 @@
 import { cn, FOCUS_RING } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
-import { placeOf, showSurface, useTerminalFeed } from "./surface.ts";
+import { placeOf, showSurface, terminalAllowed, useTerminalFeed } from "./surface.ts";
 import { useSurfaceView, useTerminalReady } from "./surface-view.ts";
 
 /** One look for the bar and the switch: the current item gets the agent underline of `Segmented` (DESIGN.md §9.1). */
@@ -25,6 +26,7 @@ interface SurfaceSwitchProps {
 /** The phone's Chat / Review / Term switch at the top of a session tab (DESIGN.md §8): one pane at a time. */
 export function SurfaceSwitch({ tabKey, sessionId, selected }: SurfaceSwitchProps) {
   const t = useT();
+  const role = useRole();
   useTerminalFeed();
   const ready = useTerminalReady((state) => state.ready);
   const place = placeOf(
@@ -42,7 +44,16 @@ export function SurfaceSwitch({ tabKey, sessionId, selected }: SurfaceSwitchProp
   const items: ReadonlyArray<{ id: SwitchChoice | "files"; label: string; off: boolean; busy?: boolean }> = [
     { id: "chat", label: t("shell.surface.chat"), off: false },
     { id: "review", label: t("shell.surface.review"), off: place?.root == null },
-    { id: "term", label: t("shell.surface.term"), off: place?.cwd == null || !ready, busy: !ready },
+    ...(role === "owner" || terminalAllowed(place, role)
+      ? [
+          {
+            id: "term" as const,
+            label: t("shell.surface.term"),
+            off: place?.cwd == null || !ready,
+            busy: !ready,
+          },
+        ]
+      : []),
     ...(selected === "files" ? [{ id: "files" as const, label: t("shell.surface.files"), off: false }] : []),
   ];
   return (

@@ -14,6 +14,7 @@ export type SessionsRpc = Pick<
   | "sessions.autoName"
   | "sessions.exportHtml"
   | "sessions.models"
+  | "sessions.availableModels"
   | "sessions.commands"
   | "sessions.setModel"
   | "sessions.setThinking"
@@ -54,6 +55,7 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     "sessions.autoName": async ({ sessionId }, ctx) => service.autoName(sessionId, ctx.caller),
     "sessions.exportHtml": async ({ sessionId }, ctx) => service.exportHtml(sessionId, ctx.caller),
     "sessions.models": async ({ sessionId }, ctx) => service.models(sessionId, ctx.caller),
+    "sessions.availableModels": async (_params, ctx) => service.availableModels(ctx.caller),
     "sessions.commands": async ({ sessionId }, ctx) => service.commands(sessionId, ctx.caller),
     "sessions.setModel": async (params, ctx) => {
       await service.setModel(params, ctx.caller);

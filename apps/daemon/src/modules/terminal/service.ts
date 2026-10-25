@@ -9,11 +9,12 @@ import {
   type TerminalStreamEvent,
 } from "@pap/contracts";
 import type { BoxControl, BoxTerminals, ProjectBoxSource } from "../../kernel/boxes.ts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import { type BoundaryConfig, judgePath, type Scope } from "../../kernel/fs/boundary.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
-import { boxCwdOf } from "../sessions/index.ts";
+import { gatedBoxCwdOf } from "../sessions/index.ts";
 import type { BoxActivity } from "./box-activity.ts";
 import { createRemoteShell } from "./remote-pty.ts";
 import { MAX_EXITED_KEPT, type TerminalRegistry } from "./registry.ts";
@@ -30,6 +31,8 @@ export interface TerminalServiceDeps {
   readonly clock: Clock;
   /** The owner's box projects (lot B2): a cwd inside one opens a shell in its box, whatever the host says of that path. */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  /** A member's terminal is in a box only (M14). */
+  readonly isMember: IsMember;
   readonly boxControl?: () => BoxControl | undefined;
   readonly boxTerminals?: () => BoxTerminals | undefined;
   readonly boxActivity?: BoxActivity;
@@ -153,7 +156,7 @@ export function createTerminalService(deps: TerminalServiceDeps): TerminalServic
       requests.set(owner, mine);
       let started: string | null = null;
       const task = (async () => {
-        const boxed = boxCwdOf(deps.boxes?.(), owner, params.cwd);
+        const boxed = gatedBoxCwdOf(deps.boxes?.(), owner, params.cwd, deps.isMember);
         const terminal = boxed
           ? await createInBox(owner, params, boxed)
           : registry.create({

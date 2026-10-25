@@ -5,7 +5,8 @@ import { PapError, VmStatusView } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { captureLogger } from "../../testing/capture-logger.ts";
-import { createClaudeTokenStore } from "./claude-token.ts";
+import { createVaultStore } from "../secrets/index.ts";
+import { createClaudeTokens } from "./claude-tokens.ts";
 import { assessStack, createVmStatus, STACK_REASONS, STACK_TTL_MS, type VmStatusDeps } from "./status.ts";
 import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
 
@@ -43,7 +44,12 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 function make(over: Partial<VmStatusDeps> = {}) {
   const { logger, lines } = captureLogger();
-  const claudeToken = createClaudeTokenStore({ secretsDir: join(root, "secrets"), logger });
+  const claudeToken = createClaudeTokens({
+    vault: createVaultStore(join(root, "vault")),
+    clock,
+    secretsDir: join(root, "secrets"),
+    logger,
+  });
   const phases = new Map<string, "running" | "stopped">([["helper-1a2b", "running"]]);
   const status = createVmStatus({
     clock,
@@ -155,12 +161,23 @@ describe("the VM status view", () => {
   it("the Claude token reads missing, then set after a set, and the value is nowhere in the view (M-token)", async () => {
     const { status, claudeToken } = make();
     expect((await status.view("owner")).claudeToken).toBe("missing");
-    claudeToken.set(TOKEN);
+    claudeToken.set("owner", TOKEN);
     const view = await status.view("owner");
     expect(view.claudeToken).toBe("set");
     expect(JSON.stringify(view)).not.toContain(TOKEN);
-    claudeToken.clear();
+    claudeToken.clear("owner");
     expect((await status.view("owner")).claudeToken).toBe("missing");
+  });
+
+  it("agents.vmStatus shows the caller's own token status: the owner's token is not a member's", async () => {
+    const { status, claudeToken } = make();
+    claudeToken.set("owner", TOKEN);
+    expect((await status.view("owner")).claudeToken).toBe("set");
+    expect((await status.view("member")).claudeToken).toBe("missing");
+    claudeToken.set("member", `${TOKEN}-member`);
+    claudeToken.clear("owner");
+    expect((await status.view("owner")).claudeToken).toBe("missing");
+    expect((await status.view("member")).claudeToken).toBe("set");
   });
 
   it("lists at most 32 agents, the contract's bound", async () => {

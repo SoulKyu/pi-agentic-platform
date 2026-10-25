@@ -1,8 +1,10 @@
+import type { Role } from "@pap/contracts";
 import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectPlatform } from "../../features/commands/index.ts";
 import { useLazyFailureText } from "../../i18n/index.ts";
+import { RoleContext, useRole } from "../../lib/role-context.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -48,6 +50,7 @@ import { useViewportHeight } from "./use-viewport-height.ts";
 
 interface AppShellProps {
   readonly username: string | null;
+  readonly role: Role;
   readonly passkeysAvailable: boolean;
   onSignedOut(): void;
 }
@@ -61,7 +64,7 @@ const loadUpdateBanner = () => import("./UpdateBanner.tsx");
 const noop = () => {};
 
 /** The URL names the active item. Desktop: rail, tabs and split panes; below 768 px: one pane and a bottom nav. */
-export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellProps) {
+export function AppShell({ username, role, passkeysAvailable, onSignedOut }: AppShellProps) {
   const mobile = useIsPhone();
   const lazyText = useLazyFailureText();
   const [treeOpen, setTreeOpen] = useState(false);
@@ -75,8 +78,8 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
   }, [treeOpen]);
   const readTreeOpen = useCallback(() => treeRef.current, []);
   const shell = useMemo(
-    () => ({ username, passkeysAvailable, onSignedOut }),
-    [username, passkeysAvailable, onSignedOut],
+    () => ({ username, role, passkeysAvailable, onSignedOut }),
+    [username, role, passkeysAvailable, onSignedOut],
   );
   useViewportHeight();
   // The one reader of the `shell` stream while the shell is mounted; the next account starts from nothing.
@@ -113,40 +116,42 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
     };
   }, []);
   useShellEffects({ mobile, treeOpen: readTreeOpen });
-  useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
+  useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, role, onSignedOut });
   return (
     <ShellContext.Provider value={shell}>
-      <StepUpHost>
-        {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
-        <PaletteHost />
-        <NewLaneHost />
-        <NewAgentHost />
-        <AddProjectHost />
-        <ProjectSettingsHost />
-        <SecretDialogHost />
-        <LazyPanel
-          text={lazyText}
-          load={loadTreeDrawer}
-          open={treeOpen}
-          props={{ open: treeOpen, onOpenChange: setTreeOpen }}
-          onFailed={() => setTreeOpen(false)}
-        />
-        <LazyPanel
-          text={lazyText}
-          load={loadInboxDrawer}
-          open={inboxOpen}
-          props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
-          onFailed={() => setInboxOpen(false)}
-        />
-        <LazyPanel text={lazyText} load={loadUpdateBanner} open={updateShown} props={{}} onFailed={noop} />
-        <LazyPanel
-          text={lazyText}
-          load={loadShortcutsHelp}
-          open={helpOpen}
-          props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
-          onFailed={() => setHelpOpen(false)}
-        />
-      </StepUpHost>
+      <RoleContext.Provider value={role}>
+        <StepUpHost>
+          {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
+          <PaletteHost />
+          <NewLaneHost />
+          <NewAgentHost />
+          <AddProjectHost />
+          <ProjectSettingsHost />
+          <SecretDialogHost />
+          <LazyPanel
+            text={lazyText}
+            load={loadTreeDrawer}
+            open={treeOpen}
+            props={{ open: treeOpen, onOpenChange: setTreeOpen }}
+            onFailed={() => setTreeOpen(false)}
+          />
+          <LazyPanel
+            text={lazyText}
+            load={loadInboxDrawer}
+            open={inboxOpen}
+            props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
+            onFailed={() => setInboxOpen(false)}
+          />
+          <LazyPanel text={lazyText} load={loadUpdateBanner} open={updateShown} props={{}} onFailed={noop} />
+          <LazyPanel
+            text={lazyText}
+            load={loadShortcutsHelp}
+            open={helpOpen}
+            props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
+            onFailed={() => setHelpOpen(false)}
+          />
+        </StepUpHost>
+      </RoleContext.Provider>
     </ShellContext.Provider>
   );
 }
@@ -154,7 +159,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
 function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" | "onSignedOut">) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
-  const item = itemFromPath(pathname, import.meta.env.DEV);
+  const item = itemFromPath(pathname, import.meta.env.DEV, useRole());
   return (
     <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
       <Rail username={username} onSignedOut={onSignedOut} />

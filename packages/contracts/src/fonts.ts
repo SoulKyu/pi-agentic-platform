@@ -41,7 +41,7 @@ export const fontsMethods = {
   }),
   "fonts.add": defineMethod({
     name: "fonts.add",
-    permission: "settings:operate",
+    permission: "system:admin",
     idempotent: false,
     params: Params({ family: z.string().regex(FONT_FAMILY_PATTERN) }),
     result: FontFamilyView,
@@ -49,7 +49,7 @@ export const fontsMethods = {
   }),
   "fonts.remove": defineMethod({
     name: "fonts.remove",
-    permission: "settings:operate",
+    permission: "system:admin",
     idempotent: false,
     params: Params({ slug: z.string().regex(FONT_SLUG_PATTERN) }),
     result: Params({ ok: z.literal(true) }),

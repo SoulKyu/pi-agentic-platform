@@ -86,6 +86,7 @@ describe("composePi", () => {
   it("holds the models and mcp methods and returns the helper pool", () => {
     const pi = composePi(deps());
     expect(Object.keys(pi.rpc).sort()).toEqual([
+      "agents.packages",
       "mcp.add",
       "mcp.overview",
       "mcp.remove",

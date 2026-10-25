@@ -1,4 +1,4 @@
-import type { AgentSummary, SessionSummary, TaskTrigger, TerminalView } from "@pap/contracts";
+import type { AgentSummary, Role, SessionSummary, TaskTrigger, TerminalView } from "@pap/contracts";
 import {
   chordJoiner,
   chordTokens,
@@ -8,7 +8,7 @@ import {
   type Platform,
   type ResolvedRule,
 } from "../../features/commands/index.ts";
-import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/workspace/index.ts";
+import { sectionsFor, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import type { MessageKey, Translate } from "../../i18n/index.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { agentTarget, railDetail } from "../../features/agents/rail.vm.ts";
@@ -40,6 +40,8 @@ interface PaletteItemsInput {
   readonly newTriggerProject?: string | null;
   /** The owner's agents in creation order (the agents store): the Agents group (M11R109). */
   readonly agents?: readonly AgentSummary[];
+  /** UX only: a member is not offered Pi's configuration or user management. Absent: the member's view. */
+  readonly role?: Role;
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
@@ -136,7 +138,7 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
         },
       ]
     : [];
-  const settings = SETTINGS_SECTIONS.map((section): PaletteItem => {
+  const settings = sectionsFor(input.role ?? "member").map((section): PaletteItem => {
     const title = t(`commands.palette.settings.${section}` satisfies MessageKey);
     return {
       id: `settings:${section}`,

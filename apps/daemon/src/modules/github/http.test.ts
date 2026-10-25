@@ -1,6 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PARKED_TTL_MS } from "./parked.ts";
 import { STATE_TTL_MS } from "./states.ts";
-import { COOKIE, type FeatureBed, PAP_ORIGIN, startFeatureBed } from "./testing/feature.ts";
+import {
+  COOKIE,
+  type FeatureBed,
+  MEMBER,
+  MEMBER_COOKIE,
+  PAP_ORIGIN,
+  startFeatureBed,
+} from "./testing/feature.ts";
 
 let bed: FeatureBed;
 beforeEach(async () => {
@@ -138,17 +146,95 @@ describe("the install link and GET /github/app/authorized", () => {
     return /installations\/new\?state=([0-9a-f]{32})/.exec(html)?.[1] ?? "";
   }
 
-  it("stores the user pair, with no cookie, once", async () => {
+  /** The ticket the callback page hands to the browser that hit it. */
+  async function callback(state: string, code = "c1"): Promise<{ status: number; ticket: string }> {
+    const response = await get(`/github/app/authorized?code=${code}&installation_id=7&state=${state}`);
+    const html = await response.text();
+    return { status: response.status, ticket: /finish\?ticket=([0-9a-f]{32})/.exec(html)?.[1] ?? "" };
+  }
+  const finish = (ticket: string, cookie?: string) =>
+    get(`/github/app/authorized/finish?ticket=${ticket}`, cookie);
+
+  it("the callback parks the pair under a ticket, the owner's own session binds it, once", async () => {
     const state = await created();
-    const response = await get(`/github/app/authorized?code=c1&installation_id=7&state=${state}`);
-    expect(response.status).toBe(200);
+    const { status, ticket } = await callback(state);
+    expect(status).toBe(200);
+    expect(ticket).toMatch(/^[0-9a-f]{32}$/);
+    expect(ticket).not.toBe(state);
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
+    const done = await finish(ticket, COOKIE);
+    expect(done.status).toBe(200);
     expect(bed.core.userTokens.state("owner-1")).toBe("ok");
     expect(await bed.core.userTokens.get("owner-1")).toBe(bed.fake.state.userTokens.access);
     expect(bed.audit.map((row) => row.reason)).toContain("github_authorized");
-    expect(await response.text()).not.toContain(bed.fake.state.userTokens.access);
-    const replay = await get(`/github/app/authorized?code=c2&installation_id=7&state=${state}`);
-    expect(replay.status).toBe(400);
+    expect(await done.text()).not.toContain(bed.fake.state.userTokens.access);
+    expect((await callback(state, "c2")).status).toBe(400);
+    expect((await finish(ticket, COOKIE)).status).toBe(400);
     expect(bed.fake.state.callsTo("POST /login/oauth/access_token")).toHaveLength(1);
+  });
+
+  it("the state alone finishes nothing", async () => {
+    const state = await created();
+    await callback(state);
+    expect((await get(`/github/app/authorized/finish?state=${state}`, COOKIE)).status).toBe(400);
+    expect((await finish(state, COOKIE)).status).toBe(400);
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
+  });
+
+  it("a member's authorize link opened by the owner never stores the owner's token on the member", async () => {
+    await created();
+    const state = bed.core.states.issue(MEMBER, "authorize");
+    // The owner's browser is the one GitHub sends back (the owner's code), and the owner's cookie is the one that comes.
+    const { status, ticket } = await callback(state, "owner-code");
+    expect(status).toBe(200);
+    expect((await finish(ticket, COOKIE)).status).toBe(400);
+    expect(bed.core.userTokens.state(MEMBER)).toBe("none");
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
+    const refused = bed.audit.filter((row) => row.reason === "github_link_refused");
+    expect(refused.map((row) => row.ownerId).sort()).toEqual(["owner-1", MEMBER].sort());
+    expect(JSON.stringify(refused)).not.toContain(bed.fake.state.userTokens.access);
+    // The pair is gone: the member cannot finish it afterwards either.
+    expect((await finish(ticket, MEMBER_COOKIE)).status).toBe(400);
+    expect(bed.core.userTokens.state(MEMBER)).toBe("none");
+  });
+
+  it("the member who started the sign-in cannot finish with the state while the owner's token is parked", async () => {
+    await created();
+    const state = bed.core.states.issue(MEMBER, "authorize");
+    // The member polls with their own cookie, by state, before and after the owner's callback.
+    const poll = () => get(`/github/app/authorized/finish?state=${state}`, MEMBER_COOKIE);
+    expect((await poll()).status).toBe(400);
+    const { ticket } = await callback(state, "owner-code");
+    expect((await poll()).status).toBe(400);
+    expect((await finish(state, MEMBER_COOKIE)).status).toBe(400);
+    expect(bed.core.userTokens.state(MEMBER)).toBe("none");
+    // The owner clicks Continue: refused, the ticket is spent, nothing is stored on the member.
+    expect((await finish(ticket, COOKIE)).status).toBe(400);
+    expect(bed.core.userTokens.state(MEMBER)).toBe("none");
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
+  });
+
+  it("a finish without a session cookie keeps the ticket", async () => {
+    const state = await created();
+    const { ticket } = await callback(state);
+    const again = await finish(ticket);
+    expect(again.status).toBe(200);
+    const html = await again.text();
+    expect(html).toContain(`finish?ticket=${ticket}`);
+    expect(html).not.toContain("http-equiv"); // no automatic retry loop: the person clicks
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
+    expect(bed.audit.map((row) => row.reason)).not.toContain("github_link_refused");
+    expect((await finish(ticket, COOKIE)).status).toBe(200);
+    expect(bed.core.userTokens.state("owner-1")).toBe("ok");
+  });
+
+  it("a parked pair expires after five minutes", async () => {
+    const state = await created();
+    const { ticket } = await callback(state);
+    await bed.clock.advance(PARKED_TTL_MS);
+    expect((await finish(ticket, COOKIE)).status).toBe(400);
+    expect((await finish(ticket)).status).toBe(400);
+    expect(bed.core.userTokens.state("owner-1")).toBe("none");
   });
 
   it("refuses an expired, foreign or wrong-purpose state and stores nothing", async () => {

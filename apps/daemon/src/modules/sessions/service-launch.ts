@@ -120,6 +120,8 @@ export function createLaunch(ctx: LaunchContext) {
       // (R38: a VM worker is one).
       if (ctx.sandboxedOnly.has(row.id) && (agentLaunch ?? projectLaunch)?.vm !== true)
         throw new PapError("sandbox_unavailable");
+      if (agentLaunch === null && projectLaunch === null && deps.isMember(row.ownerId))
+        throw new PapError("forbidden");
       return await start(row, isNew, agentLaunch, projectLaunch);
     } catch (error) {
       // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).

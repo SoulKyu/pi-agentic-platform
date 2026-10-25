@@ -77,6 +77,7 @@ describe("the relay server: what never reaches a provider", () => {
       box: AGENT,
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: false,
+      claudeToken: null,
       blocked: "budget",
     });
     expect((await send(port, { path: "/zai/chat/completions", headers: asAgent, body: chat() })).status).toBe(
@@ -86,6 +87,7 @@ describe("the relay server: what never reaches a provider", () => {
       box: AGENT,
       models: [{ provider: "zai", id: "glm-4.6" }],
       claude: false,
+      claudeToken: null,
       blocked: null,
     });
     expect((await send(port, { path: "/zai/chat/completions", headers: asAgent, body: chat() })).status).toBe(

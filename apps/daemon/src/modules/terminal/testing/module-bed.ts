@@ -56,6 +56,7 @@ export function makeModuleBed(
     fake.children.find((child) => child.pid === target.pid)?.end(0, 1);
   });
   const module = createTerminalModule({
+    isMember: () => false,
     roots: (ownerId) => {
       judged.push(ownerId);
       return ownerId === "u1" || ownerId === "u2" ? [project] : [];

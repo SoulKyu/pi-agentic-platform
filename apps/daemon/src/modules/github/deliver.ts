@@ -100,9 +100,33 @@ export function createDelivery(deps: {
     }
   }
 
-  async function sendToken(projectId: string, repository: RepoFullName) {
+  /** The owner's own token must still push to the repository; if not, nothing is minted and the token in the box is revoked. */
+  async function requireAccess(projectId: string, ownerId: string, repository: RepoFullName): Promise<void> {
+    try {
+      await core.access.check(ownerId, repository);
+    } catch (error) {
+      if (codeOf(error) !== "not_found") throw error;
+      logger.warn("github_access_lost", { projectId });
+      await revokeDelivered(projectId);
+      throw error;
+    }
+  }
+
+  async function revokeDelivered(projectId: string): Promise<void> {
+    const token = delivered.get(projectId);
+    delivered.delete(projectId);
+    if (token === undefined) return;
+    try {
+      await core.tokens.revoke(token);
+    } catch {
+      logger.warn("github_token_revoke_failed", { projectId });
+    }
+  }
+
+  async function sendToken(projectId: string, ownerId: string, repository: RepoFullName) {
+    await requireAccess(projectId, ownerId, repository);
     // Never `administration`: the token reaches this one repository with contents and pull requests only.
-    const minted = await core.tokens.mint(repository, BOX_PERMISSIONS);
+    const minted = await core.mintFor(ownerId, repository, BOX_PERMISSIONS);
     await ops.poll(projectId, {
       name: "github.token",
       token: minted.token,
@@ -155,7 +179,7 @@ export function createDelivery(deps: {
     const row = store.get(projectId);
     const box = source.box(projectId);
     if (!row || !row.linked || !box || box.deleting) return;
-    const sent = await step("token", projectId, () => sendToken(projectId, row.repository));
+    const sent = await step("token", projectId, () => sendToken(projectId, row.ownerId, row.repository));
     // The next delivery is armed first: a clone can take minutes. A failed token waits a minute, not 45.
     if (control.phase(projectId) === "running") arm(projectId, sent ? RENEW_MS : RETRY_MS);
     // Without a token the clone of a private repository would fail for good: identity and clone wait for the retry.
@@ -174,14 +198,7 @@ export function createDelivery(deps: {
     begin,
     async forget(projectId) {
       disarm(projectId);
-      const token = delivered.get(projectId);
-      delivered.delete(projectId);
-      if (token === undefined) return;
-      try {
-        await core.tokens.revoke(token);
-      } catch {
-        logger.warn("github_token_revoke_failed", { projectId });
-      }
+      await revokeDelivered(projectId);
     },
     exclusive: serial,
     start() {

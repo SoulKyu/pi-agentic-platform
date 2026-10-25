@@ -5,6 +5,7 @@ import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { inboxRpc } from "./rpc.ts";
 import { createInboxBed, type InboxBed } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 let bed: InboxBed;
 afterEach(() => bed.dispose());
@@ -12,6 +13,7 @@ afterEach(() => bed.dispose());
 function setup() {
   bed = createInboxBed();
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: inboxRpc(bed.inbox) as unknown as HandlerTable,
     receipts: createReceiptStore(bed.db, bed.clock),
     logger: bed.logger,

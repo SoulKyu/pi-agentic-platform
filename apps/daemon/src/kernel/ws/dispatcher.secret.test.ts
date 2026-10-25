@@ -4,6 +4,7 @@ import type { ReceiptStore } from "../db/receipts.ts";
 import { silentLogger } from "../logger.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { createDispatcher } from "./dispatcher.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 const VALUE = `pap_${"Zq".repeat(21)}Z`;
 const TOKEN_VIEW = {
@@ -35,7 +36,7 @@ function dispatcherBed(handler: () => Promise<unknown>) {
   const spy = vi.fn(handler);
   const handlers = { "auth.tokens.create": spy } as unknown as HandlerTable;
   return {
-    dispatch: createDispatcher({ handlers, receipts, logger: silentLogger }),
+    dispatch: createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger }),
     dump: () => [...stored.values()],
     spy,
   };

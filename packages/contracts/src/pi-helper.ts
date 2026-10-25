@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import type { ErrorCode } from "./errors.ts";
 import {
   CodemodeSettings,
@@ -67,10 +68,7 @@ import {
 } from "./subagents.ts";
 import { TrustSetHelperParams, TrustSetHelperResult, TrustStatus } from "./trust-methods.ts";
 
-const AbsolutePath = z
-  .string()
-  .max(4096)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+const AbsolutePath = ClientPath;
 const PromptId = z.string().min(1).max(64);
 
 /** Per run: the daemon kills a helper past any of these, and the helper refuses to send past the record bound. */

@@ -5,6 +5,7 @@ import { sha256Hex } from "../ids.ts";
 import { silentLogger } from "../logger.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { canonicalJson, createDispatcher } from "./dispatcher.ts";
+import { NO_CLIENT_PATHS } from "./client-path-gate.ts";
 
 // MC30: a receipt must not hold a hash of a secret. A key typed by the owner has little entropy next to its length, and
 // a stored SHA-256 of it can be tried against guesses by anyone who reads the database or a backup.
@@ -69,7 +70,7 @@ function bed() {
     ]),
   ) as unknown as HandlerTable;
   return {
-    dispatch: createDispatcher({ handlers, receipts, logger: silentLogger }),
+    dispatch: createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: silentLogger }),
     dump: () => JSON.stringify([...stored.values()]),
     handler,
   };
@@ -128,6 +129,7 @@ describe("an ordinary mutation keeps its params hash", () => {
       readOnly: false,
     };
     const dispatch = createDispatcher({
+      gate: NO_CLIENT_PATHS,
       handlers: { "models.logout": async () => ({ ok: true }) } as unknown as HandlerTable,
       receipts,
       logger: silentLogger,

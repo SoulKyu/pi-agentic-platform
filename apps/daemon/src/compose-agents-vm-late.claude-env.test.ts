@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { CLAUDE_BRIDGE_PROVIDER, createClaudeEnvOf } from "./compose-agents-vm-late.ts";
+import { CLAUDE_BRIDGE_PROVIDER } from "@pap/contracts";
+import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
 
 const logger = { warn: vi.fn() };
 const make = (sources: string[] | null | Error, daemonEnv: Record<string, string> = {}) =>

@@ -4,7 +4,7 @@ import type { ProjectBoxSource } from "./kernel/boxes.ts";
 import { cleanLabel } from "./kernel/text.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
-  type ClaudeTokenStore,
+  type ClaudeTokens,
   type KataImages,
   layoutOf,
   createProjectImages,
@@ -39,8 +39,8 @@ export function composeBoxes(
   images: Pick<KataImages, "resolve" | "forget"> | null,
   /** The tests' own tag for every launch. */
   imageTagSeam?: (id: string) => string,
-  /** The owner's Claude token store: a project box's bridge environment is given only while the token is set. */
-  claudeToken?: Pick<ClaudeTokenStore, "status">,
+  /** The users' Claude tokens: a project box's bridge environment is given only while its owner's token is set. */
+  claudeToken?: Pick<ClaudeTokens, "status">,
 ) {
   const backend = images === null ? "process" : "kata";
   // The image a project's box starts with: Kata resolves the profile's (task A6 replaces it with the project's own).
@@ -69,7 +69,7 @@ export function composeBoxes(
       return found !== null && ProjectId.safeParse(found.projectId).success ? found.projectId : null;
     },
     box: (projectId) => late?.source.box(projectId) ?? null,
-    claudeTokenSet: () => claudeToken?.status() === "set",
+    claudeTokenSet: (ownerId) => claudeToken?.status(ownerId) === "set",
     addHost: (projectId, host, actor) => late?.source.addHost(projectId, host, actor),
   };
   return {

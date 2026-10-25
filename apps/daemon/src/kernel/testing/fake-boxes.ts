@@ -82,6 +82,10 @@ export function createFakeBoxControl(initial: Readonly<Record<string, BoxPhase>>
       calls.push(["restart", projectId]);
       setPhase(projectId, "running");
     },
+    async stop(projectId) {
+      calls.push(["stop", projectId]);
+      setPhase(projectId, "stopped");
+    },
     async dispose(projectId, stamp) {
       calls.push(["dispose", projectId, stamp]);
       setPhase(projectId, "stopped");
@@ -120,6 +124,10 @@ export function createFakeProjectBoxSource(
   return {
     added,
     box: (projectId) => rows[projectId] ?? null,
+    ownerBoxes: (ownerId) =>
+      Object.entries(rows)
+        .filter(([, row]) => row.ownerId === ownerId)
+        .map(([projectId]) => projectId),
     byPath(ownerId, path) {
       if (!clean(path)) return null;
       for (const [projectId, row] of Object.entries(rows)) {

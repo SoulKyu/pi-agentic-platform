@@ -15,6 +15,7 @@ import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { noAttachments } from "./testing/no-attachments.ts";
+import { sharesAll } from "./testing/providers.ts";
 
 // The real supervisor forks a process; nothing here starts a worker, so it only has to exist.
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
@@ -59,6 +60,8 @@ describe("sessions module over a read-only database (RT-04)", () => {
       const { logger, lines } = captureLogger();
       const projects = fakeProjectsPort();
       const sessions = createSessionsModule({
+        isMember: () => false,
+        providers: sharesAll,
         db,
         clock,
         logger,

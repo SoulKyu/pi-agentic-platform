@@ -52,6 +52,7 @@ export function fakeRuntime(state: ConnectionState = "open") {
     if (method === "policy.listRules") return { rules: [], truncated: false };
     if (method === "files.list") return { entries: [], truncated: false };
     if (method === "plugins.list") return { plugins: [], truncated: false };
+    if (method === "agents.packages") return { packages: [] };
     if (method === "audit.list") return { entries: [], nextBefore: null, truncated: false };
     return { ok: true };
   });

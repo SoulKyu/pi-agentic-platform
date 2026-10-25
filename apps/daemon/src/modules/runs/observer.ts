@@ -1,4 +1,4 @@
-import type { PiEvent, SessionLoadout } from "@pap/contracts";
+import { CLAUDE_BRIDGE_PROVIDER, type PiEvent, type SessionLoadout } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
@@ -105,6 +105,8 @@ export interface RunTracker extends RunObserver {
   liveCost(sessionId: string): number | null;
   /** The cost so far of the owner's open automatic runs (a task's, or a resume), optionally those of `taskIds`. */
   liveSpent(ownerId: string, taskIds: readonly string[] | null): number;
+  /** The cost so far of every open run of the owner, interactive included, but those through the Claude bridge (subscription). */
+  liveApiSpent(ownerId: string): number;
   peek(sessionId: string): OpenRunView | null;
   /** Closes a run the daemon found open at boot or whose session is gone, as a crash. */
   closeAsCrash(row: RunRow): RunRow | undefined;
@@ -345,6 +347,12 @@ export function createRunTracker(deps: {
         const wanted = taskIds === null || (run.taskId !== null && taskIds.includes(run.taskId));
         if (run.ownerId === ownerId && automatic && wanted) total += run.costUsd;
       }
+      return total;
+    },
+    liveApiSpent(ownerId) {
+      let total = 0;
+      for (const run of open.values())
+        if (run.ownerId === ownerId && run.provider !== CLAUDE_BRIDGE_PROVIDER) total += run.costUsd;
       return total;
     },
     peek(sessionId) {

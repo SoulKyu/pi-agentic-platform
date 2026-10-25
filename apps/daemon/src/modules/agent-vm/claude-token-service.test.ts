@@ -20,10 +20,10 @@ describe("the Claude token service (M6: step-up, store, audit)", () => {
     const rpc = createClaudeTokenService(store, allowed, noAudit);
     const answer = rpc.set(caller, TOKEN);
     expect(answer).toEqual({ ok: true });
-    expect(store.set).toHaveBeenCalledExactlyOnceWith(TOKEN);
+    expect(store.set).toHaveBeenCalledExactlyOnceWith("u1", TOKEN);
     expect(JSON.stringify(answer)).not.toContain(TOKEN);
     expect(rpc.clear(caller)).toEqual({ ok: true });
-    expect(store.clear).toHaveBeenCalledTimes(1);
+    expect(store.clear).toHaveBeenCalledExactlyOnceWith("u1");
   });
 
   it("audits a set and a clear, never the value (M-audit)", () => {

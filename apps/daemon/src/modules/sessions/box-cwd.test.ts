@@ -102,9 +102,11 @@ describe("new work in a box being deleted", () => {
   });
 
   it("is refused not_found before any row, while reads of the path still find the project", () => {
-    expect(() => newBoxCwdOf(deleting, "u1", ROOT)).toThrow(expect.objectContaining({ code: "not_found" }));
+    expect(() => newBoxCwdOf(deleting, "u1", ROOT, () => false)).toThrow(
+      expect.objectContaining({ code: "not_found" }),
+    );
     expect(boxCwdOf(deleting, "u1", ROOT)).toEqual({ projectId: "p1", cwd: ROOT });
-    expect(newBoxCwdOf(source, "u1", ROOT)).toEqual({ projectId: "p1", cwd: ROOT });
-    expect(newBoxCwdOf(source, "u1", "/elsewhere")).toBeNull();
+    expect(newBoxCwdOf(source, "u1", ROOT, () => false)).toEqual({ projectId: "p1", cwd: ROOT });
+    expect(newBoxCwdOf(source, "u1", "/elsewhere", () => false)).toBeNull();
   });
 });

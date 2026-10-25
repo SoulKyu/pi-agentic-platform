@@ -9,6 +9,7 @@ import {
   type Permission,
 } from "@pap/contracts";
 import { testCaller } from "../../testing/caller.ts";
+import { insertUserRow } from "./testing/users.ts";
 import { createTokenBed, DAY, OWNER_ID } from "./testing/token-bed.ts";
 
 let current: ReturnType<typeof createTokenBed> | undefined;
@@ -104,6 +105,7 @@ describe("api tokens", () => {
     const { tokens, db, confirmed } = bed();
     const forbidden = ALL_PERMISSIONS.filter((p) => !TOKEN_PERMISSIONS.includes(p));
     expect(forbidden).toEqual([
+      "system:admin",
       "auth:read",
       "auth:operate",
       "auth:admin",
@@ -120,6 +122,9 @@ describe("api tokens", () => {
       "secrets:read",
       "secrets:operate",
       "secrets:admin",
+      "users:read",
+      "users:operate",
+      "users:admin",
     ]);
     const params = methods["auth.tokens.create"].params;
     for (const permission of forbidden) {
@@ -263,7 +268,7 @@ describe("api tokens", () => {
   it("answers not_found for another owner's or an unknown id, and deletes expired tokens on list", async () => {
     const { tokens, db, clock, confirmed } = bed();
     const { token } = tokens.create(confirmed(), input);
-    db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('o2', 'two', 'x', 0)");
+    insertUserRow(db, { id: "o2", username: "two" });
     const other = { ...confirmed(), userId: "o2" };
     expect(() => tokens.revoke(other, token.id)).toThrow(new PapError("not_found"));
     expect(() => tokens.revoke(confirmed(), "nope")).toThrow(new PapError("not_found"));

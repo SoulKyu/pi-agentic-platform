@@ -12,6 +12,7 @@ import { testCaller } from "../../testing/caller.ts";
 import { secretsRpc } from "./rpc.ts";
 import { createSecrets, type SecretsDeps } from "./service.ts";
 import { createVaultStore } from "./vault-store.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const ATLAS = "atlas-1a2b";
 const BOLT = "bolt-0001";
@@ -264,7 +265,7 @@ describe("a planted value reaches no log, event, audit row, file name or respons
       readOnly: false,
     };
     const handlers = secretsRpc(secrets) as unknown as HandlerTable;
-    const dispatch = createDispatcher({ handlers, receipts, logger: logs.logger });
+    const dispatch = createDispatcher({ gate: NO_CLIENT_PATHS, handlers, receipts, logger: logs.logger });
     const ctx: HandlerContext = {
       caller: owner,
       connectionId: "c1",
@@ -341,7 +342,12 @@ describe("through the dispatcher", () => {
     const { secrets, vault } = bed();
     const handlers = secretsRpc(secrets) as unknown as HandlerTable;
     const receipts: ReceiptStore = { find: () => null, save: () => {}, purge: () => 0, readOnly: false };
-    const dispatch = createDispatcher({ handlers, receipts, logger: captureLogger().logger });
+    const dispatch = createDispatcher({
+      gate: NO_CLIENT_PATHS,
+      handlers,
+      receipts,
+      logger: captureLogger().logger,
+    });
     const token = testCaller({
       kind: "token",
       credentialId: "tok1",

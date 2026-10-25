@@ -10,12 +10,16 @@ import {
   type ResolvedRule,
 } from "../../features/commands/index.ts";
 import CommandPalette from "../../features/commands/palette/CommandPalette.tsx";
-import { pathOfItem, type Tab } from "../../features/workspace/index.ts";
+import { activeTab, pathOfItem, useWorkspaceStore, type Tab } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import type { LaneState } from "../../stores/lane-reducer.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { buildPaletteItems } from "./palette-items.ts";
+import { isBoxPath } from "../../stores/box-path.ts";
+import { useRole } from "../../lib/role-context.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { placeOf } from "./surface.ts";
 import { go } from "./tab-actions.ts";
 
 /** What the host already holds; the rows are built from it here, when the palette opens. */
@@ -43,13 +47,19 @@ interface PaletteEntryProps {
 export default function PaletteEntry({ source, search, ...rest }: PaletteEntryProps) {
   const t = useT();
   const navigate = useNavigate();
+  const role = useRole();
+  const view = useShellStore((state) => state.view);
+  // A member has a terminal only in a box: the active session's, and the running ones inside a box project.
+  const active = useWorkspaceStore((state) => activeTab(state.ws));
+  const boxSession = active?.item.kind === "session" && placeOf(view, active.item.id)?.box === true;
   const items = useMemo(
     () =>
       search !== null
         ? []
         : buildPaletteItems({
             commands: COMMANDS,
-            has: hasCommand,
+            has: (id: string) =>
+              hasCommand(id) && (id !== "session.openTerminal" || role === "owner" || boxSession),
             rules: source.rules,
             platform: detectPlatform(),
             names: keyNames(t),
@@ -59,10 +69,14 @@ export default function PaletteEntry({ source, search, ...rest }: PaletteEntryPr
             views: source.views,
             lanes: source.lanes,
             laneFacts: source.sessions.values(),
-            terminals: source.terminals,
+            terminals:
+              role === "owner"
+                ? source.terminals
+                : source.terminals.filter((terminal) => isBoxPath(view, terminal.cwd)),
             triggers: source.triggers,
             newTriggerProject: source.newTriggerProject,
             agents: source.agents,
+            role,
             t,
             navigate: (item) => go(navigate, pathOfItem(item)),
             run: (id) => {
@@ -73,7 +87,7 @@ export default function PaletteEntry({ source, search, ...rest }: PaletteEntryPr
               }
             },
           }),
-    [search, source, t, navigate],
+    [search, source, t, navigate, role, view, boxSession],
   );
   return <CommandPalette {...rest} search={search} items={items} />;
 }

@@ -44,6 +44,7 @@ beforeEach(() => {
     },
   } as NodePty;
   module = createTerminalModule({
+    isMember: () => false,
     roots: () => [project],
     boundary: {
       papHome: [join(base, "home")],

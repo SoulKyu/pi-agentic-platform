@@ -14,6 +14,7 @@ let changes: Array<[string, unknown]>;
 beforeEach(() => {
   bed = createProjectsBed();
   service = createProjectsService({
+    isMember: () => false,
     boxes: createBoxStore(bed.db),
     store: createProjectsStore(bed.db),
     clock: bed.clock,
@@ -43,6 +44,7 @@ describe("projects in read-only mode", () => {
       throw new Error("attempt to write a readonly database");
     };
     const readOnly = createProjectsService({
+      isMember: () => false,
       boxes: createBoxStore(bed.db),
       store: { ...store, rename: refuse, setPosition: refuse, renumber: refuse },
       clock: bed.clock,

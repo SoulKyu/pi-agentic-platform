@@ -17,7 +17,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 ## Admin CLI (daemon stopped: `systemctl --user stop pap-preview`)
 
-- `pap audit prune [--month YYYY-MM] [--dry-run]` · `pap user add <username> [--password-stdin]` · `pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]`. `pap trace summary [--since 15m|2h|1d]` works while pap runs. Exit 0 / 1 (refusal) / 64 (usage). Details: `docs/agents/daemon.md`, `auth.md`.
+- `pap audit prune [--month YYYY-MM] [--dry-run]` · `pap user add <username> [--password-stdin] [--role member]` (an owner first; then members) · `pap passkey reset [<username>] [--revoke-tokens] [--keep-password] [--password-stdin]` (`device.key` only for the owner). `pap trace summary [--since 15m|2h|1d]` works while pap runs. Exit 0 / 1 (refusal) / 64 (usage). Details: `docs/agents/daemon.md`, `auth.md`.
 
 ## Worker settings
 
@@ -66,6 +66,12 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - `PAP_TEST_GITHUB_ORIGIN` (a loopback `http` origin of the fake GitHub in `kernel/testing/fake-github.ts`; tests only; needs `PAP_TEST_PROVIDER_SCRIPT`, stops the boot without it; never set it elsewhere). No test contacts github.com or any public host.
 - A host path never reaches a box project's content: tests that touch box projects run on the process backend with the existing guards (`PAP_TEST_VMD_SOCKET`, `testing/box-bed.ts`), never the real pap-vmd.
 - Kata tests (`*.kata.int.test.ts`, project `kata`) run locally only, on a KVM host with `pap vm setup` done: `CI=1 pnpm vitest run --project kata` (no runtime variable). Without `CI=1` they skip with one warning when `/dev/kvm` or `/run/pap-vm/vmd.sock` is missing; no CI job runs them.
+
+## Owner and members (M14)
+
+- Roles: one owner (everything) and members (no `system:admin`, `pi:*`, `users:*`, `lanes:*`). The role lives behind the auth port only (`roleOf`, `isMember`): no `Caller.role`, and unknown ids are gated like members. A member reaches no host path (dispatcher walk of `ClientPath` values), has no lanes, and works in boxes. Invitations (`/invite#token=`, one use, 24 h, hashed, at most 50 pending), disable (credentials revoked for good; automation, the VM launch gate and the relay stop) and delete (keeps `runs` and `audit`): `docs/agents/auth.md`, `agents-vm.md` ("Members"), ADR 0085; spec `docs/specs/2026-10-24-m14-multi-user-design.md`.
+- A member's budget line (every API-billed run, interactive included, in the owner's zone), shared providers (API keys shared by default, OAuth never, `claude-bridge` exempt) and the per-user Claude token in `box_policy`: `docs/agents/finops.md`. The line rests on the cost a VM reports, so against a member (root in their box) it is a guard against mistakes, not a hard cap (OQ5).
+- Settings › Users and the invitation page: `docs/agents/web.md`. After the update run `sudo pap vm setup` (the relay changed).
 
 ## Rules (CI-enforced)
 

@@ -48,6 +48,7 @@ const compose = (readOnly = false) => {
   });
   const fakes = createFakes();
   const service = createLanesService({
+    isMember: () => false,
     db: bed.worktrees.db,
     git: bed.git,
     clock: bed.worktrees.clock,

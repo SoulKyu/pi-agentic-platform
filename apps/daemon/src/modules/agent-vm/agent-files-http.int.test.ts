@@ -11,6 +11,7 @@ import { captureLogger } from "../../testing/capture-logger.ts";
 import { createAgentFiles } from "./agent-files.ts";
 import { mountAgentFilesRoute } from "./agent-files-http.ts";
 import { createAgentFilesService } from "./agent-files-service.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const ORIGIN = "http://localhost:7777";
 const AGENT = "atlas-0000";
@@ -20,7 +21,7 @@ let app: Hono;
 let files: ReturnType<typeof createAgentFiles>;
 const audit = { append: vi.fn() };
 
-const caller = httpCaller((header) => (header === "pap=ok" ? testCaller() : null));
+const caller = httpCaller((header) => (header === "pap=ok" ? testCaller() : null), NO_CLIENT_PATHS);
 const put = (
   query: string,
   body: string | Buffer | null,
@@ -81,7 +82,7 @@ describe("PUT /agent-files", () => {
   it("answers 401 without a cookie and to a bearer, 403 without agents:admin", async () => {
     expect((await put(ok, "x", { cookie: "" })).status).toBe(401);
     expect((await put(ok, "x", { authorization: "Bearer t" })).status).toBe(401);
-    const weak = httpCaller(() => testCaller({ permissions: new Set(["agents:read"]) }));
+    const weak = httpCaller(() => testCaller({ permissions: new Set(["agents:read"]) }), NO_CLIENT_PATHS);
     const service = createAgentFilesService({ files, owns: () => true, audit });
     const weakApp = createHttpApp({
       allowedOrigins: new Set([ORIGIN]),

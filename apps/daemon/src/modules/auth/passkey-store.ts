@@ -25,8 +25,8 @@ export interface PasskeyStore {
   insertPasskey(row: PasskeyRow & { readonly createdAt: number }): void;
   /** The counter after a sign-in, and when it happened. */
   updatePasskeyCounter(id: string, counter: number, usedAt: number): void;
-  /** Every passkey of every user (`pap passkey reset`); how many went. */
-  deleteAllPasskeys(): number;
+  /** Every passkey of one user (`pap passkey reset`); how many went. */
+  deleteAllPasskeys(userId: string): number;
 }
 
 /** The short id of a passkey (M5R128): the first 32 hex characters of the sha256 of its credential id. */
@@ -102,6 +102,6 @@ export function createPasskeyStore(db: Db): PasskeyStore {
         usedAt,
       });
     },
-    deleteAllPasskeys: () => db.run("DELETE FROM passkeys").changes,
+    deleteAllPasskeys: (userId) => db.run("DELETE FROM passkeys WHERE user_id = $userId", { userId }).changes,
   };
 }

@@ -8,6 +8,7 @@ import {
   type ProjectChange,
   SHELL_LIMITS,
 } from "@pap/contracts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { within } from "../../kernel/fs/boundary.ts";
@@ -86,6 +87,8 @@ export function createProjectsService(deps: {
   readonly knowledge?: ProjectKnowledge;
   readonly boxes: BoxStore;
   readonly audit?: Pick<AuditPort, "append">;
+  /** A member never gets a host project: `ensure` and `add` refuse them (M14). */
+  readonly isMember: IsMember;
   newId(): string;
 }) {
   const listeners = new Set<(ownerId: string, project: ProjectView) => void>();
@@ -168,6 +171,7 @@ export function createProjectsService(deps: {
 
   /** The owner's project for `root`, made on first use at the top; null for a root it cannot use or a full table. */
   function ensure(ownerId: string, root: string): ProjectView | null {
+    if (deps.isMember(ownerId)) throw new PapError("forbidden");
     if (!isAbsolute(root) || root.length > MAX_ROOT || hasControl(root)) return null;
     const found = deps.store.byRoot(ownerId, root);
     if (found) return viewOf(found);
@@ -196,6 +200,7 @@ export function createProjectsService(deps: {
    * and its scope are both refused inside pap's home or Pi's agent folder, whatever link led there (Review Focus 4).
    */
   function add(caller: Caller, root: string): ProjectView {
+    if (deps.isMember(caller.userId)) throw new PapError("forbidden");
     const folders = deps.folders;
     if (folders === undefined) throw new PapError("internal");
     const real = folders.resolve(root);
@@ -253,6 +258,7 @@ export function createProjectsService(deps: {
     restartBox: boxes.restart,
     rebuild: boxes.rebuild,
     remove: boxes.remove,
+    removeAll: boxes.removeAll,
     async knowledge(caller: Caller, projectId: string, sessionId?: string) {
       if (isBox(caller.userId, projectId)) return await viaGuest(projectId, "knowledge.state");
       return knowledgeOf(knowledgeRoot(caller, projectId, sessionId));

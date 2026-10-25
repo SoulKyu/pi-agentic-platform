@@ -1,7 +1,9 @@
+import type { Role } from "@pap/contracts";
 import { createContext, useContext } from "react";
 
 export interface ShellValue {
   readonly username: string | null;
+  readonly role: Role;
   readonly passkeysAvailable: boolean;
   onSignedOut(): void;
 }

@@ -11,8 +11,8 @@ describe("the GitHub methods", () => {
       expect(methods[name as keyof typeof methods], name).toBe(def);
     }
     expect(githubMethods["github.status"].permission).toBe("settings:read");
-    expect(githubMethods["github.startCreate"].permission).toBe("settings:admin");
-    expect(githubMethods["github.forget"].permission).toBe("settings:admin");
+    expect(githubMethods["github.startCreate"].permission).toBe("system:admin");
+    expect(githubMethods["github.forget"].permission).toBe("system:admin");
     expect(githubMethods["github.forget"].errors).toContain("step_up_required");
     expect(githubMethods["github.repositories"].permission).toBe("sessions:operate");
     expect(githubMethods["projects.github"].permission).toBe("sessions:read");

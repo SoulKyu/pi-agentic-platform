@@ -291,7 +291,8 @@ export function createAgentSurface(deps: {
         : projectGate(row, { boxes: ports.agents.boxes, vmLayoutOf, papHome: deps.worker.papHome }),
     async projectEnv(launch) {
       const agents = ports.agents;
-      if (!agents?.boxes?.claudeTokenSet() || !agents.claudeEnvOf) return launch;
+      const owner = agents?.boxes?.box(launch.project.id)?.ownerId;
+      if (owner === undefined || !agents?.boxes?.claudeTokenSet(owner) || !agents.claudeEnvOf) return launch;
       const claudeEnv = await agents.claudeEnvOf({ model: null, packages: null } as never, {
         vm: true,
         home: launch.home,

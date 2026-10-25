@@ -11,6 +11,7 @@ import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { automationRpc, taskActions } from "./rpc.ts";
 import { createRunnerBed, effectContext, fireInput, type RunnerBed } from "./testing/runner-bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 let bed: RunnerBed;
 afterEach(() => bed.dispose());
@@ -18,6 +19,7 @@ afterEach(() => bed.dispose());
 function setup() {
   bed = createRunnerBed();
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: automationRpc(
       bed.triggers,
       taskActions(bed.engine.runner, bed.engine.stream, bed.releaseTools()),

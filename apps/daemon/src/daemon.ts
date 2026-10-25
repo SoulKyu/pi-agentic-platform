@@ -3,6 +3,7 @@ import type { HandlerTable } from "@pap/contracts";
 import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
 import { composeAgentsVm } from "./compose-agents-vm.ts";
+import { composeAuth } from "./compose-auth.ts";
 import { composeBoxWiring } from "./compose-boxes-wiring.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
@@ -12,10 +13,13 @@ import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
+import { settingsMembersOf } from "./compose-boxes-budget.ts";
+import { composeUsers, USERS_MIGRATION_SOURCES } from "./compose-users.ts";
 import { composePush, PUSH_MIGRATIONS } from "./compose-push.ts";
 import type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
 import { createSystemClock } from "./kernel/clock.ts";
-import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
+import type { Config } from "./kernel/config.ts";
+import { openableSetupUrl } from "./daemon-setup-url.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
 import { KERNEL_MIGRATIONS, migrate } from "./kernel/db/migrate.ts";
 import { createReceiptStore, startReceiptPurge } from "./kernel/db/receipts.ts";
@@ -34,14 +38,13 @@ import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUDIT_MIGRATIONS, createAuditModule } from "./modules/audit/index.ts";
-import { AUTH_MIGRATIONS, createAuthModule, requireStepUp } from "./modules/auth/index.ts";
+import { AUTH_MIGRATIONS, requireStepUp } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { composeKnowledge } from "./compose-knowledge.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
 import { createSearchModule } from "./modules/search/index.ts";
 import { createSessionsModule, resolveSessionCwd, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
-
 export type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
 
 /**
@@ -60,19 +63,10 @@ export const MIGRATION_SOURCES = [
   ...M10_MIGRATION_SOURCES,
   ...M11_MIGRATION_SOURCES,
   PUSH_MIGRATIONS,
+  ...USERS_MIGRATION_SOURCES,
 ] as const;
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
-
-// In `--dev` the browser talks to Vite, which proxies to the daemon: that is the address to open (R31).
-function openableSetupUrl(config: Config, setupUrl: string | null): string | null {
-  if (!setupUrl || !config.dev) return setupUrl;
-  const url = new URL(setupUrl);
-  const vite = new URL(VITE_DEV_ORIGIN);
-  url.protocol = vite.protocol;
-  url.host = vite.host;
-  return url.href;
-}
 
 export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promise<DaemonHandle> {
   const clock = deps.clock ?? createSystemClock();
@@ -133,16 +127,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
     const onOriginRefused = createOriginRefusalLog(logger, clock);
-    const auth = createAuthModule({
-      db,
-      clock,
-      logger,
-      publicOrigin: config.publicOrigin,
-      allowedOrigins: config.allowedOrigins,
-      insecureHttp: config.insecureHttp,
-      audit: audit.port,
-      secretsDir: join(config.home, "secrets"),
-    });
+    const auth = composeAuth(core, audit);
+    vmRpc.claudeToken.migrateLegacy(auth.ownerId());
     const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
       home: config.home,
       uid: process.getuid?.() ?? -1,
@@ -173,6 +159,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       newId,
       audit: audit.port,
+      isMember: auth.isMember,
       folders: {
         resolve: resolveSessionCwd,
         scopeOf: (real) => policy.port.scopeOf(real),
@@ -187,6 +174,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       clock,
       logger,
       home: config.home,
+      isMember: auth.isMember,
       requireStepUp,
     });
     const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];
@@ -202,8 +190,10 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       roots: projects.port.roots,
       runs: m10.runs.port,
       boxes: boxes.workspace.boxes,
+      isMember: auth.isMember,
     });
     await lanes.recover();
+    const users = composeUsers({ ...core, audit: audit.port }, auth, agentsVm.relay, () => pi.models);
     const sessions = createSessionsModule({
       db,
       clock,
@@ -228,6 +218,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       vmLaunch: agentsVm.launch,
       boxes: boxes.workspace.boxes,
+      isMember: auth.isMember,
+      providers: users.providers,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     ownerOf = sessions.ownerOf;
@@ -241,7 +233,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       sessions: sessions.scanPort,
     });
     closers.push({ name: "search", close: () => search.stop() });
-    const settings = createSettingsModule({ db, clock, logger });
+    const settings = createSettingsModule({ db, clock, logger, members: settingsMembersOf(auth) });
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     lanes.bind({ sessions, pi, policy: policy.port, hub });
     const m10Late = composeM10(core, m10, { audit, auth, policy, projects, sessions, settings, wk, scopes });
@@ -263,6 +255,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     vmRpc.bindAgents(m11.agents);
     const boxesLate = boxes.bind({ sessions, automation: m10Late.automation, inbox: m10Late.inbox });
     const github = composeGithub(gh, { ...core, audit, auth, projects, sessions, policy, boxes, closers });
+    const memberLine = users.bind({ runs: m10.runs, settings, boxes, agents: m11.agents, agentsVm });
+    users.bindDelete({ github, projects, m11, m10Late, sessions, search });
     agentsVm.bindLate({
       sessions,
       pi,
@@ -271,6 +265,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       policy: policy.port,
       automation: m10Late.automation,
       boxes: boxesLate,
+      providers: users.providers,
+      memberLine,
     });
     const agents = { port: m11.agents };
     const push = composePush(
@@ -296,9 +292,16 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...push.rpc,
       ...fonts.rpc,
       ...github.rpc,
+      ...users.rpc,
       ...m10.health.rpc,
     };
-    const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
+    const dispatch = createDispatcher({
+      handlers,
+      receipts,
+      logger,
+      gate: boxes.workspace.gate,
+      onCall: m10.onCall,
+    });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
       credentialOf: auth.credentialOf,
@@ -373,6 +376,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         workerPid: (id) => sessions.inspect(id)?.pid,
         workerRssMb: (id) => sessions.inspect(id)?.rssMb ?? null,
         sessionCost: (id) => m10.runs.port.sessionCost(id),
+        routes: () => app.routes.map((route) => `${route.method} ${route.path}`),
       },
       killScopes: () => scopes.killAllNow(),
       stop() {

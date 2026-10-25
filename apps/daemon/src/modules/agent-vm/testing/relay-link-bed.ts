@@ -16,7 +16,12 @@ export const grant = (n: number, agent: string | BoxRef = "scout-0001") => ({
     .replace(/[^0-9a-f]/g, "a"),
   address: "10.213.0.2",
 });
-export const POLICY: PolicyView = { models: [{ provider: "acme", id: "m-1" }], claude: false, blocked: null };
+export const POLICY: PolicyView = {
+  models: [{ provider: "acme", id: "m-1" }],
+  claude: false,
+  claudeToken: null,
+  blocked: null,
+};
 
 export class FakeChild extends EventEmitter implements RelayChild {
   readonly sent: unknown[] = [];
@@ -63,8 +68,7 @@ export function bed(
     fork: forks,
     clock,
     logger,
-    policyOf: over.policyOf ?? (async () => POLICY),
-    claudeToken: () => (over.token === undefined ? null : over.token),
+    policyOf: over.policyOf ?? (async () => ({ ...POLICY, claudeToken: over.token ?? null })),
     ...(over.bridgeReady ? { bridgeReady: over.bridgeReady } : {}),
     ...(over.turns ? { reportedTurns: over.turns } : {}),
     ...(over.listenerFault ? { listenerFault: over.listenerFault } : {}),

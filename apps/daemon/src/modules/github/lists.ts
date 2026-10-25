@@ -76,13 +76,13 @@ export interface GithubLists {
 
 export interface ListsService {
   /** The cached lists (60 s), else fresh ones; when GitHub fails, the stale cache, else `github_unavailable`. */
-  lists(projectId: string, repo: RepoFullName): Promise<GithubLists>;
+  lists(ownerId: string, projectId: string, repo: RepoFullName): Promise<GithubLists>;
   /** The last 64 KiB of the job's log. */
-  log(repo: RepoFullName, checkId: string): Promise<{ text: string; truncated: boolean }>;
+  log(ownerId: string, repo: RepoFullName, checkId: string): Promise<{ text: string; truncated: boolean }>;
   /** `# title`, then the body, of one issue. */
-  issueText(repo: RepoFullName, number: number): Promise<string>;
+  issueText(ownerId: string, repo: RepoFullName, number: number): Promise<string>;
   /** The repository's own default branch, and its parent's when it is a fork. */
-  branches(repo: RepoFullName): Promise<{ own: string; parent: string | null }>;
+  branches(ownerId: string, repo: RepoFullName): Promise<{ own: string; parent: string | null }>;
   /** A push or a pull request changed what the lists say. */
   invalidate(projectId: string): void;
 }
@@ -108,16 +108,18 @@ export function createLists(deps: { readonly core: GithubCore; readonly clock: C
   const cache = new Map<string, { repo: RepoFullName; at: number; value: GithubLists }>();
 
   async function read<S extends z.ZodType>(
+    ownerId: string,
     repo: RepoFullName,
     schema: S,
     path: string,
   ): Promise<z.output<S>> {
-    const minted = await core.tokens.mint(repo, READ_PERMISSIONS);
+    const minted = await core.mintFor(ownerId, repo, READ_PERMISSIONS);
     return core.client.json(schema, { path, auth: { kind: "bearer", value: minted.token } });
   }
 
-  async function checksOf(repo: RepoFullName, sha: string): Promise<CheckView[]> {
+  async function checksOf(ownerId: string, repo: RepoFullName, sha: string): Promise<CheckView[]> {
     const runs = await read(
+      ownerId,
       repo,
       RunsRaw,
       `/repos/${repo}/commits/${encodeURIComponent(sha)}/check-runs?per_page=${GITHUB_LIMITS.list}`,
@@ -129,13 +131,13 @@ export function createLists(deps: { readonly core: GithubCore; readonly clock: C
     }));
   }
 
-  async function fetchLists(repo: RepoFullName): Promise<GithubLists> {
+  async function fetchLists(ownerId: string, repo: RepoFullName): Promise<GithubLists> {
     const per = `per_page=${GITHUB_LIMITS.list}`;
-    const raw = await read(repo, z.array(PullRaw), `/repos/${repo}/pulls?state=open&${per}`);
+    const raw = await read(ownerId, repo, z.array(PullRaw), `/repos/${repo}/pulls?state=open&${per}`);
     const pulls: PullView[] = [];
     for (let at = 0; at < Math.min(raw.length, GITHUB_LIMITS.list); at += CHECKS_AT_ONCE) {
       const batch = raw.slice(at, Math.min(at + CHECKS_AT_ONCE, GITHUB_LIMITS.list));
-      const checks = await Promise.all(batch.map((pull) => checksOf(repo, pull.head.sha)));
+      const checks = await Promise.all(batch.map((pull) => checksOf(ownerId, repo, pull.head.sha)));
       batch.forEach((pull, index) =>
         pulls.push({
           number: pull.number,
@@ -148,7 +150,7 @@ export function createLists(deps: { readonly core: GithubCore; readonly clock: C
         }),
       );
     }
-    const issues = (await read(repo, z.array(IssueRaw), `/repos/${repo}/issues?state=open&${per}`))
+    const issues = (await read(ownerId, repo, z.array(IssueRaw), `/repos/${repo}/issues?state=open&${per}`))
       .filter((issue) => issue.pull_request === undefined)
       .slice(0, GITHUB_LIMITS.list)
       .map((issue): GithubIssueView => ({
@@ -161,7 +163,12 @@ export function createLists(deps: { readonly core: GithubCore; readonly clock: C
           .slice(0, GITHUB_LIMITS.list),
       }));
     const releases = (
-      await read(repo, z.array(ReleaseRaw), `/repos/${repo}/releases?per_page=${GITHUB_LIMITS.releases}`)
+      await read(
+        ownerId,
+        repo,
+        z.array(ReleaseRaw),
+        `/repos/${repo}/releases?per_page=${GITHUB_LIMITS.releases}`,
+      )
     )
       .slice(0, GITHUB_LIMITS.releases)
       .map((release): ReleaseView => ({
@@ -177,35 +184,41 @@ export function createLists(deps: { readonly core: GithubCore; readonly clock: C
   }
 
   return {
-    async lists(projectId, repo) {
+    async lists(ownerId, projectId, repo) {
       const found = cache.get(projectId);
       // A relink to another repository never shows the old one's lists.
       const hit = found?.repo === repo ? found : undefined;
+      if (hit) await core.access.check(ownerId, repo);
       if (hit && clock.now() - hit.at < LIST_CACHE_MS) return hit.value;
       try {
-        const value = await fetchLists(repo);
+        const value = await fetchLists(ownerId, repo);
         if (cache.size >= CACHE_MAX) cache.clear();
         cache.set(projectId, { repo, at: clock.now(), value });
         return value;
-      } catch {
+      } catch (error) {
+        // A repository the owner no longer reaches never falls back to what was cached while they did.
+        if (error instanceof PapError && error.code === "not_found") {
+          cache.delete(projectId);
+          throw error;
+        }
         if (hit) return hit.value;
         throw new PapError("github_unavailable");
       }
     },
-    async log(repo, checkId) {
+    async log(ownerId, repo, checkId) {
       if (!/^\d{1,20}$/.test(checkId)) throw new PapError("not_found");
-      const minted = await core.tokens.mint(repo, READ_PERMISSIONS);
+      const minted = await core.mintFor(ownerId, repo, READ_PERMISSIONS);
       return core.client.log(`/repos/${repo}/actions/jobs/${checkId}/logs`, {
         kind: "bearer",
         value: minted.token,
       });
     },
-    async issueText(repo, number) {
-      const issue = await read(repo, IssueRaw, `/repos/${repo}/issues/${number}`);
+    async issueText(ownerId, repo, number) {
+      const issue = await read(ownerId, repo, IssueRaw, `/repos/${repo}/issues/${number}`);
       return `# ${issue.title}\n\n${issue.body ?? ""}`;
     },
-    async branches(repo) {
-      const found = await read(repo, RepoRaw, `/repos/${repo}`);
+    async branches(ownerId, repo) {
+      const found = await read(ownerId, repo, RepoRaw, `/repos/${repo}`);
       return { own: found.default_branch, parent: found.parent?.default_branch ?? null };
     },
     invalidate: (projectId) => void cache.delete(projectId),

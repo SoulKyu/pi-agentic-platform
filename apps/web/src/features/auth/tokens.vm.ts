@@ -1,4 +1,4 @@
-import { methods, TOKEN_PERMISSIONS } from "@pap/contracts";
+import { methods, permissionsOf, TOKEN_PERMISSIONS, type Role } from "@pap/contracts";
 
 type TokenPermissionName = (typeof TOKEN_PERMISSIONS)[number];
 export type GridRow = {
@@ -13,12 +13,15 @@ export type GridRow = {
  */
 export function permissionGrid(
   catalogue: ReadonlyArray<{ readonly permission: string }> = Object.values(methods),
+  role: Role = "owner",
 ): GridRow[] {
+  const held = permissionsOf(role);
   const used = new Set<string>(catalogue.map((method) => method.permission));
   const rows: Array<{ domain: string; levels: Array<{ permission: TokenPermissionName; label: string }> }> =
     [];
   for (const permission of TOKEN_PERMISSIONS) {
-    if (!used.has(permission)) continue;
+    // A token never holds more than its creator (RT-20): a member is offered no pi or system permission.
+    if (!used.has(permission) || !held.has(permission)) continue;
     const [domain = "", label = ""] = permission.split(":");
     const row = rows.find((candidate) => candidate.domain === domain);
     if (row) row.levels.push({ permission, label });

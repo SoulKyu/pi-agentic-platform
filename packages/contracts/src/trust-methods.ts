@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 import { MCP_LIMITS, McpServerView } from "./mcp-methods.ts";
 
@@ -12,11 +13,8 @@ export const TRUST_LIMITS = {
   unlisted: 16,
 } as const;
 
-const Cwd = z.string().min(1).max(4096);
-const AbsolutePath = z
-  .string()
-  .max(4096)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+const Cwd = ClientPath;
+const AbsolutePath = ClientPath;
 const ResourceName = z.string().min(1).max(TRUST_LIMITS.name);
 
 /** Why trusting a folder would trust too much (M7R104). The copy for each is a fixed key of the web catalog. */

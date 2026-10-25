@@ -58,6 +58,7 @@ export interface CreateDeps {
   readonly deny: DenySet;
   readonly denyFolders: readonly string[];
   readonly readOnly: boolean;
+  readonly isMember: (userId: string) => boolean;
   /** Throws when the filesystem is too full (M9R117). */
   diskFloor(path: string): undefined;
   copyLink(input: CopyLinkInput): Promise<{ skipped: number }>;
@@ -264,6 +265,7 @@ export function createLaneCreator(deps: CreateDeps): LaneCreator {
   async function create(caller: Caller, params: ParamsOf<"lanes.create">): Promise<ResultOf<"lanes.create">> {
     if (closing) throw new PapError("capacity");
     if (deps.readOnly) throw new PapError("read_only");
+    if (deps.isMember(caller.userId)) throw new PapError("forbidden"); // lanes are host worktrees (M14)
     const title = LaneTitle.safeParse(params.title);
     if (!title.success) throw new PapError("bad_request");
 

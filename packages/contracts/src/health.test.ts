@@ -3,9 +3,9 @@ import { methods } from "./methods.ts";
 import { HEALTH_TABLE, healthSeverityOf, HealthEvent, OpsStreamEvent } from "./health.ts";
 
 describe("the health contract", () => {
-  it("declares both methods pi:admin and idempotent", () => {
-    expect(methods["ops.events.list"]).toMatchObject({ permission: "pi:admin", idempotent: true });
-    expect(methods["subscribe.ops"]).toMatchObject({ permission: "pi:admin", idempotent: true });
+  it("declares both methods system:read and idempotent", () => {
+    expect(methods["ops.events.list"]).toMatchObject({ permission: "system:read", idempotent: true });
+    expect(methods["subscribe.ops"]).toMatchObject({ permission: "system:read", idempotent: true });
   });
   it("accepts every table code with its severity; feed_status_<n> matches, unknowns do not", () => {
     for (const row of HEALTH_TABLE) expect(healthSeverityOf(row.kind, row.code)).toBe(row.severity);

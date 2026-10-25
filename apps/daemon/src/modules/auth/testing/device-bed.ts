@@ -8,6 +8,7 @@ import { silentLogger } from "../../../kernel/logger.ts";
 import { testCaller } from "../../../testing/caller.ts";
 import type { AuditPort } from "../../audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthTestHarness } from "../index.ts";
+import { insertUserRow } from "./users.ts";
 
 export const OWNER_ID = "owner-1";
 export const OTHER_ID = "other-1";
@@ -30,15 +31,8 @@ export function createDeviceBed() {
     rmSync(dir, { recursive: true, force: true });
     throw error;
   }
-  for (const [id, name] of [
-    [OWNER_ID, "owner"],
-    [OTHER_ID, "other"],
-  ] as const) {
-    db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ($id, $name, 'x', 0)", {
-      id,
-      name,
-    });
-  }
+  insertUserRow(db, { id: OWNER_ID, username: "owner", role: "owner" });
+  insertUserRow(db, { id: OTHER_ID, username: "other" });
   const audited: Array<Parameters<AuditPort["append"]>[0]> = [];
   const audit = { append: (line: Parameters<AuditPort["append"]>[0]) => void audited.push(line) };
   const { store, service, devices, passkeys } = createAuthTestHarness({ db, clock, audit });

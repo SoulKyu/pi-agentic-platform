@@ -7,7 +7,7 @@ import { Cursor } from "./frames.ts";
 export const healthMethods = {
   "ops.events.list": defineMethod({
     name: "ops.events.list",
-    permission: "pi:admin",
+    permission: "system:read",
     idempotent: true,
     params: z
       .object({
@@ -20,7 +20,7 @@ export const healthMethods = {
   }),
   "subscribe.ops": defineMethod({
     name: "subscribe.ops",
-    permission: "pi:admin",
+    permission: "system:read",
     idempotent: true,
     params: z.object({ after: Cursor.optional() }).strict(),
     result: z.object({ sub: z.string() }),

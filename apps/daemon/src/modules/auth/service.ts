@@ -1,11 +1,12 @@
 import { randomBytes } from "node:crypto";
-import { ALL_PERMISSIONS, PapError, type Caller, type Permission } from "@pap/contracts";
+import { PapError, permissionsOf, type Caller, type Role } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { newId, randomToken, sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
+import { assertEnabled, createLastSeen } from "./roles.ts";
 import type { KnownDevices } from "./known-device.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
@@ -22,7 +23,6 @@ const MAX_IP_LENGTH = 64;
 // A throttled client may retry every few milliseconds: one log line per address and window, not one per request.
 const THROTTLE_LOG_WINDOW_MS = 10_000;
 const MAX_THROTTLE_LOG_KEYS = 1000;
-export const OWNER_PERMISSIONS: ReadonlySet<Permission> = new Set(ALL_PERMISSIONS);
 
 export class RateLimitedError extends PapError {
   readonly retryAfterMs: number;
@@ -81,6 +81,7 @@ export interface AuthService {
     setupRequired: boolean;
     authenticated: boolean;
     username: string | null;
+    role: Role | null;
   };
   setup(input: Credentials & { token: string }): Promise<StartedSession>;
   login(input: Credentials): Promise<StartedSession>;
@@ -122,6 +123,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // people type one into the other's field, and a log is read by more eyes than a database.
   const stepUps = deps.stepUps ?? createStepUps(deps.clock);
   const devices = deps.devices;
+  const touchLastSeen = createLastSeen(deps.store, deps.clock);
   const lastThrottleLog = new Map<string, number>();
   let lastFullLog = -Infinity;
   // A table of live lockouts is full: refuse before any hash, and say so (no key, no address) at most once per window.
@@ -145,6 +147,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     throw new RateLimitedError(wait);
   };
   const startSession: AuthService["startSession"] = (userId, userAgent, origin) => {
+    assertEnabled(deps.store.findUserById(userId));
     const cookieValue = randomToken(32);
     const now = deps.clock.now();
     deps.store.deleteExpiredSessions(now);
@@ -203,7 +206,8 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     if (!cookieValue || cookieValue.length > MAX_COOKIE_LENGTH) return null;
     const session = deps.store.findSession(sha256Hex(cookieValue));
     const now = deps.clock.now();
-    if (!session || session.expiresAt <= now) return null;
+    if (!session || session.expiresAt <= now || session.disabledAt !== null) return null;
+    if (options?.slide !== false) touchLastSeen(session.userId);
     if (options?.slide !== false && session.expiresAt - now < SESSION_TTL_MS - SLIDE_AFTER_MS) {
       try {
         deps.store.extendSession(session.idHash, now, now + SESSION_TTL_MS);
@@ -215,7 +219,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     return {
       userId: session.userId,
       username: session.username,
-      permissions: OWNER_PERMISSIONS,
+      permissions: permissionsOf(session.role),
       kind: "session",
       credentialId: session.publicId,
       stepUpUntil: stepUps.until(session.idHash),
@@ -237,6 +241,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         setupRequired: deps.store.countUsers() === 0,
         authenticated: caller !== null,
         username: caller?.username ?? null,
+        role: caller ? (deps.store.findUserById(caller.userId)?.role ?? null) : null,
       };
     },
     async setup(input) {

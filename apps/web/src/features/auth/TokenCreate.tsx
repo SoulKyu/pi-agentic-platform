@@ -14,8 +14,9 @@ const RISK_NOTES: Record<RiskyPermission, MessageKey> = {
   "automation:operate": "access.tokens.riskNote.automationOperate",
 };
 import { useMutation } from "./use-mutation.ts";
+import { useRole } from "../../lib/role-context.ts";
 
-const GRID = permissionGrid();
+const GRIDS = { owner: permissionGrid(undefined, "owner"), member: permissionGrid(undefined, "member") };
 const DAYS = TOKEN_LIFETIMES_DAYS.map(String);
 const NAME_MAX = 64;
 const FIELD =
@@ -122,6 +123,7 @@ function TokenValue({ created, onDone }: { readonly created: Created; onDone(): 
  */
 export function TokenCreate({ onCreated, onSignedOut }: { onCreated(): void; onSignedOut(): void }) {
   const t = useT();
+  const grid = GRIDS[useRole()];
   const { busy, error, run } = useMutation(onCreated);
   const stepUp = useStepUp(onSignedOut);
   const [name, setName] = useState("");
@@ -196,7 +198,7 @@ export function TokenCreate({ onCreated, onSignedOut }: { onCreated(): void; onS
         />
         <fieldset className="flex flex-col gap-s2">
           <legend className="label-hud text-muted">{t("access.tokens.permissions")}</legend>
-          {GRID.map((row) => (
+          {grid.map((row) => (
             <div
               key={row.domain}
               role="group"

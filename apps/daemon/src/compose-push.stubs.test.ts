@@ -59,7 +59,7 @@ const sessions = {
 const agents = { port: { get: () => null } };
 /** The runs port the budget source listens to (task 12) and the instance owner it checks at boot: none yet. */
 const runs = { port: { onRunEnd: () => () => undefined, spentToday: () => 0 } };
-const auth = { ownerId: () => null };
+const auth = { userIds: () => [] };
 
 const TARGET: SubscriptionTarget = {
   id: "s1",

@@ -13,6 +13,7 @@ import { AutomationSettings } from "./AutomationSettings.tsx";
 import { HealthSettings } from "./HealthSettings.tsx";
 import { NotificationsSettings } from "./NotificationsSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
+import { UsersSettings } from "./UsersSettings.tsx";
 
 export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode> = {
   appearance: () => <AppearancePanel />,
@@ -28,4 +29,5 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   agents: () => <AgentsSettings />,
   notifications: () => <NotificationsSettings />,
   account: () => <AccountSection />,
+  users: () => <UsersSettings />,
 };

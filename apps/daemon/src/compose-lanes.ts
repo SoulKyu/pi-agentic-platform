@@ -90,6 +90,8 @@ export interface LanesComposeDeps {
   readonly diskFloor?: (path: string) => undefined;
   /** The owner's box projects: a box root is "not a lane project", answered with no host read (boxes B1). */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  /** Members have no host lanes and run no lane script (M14). */
+  readonly isMember: (userId: string) => boolean;
   /** M10's runs port: `sessionCost` is the compare column's cost (agreement 14). */
   readonly runs?: Pick<RunsPort, "sessionCost" | "sessionBilling">;
   /** Tests only: replaces the worktrees module. */
@@ -160,6 +162,7 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
     config: config.config,
     scripts: scripts.runner,
     terminals: { runningIn: deps.wk.runningIn },
+    isMember: deps.isMember,
     boundary,
     deny,
     denyFolders: denySourcesOf(boundary).folders,

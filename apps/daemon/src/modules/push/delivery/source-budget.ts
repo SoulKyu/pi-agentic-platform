@@ -22,8 +22,8 @@ export interface BudgetSourceDeps {
   };
   /** The agent a session belongs to, null for a plain one. */
   readonly kindOf: (sessionId: string) => { readonly agentId: string | null } | null;
-  /** The instance owner, for the boot check; null before the first owner exists. */
-  readonly ownerId: () => string | null;
+  /** Every user of this pap, for the boot check (members' budgets push too); none before the first owner exists. */
+  readonly userIds: () => readonly string[];
 }
 
 interface BudgetLimits {
@@ -109,15 +109,17 @@ export function wireBudgetSource(deps: BudgetSourceDeps) {
     stop,
     /** Once at boot, for the day in progress, so a restart after the limit was reached loses nothing (M12R26). */
     boot(): void {
-      guarded("boot", () => {
-        const ownerId = deps.ownerId();
-        if (ownerId === null) return;
-        const { dailyBudgetUsd, timezone } = deps.settings(ownerId);
-        const day = zoneDay(deps.clock.now(), timezone);
-        checkOwner(ownerId, day, timezone, dailyBudgetUsd);
-        for (const agentId of deps.spend.agentsRunToday(ownerId, timezone))
-          checkAgent(ownerId, agentId, day, timezone);
-      });
+      let owners: readonly string[] = [];
+      guarded("boot", () => void (owners = deps.userIds()));
+      // One user's failure must not hide the others' (a damaged setting row): each is its own guard.
+      for (const ownerId of owners)
+        guarded("boot", () => {
+          const { dailyBudgetUsd, timezone } = deps.settings(ownerId);
+          const day = zoneDay(deps.clock.now(), timezone);
+          checkOwner(ownerId, day, timezone, dailyBudgetUsd);
+          for (const agentId of deps.spend.agentsRunToday(ownerId, timezone))
+            checkAgent(ownerId, agentId, day, timezone);
+        });
     },
   };
 }

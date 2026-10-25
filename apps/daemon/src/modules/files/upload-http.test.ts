@@ -20,6 +20,7 @@ afterEach(() => bed.dispose());
 
 const serviceOf = (readOnly = false): UploadService =>
   createFilesService({
+    isMember: () => false,
     roots: () => [bed.repo],
     boundary: bed.bb.config(),
     deny: bed.deny,

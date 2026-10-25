@@ -10,6 +10,7 @@ import {
   type TriggerView,
 } from "@pap/contracts";
 import type { ProjectBoxSource } from "../../kernel/boxes.ts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { newId } from "../../kernel/ids.ts";
@@ -17,7 +18,7 @@ import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
-import { boxCwdOf, resolveSessionCwd } from "../sessions/index.ts";
+import { boxCwdOf, gatedBoxCwdOf, resolveSessionCwd } from "../sessions/index.ts";
 import { newHookSecret } from "./hook-auth.ts";
 import { feedUrlRefusal } from "./net-guard.ts";
 import { isStateFolder } from "./trigger-folder.ts";
@@ -36,6 +37,7 @@ export interface TriggersDeps {
   scopeOf(cwd: string): string;
   /** The owner's box projects, bound late: a folder under a box root is kept as given and files under its project. */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly isMember: IsMember;
   readonly config: { readonly home: string; readonly piAgentDir: string; readonly publicOrigin: string };
   /** The auth module's password step-up: throws `step_up_required`. */
   requireStepUp(caller: Caller, now: number): void;
@@ -166,7 +168,7 @@ export function createTriggers(deps: TriggersDeps) {
 
   /** The folder follows `sessions.create`'s rule, and is never pap's or Pi's own state (M10R20). */
   function folderOf(cwd: string, ownerId: string): string {
-    const box = boxCwdOf(deps.boxes?.(), ownerId, cwd);
+    const box = gatedBoxCwdOf(deps.boxes?.(), ownerId, cwd, deps.isMember);
     if (box) return box.cwd;
     const real = resolveSessionCwd(cwd);
     if (isStateFolder(real, [deps.config.home, deps.config.piAgentDir])) throw new PapError("invalid_cwd");
@@ -178,6 +180,7 @@ export function createTriggers(deps: TriggersDeps) {
     if (agentId !== null) return null;
     const box = boxCwdOf(deps.boxes?.(), ownerId, cwd);
     if (box) return box.projectId;
+    if (deps.isMember(ownerId)) return null;
     try {
       return deps.projects.ensure(ownerId, deps.scopeOf(cwd))?.id ?? null;
     } catch (error) {

@@ -17,14 +17,15 @@ export interface TokenRow {
 export interface TokenStore {
   insert(row: TokenRow): void;
   count(userId: string): number;
-  findByHash(secretHash: string): TokenRow | undefined;
+  /** With whether the token's user is disabled: a disabled user's token authenticates nothing. */
+  findByHash(secretHash: string): (TokenRow & { readonly userDisabled: boolean }) | undefined;
   touch(id: string, at: number): void;
   list(userId: string): TokenRow[];
   /** Deletes the owner's expired tokens and returns their ids. */
   deleteExpired(userId: string, now: number): string[];
   delete(userId: string, id: string): boolean;
-  /** Every token of every user (`pap passkey reset --revoke-tokens`); how many went. */
-  deleteAll(): number;
+  /** Every token of one user (`pap passkey reset --revoke-tokens`); how many went. */
+  deleteAllOf(userId: string): number;
 }
 
 interface RawRow extends Omit<TokenRow, "permissions"> {
@@ -33,6 +34,10 @@ interface RawRow extends Omit<TokenRow, "permissions"> {
 
 const COLUMNS =
   "id, user_id AS userId, name, hint, secret_hash AS secretHash, permissions, created_at AS createdAt, expires_at AS expiresAt, last_used_at AS lastUsedAt";
+
+const QUALIFIED_COLUMNS = COLUMNS.split(", ")
+  .map((column) => `t.${column}`)
+  .join(", ");
 
 const MAX_LOGGED_IDS = 100;
 
@@ -69,10 +74,11 @@ export function createTokenStore(db: Db, logger: Logger): TokenStore {
       db.get<{ c: number }>("SELECT count(*) AS c FROM api_tokens WHERE user_id = $userId", { userId })?.c ??
       0,
     findByHash: (secretHash) => {
-      const raw = db.get<RawRow>(`SELECT ${COLUMNS} FROM api_tokens WHERE secret_hash = $secretHash`, {
-        secretHash,
-      });
-      return raw ? rowOf(raw) : undefined;
+      const raw = db.get<RawRow & { userDisabled: number }>(
+        `SELECT ${QUALIFIED_COLUMNS}, u.disabled_at IS NOT NULL AS userDisabled FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE t.secret_hash = $secretHash`,
+        { secretHash },
+      );
+      return raw ? { ...rowOf(raw), userDisabled: raw.userDisabled === 1 } : undefined;
     },
     touch: (id, at) => {
       db.run("UPDATE api_tokens SET last_used_at = $at WHERE id = $id", { id, at });
@@ -92,6 +98,6 @@ export function createTokenStore(db: Db, logger: Logger): TokenStore {
         .map((row) => row.id),
     delete: (userId, id) =>
       db.run("DELETE FROM api_tokens WHERE user_id = $userId AND id = $id", { userId, id }).changes === 1,
-    deleteAll: () => db.run("DELETE FROM api_tokens").changes,
+    deleteAllOf: (userId) => db.run("DELETE FROM api_tokens WHERE user_id = $userId", { userId }).changes,
   };
 }

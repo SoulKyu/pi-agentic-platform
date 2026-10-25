@@ -22,6 +22,7 @@ function setup(options: { git?: ReturnType<typeof fakeGit>["git"]; roots?: reado
   const snapshots = new Map<StreamName, (key: string) => unknown>();
   const opened: Array<[StreamName, string, unknown]> = [];
   const module = createVcsModule({
+    isMember: () => false,
     roots: (ownerId) => (ownerId === "u1" ? (options.roots ?? [bed.repo]) : []),
     boundary: bed.bb.config(),
     deny: bed.deny,

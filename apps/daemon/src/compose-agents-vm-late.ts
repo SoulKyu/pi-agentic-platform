@@ -1,17 +1,18 @@
-import { type Caller, PapError, ProjectId } from "@pap/contracts";
+import { type BoxRef, CLAUDE_BRIDGE_PROVIDER, type Caller, PapError, ProjectId } from "@pap/contracts";
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
-import type { ClaudeTokenStore, MirrorHooks, PolicyView, RelayLink } from "./modules/agent-vm/index.ts";
+import type { ClaudeTokens, MirrorHooks, PolicyView, RelayLink } from "./modules/agent-vm/index.ts";
 import type { AgentsPort } from "./modules/agents/index.ts";
 import type { PolicyPort } from "./modules/policy/index.ts";
 import type { ModelsPort } from "./modules/models/index.ts";
+import type { ProviderGate } from "./modules/users/index.ts";
 import type { RunsPort } from "./modules/runs/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
 import type { BoxesLate } from "./compose-boxes.ts";
+import { type MemberLine, refreshAfterRun } from "./compose-boxes-budget.ts";
 import type { PluginPicks } from "./plugin-picks.ts";
 
 /** The provider id pi-claude-bridge registers (R13). */
-export const CLAUDE_BRIDGE_PROVIDER = "claude-bridge";
 /** The package that brings the bridge to an agent. */
 const CLAUDE_BRIDGE_NAME = "pi-claude-bridge";
 /**
@@ -101,6 +102,10 @@ export interface AgentsVmLate {
   };
   /** The project boxes (spec boxes): absent, no row runs in a box and a box's connection is refused. */
   readonly boxes?: BoxesLate;
+  /** A member's box is offered only the providers the owner shares (M14); the owner's is offered all of them. */
+  readonly providers: Pick<ProviderGate, "filter" | "reset">;
+  /** A member's line (RT-02): a box of a member who has spent their daily cap is blocked, `budget`. */
+  readonly memberLine: Pick<MemberLine, "over" | "disabled">;
 }
 
 /** What the relay link reads of the late binding. */
@@ -116,6 +121,8 @@ export interface AgentsVmDerived {
   windowEnded(): void;
   /** S1: `agent_paused` for an agent quarantined since the launch passed its gate, `not_found` for one deleted. */
   agentOpen(ownerId: string, agentId: string): void;
+  /** The box's owner is a disabled account: the launch gate refuses it, `account_disabled` (M14 RT-03). */
+  boxDisabled(box: BoxRef): boolean;
   /** The agent's host list now: its own, else the owner's, else none. Null: the agent is unknown. */
   hostsOf(agentId: string): readonly string[] | null;
   /** A project box's relay policy: the owner's models, the bridge when the token is set, `budget` when the owner's day is spent. */
@@ -130,7 +137,7 @@ export interface AgentsVmDerived {
   notify(agentId: string, text: string): void;
 }
 
-const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
+const NOTHING: PolicyView = { models: [], claude: false, claudeToken: null, blocked: null };
 
 /** The listing is read for the agent's owner; the helper only needs a user id (no cwd is named). */
 const ownerCaller = (userId: string): Caller => ({
@@ -147,8 +154,8 @@ export function bindAgentsVmLate(
     readonly logger: Logger;
     readonly closers: Array<{ readonly name: string; close(): void | Promise<void> }>;
     readonly relay: RelayLink | null;
-    /** The bridge's `claude` policy needs the owner's token to be set. */
-    readonly claudeToken: Pick<ClaudeTokenStore, "status">;
+    /** The bridge's `claude` policy needs the box owner's token to be set, and carries it (M14: never another user's). */
+    readonly claudeToken: Pick<ClaudeTokens, "get">;
     readonly readOnly: boolean;
     bindMirrorHooks(hooks: MirrorHooks): void;
     /** Where the proxy's taint of a launch's sessions goes (spec §4). */
@@ -223,24 +230,30 @@ export function bindAgentsVmLate(
       return known?.declared ?? false;
     }
   };
-  /** The owner's offered models (the bridge apart), cached per key: a busy helper must not empty a running policy. */
+  /**
+   * The owner's offered models (the bridge apart), last good list kept per key: a busy helper must not empty a running policy.
+   * The list kept is the helper's whole answer; the owner's sharing is applied after it, on every call, so a switch shows at once.
+   */
   const modelsOf = async (key: string, ownerId: string) => {
     let pairs = lastModels.get(key);
     try {
       const offered = (await late.pi.models.available(ownerCaller(ownerId))).models;
       pairs = offered
         .map((model) => ({ provider: model.provider, id: model.id }))
-        .filter((pair) => pair.provider !== CLAUDE_BRIDGE_PROVIDER)
-        .slice(0, POLICY_MAX_MODELS);
-      if (offered.length > POLICY_MAX_MODELS)
-        ctx.logger.warn("relay_policy_models_cut", { agentId: key, offered: offered.length });
+        .filter((pair) => pair.provider !== CLAUDE_BRIDGE_PROVIDER);
       lastModels.set(key, pairs);
     } catch (error) {
       if (pairs === undefined) throw error;
       ctx.logger.warn("relay_policy_models_kept", { agentId: key, err: error });
     }
-    return pairs;
+    const shared = await late.providers.filter(ownerId, pairs);
+    if (shared.length > POLICY_MAX_MODELS)
+      ctx.logger.warn("relay_policy_models_cut", { agentId: key, offered: shared.length });
+    return shared.slice(0, POLICY_MAX_MODELS);
   };
+  // Registered before the relay's own listener below: the providers' overview is read again before the policies are.
+  // No read at boot: it would start a Pi helper before anything asks (R11). Rows are written at every overview read.
+  late.pi.models.onChanged(() => late.providers.reset());
   const derived: AgentsVmDerived = {
     sourcesOf: (ids) => late.pi.plugins.sourcesOf(ids),
     checkPackages: (ids) => late.pi.plugins.check(ids),
@@ -250,24 +263,35 @@ export function bindAgentsVmLate(
       const record = late.agents.get(ownerId, agentId);
       if (record === null) return NOTHING;
       const pairs = await modelsOf(agentId, ownerId);
+      const token = ctx.claudeToken.get(ownerId);
+      // `models.available` loads no extension, so it never lists the bridge: the profile says whether the agent has it.
+      const claude = token !== null && (await declaresBridge(agentId, record.input));
       return {
         models: pairs,
-        // `models.available` loads no extension, so it never lists the bridge: the profile says whether the agent has it.
-        claude: ctx.claudeToken.status() === "set" && (await declaresBridge(agentId, record.input)),
-        blocked: record.paused
-          ? "paused"
-          : late.automation.agentTasks.overBudget(ownerId, agentId)
-            ? "budget"
-            : null,
+        claude,
+        // The token travels only to a box that declares the bridge (A4a review M2).
+        claudeToken: claude ? token : null,
+        blocked:
+          record.paused || late.memberLine.disabled(ownerId)
+            ? "paused"
+            : late.automation.agentTasks.overBudget(ownerId, agentId) || late.memberLine.over(ownerId)
+              ? "budget"
+              : null,
       };
     },
     async policyOfProject(projectId) {
       const box = late.boxes?.source.box(projectId) ?? null;
       if (box === null || box.deleting) return NOTHING;
+      const claudeToken = ctx.claudeToken.get(box.ownerId);
       return {
         models: await modelsOf(`project:${projectId}`, box.ownerId),
-        claude: ctx.claudeToken.status() === "set",
-        blocked: late.automation.agentTasks.ownerOverBudget(box.ownerId) ? "budget" : null,
+        claude: claudeToken !== null,
+        claudeToken,
+        blocked: late.memberLine.disabled(box.ownerId)
+          ? "paused"
+          : late.automation.agentTasks.ownerOverBudget(box.ownerId) || late.memberLine.over(box.ownerId)
+            ? "budget"
+            : null,
       };
     },
     taintedNow,
@@ -290,6 +314,13 @@ export function bindAgentsVmLate(
       const record = late.agents.get(ownerId, agentId);
       if (record === null) throw new PapError("not_found");
       if (record.quarantinedAt !== null) throw new PapError("agent_paused");
+    },
+    boxDisabled(box) {
+      const ownerId =
+        box.kind === "project"
+          ? (late.boxes?.source.box(box.id)?.ownerId ?? null)
+          : late.agents.ownerOf(box.id);
+      return ownerId !== null && late.memberLine.disabled(ownerId);
     },
     turnsOf: (agentId) => turns.get(agentId) ?? 0,
     windowEnded: () => turns.clear(),
@@ -329,6 +360,15 @@ export function bindAgentsVmLate(
   const stopEnd = late.runs.port.onRunEnd((event) => {
     const agentId = agentOfSession(event.sessionId);
     if (agentId !== null) relay.refresh({ kind: "agent", id: agentId });
+    refreshAfterRun(
+      {
+        relay,
+        memberLine: late.memberLine,
+        boxes: late.boxes?.source,
+        cwdOf: (ownerId, sessionId) => late.sessions.cwdOf?.(ownerId, sessionId) ?? null,
+      },
+      event,
+    );
   });
   let timer: TimerHandle | undefined;
   let closed = false;

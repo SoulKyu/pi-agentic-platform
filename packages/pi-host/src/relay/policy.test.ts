@@ -17,6 +17,7 @@ const policy = () => {
       { provider: "openai", id: "gpt-5" },
     ],
     claude: false,
+    claudeToken: null,
     blocked: null,
   });
   return p;
@@ -57,7 +58,7 @@ describe("createRelayPolicy", () => {
   });
   it("lets the bridge in only when claude is true, with a claude model id", () => {
     const p = createRelayPolicy();
-    p.set({ box: BOX, models: [], claude: true, blocked: null });
+    p.set({ box: BOX, models: [], claude: true, claudeToken: null, blocked: null });
     expect(p.check(BOX, { provider: null, model: "claude-sonnet-4-5" })).toEqual({ ok: true });
     expect(p.check(BOX, { provider: null, model: "claude-opus-4.1" })).toEqual({ ok: true });
     for (const model of [
@@ -73,7 +74,7 @@ describe("createRelayPolicy", () => {
         ok: false,
         reason: "model",
       });
-    p.set({ box: BOX, models: [], claude: false, blocked: null });
+    p.set({ box: BOX, models: [], claude: false, claudeToken: null, blocked: null });
     expect(p.check(BOX, { provider: null, model: "claude-sonnet-4-5" })).toEqual({
       ok: false,
       reason: "model",
@@ -81,15 +82,27 @@ describe("createRelayPolicy", () => {
   });
   it("answers paused and budget after the model check (M-order)", () => {
     const p = policy();
-    p.set({ box: BOX, models: [{ provider: "zai", id: "glm-4.6" }], claude: false, blocked: "paused" });
+    p.set({
+      box: BOX,
+      models: [{ provider: "zai", id: "glm-4.6" }],
+      claude: false,
+      claudeToken: null,
+      blocked: "paused",
+    });
     expect(p.check(BOX, { provider: "zai", model: "glm-4.6" })).toEqual({ ok: false, reason: "paused" });
     expect(p.check(BOX, { provider: "zai", model: "other" })).toEqual({ ok: false, reason: "model" });
-    p.set({ box: BOX, models: [{ provider: "zai", id: "glm-4.6" }], claude: false, blocked: "budget" });
+    p.set({
+      box: BOX,
+      models: [{ provider: "zai", id: "glm-4.6" }],
+      claude: false,
+      claudeToken: null,
+      blocked: "budget",
+    });
     expect(p.check(BOX, { provider: "zai", model: "glm-4.6" })).toEqual({ ok: false, reason: "budget" });
   });
   it("a newer policy replaces the older one", () => {
     const p = policy();
-    p.set({ box: BOX, models: [], claude: false, blocked: null });
+    p.set({ box: BOX, models: [], claude: false, claudeToken: null, blocked: null });
     expect(p.check(BOX, { provider: "zai", model: "glm-4.6" })).toEqual({ ok: false, reason: "model" });
   });
   it("is bounded: at most 4096 boxes are kept, the oldest goes first", () => {
@@ -99,6 +112,7 @@ describe("createRelayPolicy", () => {
         box: { kind: "agent", id: `a${i}` },
         models: [{ provider: "zai", id: "m" }],
         claude: false,
+        claudeToken: null,
         blocked: null,
       });
     expect(p.check({ kind: "agent", id: "a0" }, { provider: "zai", model: "m" })).toEqual({
@@ -106,5 +120,15 @@ describe("createRelayPolicy", () => {
       reason: "model",
     });
     expect(p.check({ kind: "agent", id: "a4096" }, { provider: "zai", model: "m" })).toEqual({ ok: true });
+  });
+  it("keeps the Claude token per box, and a later push for the box replaces it (M14)", () => {
+    const p = createRelayPolicy();
+    const other = { kind: "agent", id: "ag2" } as const;
+    p.set({ box: BOX, models: [], claude: true, claudeToken: "tok-a", blocked: null });
+    p.set({ box: other, models: [], claude: true, claudeToken: "tok-b", blocked: null });
+    expect([p.claudeTokenOf(BOX), p.claudeTokenOf(other)]).toEqual(["tok-a", "tok-b"]);
+    p.set({ box: BOX, models: [], claude: false, claudeToken: null, blocked: null });
+    expect([p.claudeTokenOf(BOX), p.claudeTokenOf(other)]).toEqual([null, "tok-b"]);
+    expect(p.claudeTokenOf({ kind: "agent", id: "never" })).toBeNull();
   });
 });

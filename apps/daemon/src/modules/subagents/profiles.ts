@@ -16,7 +16,10 @@ export interface ProfilesDeps {
   readonly sessions: {
     /** The folder of the owner's session; null when there is no such session of theirs. */
     cwdOf(ownerId: string, sessionId: string): string | null;
-    /** True for a session of an agent (and its children): its home is not a project (W5-R27, W5-R29). */
+    /**
+     * True for a session of an agent (and its children): its home is not a project (W5-R27, W5-R29). Also true for a
+     * gated owner's session (M14): its folder is never given to the host.
+     */
     runsInVm(sessionId: string): boolean;
   };
   readonly logger: Logger;

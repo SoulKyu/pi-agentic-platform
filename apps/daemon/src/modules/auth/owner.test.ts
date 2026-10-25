@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createAuthStore } from "./store.ts";
 import { type AuthTestBed, createAuthTestBed } from "./testing/fixture.ts";
+import { insertUserRow } from "./testing/users.ts";
 
 let bed: AuthTestBed;
 beforeEach(() => {
@@ -21,22 +22,12 @@ describe("the instance owner", () => {
     expect(auth.ownerId()).toBe("owner-1");
   });
 
-  it("is the oldest user, a tie in created_at broken by id", () => {
+  it("is the user whose role is owner, whatever the creation order", () => {
     const { auth } = bed.start("https://pap.example");
-    const add = (id: string, createdAt: number) =>
-      bed.db.run(
-        "INSERT INTO users (id, username, password_hash, created_at) VALUES ($id, $id, 'x', $createdAt)",
-        {
-          id,
-          createdAt,
-        },
-      );
-    add("u-b", 5);
-    add("u-new", 9);
-    expect(auth.ownerId()).toBe("u-b");
-    add("u-old", 2);
-    expect(auth.ownerId()).toBe("u-old");
-    add("u-a", 2);
-    expect(auth.ownerId()).toBe("u-a");
+    insertUserRow(bed.db, { id: "u-b", createdAt: 5 });
+    insertUserRow(bed.db, { id: "u-old", createdAt: 2 });
+    expect(auth.ownerId()).toBeNull();
+    insertUserRow(bed.db, { id: "u-new", createdAt: 9, role: "owner" });
+    expect(auth.ownerId()).toBe("u-new");
   });
 });

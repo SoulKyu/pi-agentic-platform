@@ -18,14 +18,34 @@ beforeEach(() => {
 afterEach(() => rmSync(scratch, { recursive: true, force: true }));
 
 describe("pap user add (the real entry point)", () => {
-  it("creates the owner from standard input and refuses a second one", () => {
+  it("user add creates the owner first, then members", () => {
     const created = pap(["user", "add", "owner"], env, `${PASSWORD}\n`);
     expect(created.stderr).toBe("");
     expect(created.status).toBe(0);
     expect(created.stdout).toBe("owner owner created\n");
-    const again = pap(["user", "add", "other"], env, "another long password\n");
+    const member = pap(["user", "add", "alice"], env, "another long password\n");
+    expect(member.stderr).toBe("");
+    expect(member.status).toBe(0);
+    expect(member.stdout).toBe("member alice created\n");
+    const same = pap(["user", "add", "ALICE"], env, "another long password\n");
+    expect(same.status).toBe(1);
+    expect(same.stderr).toBe("pap: this username is taken\n");
+  });
+
+  it("user add --role owner is refused once an owner exists", () => {
+    expect(pap(["user", "add", "owner", "--role", "owner"], env, `${PASSWORD}\n`).stdout).toBe(
+      "owner owner created\n",
+    );
+    const again = pap(["user", "add", "other", "--role", "owner"], env, "another long password\n");
     expect(again.status).toBe(1);
-    expect(again.stderr).toBe("pap: an owner already exists: pap v1 has one owner\n");
+    expect(again.stderr).toBe("pap: an owner already exists\n");
+  });
+
+  it("user add --role member is refused before any owner exists", () => {
+    const first = pap(["user", "add", "alice", "--role", "member"], env, `${PASSWORD}\n`);
+    expect(first.status).toBe(1);
+    expect(first.stderr).toBe("pap: no owner yet: add the owner first\n");
+    expect(pap(["user", "add", "alice", "--role", "admin"], env, `${PASSWORD}\n`).status).toBe(64);
   });
 
   it("leaves a home whose daemon prints no setup URL and signs the owner in with that password", async () => {

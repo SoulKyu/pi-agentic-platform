@@ -33,6 +33,7 @@ const status = (over: Partial<AuthStatus>): AuthStatus => ({
   setupRequired: false,
   authenticated: true,
   username: "ana",
+  role: "owner",
   passkeysAvailable: false,
   ...over,
 });

@@ -48,7 +48,6 @@ const report = (record: z.infer<typeof RelayReportSchema>): void => void send?.(
 const keys = createRelayKeys();
 const policy = createRelayPolicy();
 const usage = createUsage(clock, report);
-let claudeToken: string | null = null;
 
 const server = createRelayServer({
   keys,
@@ -59,7 +58,6 @@ const server = createRelayServer({
     clock,
     testLoopback: process.env.PAP_TEST_PROVIDER_SCRIPT !== undefined,
   }),
-  claudeToken: () => claudeToken,
   log,
 });
 
@@ -87,9 +85,6 @@ process.on("message", (raw: unknown) => {
       break;
     case "box_policy":
       policy.set(command);
-      break;
-    case "claude_token":
-      claudeToken = command.token;
       break;
   }
 });

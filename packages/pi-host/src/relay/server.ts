@@ -38,8 +38,6 @@ export interface RelayServerDeps {
   readonly policy: RelayPolicy;
   readonly usage: RelayUsage;
   resolveProvider(provider: string, model: string): Promise<ResolvedProvider | null>;
-  /** The owner's `claude setup-token` value, or null (answered 503 on `claude.internal`). */
-  claudeToken(): string | null;
   /** One log line; callers never put a key, token, path or host in it. */
   log(line: string): void;
   readonly claudeUpstream?: string;
@@ -254,7 +252,7 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
     // The policy never allows a missing model; this keeps the type honest and fails closed.
     if (model === null) return refuse(res, "model", box);
     if (route.kind === "claude") {
-      const token = deps.claudeToken();
+      const token = deps.policy.claudeTokenOf(box);
       if (token === null) return refuse(res, "no_claude_token", box);
       const credential: UpstreamCredential = { value: token, headers: {} };
       return forward(

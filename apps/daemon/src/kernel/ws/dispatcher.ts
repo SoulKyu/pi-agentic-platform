@@ -1,4 +1,5 @@
 import {
+  collectClientPaths,
   methods,
   PapError,
   type ErrorCode,
@@ -13,6 +14,7 @@ import { isReadOnlyError } from "../db/read-only.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
 import { sha256Hex } from "../ids.ts";
 import type { Logger } from "../logger.ts";
+import type { ClientPathGate } from "./client-path-gate.ts";
 
 export type Dispatch = (frame: RequestFrame, ctx: HandlerContext) => Promise<ResponseFrame>;
 type AnyHandler = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
@@ -81,6 +83,8 @@ export function createDispatcher(options: {
   handlers: HandlerTable;
   receipts: ReceiptStore;
   logger: Logger;
+  /** A member's request carries box paths only; the walk runs after the params parse, before any handler (M14). */
+  gate: ClientPathGate;
   /** Once per request, after the answer is known: the method as sent, how long it took, `ok` or the error code (M10R92). */
   onCall?(method: string, durationMs: number, outcome: string): void;
 }): Dispatch {
@@ -169,8 +173,9 @@ export function createDispatcher(options: {
     if (!Object.hasOwn(catalogue, frame.method)) return fail(frame.id, "unknown_method");
     const def = catalogue[frame.method] as MethodDef;
     if (!ctx.caller.permissions.has(def.permission)) return fail(frame.id, "forbidden");
-    const params = def.params.safeParse(frame.params ?? {});
+    const { value: params, paths } = collectClientPaths(() => def.params.safeParse(frame.params ?? {}));
     if (!params.success) return fail(frame.id, "bad_request");
+    if (!options.gate.allows(ctx.caller.userId, paths)) return fail(frame.id, "forbidden");
     if (def.idempotent) return run(frame.id, def, params.data, ctx, null);
     if (!frame.commandId) return fail(frame.id, "bad_request");
     return mutate(frame, frame.commandId, def, params.data, ctx);

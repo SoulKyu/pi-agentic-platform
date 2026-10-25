@@ -30,6 +30,7 @@ beforeEach(() => {
   let counter = 0;
   const boxes = createBoxStore(bed.db);
   service = createProjectsService({
+    isMember: () => false,
     store: createProjectsStore(bed.db),
     boxes,
     clock: bed.clock,
@@ -104,6 +105,7 @@ describe("box projects", () => {
 
   it("answers internal until the composition gives the box control", () => {
     const bare = createProjectsService({
+      isMember: () => false,
       store: createProjectsStore(bed.db),
       boxes: createBoxStore(bed.db),
       clock: bed.clock,
@@ -240,6 +242,44 @@ describe("box projects", () => {
   it("create refuses a host too small for the default box", () => {
     host = { memoryCapMb: 1024, cores: 1 };
     expect(() => service.create(owner, "Notes")).toThrow(expect.objectContaining({ code: "bad_request" }));
+    expect(service.all("u1")).toEqual([]);
+  });
+});
+
+describe("removeAll (a member's delete, A5b)", () => {
+  it("trashes every box of the owner with no step-up, scratch with sessions included, and leaves another owner's", async () => {
+    const mine = [service.create(owner, "Notes"), service.scratch(owner)];
+    const theirs = service.create(testCaller({ userId: "u2" }), "Theirs");
+    sessionCount = 2;
+    expect(await service.removeAll("u1")).toBe(2);
+    expect(service.all("u1")).toEqual([]);
+    expect(service.all("u2").map((project) => project.id)).toEqual([theirs.id]);
+    expect(
+      control.calls
+        .filter(([call]) => call === "dispose")
+        .map(([, id]) => id)
+        .sort(),
+    ).toEqual(mine.map((project) => project.id).sort());
+    expect(steps.filter((step) => step === "sessions")).toHaveLength(2);
+    expect(await service.removeAll("u1")).toBe(0);
+  });
+
+  it("stops at the first failure, keeps the mark, and a retry finishes the job", async () => {
+    service.create(owner, "Notes");
+    const failing = {
+      ...wiring,
+      control: {
+        ...wiring.control,
+        dispose: async () => {
+          throw new PapError("command_failed");
+        },
+      },
+    };
+    service.bindBoxes(failing);
+    expect(await codeOf(() => service.removeAll("u1"))).toBe("command_failed");
+    expect(service.all("u1")).toHaveLength(1);
+    service.bindBoxes(wiring);
+    expect(await service.removeAll("u1")).toBe(1);
     expect(service.all("u1")).toEqual([]);
   });
 });

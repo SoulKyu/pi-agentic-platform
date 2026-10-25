@@ -24,6 +24,12 @@ function setup(overrides: Partial<SessionsService> = {}) {
     autoName: vi.fn(async () => ({ name: "Fix login" })),
     exportHtml: vi.fn(async () => ({ url: `/api/sessions/p1/export/${"A".repeat(43)}` })),
     models: vi.fn(async () => ({ models: [], truncated: false, current: null })),
+    availableModels: vi.fn(async () => ({
+      models: [],
+      providers: [],
+      origin: "scope" as const,
+      truncated: false,
+    })),
     commands: vi.fn(async () => ({ commands: [], truncated: false })),
     setModel: vi.fn(async () => {}),
     setThinking: vi.fn(async () => {}),

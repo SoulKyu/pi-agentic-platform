@@ -35,8 +35,9 @@ import { fakePolicyPort } from "./fake-policy.ts";
 import { noAttachments } from "./no-attachments.ts";
 import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
-import type { VmLaunch } from "../index.ts";
+import type { SessionsModuleDeps, VmLaunch } from "../index.ts";
 import { testCaller } from "../../../testing/caller.ts";
+import { sharesAll } from "./providers.ts";
 
 export { sessionFileText };
 
@@ -56,6 +57,8 @@ export type StartBehavior =
   | { kind: "exit70" };
 
 export interface BedOptions {
+  readonly isMember?: (userId: string) => boolean;
+  readonly providers?: SessionsModuleDeps["providers"];
   limits?: { maxWorkers: number; minFreeMemMb: number };
   freeMemMb?: number;
   testProviderScript?: string | null;
@@ -122,6 +125,8 @@ const IDLE_STATE = {
 
 /** What a sessions service is built from. The service and store themselves are the test's own: see `Factories`. */
 export interface ServiceParts<Store, Reader> {
+  isMember(userId: string): boolean;
+  readonly providers: SessionsModuleDeps["providers"];
   readonly store: Store;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -255,6 +260,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     policy: options.policy ?? fakePolicyPort(),
     projects,
     ...(options.boxes ? { boxes: () => options.boxes } : {}),
+    isMember: options.isMember ?? (() => false),
+    providers: options.providers ?? sharesAll,
     audit: options.audit ?? { append: () => {}, reserve: () => true, fromWorker: () => null },
     attachments: options.attachments ?? noAttachments,
     containment: options.containment ?? "none",

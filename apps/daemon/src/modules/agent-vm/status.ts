@@ -4,7 +4,7 @@ import type { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import { VM_OVERHEAD_MB } from "../../kernel/config-agents-vm.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import type { ClaudeTokenStore } from "./claude-token.ts";
+import type { ClaudeTokens } from "./claude-tokens.ts";
 import type { VmPhase } from "./runtime.ts";
 import type { VmdClient } from "./vmd-client.ts";
 
@@ -79,7 +79,7 @@ export interface VmStatusDeps {
   readonly logger: Pick<Logger, "warn">;
   /** The process backend (tests) has no pap-vmd: it answers a usable stack. */
   assess(): Promise<StackAssessment>;
-  readonly claudeToken: Pick<ClaudeTokenStore, "status">;
+  readonly claudeToken: Pick<ClaudeTokens, "status">;
   agentsOf(ownerId: string): ReadonlyArray<{ readonly id: string }>;
   phaseOf(agentId: string): VmPhase;
   /** The host's ceilings (`resourceHost`): the memory cap that running VMs share, and the cores. */
@@ -115,7 +115,7 @@ export function createVmStatus(deps: VmStatusDeps): VmStatus {
         usable: stack.usable,
         reason: stack.reason,
         vmdVersion: stack.vmdVersion,
-        claudeToken: deps.claudeToken.status(),
+        claudeToken: deps.claudeToken.status(ownerId),
         // AVM-E33: what the form's fields may reach. Without an answer from pap-vmd there is nothing to promise.
         host:
           stack.health === null ? null : ceilings(deps.host(), stack.health.stateFreeMb, deps.minFreeDiskMb),

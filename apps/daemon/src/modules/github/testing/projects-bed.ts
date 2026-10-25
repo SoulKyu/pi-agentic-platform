@@ -24,6 +24,7 @@ import {
   type GithubProjectStore,
 } from "../index.ts";
 import { type GithubBed, OWNER, startGithubBed } from "./bed.ts";
+import { NO_CLIENT_PATHS } from "../../../kernel/ws/client-path-gate.ts";
 
 export const PUBLIC_KEY = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAItestkeyonlytestkeyonlytestkeyonlytest";
 
@@ -73,6 +74,7 @@ export async function startProjectsBed(handlers: Handlers = {}): Promise<Project
   const auditPort = { append: (line: { reason: string; ownerId: string | null }) => void audit.push(line) };
   let counter = 0;
   const projects = createProjectsModule({
+    isMember: () => false,
     db,
     clock: bed.clock,
     logger: bed.logger,
@@ -101,8 +103,9 @@ export async function startProjectsBed(handlers: Handlers = {}): Promise<Project
     audit: auditPort,
     clock: bed.clock,
     logger: bed.logger,
-    httpCaller: httpCaller(() => null),
+    httpCaller: httpCaller(() => null, NO_CLIENT_PATHS),
     allowedOrigins: new Set(["http://pap.test"]),
+    userIds: () => [],
     hostLabel: "host",
   });
   const sessionCalls: ProjectsBed["sessionCalls"] = [];

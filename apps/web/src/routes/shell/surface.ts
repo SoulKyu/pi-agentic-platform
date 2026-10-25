@@ -1,3 +1,4 @@
+import type { Role } from "@pap/contracts";
 import { useEffect } from "react";
 import { isValidRoot, itemKey, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -14,6 +15,8 @@ export const SPLIT_PANE_ID = "pane-split";
 export interface SessionPlace {
   readonly root: string | null;
   readonly cwd: string | null;
+  /** The project is a box project: its terminal is a box terminal, the only kind a member has. */
+  readonly box: boolean;
 }
 
 /** Null for a session the shell store does not hold: the surfaces stay off for it. */
@@ -24,8 +27,13 @@ export function placeOf(view: ShellView, sessionId: string): SessionPlace | null
   return {
     root: root !== null && isValidRoot(root) ? root : null,
     cwd: isValidRoot(session.cwd) ? session.cwd : null,
+    box: session.projectId !== null && view.projects.get(session.projectId)?.kind === "box",
   };
 }
+
+/** A member opens a terminal only in a box (the owner also on the host). */
+export const terminalAllowed = (place: SessionPlace | null, role: Role): boolean =>
+  place?.cwd != null && (role === "owner" || place.box);
 
 const loadTerminal = () => import("./surface-terminal.ts");
 

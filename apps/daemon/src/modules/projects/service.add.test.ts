@@ -18,6 +18,7 @@ const u1 = testCaller({ userId: "u1" });
 
 const build = (rules: ProjectFolders | null = folders) =>
   createProjectsService({
+    isMember: () => false,
     boxes: createBoxStore(bed.db),
     store: createProjectsStore(bed.db),
     clock: bed.clock,
@@ -160,6 +161,7 @@ describe("projects.add (decision 85)", () => {
   it("maps a refused write of a newer database to read_only", () => {
     const store = createProjectsStore(bed.db);
     const projects = createProjectsService({
+      isMember: () => false,
       boxes: createBoxStore(bed.db),
       store: {
         ...store,

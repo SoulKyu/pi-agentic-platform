@@ -1,6 +1,6 @@
 import type { Context, Hono } from "hono";
 import type { HttpCaller } from "../../kernel/http/caller.ts";
-import { authorizedPage, createdPage, refusedPage, manifestPage, type Page } from "./pages.ts";
+import { authorizedPage, createdPage, exchangedPage, refusedPage, manifestPage, type Page } from "./pages.ts";
 import type { CallbackOutcome, GithubService } from "./service.ts";
 
 const STATE = /^[0-9a-f]{32}$/;
@@ -17,6 +17,8 @@ function outcomePage(c: Context, outcome: CallbackOutcome): Response {
   switch (outcome.kind) {
     case "created":
       return send(c, createdPage(outcome), 200);
+    case "exchanged":
+      return send(c, exchangedPage(outcome.ticket, outcome.retry !== true), 200);
     case "authorized":
       return send(c, authorizedPage(outcome.home), 200);
     case "github":
@@ -29,7 +31,8 @@ function outcomePage(c: Context, outcome: CallbackOutcome): Response {
 /**
  * The GitHub App flow's pages. `new` and `authorize` are entered from pap's own SPA and need the session cookie and
  * `settings:admin`. `created` and `authorized` are entered from github.com, cross site, so the SameSite=Strict cookie
- * does not come: they are matched by the single-use state alone, which is bound to the user who started the flow.
+ * does not come: `created` is matched by the single-use state alone (owner only); `authorized` binds nothing, it parks the
+ * token, and `authorized/finish` stores it only for the session of the user who started the flow.
  * All GET: the origin guard does not look at a GET, and nothing here changes anything without that state.
  */
 export function mountGithubRoutes(app: Hono, deps: { service: GithubService; httpCaller: HttpCaller }): void {
@@ -39,7 +42,7 @@ export function mountGithubRoutes(app: Hono, deps: { service: GithubService; htt
     return state !== undefined && STATE.test(state) ? state : null;
   };
   app.get("/github/app/new", (c) => {
-    const caller = httpCaller(c, "settings:admin");
+    const caller = httpCaller(c, "system:admin");
     if (caller instanceof Response) return caller;
     const state = stateOf(c);
     const start = state === null ? null : service.beginCreate(caller.userId, state);
@@ -47,7 +50,7 @@ export function mountGithubRoutes(app: Hono, deps: { service: GithubService; htt
     return send(c, manifestPage(service.webOrigin, start.state, start.manifest), 200);
   });
   app.get("/github/app/authorize", (c) => {
-    const caller = httpCaller(c, "settings:admin");
+    const caller = httpCaller(c, "settings:operate");
     if (caller instanceof Response) return caller;
     const url = service.reconnectUrl(caller.userId);
     if (url === null) return send(c, refusedPage("link", null), 400);
@@ -65,6 +68,13 @@ export function mountGithubRoutes(app: Hono, deps: { service: GithubService; htt
     const code = c.req.query("code");
     if (state === null || code === undefined) return send(c, refusedPage("link", null), 400);
     return outcomePage(c, await service.completeAuthorize(code, state));
+  });
+  // Same site (the page above navigates here), so the SameSite=Strict cookie comes: the browser must be the starting user's.
+  app.get("/github/app/authorized/finish", (c) => {
+    const ticket = c.req.query("ticket");
+    if (ticket === undefined || !STATE.test(ticket)) return send(c, refusedPage("link", null), 400);
+    const caller = httpCaller(c, "settings:operate");
+    return outcomePage(c, service.finishAuthorize(ticket, caller instanceof Response ? null : caller.userId));
   });
   app.all("/github/*", (c) => c.json({ error: { code: "not_found" } }, 404));
 }

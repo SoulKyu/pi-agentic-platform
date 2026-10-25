@@ -7,6 +7,7 @@ import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { createPiWriteQueue } from "./kernel/pi-write-queue.ts";
 import { withLaneRoots } from "./lane-covers.ts";
 import { createPluginPicks, type PluginPicks } from "./plugin-picks.ts";
+import { type AgentsPackagesRpc, agentsPackagesRpc, createAgentPackages } from "./modules/agents/index.ts";
 import { createMcpModule, type McpModule } from "./modules/mcp/index.ts";
 import { createModelsModule, type ModelsModule, sweepValidationCopies } from "./modules/models/index.ts";
 import { createSkillsModule, type SkillsModule } from "./modules/skills/index.ts";
@@ -32,7 +33,11 @@ export interface ComposePiDeps {
 
 export interface ComposedPi {
   /** Every Pi method this milestone adds; each later task adds its module's table here (with `&`), never in `daemon.ts`. */
-  readonly rpc: ModelsModule["rpc"] & McpModule["rpc"] & TrustModule["rpc"] & SkillsModule["rpc"];
+  readonly rpc: ModelsModule["rpc"] &
+    McpModule["rpc"] &
+    TrustModule["rpc"] &
+    SkillsModule["rpc"] &
+    AgentsPackagesRpc;
   /** What lanes ask of trust: a worktree inherits its project's decision (M9R39). */
   readonly trust: TrustModule["port"];
   /** The models Pi offers, for the VM relay's per-agent policy (R13). */
@@ -105,7 +110,13 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
     writes,
   });
   return {
-    rpc: { ...models.rpc, ...mcp.rpc, ...trust.rpc, ...skills.rpc },
+    rpc: {
+      ...models.rpc,
+      ...mcp.rpc,
+      ...trust.rpc,
+      ...skills.rpc,
+      ...agentsPackagesRpc(createAgentPackages({ helpers, logger: deps.logger })),
+    },
     trust: trust.port,
     models: models.port,
     plugins: createPluginPicks({ helpers, logger: deps.logger }),

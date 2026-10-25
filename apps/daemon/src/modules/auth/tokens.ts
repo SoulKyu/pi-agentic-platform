@@ -82,6 +82,8 @@ export function createTokenService(deps: TokenDeps) {
         input.permissions.every((p) => GRANTABLE.has(p)) &&
         (TOKEN_LIFETIMES_DAYS as readonly number[]).includes(input.expiresInDays);
       if (!valid) throw new PapError("bad_request");
+      // A token holds at most what its creator holds: a member cannot mint a Pi or lanes token.
+      if (!input.permissions.every((p) => caller.permissions.has(p))) throw new PapError("forbidden");
       dropExpired(caller.userId, now);
       if (deps.store.count(caller.userId) >= MAX_TOKENS_PER_USER) throw new PapError("limit_reached");
       const value = `pap_${randomBytes(32).toString("base64url")}`;
@@ -128,7 +130,7 @@ export function createTokenService(deps: TokenDeps) {
       if (value === undefined || !API_TOKEN_PATTERN.test(value)) return null;
       const row = deps.store.findByHash(sha256Hex(value));
       const now = deps.clock.now();
-      if (!row || row.expiresAt <= now) return null;
+      if (!row || row.expiresAt <= now || row.userDisabled) return null;
       if (options.slide && now - (lastWrite.get(row.id) ?? -Infinity) >= LAST_USE_EVERY_MS) {
         lastWrite.set(row.id, now);
         try {
@@ -138,7 +140,7 @@ export function createTokenService(deps: TokenDeps) {
           if (!isReadOnlyError(error)) throw error;
         }
       }
-      // Both filters: what a token may ever hold, and what the owner holds now. A tampered row widens nothing.
+      // Both filters: what a token may ever hold, and what its user holds now (by role). A tampered row widens nothing.
       const owner = deps.ownerPermissions(row.userId);
       const permissions = new Set(row.permissions.filter((p) => GRANTABLE.has(p) && owner.has(p)));
       return { userId: row.userId, permissions, kind: "token", credentialId: row.id, stepUpUntil: 0 };

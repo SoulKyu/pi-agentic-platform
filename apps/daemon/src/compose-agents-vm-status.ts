@@ -9,7 +9,7 @@ import {
   type AgentRuntime,
   assessStack,
   type BundleSkew,
-  type ClaudeTokenStore,
+  type ClaudeTokens,
   createBundleSkew,
   createVmStatus,
   hasKvm,
@@ -39,7 +39,7 @@ export function composeVmStatus(
   core: {
     readonly clock: Clock;
     readonly logger: Logger;
-    readonly claudeToken: ClaudeTokenStore;
+    readonly claudeToken: ClaudeTokens;
     readonly config: Pick<Config, "agentsMemoryMaxMb" | "minFreeDiskMb">;
   },
   client: VmdClient | null,
@@ -125,8 +125,15 @@ async function relayIsReady(gate: RelayGate): Promise<boolean> {
  * without a relay, `box` null for a launch that is in no box.
  */
 export const launchGate =
-  (status: Pick<VmStatus, "require">, relay?: RelayGate, skew?: Pick<BundleSkew, "check">) =>
+  (
+    status: Pick<VmStatus, "require">,
+    relay?: RelayGate,
+    skew?: Pick<BundleSkew, "check">,
+    /** A disabled owner's box never starts (M14 RT-03): a worker restart or a queued start meets this too. */
+    disabled?: (box: BoxRef) => boolean,
+  ) =>
   async (box: BoxRef | null): Promise<void> => {
+    if (box !== null && disabled?.(box) === true) throw new PapError("account_disabled");
     if (relay !== undefined && !(await relayIsReady(relay))) throw new PapError("sandbox_unavailable");
     await status.require();
     if (skew !== undefined && box !== null && (await skew.check(box)) === "stale")
@@ -139,12 +146,20 @@ export const guardedLaunch = (
   status: Pick<VmStatus, "require">,
   relay?: RelayGate,
   skew?: Pick<BundleSkew, "check">,
+  disabled?: (box: BoxRef) => boolean,
 ): VmLaunch => {
-  const gate = launchGate(status, relay, skew);
+  const gate = launchGate(status, relay, skew, disabled);
   return {
     async spawn(row, agentLaunch, init) {
-      if ("project" in agentLaunch) await gate({ kind: "project", id: agentLaunch.project.id });
-      else await gate(row.agentId === undefined ? null : { kind: "agent", id: row.agentId });
+      const box: BoxRef | null =
+        "project" in agentLaunch
+          ? { kind: "project", id: agentLaunch.project.id }
+          : row.agentId === undefined
+            ? null
+            : { kind: "agent", id: row.agentId };
+      await gate(box);
+      // The gate awaits (relay, stack, skew): an account disabled meanwhile is met again right before the spawn.
+      if (box !== null && disabled?.(box) === true) throw new PapError("account_disabled");
       return launch.spawn(row, agentLaunch, init);
     },
   };

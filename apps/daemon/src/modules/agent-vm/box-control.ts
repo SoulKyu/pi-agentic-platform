@@ -129,6 +129,7 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
         await runtime.stop(boxOf(projectId));
         await bringUp(projectId);
       }),
+    stop: (projectId) => inOrder(projectId, () => runtime.stop(boxOf(projectId))),
     async dispose(projectId, stamp) {
       // Closed first and at once: a restart or a session's spawn that lands from now on is refused, whatever is queued.
       runtime.close(boxOf(projectId));

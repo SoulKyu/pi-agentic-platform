@@ -5,6 +5,7 @@ import { createDispatcher } from "./kernel/ws/dispatcher.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import { testCaller } from "./testing/caller.ts";
 import { disposeParts, parts } from "./testing/compose-m11-parts.ts";
+import { NO_CLIENT_PATHS } from "./kernel/ws/client-path-gate.ts";
 
 afterEach(disposeParts);
 
@@ -92,6 +93,7 @@ describe("quarantine, the permissions sheet and the prompt chips are wired (Task
     });
     const stored = new Map<string, { method: string; result: unknown }>();
     const dispatch = createDispatcher({
+      gate: NO_CLIENT_PATHS,
       handlers: m11.rpc as never,
       receipts: {
         find: (userId, commandId) => stored.get(`${userId}:${commandId}`) ?? null,

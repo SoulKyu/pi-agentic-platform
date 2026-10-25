@@ -8,7 +8,8 @@ import {
   useKeybindingsStore,
 } from "../../features/commands/index.ts";
 import { isOpenPath, landingSegmentOf } from "../../features/notifications/landing-path.ts";
-import { itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
+import { itemFromPath, pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { runCommand } from "../../lib/command-registry.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime, useConnectionState, windowTimers } from "../../runtime/index.ts";
@@ -22,6 +23,7 @@ export function useShellEffects(shell: { readonly mobile: boolean; treeOpen(): b
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const open = useWorkspaceStore((state) => state.open);
   const navigate = useNavigate();
+  const role = useRole();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
 
@@ -29,9 +31,15 @@ export function useShellEffects(shell: { readonly mobile: boolean; treeOpen(): b
   // URL's item again: closing the last tab at "/" leaves the path unchanged, so the pathname alone would not.
   const empty = useWorkspaceStore((state) => state.ws.active === null);
   useEffect(() => {
-    const item = itemFromPath(pathname, import.meta.env.DEV);
+    const item = itemFromPath(pathname, import.meta.env.DEV, role);
     if (item) open(item);
-  }, [pathname, empty, open]);
+    // A section the role is not shown (a member's deep link to Models): the URL says Appearance too.
+    if (item?.kind === "settings" && pathOfItem(item) !== pathname)
+      navigate({ to: pathOfItem(item), replace: true }).catch(() => reportClientIssue("command_failed"));
+  }, [pathname, empty, open, role, navigate]);
+  // A workspace an owner saved on this device holds no owner section for a member.
+  const restrict = useWorkspaceStore((state) => state.restrict);
+  useEffect(() => restrict(role), [role, restrict]);
 
   // Account settings, each time the socket opens. They map their own failures to a status the screens show;
   // the catches only report a rejection a future change might introduce.

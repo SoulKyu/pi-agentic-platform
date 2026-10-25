@@ -6,7 +6,7 @@ import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { ClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import type { AgentsVm } from "./compose-m11-vm.ts";
-import type { AgentLinks, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
+import type { AgentLinks, AgentsOwnerCascade, AgentsPort, AgentsRpc } from "./modules/agents/index.ts";
 import type { AgentFiles } from "./modules/agent-vm/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
 import type { HealthEvents } from "./modules/health/index.ts";
@@ -89,6 +89,8 @@ export interface M11 {
   readonly platform: PlatformPort;
   /** The agents registry other M11 modules read (M11R43). */
   readonly agents: AgentsPort;
+  /** A member's delete (A5b): every agent of the owner to the agent trash. */
+  readonly agentsCascade: AgentsOwnerCascade;
   /** What the VM runtime's late binding reads: the registry, and the owner's host list for an agent without one. */
   readonly vmLate: { agents: AgentsPort; ownerHosts(ownerId: string): readonly string[] | null };
   /** M11's RPC methods; each task adds its table here, never in `daemon.ts`. */

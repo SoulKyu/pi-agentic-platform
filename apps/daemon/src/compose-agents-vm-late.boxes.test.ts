@@ -50,19 +50,57 @@ describe("a project box's relay policy", () => {
     expect(await bed.derived.policyOfProject(PROJECT)).toEqual({
       models: [{ provider: "acme", id: "m-1" }],
       claude: true,
+      claudeToken: "tok-x",
       blocked: null,
     });
     const over = lateWithBoxes({ overBudget: (owner) => owner === "u1" });
     expect(await over.derived.policyOfProject(PROJECT)).toMatchObject({ blocked: "budget" });
     expect(over.ownerOverBudget).toHaveBeenCalledWith("u1");
   });
+  it("is blocked paused for a disabled owner, then back to the owner's own line on enable (M14 RT-03)", async () => {
+    const off = new Set(["u1"]);
+    const memberLine = { over: () => true, disabled: (id: string) => off.has(id) };
+    const bed = lateWithBoxes({ memberLine });
+    expect(await bed.derived.policyOfProject(PROJECT)).toMatchObject({ blocked: "paused" });
+    off.clear();
+    expect(await bed.derived.policyOfProject(PROJECT)).toMatchObject({ blocked: "budget" });
+  });
+  it("names a disabled owner's boxes to the launch gate", () => {
+    const off = new Set(["u1"]);
+    const bed = lateWithBoxes({ memberLine: { over: () => false, disabled: (id) => off.has(id) } });
+    expect(bed.derived.boxDisabled({ kind: "project", id: PROJECT })).toBe(true);
+    expect(bed.derived.boxDisabled({ kind: "project", id: "unknown" })).toBe(false);
+    off.clear();
+    expect(bed.derived.boxDisabled({ kind: "project", id: PROJECT })).toBe(false);
+  });
   it("has the bridge only when the owner's Claude token is set", async () => {
     expect(await lateWithBoxes({ token: false }).derived.policyOfProject(PROJECT)).toMatchObject({
       claude: false,
     });
   });
+  it("a member's box gets the member's token or none, never the owner's (M14)", async () => {
+    const MEMBER_PROJECT = "7a2d3a1f-9a6c-4c64-8b63-1e3a5b5d8e22";
+    const bed = (tokens: Record<string, string>) =>
+      lateWithBoxes({
+        rows: {
+          [PROJECT]: boxRow({ ownerId: "owner1" }),
+          [MEMBER_PROJECT]: boxRow({ ownerId: "member1", root: `/boxes/${MEMBER_PROJECT}` }),
+        },
+        tokens,
+      }).derived;
+    const owner = bed({ owner1: "tok-owner" });
+    expect(await owner.policyOfProject(PROJECT)).toMatchObject({ claude: true, claudeToken: "tok-owner" });
+    // The owner has a token, the member has none: the member's box is told none.
+    expect(await owner.policyOfProject(MEMBER_PROJECT)).toMatchObject({ claude: false, claudeToken: null });
+    const both = bed({ owner1: "tok-owner", member1: "tok-member" });
+    expect(await both.policyOfProject(MEMBER_PROJECT)).toMatchObject({
+      claude: true,
+      claudeToken: "tok-member",
+    });
+    expect(await both.policyOfProject(PROJECT)).toMatchObject({ claudeToken: "tok-owner" });
+  });
   it("is nothing for an unknown project or one being deleted (the relay refuses every request)", async () => {
-    const nothing = { models: [], claude: false, blocked: null };
+    const nothing = { models: [], claude: false, claudeToken: null, blocked: null };
     expect(await lateWithBoxes({ rows: {} }).derived.policyOfProject(PROJECT)).toEqual(nothing);
     expect(
       await lateWithBoxes({ rows: { [PROJECT]: boxRow({ deleting: true }) } }).derived.policyOfProject(

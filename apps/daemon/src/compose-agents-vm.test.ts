@@ -1,3 +1,4 @@
+import { sharesAllProviders } from "./testing/shares-all.ts";
 import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { connect } from "node:net";
@@ -43,11 +44,13 @@ const core = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore => ({
   env: {},
   readOnly: false,
   claudeToken: {
+    get: () => null,
+    read: () => ({ state: "missing" as const }),
     status: () => "missing",
     set: () => {},
     clear: () => {},
-    load: () => null,
-    onChange: () => {},
+    onChange: () => () => {},
+    migrateLegacy: () => {},
   },
 });
 const PROCESS = { guestEntry: "/guest.js", execArgv: [], imageAgentSource: "/image" };
@@ -199,16 +202,17 @@ describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
       },
     });
   // Mutants: the link not created (or `relay` left null) -> "starts the relay child"; the closer missing -> "stops it".
-  it("starts the relay child at compose, hands the Claude token to it, and stops it with the daemon", async () => {
+  it("starts the relay child at compose, refreshes the boxes when a token changes, and stops it with the daemon", async () => {
     const child = fakeChild();
-    let stored: string | null = "sk-ant-oat01-STORED";
-    const listeners: Array<(token: string | null) => void> = [];
+    const listeners: Array<(ownerId: string) => void> = [];
     const claudeToken = {
+      get: () => "sk-ant-oat01-STORED",
+      read: () => ({ state: "set" as const, token: "sk-ant-oat01-STORED" }),
       status: () => "set" as const,
       set: () => {},
       clear: () => {},
-      load: () => stored,
-      onChange: (listener: (token: string | null) => void) => void listeners.push(listener),
+      migrateLegacy: () => {},
+      onChange: (listener: (ownerId: string) => void) => (listeners.push(listener), () => {}),
     };
     const vm = (await composeAgentsVm({ ...core(), claudeToken }, closers, {
       backend: () => idle(),
@@ -216,11 +220,11 @@ describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
     })) as AgentsVm;
     await vi.waitFor(() => expect(vm.relay).not.toBeNull());
     child.emit("message", { type: "relay_ready", port: 1234 });
-    // A relay that starts (or restarts) is told the stored token.
-    expect(child.sent).toContainEqual({ type: "claude_token", token: "sk-ant-oat01-STORED" });
-    stored = null;
-    listeners[0]?.(null);
-    expect(child.sent.at(-1)).toEqual({ type: "claude_token", token: null });
+    // The token travels in each box's policy: the relay is never sent a message of its own for it.
+    expect(child.sent.some((message) => (message as { type: string }).type === "claude_token")).toBe(false);
+    const refreshAll = vi.spyOn(vm.relay as NonNullable<typeof vm.relay>, "refreshAll");
+    listeners[0]?.("u1");
+    expect(refreshAll).toHaveBeenCalledTimes(1);
     expect(closers.map((closer) => closer.name)).toContain("agent_relay");
     for (const closer of closers.splice(0).reverse()) await closer.close();
     expect(child.killed).toBe(true);
@@ -238,6 +242,7 @@ describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
     })) as AgentsVm;
     vm.bindLate({
       sessions: { mirror: { notice: () => {}, taint: () => {} }, kindOf: () => ({ agentId: ID }) },
+      providers: sharesAllProviders,
       pi: {
         models: {
           available: async () => ({ models: [], providers: [], origin: "signed-in", truncated: false }),

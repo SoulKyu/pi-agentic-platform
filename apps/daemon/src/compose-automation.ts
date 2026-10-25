@@ -8,7 +8,7 @@ import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { AuditModule } from "./modules/audit/index.ts";
 import type { HealthModule } from "./modules/health/index.ts";
 import { createInbox, type Inbox } from "./modules/inbox/index.ts";
-import { requireStepUp } from "./modules/auth/index.ts";
+import { type AuthModule, requireStepUp } from "./modules/auth/index.ts";
 import {
   type AutomationDeps,
   type AutomationModule,
@@ -50,6 +50,7 @@ export function composeOutbox(core: M10Core, tracer?: Tracer): Outbox {
 
 /** The modules the automation module is built over; the daemon builds them before `composeM10`. */
 export interface AutomationModules {
+  readonly auth: Pick<AuthModule, "isMember">;
   readonly audit: Pick<AuditModule, "port">;
   readonly policy: Pick<PolicyModule, "port">;
   /** `boxSource`: the owner's box projects, so a trigger or a task in a box root is never run from the host (boxes B1). */
@@ -88,6 +89,7 @@ export function composeAutomation(
     audit: modules.audit.port,
     projects: modules.projects.port,
     ...(modules.projects.boxSource ? { boxes: () => modules.projects.boxSource } : {}),
+    isMember: modules.auth.isMember,
     policy: modules.policy.port,
     config: core.config,
     requireStepUp,

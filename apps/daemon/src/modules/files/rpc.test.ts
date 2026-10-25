@@ -5,6 +5,7 @@ import { createDispatcher } from "../../kernel/ws/dispatcher.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { filesRpc } from "./rpc.ts";
 import type { FilesService } from "./service.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const caller = testCaller({ userId: "u9" });
 const ctx: HandlerContext = {
@@ -64,6 +65,7 @@ describe("files rpc", () => {
   it("answers not_found for a refusal and bad_request for a relative path, through the dispatcher", async () => {
     const { service } = serviceThatAnswers();
     const dispatch = createDispatcher({
+      gate: NO_CLIENT_PATHS,
       handlers: filesRpc(service) as unknown as HandlerTable,
       receipts: undefined as never,
       logger: silentLogger,

@@ -54,11 +54,13 @@ export interface SearchIndexStore {
   commit(cursor: FileCursor, rows: readonly IndexRow[]): void;
   /** A file's rows (out of the FTS index too) and its cursor (M4R48). */
   forget(path: string): void;
+  /** Every file the owner's sessions were indexed from, rows and cursors (a deleted member, A5b). Returns how many files. */
+  forgetOwner(ownerId: string): number;
   rowCount(): number;
 }
 
 export function createSearchIndexStore(db: Db): SearchIndexStore {
-  return {
+  const store: SearchIndexStore = {
     cursor: (path) => {
       const raw = db.get<RawCursor>(`SELECT ${CURSOR_COLUMNS} FROM files WHERE path = $path`, { path });
       return raw ? cursorOf(raw) : undefined;
@@ -119,6 +121,17 @@ export function createSearchIndexStore(db: Db): SearchIndexStore {
         db.run("DELETE FROM rows WHERE path = $path", { path });
         db.run("DELETE FROM files WHERE path = $path", { path });
       }),
+    forgetOwner(ownerId) {
+      const paths = db
+        .all<{ path: string }>(
+          `SELECT path FROM files WHERE owner_id = $ownerId UNION SELECT path FROM rows WHERE owner_id = $ownerId`,
+          { ownerId },
+        )
+        .map((row) => row.path);
+      for (const path of paths) store.forget(path);
+      return paths.length;
+    },
     rowCount: () => db.get<{ n: number }>("SELECT count(*) AS n FROM rows")?.n ?? 0,
   };
+  return store;
 }

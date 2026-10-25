@@ -5,4 +5,5 @@ import type { AttachmentsPort } from "../../files/index.ts";
 export const noAttachments: AttachmentsPort = {
   claim: () => Promise.reject(new PapError("not_found")),
   release: () => {},
+  dropOwner: () => {},
 };

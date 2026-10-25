@@ -16,7 +16,9 @@ describe("useShell", () => {
 
   it("reads what the provider holds", async () => {
     const page = await mount(
-      <ShellContext.Provider value={{ username: "ana", passkeysAvailable: false, onSignedOut: () => {} }}>
+      <ShellContext.Provider
+        value={{ username: "ana", role: "owner", passkeysAvailable: false, onSignedOut: () => {} }}
+      >
         <Probe />
       </ShellContext.Provider>,
     );

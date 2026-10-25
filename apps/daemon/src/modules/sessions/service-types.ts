@@ -14,6 +14,7 @@ import type {
   TranscriptRow,
 } from "@pap/contracts";
 import type { ProjectBoxSource } from "../../kernel/boxes.ts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
@@ -29,6 +30,7 @@ import type { SessionsChildPort } from "./child-port.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { SessionsProjectPort } from "./project-port.ts";
+import type { SessionsOwnerCascade } from "./owner-cascade.ts";
 import type { Exports } from "./exports.ts";
 import type { LaneHooksSlot } from "./lane-hooks.ts";
 import type { LaneProbe } from "./lane-port.ts";
@@ -37,7 +39,7 @@ import type { PiWriter } from "./pi-writer.ts";
 import type { ReleaseResult } from "./restart-folder.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import type { SessionCommands } from "./service-commands.ts";
-import type { SessionModels } from "./service-models.ts";
+import type { SessionModels, SessionModelsDeps } from "./service-models.ts";
 import type { SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
@@ -58,7 +60,7 @@ export interface SessionsServiceDeps {
   /** Where a session's project is made (Task 6): one per folder scope, on demand. */
   readonly projects: ProjectsPort;
   /** The pending HTML exports (ADR 0006). */
-  readonly exports: Pick<Exports, "prepare" | "discard">;
+  readonly exports: Pick<Exports, "prepare" | "discard" | "discardOwner">;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   /** Idle minutes after which a worker is released (spec C 2.1), in milliseconds; 0 or less turns the release off. */
   readonly idleMs: number;
@@ -93,6 +95,9 @@ export interface SessionsServiceDeps {
   readonly admission?: Admission;
   /** The owner's box projects, bound late by the composition: a cwd under a box root is a box session (boxes B1). */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly isMember: IsMember;
+  /** The providers a member may use: `sessions.models` and `sessions.availableModels` drop the others (M14). */
+  readonly providers: SessionModelsDeps["providers"];
   /** Present when the VM stack is composed (T8a): the agents' sessions start in their VMs through it. */
   readonly vmLaunch?: VmLaunch;
 }
@@ -213,6 +218,8 @@ export interface SessionsServiceWithAutomation extends SessionsService {
   readonly automation: SessionsAutomationPort;
   /** What the projects module asks when a box project is deleted (boxes B1). */
   readonly projectCleanup: SessionsProjectPort;
+  /** A member's delete (A5b): every session of the owner and the files kept for them. */
+  readonly ownerCascade: SessionsOwnerCascade;
   /** Session kinds, the platform bridge's port and the approved calls (M11). */
   readonly agent: AgentSurface;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */

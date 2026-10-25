@@ -25,9 +25,11 @@ describe("lazy catalog (first run)", () => {
     expect(Object.keys(fr).filter((key) => key.startsWith("firstRun."))).toEqual([]);
     const inChunk = new Set([
       "features/auth/PasskeyStep.tsx",
+      "features/auth/InviteScreen.tsx",
       "features/auth/PiStep.tsx",
       "features/auth/SetupStepper.tsx",
       "features/auth/register-first-run.ts",
+      "features/auth/register-invite.ts",
       "routes/setup/SetupModels.tsx",
     ]);
     const offenders: string[] = [];

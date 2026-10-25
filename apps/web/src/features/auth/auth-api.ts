@@ -4,6 +4,7 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
+import type { InviteInfo, Role } from "@pap/contracts";
 import { getJson, postJson } from "../../runtime/index.ts";
 import { clearSessionDrafts, deviceStorage } from "../../stores/drafts.ts";
 
@@ -11,19 +12,22 @@ export interface AuthStatus {
   readonly setupRequired: boolean;
   readonly authenticated: boolean;
   readonly username: string | null;
+  /** Null while no one is signed in. */
+  readonly role: Role | null;
   readonly passkeysAvailable: boolean;
 }
 
 export type AuthResult = { ok: true } | { ok: false; code: string; retryAfterSeconds: number | null };
+type Refusal = Extract<AuthResult, { ok: false }>;
 type ErrorBody = { error?: { code?: string } };
 type Ceremony<O> = { flowId: string; options: O } & ErrorBody;
 
-const failure = (result: { body: ErrorBody | null; retryAfterSeconds: number | null }): AuthResult => ({
+const failure = (result: { body: ErrorBody | null; retryAfterSeconds: number | null }): Refusal => ({
   ok: false,
   code: result.body?.error?.code ?? "internal",
   retryAfterSeconds: result.retryAfterSeconds,
 });
-const refused = (code: string): AuthResult => ({ ok: false, code, retryAfterSeconds: null });
+const refused = (code: string): Refusal => ({ ok: false, code, retryAfterSeconds: null });
 
 // A request that never got an answer (no network) is `offline`, not an exception for the screen to catch.
 async function answered(run: () => Promise<AuthResult>): Promise<AuthResult> {
@@ -54,6 +58,29 @@ export function setupOwner(token: string, username: string, password: string): P
   return answered(async () => {
     const result = await postJson<ErrorBody>("/auth/setup", { token, username, password });
     return result.status === 201 ? { ok: true } : failure(result);
+  });
+}
+
+export type InviteInfoResult = { ok: true; inviter: string; expiresAt: number } | Refusal;
+
+/** The invitation page asks who invites. The token travels in the body, never in a URL. */
+export async function inviteInfo(token: string): Promise<InviteInfoResult> {
+  try {
+    const result = await postJson<ErrorBody & Partial<InviteInfo>>("/auth/invite/info", { token });
+    const { body } = result;
+    if (result.status === 200 && body?.inviter !== undefined && body.expiresAt !== undefined)
+      return { ok: true, inviter: body.inviter, expiresAt: body.expiresAt };
+    return failure(result);
+  } catch {
+    return refused("offline");
+  }
+}
+
+/** Creates the member and starts their session (the server signs out a different open session first). */
+export function acceptInvite(token: string, username: string, password: string): Promise<AuthResult> {
+  return answered(async () => {
+    const result = await postJson<ErrorBody>("/auth/invite/accept", { token, username, password });
+    return result.status === 204 ? { ok: true } : failure(result);
   });
 }
 

@@ -21,7 +21,7 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
   confirmPassword: auth.confirmPassword,
 }));
 
-const shell = { username: "me", passkeysAvailable: true, onSignedOut: vi.fn() };
+const shell = { username: "me", role: "owner" as const, passkeysAvailable: true, onSignedOut: vi.fn() };
 
 describe("FilesPaneEntry", () => {
   it("gives the pane its root and a step-up whose prompt is the auth feature's password dialog", async () => {

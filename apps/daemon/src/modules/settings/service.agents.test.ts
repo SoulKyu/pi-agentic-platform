@@ -11,6 +11,7 @@ import { testCaller } from "../../testing/caller.ts";
 import { SETTINGS_MIGRATIONS } from "./index.ts";
 import { createSettingsService, type SettingsService } from "./service.ts";
 import { createSettingsStore } from "./store.ts";
+import { noCap } from "./testing/no-cap.ts";
 
 let root: string;
 let db: Db;
@@ -26,7 +27,7 @@ beforeEach(() => {
     clock,
     logger: quiet,
   }).db;
-  service = createSettingsService({ store: createSettingsStore(db), clock, logger: quiet });
+  service = createSettingsService({ store: createSettingsStore(db), clock, logger: quiet, members: noCap });
 });
 afterEach(() => {
   db.close();

@@ -32,8 +32,8 @@ export interface Page {
   readonly csp: string;
 }
 
-const shell = (title: string, body: string, script: boolean): string =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><h1>${escapeHtml(title)}</h1>${body}${script ? `<script>${AUTO_SUBMIT}</script>` : ""}</body></html>`;
+const shell = (title: string, body: string, script: boolean, head = ""): string =>
+  `<!doctype html><html lang="en"><head>${head}<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>${escapeHtml(title)}</title><style>${STYLE}</style></head><body><h1>${escapeHtml(title)}</h1>${body}${script ? `<script>${AUTO_SUBMIT}</script>` : ""}</body></html>`;
 
 /** Posts the manifest to GitHub at once (a button for a browser without scripts). */
 export function manifestPage(webOrigin: string, state: string, manifest: string): Page {
@@ -54,6 +54,20 @@ export function createdPage(app: {
 }): Page {
   const body = `<p>The App <strong>${escapeHtml(app.slug)}</strong> exists. Two steps remain.</p><ol><li><a href="${escapeHtml(app.permissionsUrl)}">Review its permissions on GitHub</a>: add &ldquo;SSH signing keys: Read and write&rdquo;.</li><li><a href="${escapeHtml(app.installUrl)}">Install it</a> on the repositories pap may reach.</li></ol><p>When you change its permissions later, accept them on <a href="${escapeHtml(app.installationsUrl)}">your installations</a>.</p><p><a href="${escapeHtml(app.home)}">Back to pap</a></p>`;
   return { html: shell("GitHub App created", body, false), csp: csp({}) };
+}
+
+/** The sign-in is exchanged but not yet bound: this page's own navigation (same site) carries pap's cookie to the finish step. */
+export function exchangedPage(ticket: string, auto = true): Page {
+  const next = `/github/app/authorized/finish?ticket=${encodeURIComponent(ticket)}`;
+  return {
+    html: shell(
+      "Finishing the GitHub sign-in",
+      `<p>Finishing the sign-in.</p><p><a href="${escapeHtml(next)}">Continue</a></p>`,
+      false,
+      auto ? `<meta http-equiv="refresh" content="0;url=${escapeHtml(next)}">` : "",
+    ),
+    csp: csp({}),
+  };
 }
 
 export function authorizedPage(home: string): Page {

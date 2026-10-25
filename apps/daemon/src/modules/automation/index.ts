@@ -35,8 +35,9 @@ import { createReleaseTools } from "./release-tools.ts";
 import { createAgentScratchDropper, createAgentScratchSweeper } from "./runner-agent.ts";
 import { createScheduler, type Scheduler } from "./scheduler.ts";
 import { createAgentLink } from "./agent-link.ts";
+import { type AutomationOwnerCascade, createAutomationOwnerCascade } from "./owner-cascade.ts";
 import { type AutomationProjectPort, createAutomationProjectPort } from "./project-port.ts";
-export type { AutomationProjectPort };
+export type { AutomationOwnerCascade, AutomationProjectPort };
 import { createThreadQueue } from "./thread-queue.ts";
 import { type AutomationRpc, automationRpc, taskActions } from "./rpc.ts";
 import { createTriggerStore } from "./store.ts";
@@ -72,6 +73,7 @@ export interface AutomationDeps {
   readonly audit: Pick<AuditPort, "append">;
   readonly projects: Pick<ProjectsPort, "ensure">;
   readonly boxes?: TriggersDeps["boxes"];
+  readonly isMember: TriggersDeps["isMember"];
   readonly policy: Pick<
     PolicyPort,
     "scopeOf" | "endTaskPolicy" | "clearTaskPolicy" | "sessionPolicy" | "unattendedSessions"
@@ -156,6 +158,8 @@ export interface AutomationModule {
   readonly agentLink: ReturnType<typeof createAgentLink>;
   /** What the projects module asks when a box project is deleted (boxes B1). */
   readonly projectPort: AutomationProjectPort;
+  /** A member's delete (A5b): their tasks are cancelled and every trigger removed. */
+  readonly ownerCascade: AutomationOwnerCascade;
   /** The task makers of `agent.delegate` and `agent.remind` and the counts of their caps (M11R78, M11R80). */
   readonly agentTasks: Engine["agentTasks"];
   /** The agents' registry, sessions and cards (M11): bound once by `composeM11`, before the server listens. */
@@ -195,6 +199,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     projects: deps.projects,
     scopeOf: (cwd) => deps.policy.scopeOf(cwd),
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
+    isMember: deps.isMember,
     config: deps.config,
     requireStepUp: deps.requireStepUp,
     onChange: triggerChanged,
@@ -331,6 +336,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
       triggers,
     }),
     projectPort: createAutomationProjectPort(deps, logger, triggerStore, built.runner, triggerChanged),
+    ownerCascade: createAutomationOwnerCascade(deps, logger, triggerStore, built.runner, triggerChanged),
     bindAgents: built.bindAgents,
     agentTasks: built.agentTasks,
     rpc: automationRpc(triggers, taskActions(built.runner, built.stream, releaseTools), {

@@ -123,6 +123,7 @@ describe("AutomationSettings", () => {
       timezone: null,
       quietHours: null,
       dailyBudgetUsd: 5,
+      dailyBudgetCapUsd: null,
       autoResume: true,
     });
   });

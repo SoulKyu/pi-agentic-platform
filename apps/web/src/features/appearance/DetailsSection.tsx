@@ -1,5 +1,6 @@
 import { Segmented, Select, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
+import { useRole } from "../../lib/role-context.ts";
 import { AppearanceSection } from "./AppearanceSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { customSlug } from "./fonts.ts";
@@ -16,6 +17,7 @@ const TOOL_DETAILS = ["compact", "expanded", "full"] as const;
  */
 export function DetailsSection() {
   const t = useT();
+  const role = useRole();
   const account = useAppearanceStore((state) => state.account);
   const setAccount = useAppearanceStore((state) => state.setAccount);
   const families = useFontsStore((state) => state.families);
@@ -61,7 +63,8 @@ export function DetailsSection() {
         {...(removed(account.monoFont) ? { hint: t("settings.appearance.fonts.removedNote") } : {})}
         onChange={(monoFont) => setAccount({ ...account, monoFont })}
       />
-      <FontsBlock />
+      {/* Fonts are shared by every user: only the owner adds or removes one (UX only). */}
+      {role === "owner" ? <FontsBlock /> : null}
       <Switch
         label={t("settings.appearance.uppercaseLabels")}
         checked={account.uppercaseLabels}

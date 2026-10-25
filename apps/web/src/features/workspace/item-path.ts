@@ -1,5 +1,5 @@
-import { AgentId, FanoutId, LaneId } from "@pap/contracts";
-import { SETTINGS_SECTIONS, type ItemRef, type SettingsSection } from "./model.ts";
+import { AgentId, FanoutId, LaneId, type Role } from "@pap/contracts";
+import { sectionFor, SETTINGS_SECTIONS, type ItemRef, type SettingsSection } from "./model.ts";
 
 export const MAX_ID = 128;
 const LONE_SURROGATE = /\p{Surrogate}/u; // with the u flag, only unpaired surrogates match
@@ -62,7 +62,7 @@ export function decodeRoot(segment: string): string | null {
   }
 }
 
-export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
+export function itemFromPath(pathname: string, devUi: boolean, role: Role = "owner"): ItemRef | null {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
   if (path === "/") return { kind: "home" };
   if (path === "/settings") return { kind: "settings", section: "appearance" };
@@ -71,7 +71,9 @@ export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
   const settings = /^\/settings\/([a-z]+)$/.exec(path);
   if (settings) {
     const section = settings[1] as SettingsSection;
-    return SETTINGS_SECTIONS.includes(section) ? { kind: "settings", section } : null;
+    return SETTINGS_SECTIONS.includes(section)
+      ? { kind: "settings", section: sectionFor(role, section) }
+      : null;
   }
   const surface = /^\/(explore|changes)\/([^/]+)$/.exec(path);
   if (surface) {

@@ -10,7 +10,7 @@ Status: v1 in hardening (M13); specs A and C implemented; spec D: clean start an
 - [../DESIGN.md](../DESIGN.md): spec B, the Night Control design system (tokens, type, density, logo, layout, components, screens, voice, a11y, customization).
 
 ## Plans
-- [plans/roadmap.md](plans/roadmap.md): milestones M2–M13 covering D01–D22 and the v1 additions.
+- [plans/roadmap.md](plans/roadmap.md): milestones M2–M14 covering D01–D22 and the v1 additions.
 - [plans/2026-10-10-m0-m1-spikes-skeleton.md](plans/2026-10-10-m0-m1-spikes-skeleton.md): pap M0 + M1: architecture spikes and walking skeleton — Implementation Plan.
 - [plans/2026-10-11-m2-sessions-core.md](plans/2026-10-11-m2-sessions-core.md): pap M2: sessions core and extension UI — Implementation Plan.
 - [plans/2026-10-11-m3-design-system.md](plans/2026-10-11-m3-design-system.md): pap M3: design system and app shell — Implementation Plan.

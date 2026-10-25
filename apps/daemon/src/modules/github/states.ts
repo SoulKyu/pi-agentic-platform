@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { Clock } from "../../kernel/clock.ts";
+import { makeRoom } from "./per-user-cap.ts";
 
 export const STATE_TTL_MS = 10 * 60_000;
 const MAX_STATES = 64;
@@ -25,18 +26,14 @@ export function createStates(deps: { readonly clock: Clock }): GithubStates {
     string,
     { userId: string; until: number; purpose: StatePurpose; data: string | null }
   >();
-  const sweep = (): void => {
+  const sweep = (userId: string): void => {
     const now = deps.clock.now();
     for (const [key, entry] of issued) if (entry.until <= now) issued.delete(key);
-    while (issued.size >= MAX_STATES) {
-      const oldest = issued.keys().next().value;
-      if (oldest === undefined) break;
-      issued.delete(oldest);
-    }
+    makeRoom(issued, (entry) => entry.userId, userId, MAX_STATES);
   };
   return {
     issue(userId, purpose = "create", data = undefined) {
-      sweep();
+      sweep(userId);
       const state = randomBytes(16).toString("hex");
       issued.set(state, { userId, until: deps.clock.now() + STATE_TTL_MS, purpose, data: data ?? null });
       return state;

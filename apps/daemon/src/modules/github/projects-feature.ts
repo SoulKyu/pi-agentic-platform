@@ -109,7 +109,9 @@ export function createGithubProjectsFeature(
     },
     start() {
       keys.start();
-      const off = deps.projects.port.onRemoved((ownerId, projectId) => service.removed(ownerId, projectId));
+      const off = deps.projects.port.onRemoved(
+        (ownerId, projectId) => void service.removed(ownerId, projectId),
+      );
       return () => {
         keys.stop();
         off();

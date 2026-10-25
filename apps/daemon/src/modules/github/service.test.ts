@@ -2,7 +2,7 @@ import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { testCaller } from "../../testing/caller.ts";
 import { OWNER } from "./testing/bed.ts";
-import { type FeatureBed, PAP_ORIGIN, SECOND_ORIGIN, startFeatureBed } from "./testing/feature.ts";
+import { type FeatureBed, MEMBER, PAP_ORIGIN, SECOND_ORIGIN, startFeatureBed } from "./testing/feature.ts";
 
 let bed: FeatureBed;
 afterEach(() => bed.close());
@@ -89,6 +89,25 @@ describe("status", () => {
   });
 });
 
+describe("forget and the members", () => {
+  it("clears every user's tokens, so no member shows connected for a dead App", async () => {
+    bed = await startFeatureBed({ withApp: true });
+    await connect();
+    const response = await fetch(`${bed.fake.origin}/login/oauth/access_token`, {
+      method: "POST",
+      body: JSON.stringify({ code: "c2" }),
+    });
+    bed.core.userTokens.store(
+      MEMBER,
+      (await response.json()) as Parameters<typeof bed.core.userTokens.store>[1],
+    );
+    expect(bed.core.userTokens.state(MEMBER)).toBe("ok");
+    bed.feature.service.forget({ ...bed.caller, stepUpUntil: bed.clock.now() + 1000 });
+    expect(bed.core.userTokens.state(OWNER)).toBe("none");
+    expect(bed.core.userTokens.state(MEMBER)).toBe("none");
+  });
+});
+
 describe("startCreate and authorizeUrl", () => {
   it("startCreate answers the page URL with a state, and refuses when an App exists", async () => {
     bed = await startFeatureBed();
@@ -124,11 +143,15 @@ describe("startCreate and authorizeUrl", () => {
     bed = await startFeatureBed({ withApp: true });
     expect((await status(SECOND_ORIGIN)).app?.originMatches).toBe(false);
     const url = new URL(bed.feature.service.authorizeUrl(bed.caller, SECOND_ORIGIN));
-    const outcome = await bed.feature.service.completeAuthorize(
-      "code-9",
-      url.searchParams.get("state") ?? "",
-    );
-    expect(outcome).toEqual({ kind: "authorized", home: `${SECOND_ORIGIN}/` });
+    const state = url.searchParams.get("state") ?? "";
+    const exchanged = await bed.feature.service.completeAuthorize("code-9", state);
+    if (exchanged.kind !== "exchanged") throw new Error("not exchanged");
+    expect(exchanged.ticket).not.toBe(state);
+    expect(bed.core.userTokens.state(bed.caller.userId)).toBe("none");
+    expect(bed.feature.service.finishAuthorize(exchanged.ticket, bed.caller.userId)).toEqual({
+      kind: "authorized",
+      home: `${SECOND_ORIGIN}/`,
+    });
     const exchange = bed.fake.state.callsTo("POST /login/oauth/access_token").at(-1);
     expect(exchange?.body).toMatchObject({
       code: "code-9",

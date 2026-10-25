@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { KEY, TOKEN, asAgent, bed, chat, send } from "../testing/relay-bed.ts";
+import { KEY, OTHER_AGENT, OTHER_KEY, TOKEN, asAgent, bed, chat, send } from "../testing/relay-bed.ts";
 
 /* The bridge (`claude.internal`): its own credential, the same key, model and state checks. */
 describe("the relay server: the bridge", () => {
@@ -59,6 +59,39 @@ describe("the relay server: the bridge", () => {
     });
     expect(JSON.parse(refusedPaused.body)).toEqual({ error: "paused" });
     expect([off.seen, on.seen, paused.seen]).toEqual([[], [], []]);
+  });
+
+  it("serves each box with its own owner's token, and a box whose owner has none is refused (M14)", async () => {
+    const MEMBER = "sk-ant-oat01-MEMBER-CLAUDE-TOKEN";
+    const { port, seen, policy, keys } = await bed();
+    keys.add({
+      launchId: "c".repeat(32),
+      box: OTHER_AGENT,
+      key: Buffer.from(OTHER_KEY, "hex"),
+      address: "127.0.0.1",
+    });
+    const models = [{ provider: "zai", id: "glm-4.6" }];
+    policy.set({ box: OTHER_AGENT, models, claude: true, claudeToken: MEMBER, blocked: null });
+    const ask = (key: string) =>
+      send(port, {
+        path: "/v1/messages",
+        host: "claude.internal:7842",
+        headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+        body: claudeBody,
+      });
+    expect((await ask(KEY)).status).toBe(200);
+    expect((await ask(OTHER_KEY)).status).toBe(200);
+    expect(seen.map((request) => request.headers.authorization)).toEqual([
+      `Bearer ${TOKEN}`,
+      `Bearer ${MEMBER}`,
+    ]);
+    // The member's owner clears the token: the next policy push leaves that box with none, the other box keeps its own.
+    policy.set({ box: OTHER_AGENT, models, claude: true, claudeToken: null, blocked: null });
+    const refused = await ask(OTHER_KEY);
+    expect(refused.status).toBe(503);
+    expect(JSON.parse(refused.body)).toEqual({ error: "no_claude_token" });
+    expect((await ask(KEY)).status).toBe(200);
+    expect(seen).toHaveLength(3);
   });
 
   it("answers the 503 only to an agent that passed the key and model checks", async () => {

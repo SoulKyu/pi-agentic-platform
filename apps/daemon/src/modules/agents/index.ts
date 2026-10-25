@@ -7,7 +7,9 @@ export const AGENTS_MIGRATIONS: MigrationSource = {
 };
 
 export { agentsRpc, type AgentsRpc } from "./rpc.ts";
+export { type AgentsPackagesRpc, agentsPackagesRpc, createAgentPackages } from "./packages.ts";
 export { type AgentsPort, createAgents } from "./service.ts";
+export { type AgentsOwnerCascade, createAgentsOwnerCascade } from "./owner-cascade.ts";
 export { createAgentsStream } from "./stream.ts";
 export { createRequestViews } from "./requests-store.ts";
 export { createThreadLink } from "./thread-link.ts";

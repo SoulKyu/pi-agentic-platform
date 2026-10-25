@@ -12,6 +12,7 @@ import { SETTINGS_MIGRATIONS } from "./index.ts";
 import { settingsRpc } from "./rpc.ts";
 import { createSettingsService, type SettingsService } from "./service.ts";
 import { createSettingsStore } from "./store.ts";
+import { noCap } from "./testing/no-cap.ts";
 
 let root: string;
 let db: Db;
@@ -33,6 +34,7 @@ beforeEach(() => {
     store: createSettingsStore(db),
     clock,
     logger: createLogger({ level: "warn", clock, write: (line) => lines.push(line) }),
+    members: noCap,
   });
 });
 afterEach(() => {

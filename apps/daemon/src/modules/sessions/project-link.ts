@@ -1,5 +1,6 @@
 import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { boxCwdOf } from "./box-cwd.ts";
 import type { MarksStore } from "./marks-store.ts";
@@ -21,6 +22,8 @@ export function createProjectLink(deps: {
   readonly store: MarksStore;
   readonly projects: ProjectsPort;
   scopeOf(cwd: string): string;
+  /** A gated owner's cwd is never looked up on the host (`scopeOf` stats it). */
+  readonly isMember: IsMember;
   /** The box projects, bound late: a box cwd links to its own project, never through `scopeOf`. */
   readonly boxes?: (() => ProjectBoxSource | undefined) | undefined;
   readonly logger: Logger;
@@ -28,6 +31,7 @@ export function createProjectLink(deps: {
   const projectOf = (ownerId: string, cwd: string): string | null => {
     const box = boxCwdOf(deps.boxes?.(), ownerId, cwd);
     if (box) return box.projectId;
+    if (deps.isMember(ownerId)) return null;
     try {
       return deps.projects.ensure(ownerId, deps.scopeOf(cwd))?.id ?? null;
     } catch (error) {

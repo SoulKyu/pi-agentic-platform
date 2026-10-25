@@ -12,7 +12,11 @@ const launch: ProjectLaunch = {
 };
 const BRIDGE_ENV = { IS_SANDBOX: "1", CLAUDE_CONFIG_DIR: "/boxes/p/home/.claude" };
 
-function surface(token: boolean, env: Record<string, string>) {
+function surface(
+  token: boolean,
+  env: Record<string, string>,
+  tokenOf: (ownerId: string) => boolean = () => token,
+) {
   const claudeEnvOf = vi.fn(async () => env);
   const s = createAgentSurface({
     store: { get: () => undefined, readOnly: false } as never,
@@ -27,8 +31,8 @@ function surface(token: boolean, env: Record<string, string>) {
       claudeEnvOf,
       boxes: {
         projectOf: () => null,
-        box: () => null,
-        claudeTokenSet: () => token,
+        box: () => ({ ownerId: "member1" }) as never,
+        claudeTokenSet: tokenOf,
         addHost: () => undefined,
       },
     },
@@ -48,5 +52,11 @@ describe("a project launch's Claude Code environment (ADR 0080)", () => {
     expect(await noToken.s.projectEnv(launch)).toBe(launch);
     expect(noToken.claudeEnvOf).not.toHaveBeenCalled();
     expect(await surface(true, {}).s.projectEnv(launch)).toBe(launch);
+  });
+  it("asks for the token of the box's own owner (M14): the owner's token does not give a member's box the bridge", async () => {
+    const asked: string[] = [];
+    const { s } = surface(true, BRIDGE_ENV, (ownerId) => (asked.push(ownerId), ownerId === "owner1"));
+    expect(await s.projectEnv(launch)).toBe(launch);
+    expect(asked).toEqual(["member1"]);
   });
 });

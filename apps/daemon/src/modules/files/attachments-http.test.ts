@@ -9,6 +9,7 @@ import { testCaller } from "../../testing/caller.ts";
 import { createAttachmentsStore, type AttachmentsStore } from "./attachments-store.ts";
 import { mountAttachmentsRoute } from "./attachments-http.ts";
 import { createFilesBed, type FilesBed } from "./testing/files-bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const ORIGIN = "http://localhost:7777";
 const MIB = 1024 * 1024;
@@ -86,12 +87,12 @@ describe("POST /upload (M8R37)", () => {
   });
 
   it("answers 401 without a cookie and to a bearer, 403 without sessions:operate", async () => {
-    const real = httpCaller((header) => (header === "pap=ok" ? testCaller() : null));
+    const real = httpCaller((header) => (header === "pap=ok" ? testCaller() : null), NO_CLIENT_PATHS);
     expect((await post(appOf(real), ok, "x")).status).toBe(401);
     expect((await post(appOf(real), ok, "x", { authorization: "Bearer t", cookie: "pap=ok" })).status).toBe(
       401,
     );
-    const weak = httpCaller(() => testCaller({ permissions: new Set(["files:read"]) }));
+    const weak = httpCaller(() => testCaller({ permissions: new Set(["files:read"]) }), NO_CLIENT_PATHS);
     expect((await post(appOf(weak), ok, "x", { cookie: "pap=ok" })).status).toBe(403);
     expect(pendingOf()).toEqual([]);
   });

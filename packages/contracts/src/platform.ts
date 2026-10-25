@@ -154,8 +154,15 @@ export function platformVerdict(op: PlatformOp, caller: CallerFacts): PlatformEr
   return caller.autonomous === true && caller.type === "agent-thread" ? null : "tainted";
 }
 
-/** `<slug>-<4 hex>`, like a lane id: what the home folder and the vault file are named after. */
-export const AgentId = z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{4}$/);
+/**
+ * `<slug>-<8 hex>`: what the home folder and the vault file are named after. An id made before M14 ends in 4 hex digits (RT-19:
+ * a short suffix let two owners' ids meet in the trash); both forms stay valid, and the new one keeps the vault scope name in 48.
+ */
+export const AgentId = z
+  .string()
+  .regex(
+    /^(?:[a-z0-9](?:[a-z0-9-]{0,41}[a-z0-9])?-[0-9a-f]{4}|[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?-[0-9a-f]{8})$/,
+  );
 export type AgentId = z.infer<typeof AgentId>;
 /** One word the owner types after `@` (no space): letters first, then letters, digits, `_` or `-`. Unique per owner, any case. */
 export const AgentName = z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,31}$/);

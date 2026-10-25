@@ -1,10 +1,11 @@
+import type { Role } from "@pap/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
 import { useCommand } from "../../features/commands/index.ts";
 import { activeTab, pathOfItem, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
 import { signOut } from "./sign-out.ts";
 import { useTerminalReady } from "./surface-view.ts";
-import { placeOf, showSurface, type Surface } from "./surface.ts";
+import { placeOf, showSurface, terminalAllowed, type Surface } from "./surface.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useAgentCommands } from "./agent-commands.ts";
@@ -17,6 +18,7 @@ interface ShellCommandState {
   readonly setInboxOpen: Setter;
   readonly setHelpOpen: Setter;
   readonly mobile: boolean;
+  readonly role: Role;
   onSignedOut(): void;
 }
 
@@ -53,6 +55,7 @@ export function useShellCommands(state: ShellCommandState): void {
     if (!tab || tab.item.kind !== "session") return false;
     const place = placeOf(useShellStore.getState().view, tab.item.id);
     if (!place || (which === "terminal" ? place.cwd : place.root) === null) return false;
+    if (which === "terminal" && !terminalAllowed(place, state.role)) return false; // a member: box terminals only
     if (which === "terminal" && !useTerminalReady.getState().ready) return false; // the stream has not answered yet
     showSurface(tab.key, tab.item.id, which).catch(() => reportClientIssue("command_failed"));
   };

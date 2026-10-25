@@ -16,6 +16,7 @@ import { captureLogger } from "../../testing/capture-logger.ts";
 import { AUDIT_MIGRATIONS, createAuditModule } from "../audit/index.ts";
 import { createModelsModule } from "./index.ts";
 import { signInDeps } from "./testing/bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ENTRY = join(REPO, "packages/pi-host/src/helper/main.ts");
@@ -107,6 +108,7 @@ beforeEach(async () => {
     writes: createPiWriteQueue(),
   });
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: models.rpc as unknown as HandlerTable,
     receipts: createReceiptStore(db, clock),
     logger,

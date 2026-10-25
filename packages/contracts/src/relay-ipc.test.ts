@@ -15,6 +15,7 @@ const policy = {
   box: AGENT_BOX,
   models: [{ provider: "anthropic", id: "claude-x" }],
   claude: false,
+  claudeToken: null,
   blocked: null,
 };
 
@@ -42,10 +43,15 @@ describe("RelayCommand", () => {
     const models = [{ provider: "Anthropic", id: "m" }];
     expect(RelayCommand.safeParse({ ...policy, models }).success).toBe(false);
     expect(RelayCommand.safeParse(policy).success).toBe(true);
-    expect(RelayCommand.safeParse({ type: "claude_token", token: "" }).success).toBe(false);
-    expect(RelayCommand.safeParse({ type: "claude_token", token: null }).success).toBe(true);
-    expect(RelayCommand.safeParse({ type: "claude_token", token: "abc\r\nX-Evil: 1" }).success).toBe(false);
-    expect(RelayCommand.safeParse({ type: "claude_token", token: "   " }).success).toBe(false);
+    const withToken = (claudeToken: string | null) =>
+      RelayCommand.safeParse({ ...policy, claudeToken }).success;
+    expect(withToken("")).toBe(false);
+    expect(withToken(null)).toBe(true);
+    expect(withToken("sk-ant-oat01-ok")).toBe(true);
+    expect(withToken("abc\r\nX-Evil: 1")).toBe(false);
+    expect(withToken("   ")).toBe(false);
+    // The install-wide token message is gone: the token only travels in a box's policy.
+    expect(RelayCommand.safeParse({ type: "claude_token", token: null }).success).toBe(false);
   });
 
   it("bounds the model list and the blocked reasons", () => {

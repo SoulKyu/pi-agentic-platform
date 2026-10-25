@@ -44,6 +44,7 @@ export function createFilesModule(deps: {
   /** Late-bound (J1 wires them): with no source bound, every path is a host path. */
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
+  readonly isMember: (userId: string) => boolean;
 }): FilesModule {
   const logger = deps.logger.child({ module: "files" });
   const service = createFilesService({ ...deps, logger });

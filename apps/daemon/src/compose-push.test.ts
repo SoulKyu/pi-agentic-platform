@@ -66,7 +66,7 @@ function wire(over: { testPushLoopback?: boolean } = {}) {
         },
       },
     },
-    auth: { ownerId: () => null, sessionLive: () => true },
+    auth: { userIds: () => [], sessionLive: () => true },
     inbox: {
       onItem: () => {
         listening.inbox += 1;

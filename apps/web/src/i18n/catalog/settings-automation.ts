@@ -28,6 +28,7 @@ export const settingsAutomationEn = {
   "settingsAutomation.save": "Save",
   "settingsAutomation.saved": "Saved.",
   "settingsAutomation.loadFailed": "The automation settings could not be read.",
+  "settingsAutomation.cap": "Capped at {cap} USD by the owner.",
   "settingsAutomation.conflict":
     "These settings changed elsewhere. Your edits are kept: check them and save again.",
   "settingsAutomation.forbidden":
@@ -98,6 +99,7 @@ export const settingsAutomationFr: { readonly [K in keyof typeof settingsAutomat
   "settingsAutomation.save": "Enregistrer",
   "settingsAutomation.saved": "Enregistré.",
   "settingsAutomation.loadFailed": "Les réglages d'automatisation n'ont pas pu être lus.",
+  "settingsAutomation.cap": "Plafonné à {cap} USD par le propriétaire.",
   "settingsAutomation.conflict":
     "Ces réglages ont changé ailleurs. Vos modifications sont gardées : vérifiez-les puis enregistrez de nouveau.",
   "settingsAutomation.forbidden":

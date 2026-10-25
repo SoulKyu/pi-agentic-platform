@@ -1,5 +1,5 @@
 import { type Caller, PapError, type ParamsOf, type ResultOf } from "@pap/contracts";
-import { boxOfPath } from "../../kernel/box-path.ts";
+import { type IsMember, routeBoxPath } from "../../kernel/box-path.ts";
 import type { BoxControl, BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import { type BoundaryConfig, judgePath, type Scope } from "../../kernel/fs/boundary.ts";
@@ -26,6 +26,8 @@ export interface VcsDeps {
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
   readonly boxControl?: () => BoxControl | undefined;
+  /** A member's root is a box root or `forbidden`, before any host judgement (M14). */
+  readonly isMember: IsMember;
 }
 
 export interface VcsService {
@@ -101,8 +103,8 @@ export function createVcsService(deps: VcsDeps): VcsService {
     root: string,
   ): Promise<{ scope: Scope; box: { projectId: string; root: string } | null }> {
     const scope = scopeOf(caller);
+    const box = routeBoxPath(deps, deps.boxes?.(), caller.userId, root);
     if (!scope.roots.includes(root)) throw new PapError("not_found");
-    const box = boxOfPath(deps.boxes?.(), caller.userId, root);
     if (box !== null) {
       // No host judgement for a box root: the guest owns the folder. A stopped box is never started by a call.
       if (box.root !== root) throw new PapError("not_found");

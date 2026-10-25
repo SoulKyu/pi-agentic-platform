@@ -12,7 +12,7 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
   getRuntime: () => ({ rpc: { newCommandId: () => "cmd-1" } }),
 }));
 
-const shell = { username: "me", passkeysAvailable: true, onSignedOut: vi.fn() };
+const shell = { username: "me", role: "owner" as const, passkeysAvailable: true, onSignedOut: vi.fn() };
 const RAW_KEY = /^[a-z]+(\.[a-zA-Z]+)+$/;
 
 function Asker() {

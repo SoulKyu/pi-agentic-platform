@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 
 export const FILE_LIMITS = {
@@ -17,11 +18,7 @@ export const FILE_LIMITS = {
 } as const;
 
 /** An absolute path as a client sends it; the daemon's boundary decides the rest (M8R14). */
-export const FilePath = z
-  .string()
-  .min(1)
-  .max(FILE_LIMITS.pathBytes)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "an absolute path");
+export const FilePath = ClientPath;
 export const Etag = z.string().regex(/^[0-9a-f]{32}$/);
 
 export const FileEntry = z.object({

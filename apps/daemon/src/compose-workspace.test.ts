@@ -23,6 +23,7 @@ import { silentLogger } from "./kernel/logger.ts";
 import { NO_SCOPES } from "./kernel/supervisor/scope.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { testCaller } from "./testing/caller.ts";
+import { NO_CLIENT_PATHS } from "./kernel/ws/client-path-gate.ts";
 
 let base: string;
 beforeEach(() => {
@@ -181,6 +182,8 @@ describe("the workspace modules", () => {
     return createWorkspaceModules(
       {
         roots: () => roots,
+        isMember: () => false,
+        gate: NO_CLIENT_PATHS,
         config,
         clock,
         logger: silentLogger,
@@ -240,6 +243,8 @@ describe("the workspace modules", () => {
     const { rpc } = createWorkspaceModules(
       {
         roots: () => roots,
+        isMember: () => false,
+        gate: NO_CLIENT_PATHS,
         config,
         clock: createFakeClock(Date.now() + 3_600_000),
         logger: silentLogger,
@@ -278,6 +283,8 @@ describe("the workspace modules", () => {
     const { rpc, shutdown } = createWorkspaceModules(
       {
         roots: () => [host, box],
+        isMember: () => false,
+        gate: NO_CLIENT_PATHS,
         config,
         clock: createFakeClock(Date.now() + 3_600_000),
         logger: silentLogger,
@@ -312,6 +319,8 @@ describe("the workspace modules", () => {
     const { rpc } = createWorkspaceModules(
       {
         roots: () => roots,
+        isMember: () => false,
+        gate: NO_CLIENT_PATHS,
         config,
         clock: createFakeClock(Date.now() + 3_600_000),
         logger: silentLogger,

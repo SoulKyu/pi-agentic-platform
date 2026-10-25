@@ -31,6 +31,8 @@ export interface FilesDeps {
   /** Late-bound (the boxes are wired after the files): with none bound, no path is a box path. */
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
+  /** A member reads and writes box paths only (M14); a host path is `forbidden` before any file-system call. */
+  readonly isMember: (userId: string) => boolean;
 }
 
 export interface FilesService {
@@ -61,6 +63,7 @@ export function createFilesService(
     clock: deps.clock,
     logger: deps.logger,
     readOnly: deps.readOnly,
+    isMember: deps.isMember,
   });
   // The transport's caller, never the params, decides whose roots and which strictness apply (C 4.4, M8R29).
   const scopeOf = (caller: Caller): Scope => ({
@@ -91,7 +94,10 @@ export function createFilesService(
       const inBox = box.match(caller, path);
       return inBox ? box.openRaw(inBox, caller, path) : null;
     },
-    openRaw: (caller, path) => openRaw(env, scopeOf(caller), path),
+    openRaw(caller, path) {
+      if (deps.isMember(caller.userId)) throw new PapError("forbidden");
+      return openRaw(env, scopeOf(caller), path);
+    },
     async write(caller, params) {
       if (deps.readOnly) throw new PapError("read_only");
       const inBox = box.match(caller, params.path);

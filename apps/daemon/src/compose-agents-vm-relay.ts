@@ -2,7 +2,7 @@ import { dirname, extname, join } from "node:path";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
-  type ClaudeTokenStore,
+  type ClaudeTokens,
   createRelayLink,
   forkRelay,
   type PolicyView,
@@ -18,7 +18,7 @@ import {
 } from "./modules/agent-vm/index.ts";
 
 /** Until the late binding the relay learns no model for any agent: it refuses every request (fail closed). */
-const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
+const NOTHING: PolicyView = { models: [], claude: false, claudeToken: null, blocked: null };
 const failClosed = { policyOf: async () => NOTHING, policyOfProject: async () => NOTHING };
 
 export interface RelayContext {
@@ -29,7 +29,7 @@ export interface RelayContext {
   readonly piHostExecArgv: readonly string[];
   readonly piAgentDir: string;
   readonly testProviderScript: string | null;
-  readonly claudeToken: ClaudeTokenStore;
+  readonly claudeToken: ClaudeTokens;
   /** The owner's values the relay's stderr is masked with (T15b). */
   readonly ownerSecrets: OwnerSecretsCollector;
   /** Under Kata the relay listens on the bridge's host address; under the process backend and test backends on loopback. */
@@ -79,11 +79,10 @@ export function composeRelay(ctx: RelayContext): RelayLink | null {
       const late = ctx.late() ?? failClosed;
       return box.kind === "agent" ? late.policyOf(box.id) : late.policyOfProject(box.id);
     },
-    claudeToken: () => ctx.claudeToken.load(),
     reportedTurns: (box) => (box.kind === "agent" ? (ctx.late()?.turnsOf(box.id) ?? 0) : 0),
     windowEnded: () => ctx.late()?.windowEnded(),
   });
-  // The bridge's policy follows the token too: set it and the agents with the bridge may use it at once.
-  ctx.claudeToken.onChange((token) => (relay.setClaudeToken(token), relay.refreshAll()));
+  // The token travels in each box's policy (M14): a user's change is pushed to the live boxes at once, each with its own owner's.
+  ctx.claudeToken.onChange(() => relay.refreshAll());
   return relay;
 }

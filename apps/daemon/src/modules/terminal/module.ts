@@ -1,5 +1,6 @@
 import { freemem } from "node:os";
 import type { BoxControl, BoxTerminals, ProjectBoxSource } from "../../kernel/boxes.ts";
+import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { BoundaryConfig } from "../../kernel/fs/boundary.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -30,6 +31,7 @@ export interface TerminalModuleDeps {
   freeMemMb?(): number;
   /** Lot B2: the owner's box projects, their control and their ptys; a box terminal also keeps its box awake for `idleMs`. */
   readonly boxes?: () => ProjectBoxSource | undefined;
+  readonly isMember: IsMember;
   readonly boxControl?: () => BoxControl | undefined;
   readonly boxTerminals?: () => BoxTerminals | undefined;
   /** `PAP_WORKER_IDLE_MINUTES` in ms: the box idle time a terminal in use pushes back; 0 never idles. */
@@ -80,6 +82,7 @@ export function createTerminalModule(deps: TerminalModuleDeps): TerminalModule {
     logger,
     maxTerminals: deps.maxTerminals,
     clock: deps.clock,
+    isMember: deps.isMember,
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.boxControl ? { boxControl: deps.boxControl } : {}),
     ...(deps.boxTerminals ? { boxTerminals: deps.boxTerminals } : {}),

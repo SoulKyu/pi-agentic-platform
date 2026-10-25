@@ -4,6 +4,7 @@ import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Db } from "./kernel/db/database.ts";
 import { httpCaller } from "./kernel/http/caller.ts";
+import { NO_CLIENT_PATHS } from "./kernel/ws/client-path-gate.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
 import type { AuthModule } from "./modules/auth/index.ts";
@@ -61,7 +62,7 @@ export interface GithubDeps {
   readonly logger: Logger;
   readonly config: Pick<Config, "allowedOrigins" | "home">;
   readonly audit: { readonly port: AuditPort };
-  readonly auth: Pick<AuthModule, "authenticateCookieHeader">;
+  readonly auth: Pick<AuthModule, "authenticateCookieHeader" | "userIds">;
   readonly projects: ProjectsModule;
   readonly sessions: Pick<SessionsModule, "lanes">;
   readonly policy: { readonly port: PolicyPort };
@@ -72,6 +73,8 @@ export interface GithubDeps {
 export interface GithubComposition {
   readonly rpc: GithubAccountRpc & GithubProjectsFeature["rpc"];
   mount(app: Hono): void;
+  /** A member's delete (A5b): their signing keys are released on GitHub, awaited, before their vault is dropped. */
+  releaseKeysOf(ownerId: string): Promise<number[]>;
 }
 
 /** App creation, projects from GitHub, the delivery loop on the box phases and the key sweep (boxes B2). */
@@ -81,8 +84,9 @@ export function composeGithub(core: GithubCore, deps: GithubDeps): GithubComposi
     audit: deps.audit.port,
     clock: deps.clock,
     logger,
-    httpCaller: httpCaller(deps.auth.authenticateCookieHeader),
+    httpCaller: httpCaller(deps.auth.authenticateCookieHeader, NO_CLIENT_PATHS),
     allowedOrigins: deps.config.allowedOrigins,
+    userIds: deps.auth.userIds,
   });
   const projects = createGithubProjectsFeature(core, {
     db: deps.db,
@@ -97,5 +101,9 @@ export function composeGithub(core: GithubCore, deps: GithubDeps): GithubComposi
     { name: "github_delivery", close: projects.bind(deps.boxes) },
     { name: "github_keys", close: projects.start() },
   );
-  return { rpc: { ...feature.rpc, ...projects.rpc }, mount: feature.mount };
+  return {
+    rpc: { ...feature.rpc, ...projects.rpc },
+    mount: feature.mount,
+    releaseKeysOf: projects.service.releaseKeysOf,
+  };
 }

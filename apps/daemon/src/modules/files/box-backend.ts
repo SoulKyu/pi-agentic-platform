@@ -10,7 +10,7 @@ import {
   type UploadAnswer,
 } from "@pap/contracts";
 import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
-import { boxOfPath } from "../../kernel/box-path.ts";
+import { type IsMember, routeBoxPath } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import {
   entryIsProtected,
@@ -43,10 +43,11 @@ export interface BoxFilesDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly readOnly: boolean;
+  readonly isMember: IsMember;
 }
 
 export interface BoxFiles {
-  /** The box a path of the caller's belongs to, or null (a host path, or no box source bound). */
+  /** The box a path of the caller's belongs to, or null (a host path, or no box source bound); `forbidden` for a member's host path. */
   match(caller: Caller, path: string): BoxTarget | null;
   list(target: BoxTarget, caller: Caller, params: ParamsOf<"files.list">): Promise<ResultOf<"files.list">>;
   read(target: BoxTarget, caller: Caller, params: ParamsOf<"files.read">): Promise<ResultOf<"files.read">>;
@@ -118,7 +119,7 @@ export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
   }
 
   return {
-    match: (caller, path) => boxOfPath(deps.boxes(), caller.userId, path),
+    match: (caller, path) => routeBoxPath(deps, deps.boxes(), caller.userId, path),
     async list(target, caller, { path, showIgnored }) {
       protectionFor(target, caller, path);
       const listing = await ops().call(target.projectId, {

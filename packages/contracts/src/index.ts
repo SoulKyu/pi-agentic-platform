@@ -2,6 +2,7 @@ export * from "./agents.ts";
 export * from "./agents-files.ts";
 export * from "./agents-net.ts";
 export * from "./agents-resources.ts";
+export { CLAUDE_BRIDGE_PROVIDER } from "./box-ref.ts";
 export * from "./agents-vm.ts";
 export * from "./agents-vm-methods.ts";
 export {
@@ -50,6 +51,10 @@ export * from "./models-provider-form.ts";
 export * from "./models-extensions.ts";
 export * from "./models-usage.ts";
 export * from "./permissions.ts";
+export * from "./roles.ts";
+export * from "./client-path.ts";
+export * from "./users-methods.ts";
+export * from "./invite.ts";
 export * from "./platform.ts";
 export * from "./host-entry.ts";
 export * from "./policy.ts";

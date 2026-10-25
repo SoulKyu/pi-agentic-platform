@@ -1,3 +1,4 @@
+import { CLAUDE_BRIDGE_PROVIDER } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
 
 export type RunStatus = "running" | "completed" | "failed" | "cancelled" | "interrupted" | "limited";
@@ -97,6 +98,8 @@ export interface RunsStore {
    * (spec C §6.4). `taskIds` narrows it to those tasks; an empty list is nothing.
    */
   spentSince(ownerId: string, since: number, taskIds: readonly string[] | null): number;
+  /** The cost of every finished run of the owner, interactive included, billed `api` or `unknown` and not through the Claude bridge (the owner's own subscription), ended since `since` (M14 member line). */
+  spentApiSince(ownerId: string, since: number): number;
   /** The finished runs of a session: how many, and what they cost. */
   sessionTotals(sessionId: string): { runs: number; costUsd: number };
   /** How the session's finished runs were billed: `subscription` if any was, else `api` if any was, else `unknown`; null with none. */
@@ -263,6 +266,13 @@ export function createRunsStore(db: Db): RunsStore {
             );
       return row?.total ?? 0;
     },
+    spentApiSince: (ownerId, since) =>
+      db.get<{ total: number }>(
+        "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM runs WHERE owner_id = $ownerId AND status <> 'running' " +
+          "AND billing IN ('api', 'unknown') AND COALESCE(provider, '') <> $bridge " +
+          `AND ended_at >= $since AND started_at >= $since - ${MAX_RUN_SPAN_MS}`,
+        { ownerId, since, bridge: CLAUDE_BRIDGE_PROVIDER },
+      )?.total ?? 0,
     sessionTotals(sessionId) {
       const row = db.get<{ runs: number; costUsd: number }>(
         "SELECT COUNT(*) AS runs, COALESCE(SUM(cost_usd), 0) AS costUsd FROM runs " +

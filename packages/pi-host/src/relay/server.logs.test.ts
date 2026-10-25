@@ -35,7 +35,13 @@ describe("the relay server: usage and logs", () => {
     const project = { kind: "project", id: "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11" } as const;
     const key = "ef".repeat(32);
     keys.add({ launchId: "c".repeat(32), box: project, key: Buffer.from(key, "hex"), address: "127.0.0.1" });
-    policy.set({ box: project, models: [{ provider: "zai", id: "glm-4.6" }], claude: false, blocked: null });
+    policy.set({
+      box: project,
+      models: [{ provider: "zai", id: "glm-4.6" }],
+      claude: false,
+      claudeToken: null,
+      blocked: null,
+    });
     await send(port, {
       path: "/zai/chat/completions",
       headers: { authorization: `Bearer ${key}` },

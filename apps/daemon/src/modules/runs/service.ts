@@ -4,6 +4,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { scrubKnownSecrets } from "../audit/index.ts";
 import { rangeStart, serverTimeZone, startOfLocalDay } from "./days.ts";
+import { memberSpent } from "./member-spend.ts";
 import {
   createRunTracker,
   type OpenRunView,
@@ -32,7 +33,11 @@ export interface RunsPort {
   onLiveCost(listener: (sessionId: string, ownerId: string, runCostUsd: number) => void): Unsubscribe;
   /** Today's cost of the automation's runs (a task's, and every resume), the runs in flight included. */
   spentToday(ownerId: string, timeZone: string | null): number;
-  /** The same, for the runs of the given tasks only (a trigger's own budget). */
+  /** Everything the owner's runs cost today that the owner pays for (billed `api` or `unknown`, interactive included, in flight included): a member's line (M14). */
+  memberSpent(ownerId: string, timeZone: string | null): number;
+  /** The same line over a longer span: what the owner's runs cost since `since` (epoch ms), billed `api` or `unknown`, in flight included (the Users list's 7 days). */
+  spentSince(ownerId: string, since: number): number;
+  /** The same as `spentToday`, for the runs of the given tasks only (a trigger's own budget). */
   spentTodayOf(ownerId: string, timeZone: string | null, taskIds: readonly string[]): number;
   /** What the task's runs ended since `since` cost, its runs in flight included: a task's own session and its subagents' (M11R141). */
   spentByTask(ownerId: string, taskId: string, since: number): number;
@@ -49,6 +54,11 @@ export interface RunsPort {
 export interface RunsService {
   readonly port: RunsPort;
   readonly observer: RunObserver;
+  /**
+   * The one seam of a budget DAY (M14 R10): which zone the day of `ownerId`'s budget lines is read in. A member's is the
+   * owner's zone, never their own writable one; set once at composition, the given zone otherwise.
+   */
+  bindBudgetZone(zoneOf: (ownerId: string, timeZone: string | null) => string | null): void;
   /** A run in flight as the observer holds it, error text included (Task 17 reads it when the run ends). */
   peek(sessionId: string): OpenRunView | null;
   /** A resume was not started (`archived`, `newer_input`, `full_access`, `budget`, `child`): the runner of a task hears of it. */
@@ -144,7 +154,10 @@ export function createRunsService(deps: {
     },
   });
 
-  const sinceMidnight = (timeZone: string | null): number => startOfLocalDay(clock.now(), timeZone);
+  let budgetZone: (ownerId: string, timeZone: string | null) => string | null = (_ownerId, timeZone) =>
+    timeZone;
+  const sinceMidnight = (ownerId: string, timeZone: string | null): number =>
+    startOfLocalDay(clock.now(), budgetZone(ownerId, timeZone));
 
   const port: RunsPort = {
     onRunStart: started.add,
@@ -155,9 +168,13 @@ export function createRunsService(deps: {
     markEnding: tracker.markEnding,
     onLiveCost: live.add,
     spentToday: (ownerId, timeZone) =>
-      store.spentSince(ownerId, sinceMidnight(timeZone), null) + tracker.liveSpent(ownerId, null),
+      store.spentSince(ownerId, sinceMidnight(ownerId, timeZone), null) + tracker.liveSpent(ownerId, null),
+    memberSpent: (ownerId, timeZone) =>
+      memberSpent({ store, tracker }, ownerId, clock.now(), budgetZone(ownerId, timeZone)),
+    spentSince: (ownerId, since) => store.spentApiSince(ownerId, since) + tracker.liveApiSpent(ownerId),
     spentTodayOf: (ownerId, timeZone, taskIds) =>
-      store.spentSince(ownerId, sinceMidnight(timeZone), taskIds) + tracker.liveSpent(ownerId, taskIds),
+      store.spentSince(ownerId, sinceMidnight(ownerId, timeZone), taskIds) +
+      tracker.liveSpent(ownerId, taskIds),
     spentByTask: (ownerId, taskId, since) =>
       store.spentSince(ownerId, since, [taskId]) + tracker.liveSpent(ownerId, [taskId]),
     sessionCost(sessionId) {
@@ -208,6 +225,9 @@ export function createRunsService(deps: {
   return {
     port,
     observer: tracker,
+    bindBudgetZone(zoneOf) {
+      budgetZone = zoneOf;
+    },
     peek: tracker.peek,
     resumeSkipped: skipped.emit,
     onLimited(hook) {

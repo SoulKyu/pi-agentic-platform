@@ -1,3 +1,4 @@
+import type { Role } from "@pap/contracts";
 import { create } from "zustand";
 import { reportClientIssue } from "../../lib/report.ts";
 import {
@@ -11,6 +12,7 @@ import {
   type ItemRef,
   type Workspace,
 } from "./model.ts";
+import { restrictWorkspace } from "./model.ts";
 import { parseWorkspace, serializeWorkspace, WORKSPACE_KEY } from "./persist.ts";
 
 interface WorkspaceState {
@@ -21,6 +23,8 @@ interface WorkspaceState {
   split(key: string, item: ItemRef): void;
   unsplit(key: string): void;
   setRatio(key: string, ratio: number): void;
+  /** A member restores no owner section: those tabs become Appearance. */
+  restrict(role: Role): void;
 }
 
 function load(): Workspace {
@@ -57,5 +61,6 @@ export const useWorkspaceStore = create<WorkspaceState>()((set, get) => {
     split: (key, item) => apply((ws) => splitTab(ws, key, item)),
     unsplit: (key) => apply((ws) => unsplitTab(ws, key)),
     setRatio: (key, ratio) => apply((ws) => setSplitRatio(ws, key, ratio)),
+    restrict: (role) => apply((ws) => restrictWorkspace(ws, role)),
   };
 });

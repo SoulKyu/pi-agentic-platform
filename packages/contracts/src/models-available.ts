@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
 import { ModelSummary } from "./session-loadout.ts";
 
@@ -36,7 +37,7 @@ export const modelsAvailableMethods = {
     name: "models.available",
     permission: "pi:read",
     idempotent: true,
-    params: z.object({ cwd: z.string().min(1).max(4096).optional() }).strict(),
+    params: z.object({ cwd: ClientPath.optional() }).strict(),
     result: AvailableModels,
     errors: ["invalid_cwd", "capacity", "timeout", "helper_failed", "config_invalid", "config_path_refused"],
   }),

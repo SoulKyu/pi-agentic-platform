@@ -17,6 +17,7 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { isVaultName, VAULT_CAPS, VaultValue } from "@pap/contracts";
+import { dropOwnerFolder } from "./vault-drop.ts";
 
 /** `user` (M14's per-user forge token, never given to an agent) or one agent's vault. */
 export type VaultScope = { readonly kind: "user" } | { readonly kind: "agent"; readonly agentId: string };
@@ -243,8 +244,14 @@ export interface VaultStore {
   remove(ownerId: string, scope: VaultScope, name: string): boolean;
   /** An agent deleted or quarantined: its whole file goes. */
   drop(ownerId: string, scope: VaultScope): void;
+  /** A member deleted: every scope of the owner, whatever their names. */
+  dropOwner(ownerId: string): void;
   /** Every value of every owner and scope, for the daemon's own secret scans only (T15b). Never logged, never sent. */
   everyValue(): string[];
+  /** Every value of one owner's scopes (the profile scan of the install's owner). Throws when a file is unreadable. */
+  valuesOf(ownerId: string): string[];
+  /** The owners that keep a vault folder. */
+  ownerIds(): string[];
 }
 
 export function createVaultStore(root: string, options: { sweep?: boolean } = {}): VaultStore {
@@ -357,26 +364,37 @@ export function createVaultStore(root: string, options: { sweep?: boolean } = {}
     drop(ownerId, scope) {
       rmSync(join(dirOf(ownerId), `${scopeName(scope)}.json`), { force: true });
     },
-    everyValue() {
-      const values: string[] = [];
-      let owners: Dirent[];
+    dropOwner: (ownerId) => dropOwnerFolder(dirOf(ownerId)),
+    ownerIds() {
       try {
-        owners = readdirSync(root, { withFileTypes: true });
+        return readdirSync(root, { withFileTypes: true })
+          .filter((owner) => owner.isDirectory() && OWNER_ID.test(owner.name))
+          .map((owner) => owner.name);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+        throw new VaultError("unreadable");
+      }
+    },
+    valuesOf(ownerId) {
+      const values: string[] = [];
+      let files: string[];
+      try {
+        files = readdirSync(dirOf(ownerId));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return values;
         throw new VaultError("unreadable");
       }
-      for (const owner of owners) {
-        if (!owner.isDirectory() || !OWNER_ID.test(owner.name)) continue;
-        for (const file of readdirSync(join(root, owner.name))) {
-          const scope = /^(user|agent-[a-z0-9][a-z0-9-]{0,47})\.json$/.exec(file)?.[1];
-          if (scope === undefined) continue;
-          const doc = load(owner.name, scope);
-          for (const [name, sealed] of Object.entries(doc.entries))
-            if (isVaultName(name)) values.push(open(owner.name, scope, name, sealed));
-        }
+      for (const file of files) {
+        const scope = /^(user|agent-[a-z0-9][a-z0-9-]{0,47})\.json$/.exec(file)?.[1];
+        if (scope === undefined) continue;
+        const doc = load(ownerId, scope);
+        for (const [name, sealed] of Object.entries(doc.entries))
+          if (isVaultName(name)) values.push(open(ownerId, scope, name, sealed));
       }
       return values;
+    },
+    everyValue() {
+      return this.ownerIds().flatMap((owner) => this.valuesOf(owner));
     },
   };
 }

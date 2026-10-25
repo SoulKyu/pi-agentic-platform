@@ -47,6 +47,7 @@ describe("the relay's policy of a project box", () => {
         box: { kind: "project", id: PROJECT },
         models: [{ provider: "acme", id: "m-1" }],
         claude: true,
+        claudeToken: "tok-x",
         blocked: null,
       },
     ]);

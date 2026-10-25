@@ -7,16 +7,18 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { HttpCaller } from "../../kernel/http/caller.ts";
 import type { AuditPort } from "../audit/index.ts";
 import type { VaultStore } from "../secrets/index.ts";
+import { createAccess, type GithubAccess } from "./access.ts";
 import { type AppSecretsStore, createAppSecrets } from "./app-secrets.ts";
 import { createGithubClient, type GithubClient, type Resolver } from "./client.ts";
 import { mountGithubRoutes } from "./http.ts";
 import { type GithubAccountRpc, githubAccountRpc } from "./rpc.ts";
 import { createGithubService, type GithubService } from "./service.ts";
 import { createStates, type GithubStates } from "./states.ts";
-import { createTokens, type GithubTokens } from "./tokens.ts";
+import { createTokens, type GithubTokens, type InstallationToken, type Permissions } from "./tokens.ts";
 import { createUserTokens, type UserTokens } from "./user-tokens.ts";
 
 export { type GithubAppFile, githubAppSecretValues } from "./app-secrets.ts";
+export type { GithubAccess } from "./access.ts";
 export type { GithubClient } from "./client.ts";
 export type { GithubStates } from "./states.ts";
 export type { GithubTokens } from "./tokens.ts";
@@ -44,9 +46,13 @@ export interface GithubCore {
   readonly appSecrets: AppSecretsStore;
   readonly tokens: GithubTokens;
   readonly userTokens: UserTokens;
+  /** Whether a user's own GitHub token reaches a repository with push (M14: the App's reach alone is never enough). */
+  readonly access: GithubAccess;
   readonly states: GithubStates;
   /** Built here from a validated name and the fixed web origin; a URL from outside is never accepted. */
   cloneUrl(repo: RepoFullName): string;
+  /** The only way to an installation token for a project's repository: the owner's own access is checked first (cached). */
+  mintFor(ownerId: string, repo: RepoFullName, permissions: Permissions): Promise<InstallationToken>;
 }
 
 export function createGithubModule(deps: GithubModuleDeps): GithubCore {
@@ -59,17 +65,25 @@ export function createGithubModule(deps: GithubModuleDeps): GithubCore {
     logger: deps.logger,
   });
   const appSecrets = createAppSecrets({ secretsDir: join(deps.home, "secrets"), logger: deps.logger });
+  const userTokens = createUserTokens({
+    vault: deps.vault,
+    client,
+    appSecrets,
+    clock: deps.clock,
+    logger: deps.logger,
+  });
+  const tokens = createTokens({ client, appSecrets, clock: deps.clock });
+  const access = createAccess({ client, userTokens, clock: deps.clock });
   return {
     client,
     appSecrets,
-    tokens: createTokens({ client, appSecrets, clock: deps.clock }),
-    userTokens: createUserTokens({
-      vault: deps.vault,
-      client,
-      appSecrets,
-      clock: deps.clock,
-      logger: deps.logger,
-    }),
+    tokens,
+    userTokens,
+    access,
+    async mintFor(ownerId, repo, permissions) {
+      await access.check(ownerId, repo);
+      return tokens.mint(repo, permissions);
+    },
     states: createStates({ clock: deps.clock }),
     cloneUrl: (repo) => `${client.webOrigin}/${repo}.git`,
   };
@@ -84,6 +98,7 @@ export interface GithubFeatureDeps {
   readonly logger: Logger;
   readonly httpCaller: HttpCaller;
   readonly allowedOrigins: ReadonlySet<string>;
+  readonly userIds: () => readonly string[];
   /** Default: the host's first name part. */
   readonly hostLabel?: string;
 }
@@ -103,6 +118,7 @@ export function createGithubFeature(core: GithubCore, deps: GithubFeatureDeps): 
     clock: deps.clock,
     logger: deps.logger,
     allowedOrigins: deps.allowedOrigins,
+    userIds: deps.userIds,
     hostLabel: deps.hostLabel ?? hostname().split(".")[0] ?? "host",
   });
   return {

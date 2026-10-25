@@ -22,12 +22,8 @@ export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
 export { agentsVmTokenRpc } from "./rpc.ts";
 export { createClaudeTokenService } from "./claude-token-service.ts";
-export {
-  type ClaudeTokenStore,
-  createClaudeTokenStore,
-  loadClaudeTokenStrict,
-  secretsDirOf,
-} from "./claude-token.ts";
+export { secretsDirOf } from "./claude-token.ts";
+export { type ClaudeTokens, createClaudeTokens } from "./claude-tokens.ts";
 export { createImageEntries, type ImageEntries } from "./pick-map.ts";
 export { createKataBackend } from "./kata-backend.ts";
 export { createKataImages, type KataImages } from "./kata-images.ts";

@@ -4,7 +4,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { settingsRpc, type SettingsRpc } from "./rpc.ts";
-import { createSettingsService, type SettingsPort } from "./service.ts";
+import { createSettingsService, type SettingsMembers, type SettingsPort } from "./service.ts";
 import { createSettingsStore } from "./store.ts";
 
 export const SETTINGS_MIGRATIONS: MigrationSource = {
@@ -12,7 +12,7 @@ export const SETTINGS_MIGRATIONS: MigrationSource = {
   dir: fileURLToPath(new URL("./migrations/", import.meta.url)),
 };
 
-export type { SettingsPort } from "./service.ts";
+export type { SettingsMembers, SettingsPort } from "./service.ts";
 
 export interface SettingsModule {
   readonly rpc: SettingsRpc;
@@ -23,9 +23,15 @@ export function createSettingsModule(deps: {
   readonly db: Db;
   readonly clock: Clock;
   readonly logger: Logger;
+  readonly members: SettingsMembers;
 }): SettingsModule {
   const logger = deps.logger.child({ module: "settings" });
-  const service = createSettingsService({ store: createSettingsStore(deps.db), clock: deps.clock, logger });
+  const service = createSettingsService({
+    store: createSettingsStore(deps.db),
+    clock: deps.clock,
+    logger,
+    members: deps.members,
+  });
   return {
     rpc: settingsRpc(service),
     port: {

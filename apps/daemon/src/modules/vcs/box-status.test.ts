@@ -82,6 +82,7 @@ function setup(
     },
   });
   const module = createVcsModule({
+    isMember: () => false,
     roots: (ownerId) => (ownerId === "u1" ? [ROOT] : []),
     boundary: bed.bb.config(),
     deny: bed.deny,

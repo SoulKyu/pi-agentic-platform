@@ -31,6 +31,7 @@ function world() {
   projectsBed = createProjectsBed();
   let counter = 0;
   const projects = createProjectsModule({
+    isMember: () => false,
     db: projectsBed.db,
     clock: projectsBed.clock,
     logger: projectsBed.logger,

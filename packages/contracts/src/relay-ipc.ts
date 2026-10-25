@@ -26,10 +26,14 @@ export const RelayCommand = z.discriminatedUnion("type", [
       /** The models the box's picker offers (ADR 0068), at most 512 pairs; the bridge's models make `claude` true. */
       models: z.array(z.object({ provider: Provider, id: ModelIdText }).strict()).max(512),
       claude: z.boolean(),
+      /**
+       * The `claude setup-token` value of the box's owner (M14), or null: the bridge of a box is served with its owner's token and
+       * nobody else's. It is per box and replaced or cleared with the box's policy; the relay keeps no other token and no user.
+       */
+      claudeToken: ClaudeToken.nullable(),
       blocked: z.enum(["paused", "budget"]).nullable(),
     })
     .strict(),
-  z.object({ type: z.literal("claude_token"), token: ClaudeToken.nullable() }).strict(),
 ]);
 export type RelayCommand = z.infer<typeof RelayCommand>;
 /** The most agents one `relay_usage` report holds: the relay splits a longer list over several reports. */

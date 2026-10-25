@@ -53,7 +53,7 @@ function make(client: FakeVmd = fake) {
   const control = createBoxControl({
     runtime: b.runtime,
     ops,
-    source: () => ({ box: () => row, byPath: () => null, addHost: () => {} }),
+    source: () => ({ box: () => row, ownerBoxes: () => [], byPath: () => null, addHost: () => {} }),
     images,
     trash: { client, papHome: root, clock: b.clock, logger: silentLogger },
     papHome: root,
@@ -77,6 +77,36 @@ beforeEach(async () => {
   phases = [];
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+describe("stop (M14: a disabled owner's boxes)", () => {
+  it("stops a running box and leaves its row, a stopped box is a no-op, and a restart after it is the gate's call", async () => {
+    const { control } = make();
+    await control.start(PROJECT_ID);
+    await control.stop(PROJECT_ID);
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+    await expect(control.stop(PROJECT_ID)).resolves.toBeUndefined();
+    gate = async () => {
+      throw new PapError("account_disabled");
+    };
+    await expect(control.start(PROJECT_ID)).rejects.toMatchObject({ code: "account_disabled" });
+    await expect(control.restart(PROJECT_ID)).rejects.toMatchObject({ code: "account_disabled" });
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+    expect(b.starts).toHaveLength(1);
+  });
+
+  it("a start queued behind a stop meets the gate, so a disable between the two wins", async () => {
+    const { control } = make();
+    await control.start(PROJECT_ID);
+    const stopping = control.stop(PROJECT_ID);
+    gate = async () => {
+      throw new PapError("account_disabled");
+    };
+    const starting = control.start(PROJECT_ID);
+    await stopping;
+    await expect(starting).rejects.toMatchObject({ code: "account_disabled" });
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+  });
+});
 
 describe("start", () => {
   it("brings a box up without a worker", async () => {

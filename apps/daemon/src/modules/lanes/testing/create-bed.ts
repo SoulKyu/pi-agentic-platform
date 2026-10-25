@@ -235,6 +235,7 @@ export function createCreateBed(options: CreateBedOptions = {}) {
     extra: { onChange: (laneId: string) => bridge.changed(laneId) },
   });
   const deps: LanesServiceDeps = {
+    isMember: () => false,
     db: lb.db,
     git,
     clock: lb.clock,

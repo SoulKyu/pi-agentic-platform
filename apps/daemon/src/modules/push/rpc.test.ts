@@ -11,6 +11,7 @@ import { createPushMeta } from "./transport/meta.ts";
 import { transportRpc } from "./transport/rpc.ts";
 import { createTransportService } from "./transport/service.ts";
 import { fakeAudit, openTransportBed } from "./testing/transport-bed.ts";
+import { NO_CLIENT_PATHS } from "../../kernel/ws/client-path-gate.ts";
 
 const ID = "abcdefghijklmnopqrstuv";
 const PARAMS: Record<string, unknown> = {
@@ -44,6 +45,7 @@ function setup() {
     readOnly: false,
   });
   const dispatch = createDispatcher({
+    gate: NO_CLIENT_PATHS,
     handlers: pushRpc(transportRpc(service), deliveryRpc()) as unknown as HandlerTable,
     receipts: createReceiptStore(bed.db, createFakeClock()),
     logger: silentLogger,

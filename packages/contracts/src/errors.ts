@@ -37,6 +37,10 @@ export const ERROR_CODES = [
   "push_revoked",
   "network",
   "extensions_failed",
+  "budget_cap",
+  "account_disabled",
+  "invite_invalid",
+  "username_taken",
   "unknown_method",
   "internal",
 ] as const;
@@ -95,6 +99,11 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
     "This device was removed from the notification list. Enable notifications again to add it back.",
   network: "pap could not fetch this from the network.",
   extensions_failed: "An extension did not load: nothing was changed.",
+  budget_cap: "Your daily budget is capped by the owner of this pap.",
+  account_disabled: "This account is disabled. Ask the owner of this pap.",
+  invite_invalid:
+    "This invitation link does not work: it expired, was used, or was revoked. Ask for a new one.",
+  username_taken: "This username is taken. Choose another; your invitation is still valid.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

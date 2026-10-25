@@ -234,3 +234,20 @@ describe("claims (M8R39)", () => {
     expect(existsSync(join(dir, "s1", view.id))).toBe(false);
   });
 });
+
+describe("dropOwner (a member's delete, A5b)", () => {
+  it("forgets the owner's pending uploads and removes the copies made for the listed sessions only", async () => {
+    const mine = await up("m1", "s1", "a.txt");
+    const theirs = await up("u1", "s2", "b.txt");
+    await store.claim("m1", "s1", [mine.id]);
+    await store.claim("u1", "s2", [theirs.id]);
+    expect(existsSync(join(dir, "s1"))).toBe(true);
+    const other = await up("m1", "s3", "c.txt");
+    store.dropOwner("m1", ["s1", "pending", "../escape"]);
+    expect(existsSync(join(dir, "s1"))).toBe(false);
+    expect(existsSync(join(dir, "s2"))).toBe(true);
+    expect(existsSync(join(dir, "pending"))).toBe(true);
+    expect(await codeOf(store.claim("m1", "s3", [other.id]))).toBe("not_found");
+    expect(await codeOf(store.claim("u1", "s2", [theirs.id]))).toBeUndefined();
+  });
+});

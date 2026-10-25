@@ -18,7 +18,11 @@ const FILE = { id: "f".repeat(22), path: "/pap/attachments/s/ffff/report.pdf", n
 function port(overrides: Partial<AttachmentsPort> = {}) {
   const claim = vi.fn<AttachmentsPort["claim"]>(async () => ({ images: [IMAGE], files: [FILE] }));
   const release = vi.fn<AttachmentsPort["release"]>();
-  return { claim, release, port: { claim, release, ...overrides } satisfies AttachmentsPort };
+  return {
+    claim,
+    release,
+    port: { claim, release, dropOwner: () => {}, ...overrides } satisfies AttachmentsPort,
+  };
 }
 const promptRequests = () => bed.spawned[0]?.requests.filter((request) => request.type === "prompt") ?? [];
 

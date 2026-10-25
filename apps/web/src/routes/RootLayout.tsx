@@ -4,6 +4,7 @@ import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
 import { errorKey, t } from "../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../runtime/index.ts";
+import { LazyInvite } from "./invite/LazyInvite.tsx";
 import { LazyFirstRun } from "./setup/LazyFirstRun.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 
@@ -34,9 +35,16 @@ export function RootLayout() {
   // The account step signs the owner in: from then on the stepper needs the socket (steps 2 and 3 call the server).
   if (state.phase === "setup")
     return <LazyFirstRun onDone={refresh} onAccountCreated={() => runtime.connection.start()} />;
+  if (state.phase === "invite")
+    return <LazyInvite token={state.token} signedInAs={state.signedInAs} onDone={refresh} />;
   if (state.phase === "login")
     return <LoginScreen passkeysAvailable={state.passkeysAvailable} onDone={refresh} />;
   return (
-    <AppShell username={state.username} passkeysAvailable={state.passkeysAvailable} onSignedOut={refresh} />
+    <AppShell
+      username={state.username}
+      role={state.role}
+      passkeysAvailable={state.passkeysAvailable}
+      onSignedOut={refresh}
+    />
   );
 }

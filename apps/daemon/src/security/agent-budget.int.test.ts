@@ -51,6 +51,9 @@ const runsOf = (agentId: string) =>
 describe("an agent's daily budget (M11R74, owner m14)", () => {
   it("refuses the next scheduled fire once a thread task spent past it, still takes the owner's message, and a cleared budget lets a fire run", async () => {
     // The schedule's wake-up must be a parked timer: `advance` cannot move a real one (see `alignTo`).
+    // The test moves the clock about 20 minutes and compares a day's spend: start it a day away from a midnight crossing.
+    const DAY = 86_400_000;
+    if (DAY - (clock.now() % DAY) < 3_600_000) await clock.alignTo(DAY);
     await clock.alignTo(FIVE_MINUTES);
     await t.confirmStepUp(owner.cookie); // the jump let the step-up lapse
     const created = await call<{ id: string; revision: number }>("agents.create", {

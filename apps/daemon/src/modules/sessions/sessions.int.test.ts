@@ -18,6 +18,7 @@ import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { testCaller } from "../../testing/caller.ts";
 import { noAttachments } from "./testing/no-attachments.ts";
+import { sharesAll } from "./testing/providers.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -42,6 +43,8 @@ let work: string;
 
 function moduleWith(testProviderScript: string, clock: Clock = createSystemClock()): SessionsModule {
   return createSessionsModule({
+    isMember: () => false,
+    providers: sharesAll,
     db,
     clock,
     logger: silentLogger,

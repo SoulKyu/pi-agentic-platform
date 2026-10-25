@@ -47,7 +47,7 @@ async function open(status: VmStatusView | "fails", agent: AgentView | null = sa
     return status;
   };
   bed.handlers["agents.update"] = () => saved();
-  bed.handlers["plugins.list"] = () => ({ plugins: [], truncated: false });
+  bed.handlers["agents.packages"] = () => ({ packages: [] });
   const stepUp = vi.fn(async (run: (commandId: string) => Promise<unknown>) => run("step-cmd-1"));
   await mount(
     <TooltipProvider>
