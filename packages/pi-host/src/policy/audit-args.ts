@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AUDIT_ARGS_MAX } from "@pap/contracts";
+import { AUDIT_ARGS_MAX } from "@pap/contracts/pi-host";
 import { showHidden } from "./describe-call.ts";
 import { grantPayload } from "./grant-key.ts";
 

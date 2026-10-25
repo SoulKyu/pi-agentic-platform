@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
+import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts/pi-host";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { type ShellFacts, UNKNOWN_SHELL } from "../policy/command-cover.ts";
 import type { MessageMix } from "../policy/message-mix.ts";

@@ -1,4 +1,4 @@
-import type { ApprovalMode } from "@pap/contracts";
+import type { ApprovalMode } from "@pap/contracts/pi-host";
 import {
   agentOwnOf,
   hasOwnFolder,

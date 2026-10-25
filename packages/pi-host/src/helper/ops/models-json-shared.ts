@@ -7,7 +7,7 @@ import {
   MODELS_CONFIG_ISSUES_MAX,
   MODELS_CONFIG_TEXT_MAX,
   MODELS_LIMITS,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { parseJsonc } from "../jsonc.ts";
 import { maskModelsJson } from "../models-json-mask.ts";
 import { PiFileRefused, readPiFile, writePiFile } from "../pi-file.ts";

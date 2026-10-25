@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BOX_GITHUB_TIMEOUTS } from "@pap/contracts";
+import { BOX_GITHUB_TIMEOUTS } from "@pap/contracts/pi-host";
 import { proxyEnv } from "../../vm-shell/proxy-env.ts";
 import type { GitOptions } from "./git-run.ts";
 import { OpError } from "./paths.ts";

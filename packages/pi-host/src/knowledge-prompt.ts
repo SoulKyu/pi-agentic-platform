@@ -1,5 +1,5 @@
 import { closeSync, constants, readSync } from "node:fs";
-import { isOkfIndex, OKF_HEAD_BYTES } from "@pap/contracts";
+import { isOkfIndex, OKF_HEAD_BYTES } from "@pap/contracts/pi-host";
 import { closeQuietly, openFileChain, openRootDir } from "./nofollow.ts";
 
 /**

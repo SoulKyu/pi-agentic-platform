@@ -1,4 +1,4 @@
-import { HELPER_OPS, type ConfigSaveResult } from "@pap/contracts";
+import { HELPER_OPS, type ConfigSaveResult } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, HelperOpError, type HelperContext, type HelperOp } from "../ops.ts";
 import { createAuthFileStore } from "./auth-store.ts";

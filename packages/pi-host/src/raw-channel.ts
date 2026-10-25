@@ -1,4 +1,4 @@
-import type { DaemonToWorker } from "@pap/contracts";
+import type { DaemonToWorker } from "@pap/contracts/pi-host";
 import type { Ipc } from "./ipc.ts";
 
 /** Test only: the worker's channel to the daemon, which the scripted provider's raw `platform_call` steps use (a VM worker has no process IPC). */

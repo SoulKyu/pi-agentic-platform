@@ -1,5 +1,5 @@
 import { createBashToolDefinition, type LoadExtensionsResult } from "@earendil-works/pi-coding-agent";
-import type { VmInit } from "@pap/contracts";
+import type { VmInit } from "@pap/contracts/pi-host";
 import type { NamedInlineExtension } from "../policy/extension.ts";
 import type { ShellEnvironment } from "../shell-env.ts";
 import type { Redactor } from "../policy/redact.ts";

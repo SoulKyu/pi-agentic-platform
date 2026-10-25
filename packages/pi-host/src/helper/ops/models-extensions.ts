@@ -4,7 +4,7 @@ import {
   type ExtensionModel,
   type ExtensionProviders,
   HELPER_OPS,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { listAvailable } from "../../available-models.ts";
 import { summaryOf } from "../../loadout.ts";

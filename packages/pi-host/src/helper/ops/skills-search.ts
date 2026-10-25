@@ -1,4 +1,4 @@
-import { HELPER_OPS, SKILL_LIMITS, type SkillsSearchResult } from "@pap/contracts";
+import { HELPER_OPS, SKILL_LIMITS, type SkillsSearchResult } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";
 import { readCapped, strictFetch } from "./provider-request.ts";

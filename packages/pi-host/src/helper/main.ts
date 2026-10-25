@@ -1,6 +1,6 @@
 // Must stay first: closes the inherited pty descriptors before anything else is evaluated (MC29).
 import "../close-inherited-fds.ts";
-import { type HelperToDaemon } from "@pap/contracts";
+import { type HelperToDaemon } from "@pap/contracts/pi-host";
 import { installSignalCleanup, killDetachedDescendants } from "../descendants.ts";
 import { OPS } from "./ops.ts";
 import { serveHelper } from "./run.ts";

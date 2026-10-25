@@ -1,5 +1,5 @@
 import { closeSync, constants, fstatSync, readFileSync, writeSync } from "node:fs";
-import { GatewayToken } from "@pap/contracts";
+import { GatewayToken } from "@pap/contracts/pi-host";
 import { closeQuietly, openAt, openDirAt, openRootDir, unlinkAt } from "../nofollow.ts";
 
 export const TOKEN_ENV = "PAP_GATEWAY_TOKEN";

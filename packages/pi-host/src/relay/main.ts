@@ -1,7 +1,7 @@
 // Must stay first: closes the inherited pty descriptors before anything else is evaluated (MC29).
 import "../close-inherited-fds.ts";
 import { homedir } from "node:os";
-import { RelayCommand, type RelayReport as RelayReportSchema } from "@pap/contracts";
+import { RelayCommand, type RelayReport as RelayReportSchema } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { createProviderResolver, openRelaySource } from "./credentials.ts";
 import { createRelayKeys } from "./keys.ts";

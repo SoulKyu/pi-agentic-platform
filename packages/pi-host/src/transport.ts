@@ -1,7 +1,13 @@
 import { closeSync, fstatSync, openSync, readFileSync, readSync } from "node:fs";
 import net from "node:net";
 import { basename } from "node:path";
-import { AGENT_VM_PROTOCOL, GatewayToken, parseBoxKey, SessionFileName, WorkerHello } from "@pap/contracts";
+import {
+  AGENT_VM_PROTOCOL,
+  GatewayToken,
+  parseBoxKey,
+  SessionFileName,
+  WorkerHello,
+} from "@pap/contracts/pi-host";
 import { createIpc, type Ipc } from "./ipc.ts";
 import { createSocketIpc } from "./socket-ipc.ts";
 

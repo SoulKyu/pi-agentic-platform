@@ -78,6 +78,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 - 400 lines per file at most. No baseline, no exceptions.
 - A daemon module imports only `@pap/contracts`, `kernel/` and other modules' `index.ts`.
+- pi-host's code (tests apart) imports `@pap/contracts/pi-host`, never `@pap/contracts`: the root index loads every RPC schema into each worker (`docs/agents/finops.md`).
 - Every RPC method declares a permission in `packages/contracts/src/methods.ts`.
 - RPC handlers decode, call one service method, map typed errors. Nothing else.
 - UI code uses tokens from `packages/ui/src/tokens.css`: no raw colours, no `[…]` arbitrary values, no restyling of `@pap/ui` primitives.

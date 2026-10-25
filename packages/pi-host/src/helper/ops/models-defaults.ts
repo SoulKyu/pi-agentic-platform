@@ -1,4 +1,4 @@
-import { HELPER_OPS } from "@pap/contracts";
+import { HELPER_OPS } from "@pap/contracts/pi-host";
 import { defineOp, HelperOpError } from "../ops.ts";
 import {
   enabledByPatterns,

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { BoxOp, BoxOpError } from "@pap/contracts";
+import type { BoxOp, BoxOpError } from "@pap/contracts/pi-host";
 import { BUNDLE_BIN } from "./github-env.ts";
 import { stopSigningAgent } from "./github-agent.ts";
 import { createGuestOps, type GuestOps } from "./index.ts";

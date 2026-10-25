@@ -1,4 +1,4 @@
-import { AGENT_NET } from "@pap/contracts";
+import { AGENT_NET } from "@pap/contracts/pi-host";
 
 /** The variables that point a tool at pap's egress proxy (spec §3); the worker and the networked shell carry exactly these. */
 export const PROXY_ENV_KEYS = [

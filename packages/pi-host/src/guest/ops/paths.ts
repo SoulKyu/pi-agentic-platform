@@ -1,5 +1,5 @@
 import { closeSync } from "node:fs";
-import type { BoxOpError } from "@pap/contracts";
+import type { BoxOpError } from "@pap/contracts/pi-host";
 import { closeQuietly, openDirAt, openRootDir } from "../../nofollow.ts";
 import type { GithubDeps } from "./github-env.ts";
 

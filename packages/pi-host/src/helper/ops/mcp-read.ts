@@ -7,7 +7,7 @@ import {
   type McpServerView,
   MCP_LIMITS,
   type McpOverview,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { maskMcpEntry } from "../mcp-entry.ts";
 import { PiFileRefused, readPiFile } from "../pi-file.ts";
 import { defineOp, type HelperContext } from "../ops.ts";

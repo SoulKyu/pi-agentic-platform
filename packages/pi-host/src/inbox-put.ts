@@ -1,5 +1,9 @@
 import { closeSync, constants, fchmodSync, writeSync } from "node:fs";
-import { FILE_LIMITS, FilePut as FilePutSchema, FilePutResult as FilePutResultSchema } from "@pap/contracts";
+import {
+  FILE_LIMITS,
+  FilePut as FilePutSchema,
+  FilePutResult as FilePutResultSchema,
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { closeQuietly, linkAt, openAt, openRootDir, unlinkAt } from "./nofollow.ts";
 

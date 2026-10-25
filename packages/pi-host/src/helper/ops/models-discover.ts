@@ -4,7 +4,7 @@ import {
   HELPER_OPS,
   type ModelsDiscoverResult,
   type ModelsTestResult,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";
 import { openRuntime } from "./models-open.ts";

@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { type CodemodeSettings, HELPER_OPS } from "@pap/contracts";
+import { type CodemodeSettings, HELPER_OPS } from "@pap/contracts/pi-host";
 import { withKey } from "../mcp-file.ts";
 import { defineOp, type HelperContext, HelperOpError } from "../ops.ts";
 import { PiFileRefused, readPiFile, writePiFile } from "../pi-file.ts";

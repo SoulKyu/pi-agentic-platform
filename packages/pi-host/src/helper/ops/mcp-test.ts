@@ -10,7 +10,7 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { HELPER_OPS } from "@pap/contracts";
+import { HELPER_OPS } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { ANSI_THEME } from "../../ansi-theme.ts";
 import { closeSession } from "../../shutdown.ts";

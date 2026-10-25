@@ -1,4 +1,4 @@
-import type { ApprovalAnswer, ApprovalMode, ToolCategory } from "@pap/contracts";
+import type { ApprovalAnswer, ApprovalMode, ToolCategory } from "@pap/contracts/pi-host";
 import type { EditReview } from "./target-path.ts";
 
 export type Decision = "allow" | "ask" | "block";

@@ -1,5 +1,5 @@
 import { DefaultPackageManager } from "@earendil-works/pi-coding-agent";
-import { HELPER_OPS, type PluginsResolveParams } from "@pap/contracts";
+import { HELPER_OPS, type PluginsResolveParams } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { identityOf, pluginIdKey, pluginIdOf, pluginIdsOf } from "../plugin-id.ts";
 import { sourceOf, type PackageEntry } from "../plugin-entries.ts";

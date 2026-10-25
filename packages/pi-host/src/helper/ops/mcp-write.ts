@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { HELPER_OPS, MCP_LIMITS, type McpRowCode } from "@pap/contracts";
+import { HELPER_OPS, MCP_LIMITS, type McpRowCode } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import {
   changed,

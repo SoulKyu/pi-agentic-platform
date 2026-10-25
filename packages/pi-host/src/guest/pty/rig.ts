@@ -9,7 +9,7 @@ import {
   encodeSocketFrame,
   type PtyCommand,
   type VmLayout,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { fakeClock, IDENTITY, layout, SLOT, TOKEN } from "../../testing/guest-harness.ts";
 import { loadNodePty } from "./load.ts";
 import { createPtyHost } from "./pty.ts";

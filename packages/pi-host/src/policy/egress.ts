@@ -1,4 +1,4 @@
-import { DEFAULT_ENTRY_PORTS, entryAllows, type HostEntry, tryParseHostEntry } from "@pap/contracts";
+import { DEFAULT_ENTRY_PORTS, entryAllows, type HostEntry, tryParseHostEntry } from "@pap/contracts/pi-host";
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { CODING_TOOLS } from "../tool-presets.ts";
 import { sandboxVerdict } from "./sandbox-rule.ts";

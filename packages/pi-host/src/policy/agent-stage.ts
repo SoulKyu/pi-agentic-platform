@@ -1,5 +1,5 @@
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import { type PolicyRules, SYSTEM_FOLDERS, type ToolCategory } from "@pap/contracts";
+import { type PolicyRules, SYSTEM_FOLDERS, type ToolCategory } from "@pap/contracts/pi-host";
 import { agentCategory, type AgentCallFacts, decideIsolated } from "./agent-decide.ts";
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
 import { readsInside, SESSION_FOLDER } from "./read-target.ts";

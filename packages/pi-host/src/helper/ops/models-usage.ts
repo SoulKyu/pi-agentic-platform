@@ -4,7 +4,7 @@ import {
   type ModelsUsageResult,
   type ProviderUsageId,
   UsageReport,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { authHeaderEntries } from "../../relay/credentials.ts";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";

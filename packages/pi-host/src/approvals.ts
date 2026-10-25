@@ -7,7 +7,7 @@ import {
   type GuardRule,
   type TaintCauses,
   type ToolCategory,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 
 export interface ApprovalAsk {
   readonly category: ToolCategory;

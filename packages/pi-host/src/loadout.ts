@@ -5,7 +5,7 @@ import {
   type SessionLoadout,
   THINKING_LEVELS,
   type ThinkingLevel,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { logLineOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 import { presetOf } from "./tool-presets.ts";

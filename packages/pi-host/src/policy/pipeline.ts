@@ -7,7 +7,7 @@ import type {
   PolicyRules,
   ToolCategory,
   VmLayout,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { errorClass } from "../bounded.ts";
 import {

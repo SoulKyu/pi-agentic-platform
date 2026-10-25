@@ -2,7 +2,7 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { AgentId, LaneId } from "@pap/contracts";
+import { AgentId, LaneId } from "@pap/contracts/pi-host";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;

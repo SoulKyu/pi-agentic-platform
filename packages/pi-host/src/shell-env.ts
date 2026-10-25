@@ -1,4 +1,4 @@
-import { isVaultName, unattendedEnv, type EnvSource } from "@pap/contracts";
+import { isVaultName, unattendedEnv, type EnvSource } from "@pap/contracts/pi-host";
 
 /**
  * The environment an agent's VM shell gets from the vault (ADR 0048 and 0081, C §2.5 "an allowlist plus the agent's secrets

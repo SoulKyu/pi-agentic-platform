@@ -1,4 +1,4 @@
-import type { CallAuditEntry } from "@pap/contracts";
+import type { CallAuditEntry } from "@pap/contracts/pi-host";
 import type { CallFacts, Stages } from "./pipeline.ts";
 
 const MARKER = /\[SECRET:([A-Za-z0-9_]{1,64})\]/g;

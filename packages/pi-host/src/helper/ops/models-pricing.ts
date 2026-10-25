@@ -4,7 +4,7 @@ import {
   PRICING_CATALOG_MAX_ENTRIES,
   PRICING_ENTRIES_MAX,
   type PricingEntry,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, HelperOpError, type HelperOp } from "../ops.ts";
 import { deadline, readCapped, strictFetch } from "./provider-request.ts";

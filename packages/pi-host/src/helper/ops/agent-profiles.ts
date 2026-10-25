@@ -8,7 +8,7 @@ import {
   type SubagentProfile,
   type SubagentsProfilesResult,
   type SubagentsSkipped,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { defineOp, type HelperContext } from "../ops.ts";
 import { PiFileRefused, readPiFile } from "../pi-file.ts";
 import { isTrusted } from "./models-open.ts";

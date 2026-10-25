@@ -1,5 +1,5 @@
 import type { LoadExtensionsResult } from "@earendil-works/pi-coding-agent";
-import { isPiMem0 } from "@pap/contracts";
+import { isPiMem0 } from "@pap/contracts/pi-host";
 import type { ExtensionErrorReport } from "./open-session.ts";
 
 /**

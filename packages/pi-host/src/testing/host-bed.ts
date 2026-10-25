@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import { PolicyRules } from "@pap/contracts";
+import { PolicyRules } from "@pap/contracts/pi-host";
 import { type ForkedHost, forkHost, type HostRecord } from "./fork-host.ts";
 
 export const RULES = PolicyRules.parse({

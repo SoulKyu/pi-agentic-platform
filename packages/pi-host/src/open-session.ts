@@ -12,7 +12,7 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
+import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts/pi-host";
 import { withoutPiMem0 } from "./without-mem0.ts";
 import { agentPrompt } from "./agent-prompt.ts";
 import type { Approvals } from "./approvals.ts";

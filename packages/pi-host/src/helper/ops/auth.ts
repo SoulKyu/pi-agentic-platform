@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { AuthEvent, AuthInteraction, AuthPrompt } from "@earendil-works/pi-ai";
 import { CredentialSynchronizationError, ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { HELPER_OPS } from "@pap/contracts";
+import { HELPER_OPS } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";
 import { createAuthFileStore, helperErrorOf } from "./auth-store.ts";

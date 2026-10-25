@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { UI_LIMITS, WORKER_BUSY } from "@pap/contracts";
+import { UI_LIMITS, WORKER_BUSY } from "@pap/contracts/pi-host";
 import { messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 

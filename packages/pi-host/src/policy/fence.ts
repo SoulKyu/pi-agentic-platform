@@ -12,4 +12,4 @@ export function newFenceId(): string {
 }
 
 /** The one fence format lives in contracts (M9R6, agreement 6). */
-export { fenceText } from "@pap/contracts";
+export { fenceText } from "@pap/contracts/pi-host";

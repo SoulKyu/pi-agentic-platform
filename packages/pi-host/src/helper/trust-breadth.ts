@@ -1,4 +1,4 @@
-import type { TrustRefusal } from "@pap/contracts";
+import type { TrustRefusal } from "@pap/contracts/pi-host";
 import { within } from "../policy/target-path.ts";
 
 /** M7R104, W5-R27: why trusting `folder` (a real path) would trust too much, or null. Every path here is real (symlinks resolved). */

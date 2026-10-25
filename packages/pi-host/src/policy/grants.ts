@@ -1,4 +1,4 @@
-import type { ToolRule } from "@pap/contracts";
+import type { ToolRule } from "@pap/contracts/pi-host";
 
 /** Session grants, and provisional always grants, kept per worker: the oldest is dropped past this (M2R74). */
 export const MAX_SESSION_GRANTS = 1000;

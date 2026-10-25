@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { VmLayout } from "@pap/contracts";
+import type { VmLayout } from "@pap/contracts/pi-host";
 
 /** A temporary VM layout (`<base>/agent/...`): the agent's three folders, Pi's `.pi` with a transcript, a skills folder. */
 export function makeVmWorld(options: { piAgentDir?: string; project?: boolean } = {}) {

@@ -1,4 +1,4 @@
-import { credentialName, MODELS_LIMITS, NO_KEY_LITERAL, type ProviderInput } from "@pap/contracts";
+import { credentialName, MODELS_LIMITS, NO_KEY_LITERAL, type ProviderInput } from "@pap/contracts/pi-host";
 import { stripBom } from "../jsonc.ts";
 
 type Json = Record<string, unknown>;

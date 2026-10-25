@@ -1,5 +1,5 @@
 import type { AgentSession, InlineExtension } from "@earendil-works/pi-coding-agent";
-import { type ToolPreset, WORKER_BUSY } from "@pap/contracts";
+import { type ToolPreset, WORKER_BUSY } from "@pap/contracts/pi-host";
 import { logLineOf, messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";

@@ -8,7 +8,7 @@ import {
   POLICY_EXTENSION_PATH,
   type PolicyAuditEntry,
   type PolicyRules,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { homedir } from "node:os";
 import { type ShellFacts, UNKNOWN_SHELL } from "./command-cover.ts";

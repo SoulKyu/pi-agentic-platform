@@ -1,7 +1,7 @@
 import http from "node:http";
 import https from "node:https";
 import { Transform, pipeline } from "node:stream";
-import { AGENT_NET, type BoxRef, boxKey } from "@pap/contracts";
+import { AGENT_NET, type BoxRef, boxKey } from "@pap/contracts/pi-host";
 import type { ResolvedProvider } from "./credentials.ts";
 import { upstreamHeaders, type UpstreamCredential } from "./headers.ts";
 import { presentedKey, type RelayKeys } from "./keys.ts";

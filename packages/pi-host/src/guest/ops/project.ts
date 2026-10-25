@@ -1,5 +1,5 @@
 import { constants, closeSync } from "node:fs";
-import { PROJECT_CONFIG_LIMITS, PROJECT_CONFIG_PATH, readProjectConfig } from "@pap/contracts";
+import { PROJECT_CONFIG_LIMITS, PROJECT_CONFIG_PATH, readProjectConfig } from "@pap/contracts/pi-host";
 import { openAt } from "../../nofollow.ts";
 import { readAt } from "./fs-read.ts";
 import { OpError, type OpEnv, withParent } from "./paths.ts";

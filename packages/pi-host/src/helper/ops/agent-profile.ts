@@ -7,7 +7,7 @@ import {
   SubagentName,
   type SubagentProfileFile,
   ToolName,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { defineOp, HelperOpError, type HelperContext } from "../ops.ts";
 import { readPiFile } from "../pi-file.ts";
 import { isTrusted } from "./models-open.ts";

@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
-import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
+import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts/pi-host";
 import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";

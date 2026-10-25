@@ -1,5 +1,5 @@
 import { lstatSync, readdirSync, realpathSync, statSync, type Stats } from "node:fs";
-import { compareCodePoints, FILE_LIMITS, type FileEntry, PAGE_BYTES, sizeOf } from "@pap/contracts";
+import { compareCodePoints, FILE_LIMITS, type FileEntry, PAGE_BYTES, sizeOf } from "@pap/contracts/pi-host";
 import { runGit } from "./git-run.ts";
 import { inGit, type OpEnv, segmentsOf, withFolder } from "./paths.ts";
 

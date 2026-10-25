@@ -1,4 +1,4 @@
-import { MCP_LIMITS } from "@pap/contracts";
+import { MCP_LIMITS } from "@pap/contracts/pi-host";
 
 /** The file is not a JSON object with an object `mcpServers` (or has more servers than the overview lists). */
 export class McpFileInvalid extends Error {

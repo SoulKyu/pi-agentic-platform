@@ -5,7 +5,7 @@ import {
   type HomePut as HomePutSchema,
   type HomeRemove as HomeRemoveSchema,
   type HomeResult as HomeResultSchema,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { closeQuietly, openAt, openDirAt, openRootDir, renameAt, unlinkAt } from "./nofollow.ts";
 

@@ -1,6 +1,6 @@
 import { lstat } from "node:fs/promises";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
-import type { PolicyProfile } from "@pap/contracts";
+import type { PolicyProfile } from "@pap/contracts/pi-host";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
 import {
   AGENTS_DIR,

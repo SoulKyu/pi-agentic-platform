@@ -6,7 +6,7 @@ import {
   DaemonToWorker,
   encodeSocketFrame,
   WorkerHello,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { logLineOf } from "./bounded.ts";
 import { MAX_RECORD_BYTES, type Ipc, type Outbound } from "./ipc.ts";
 

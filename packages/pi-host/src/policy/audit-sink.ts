@@ -1,4 +1,4 @@
-import type { PolicyAuditEntry } from "@pap/contracts";
+import type { PolicyAuditEntry } from "@pap/contracts/pi-host";
 import type { Outbound } from "../ipc.ts";
 
 export class AuditNotSent extends Error {}

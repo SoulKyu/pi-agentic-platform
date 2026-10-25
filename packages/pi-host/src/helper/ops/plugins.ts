@@ -7,7 +7,7 @@ import {
   type PluginSetEnabledResult,
   type PluginsListResult,
   type PluginView,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { killDetachedDescendants } from "../../descendants.ts";
 import { within } from "../../policy/target-path.ts";

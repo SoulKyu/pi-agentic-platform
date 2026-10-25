@@ -1,4 +1,4 @@
-import { TrustedHost } from "@pap/contracts";
+import { TrustedHost } from "@pap/contracts/pi-host";
 import { hostLabel } from "./audit-args.ts";
 import type { ApprovalPlan, CallFacts } from "./pipeline.ts";
 

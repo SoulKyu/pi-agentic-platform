@@ -1,4 +1,4 @@
-import { BOX_MOUNT, projectBoxPaths, type VmLayout } from "@pap/contracts";
+import { BOX_MOUNT, projectBoxPaths, type VmLayout } from "@pap/contracts/pi-host";
 
 /** Where things are under Kata for an agent; the process backend names its own folders in PAP_GUEST_LAYOUT (a VmLayout as JSON). */
 export const KATA_LAYOUT: VmLayout = {

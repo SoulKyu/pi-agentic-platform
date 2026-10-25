@@ -275,6 +275,24 @@ export default defineConfig(
     },
   },
   {
+    files: ["packages/pi-host/src/**/*.ts"],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@pap/contracts",
+              message:
+                "pi-host imports @pap/contracts/pi-host: the root index loads every RPC schema into each worker (idleWorkerRssMb).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["apps/web/src/**/*.{ts,tsx}", "packages/ui/src/**/*.{ts,tsx}"],
     // Colour data and colour math, each pinned by its tests (M3-RT-02). Nothing else may hold a raw colour.
     ignores: [

@@ -1,4 +1,4 @@
-import type { HelperCode } from "@pap/contracts";
+import type { HelperCode } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { subagentProfileOp } from "./ops/agent-profile.ts";
 import { subagentProfilesOp } from "./ops/agent-profiles.ts";

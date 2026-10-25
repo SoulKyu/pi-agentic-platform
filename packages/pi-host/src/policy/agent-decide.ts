@@ -1,4 +1,4 @@
-import type { ApprovalAnswer, ApprovalMode, ToolCategory } from "@pap/contracts";
+import type { ApprovalAnswer, ApprovalMode, ToolCategory } from "@pap/contracts/pi-host";
 
 /** What the agent profiles add to a call's facts (stage 03). */
 export interface AgentCallFacts {

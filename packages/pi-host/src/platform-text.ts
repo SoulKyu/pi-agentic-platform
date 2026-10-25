@@ -4,7 +4,7 @@ import {
   type PlatformError,
   type PlatformOp,
   VaultName,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 
 /**

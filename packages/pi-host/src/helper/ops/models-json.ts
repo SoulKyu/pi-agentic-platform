@@ -3,7 +3,7 @@ import {
   MODELS_CONFIG_ISSUE_MAX_LENGTH,
   MODELS_CONFIG_TEXT_MAX,
   type ConfigSaveResult,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { z } from "zod";
 import { JsoncError, parseJsonc } from "../jsonc.ts";
 import { unmaskModelsJson } from "../models-json-mask.ts";

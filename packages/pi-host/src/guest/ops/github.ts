@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, existsSync, lstatSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { BoxOp } from "@pap/contracts";
+import type { BoxOp } from "@pap/contracts/pi-host";
 import { ensureSigningAgent, stopSigningAgent } from "./github-agent.ts";
 import { type ConfigEntry, editHomeConfig, editPrivateConfig } from "./github-config.ts";
 import {

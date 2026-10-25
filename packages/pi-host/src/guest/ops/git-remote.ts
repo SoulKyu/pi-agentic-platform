@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { lstatSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { BOX_GITHUB_RESULTS, type BoxOp } from "@pap/contracts";
+import { BOX_GITHUB_RESULTS, type BoxOp } from "@pap/contracts/pi-host";
 import { assertRemoteUrl, networkGit, privateConfigOf, publicKeyOf, signerOf } from "./github-env.ts";
 import { runGit } from "./git-run.ts";
 import { githubOf, type OpEnv, OpError } from "./paths.ts";

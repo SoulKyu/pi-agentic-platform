@@ -3,7 +3,7 @@ import {
   boxKey,
   RELAY_USAGE_MAX_BOXES,
   type RelayReport as RelayReportSchema,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 
 type RelayReport = z.infer<typeof RelayReportSchema>;

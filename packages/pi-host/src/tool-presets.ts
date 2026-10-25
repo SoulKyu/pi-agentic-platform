@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { PolicyRules, ToolPreset } from "@pap/contracts";
+import type { PolicyRules, ToolPreset } from "@pap/contracts/pi-host";
 import { pinAllowlist } from "./policy/tool-allowlist.ts";
 import { PLATFORM_SOURCE } from "./policy/tool-kind.ts";
 

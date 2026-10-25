@@ -1,6 +1,6 @@
 import type { ExtensionUIContext, Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, KeybindingsManager, TUI_KEYBINDINGS, type TUI } from "@earendil-works/pi-tui";
-import { UI_LIMITS } from "@pap/contracts";
+import { UI_LIMITS } from "@pap/contracts/pi-host";
 import { boundLines, UI_RECORD_BYTES } from "./ui-lines.ts";
 
 /** Panels and widgets render at a fixed size (M2R77, S1): there is no resize protocol between browser and worker. */

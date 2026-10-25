@@ -5,7 +5,7 @@
  * the caller then asks.
  */
 
-import { LFS_ENTRIES } from "@pap/contracts";
+import { LFS_ENTRIES } from "@pap/contracts/pi-host";
 
 export interface GitConfigEntry {
   /** The first part of the name, lower case (`diff` in `diff.<driver>.textconv`). */

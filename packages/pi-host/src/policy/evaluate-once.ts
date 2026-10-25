@@ -1,6 +1,6 @@
 import type { ToolCallEventResult } from "@earendil-works/pi-coding-agent";
-import type { CallAuditEntry, GuardRule, StageId, ToolCategory } from "@pap/contracts";
-import { GUARD_RULES } from "@pap/contracts";
+import type { CallAuditEntry, GuardRule, StageId, ToolCategory } from "@pap/contracts/pi-host";
+import { GUARD_RULES } from "@pap/contracts/pi-host";
 import { autonomous } from "./agent-stage.ts";
 import { alwaysScopesOf, patternGrant, rememberScope, scopeOffered } from "./pattern-grants.ts";
 import { describeCall } from "./describe-call.ts";

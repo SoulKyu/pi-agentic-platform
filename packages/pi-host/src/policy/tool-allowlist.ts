@@ -1,5 +1,5 @@
 // packages/pi-host/src/policy/tool-allowlist.ts
-import type { ToolCategory } from "@pap/contracts";
+import type { ToolCategory } from "@pap/contracts/pi-host";
 import type { CallFacts } from "./pipeline.ts";
 
 export const NOT_ALLOWLISTED = "tool not in the automation's allowlist";

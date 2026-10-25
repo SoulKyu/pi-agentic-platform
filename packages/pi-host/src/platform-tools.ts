@@ -7,7 +7,7 @@ import {
   type PlatformError,
   type PlatformOp,
   type PlatformResultRecord,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { errorClass } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 import type { NamedInlineExtension } from "./policy/extension.ts";

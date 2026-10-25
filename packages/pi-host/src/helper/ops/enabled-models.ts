@@ -5,7 +5,7 @@ import {
   ENABLED_PATTERNS_MAX,
   HELPER_OPS,
   type EnabledOp,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, type HelperContext, type HelperOp, HelperOpError } from "../ops.ts";
 import { loadRuntime, openExtensionLoad } from "./extension-load.ts";

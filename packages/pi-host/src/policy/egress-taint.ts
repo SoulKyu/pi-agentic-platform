@@ -1,4 +1,4 @@
-import { cleansContent, type EgressReport } from "@pap/contracts";
+import { cleansContent, type EgressReport } from "@pap/contracts/pi-host";
 
 /** A networked command taints unless the proxy saw only CONNECT 443 to trusted sources (or nothing). No report, a cut one: taints. */
 export function commandTaints(report: EgressReport | null | undefined, trusted: readonly string[]): boolean {

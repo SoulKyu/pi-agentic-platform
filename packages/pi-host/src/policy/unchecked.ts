@@ -1,4 +1,4 @@
-import type { GuardRule } from "@pap/contracts";
+import type { GuardRule } from "@pap/contracts/pi-host";
 import { guardTitle } from "./run-guard.ts";
 import type { ApprovalPlan, CallFacts, PolicyContext, StageResult } from "./pipeline.ts";
 

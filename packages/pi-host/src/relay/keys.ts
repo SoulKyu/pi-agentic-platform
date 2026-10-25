@@ -1,5 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
-import type { BoxRef } from "@pap/contracts";
+import type { BoxRef } from "@pap/contracts/pi-host";
 
 /** What the daemon hands the relay at a VM's start (RT-03): the launch's relay key, its box and the VM's bridge address. */
 export interface RelayGrant {

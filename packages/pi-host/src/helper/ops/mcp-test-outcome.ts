@@ -1,4 +1,4 @@
-import { MCP_TEST_LIMITS, type McpTestOutcome } from "@pap/contracts";
+import { MCP_TEST_LIMITS, type McpTestOutcome } from "@pap/contracts/pi-host";
 import { maskArgs } from "../mask.ts";
 
 /**

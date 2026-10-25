@@ -1,6 +1,6 @@
 import type { JsonValue } from "@earendil-works/pi-ai";
 import type { ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
-import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts";
+import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts/pi-host";
 import { errorClass } from "../bounded.ts";
 import { FENCE_PLACEHOLDER, fenceText, newFenceId } from "./fence.ts";
 import { EDGE_BUDGET, isHeadCut, maskCuts, maskTruncationCopy } from "./edges.ts";

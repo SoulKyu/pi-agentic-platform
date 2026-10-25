@@ -1,4 +1,4 @@
-import type { GuardLimits, GuardRule } from "@pap/contracts";
+import type { GuardLimits, GuardRule } from "@pap/contracts/pi-host";
 import type { GuardResult, Stages } from "./pipeline.ts";
 
 /** What the model is told when the guard stops a call (M5R34): no count, no input. */

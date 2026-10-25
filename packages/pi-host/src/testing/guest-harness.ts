@@ -8,7 +8,7 @@ import {
   createFrameDecoder,
   encodeSocketFrame,
   type VmLayout,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { runGuest, type GuestClock, type GuestDeps } from "../guest/guest.ts";
 
 export const TOKEN = "ab".repeat(32);

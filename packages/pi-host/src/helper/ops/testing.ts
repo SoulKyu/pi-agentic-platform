@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { readdirSync, readlinkSync } from "node:fs";
-import { HELPER_MAX_RECORD_BYTES } from "@pap/contracts";
+import { HELPER_MAX_RECORD_BYTES } from "@pap/contracts/pi-host";
 import { z } from "zod";
 import { defineOp, type OpTable } from "../ops.ts";
 

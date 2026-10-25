@@ -1,6 +1,6 @@
 import { execFile as nodeExecFile } from "node:child_process";
 import { promises as fs } from "node:fs";
-import { HELPER_OPS } from "@pap/contracts";
+import { HELPER_OPS } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { maskCommandLine } from "../mask.ts";
 import { defineOp, type HelperContext, HelperOpError } from "../ops.ts";

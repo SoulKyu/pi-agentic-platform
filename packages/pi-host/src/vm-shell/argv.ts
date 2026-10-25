@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import type { VmLayout } from "@pap/contracts";
+import type { VmLayout } from "@pap/contracts/pi-host";
 
 /** R2, R18: what the agent's shell keeps as guest root. No CAP_SYS_ADMIN, CAP_SYS_CHROOT, CAP_MKNOD, CAP_SYS_PTRACE, CAP_SYS_MODULE, CAP_NET_*. */
 export const VM_SHELL_CAPS = [

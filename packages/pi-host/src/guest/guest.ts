@@ -12,7 +12,7 @@ import {
   parseBoxKey,
   type GuestReport,
   type VmLayout,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { errorClass, logLineOf } from "../bounded.ts";
 import { proxyEnv } from "../vm-shell/proxy-env.ts";
 import { allowedExtraEnv } from "./extra-env.ts";

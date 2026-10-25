@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { isUtf8 } from "node:buffer";
 import { closeSync, constants, fstatSync, readSync } from "node:fs";
-import { FILE_CHUNK_BYTES, FILE_LIMITS, type FileMeta, PAGE_BYTES, sizeOf } from "@pap/contracts";
+import { FILE_CHUNK_BYTES, FILE_LIMITS, type FileMeta, PAGE_BYTES, sizeOf } from "@pap/contracts/pi-host";
 import { openAt } from "../../nofollow.ts";
 import { inGit, type OpEnv, withParent } from "./paths.ts";
 

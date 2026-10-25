@@ -9,6 +9,11 @@
       "development": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./pi-host": {
+      "development": "./src/pi-host-index.ts",
+      "types": "./dist/pi-host-index.d.ts",
+      "default": "./dist/pi-host-index.js"
     }
   },
   "scripts": {

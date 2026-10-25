@@ -1,5 +1,5 @@
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { AGENT_NET } from "@pap/contracts";
+import { AGENT_NET } from "@pap/contracts/pi-host";
 import { RELAY_HOSTS } from "./relay/routes.ts";
 
 /** The bridge's child `claude` honours `ANTHROPIC_BASE_URL` exported in the Pi process (its README); R34: the relay's port. */

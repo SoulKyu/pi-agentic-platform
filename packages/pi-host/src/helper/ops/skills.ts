@@ -8,7 +8,7 @@ import {
   type SkillsListResult,
   type SkillsSetInvocationResult,
   type SkillView,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { setFrontmatterFlag } from "../frontmatter.ts";
 import { within } from "../../policy/target-path.ts";

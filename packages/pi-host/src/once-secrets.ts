@@ -1,4 +1,4 @@
-import { isVaultName, type VaultUpdateRecord } from "@pap/contracts";
+import { isVaultName, type VaultUpdateRecord } from "@pap/contracts/pi-host";
 import { errorClass } from "./bounded.ts";
 import type { SecretSource } from "./policy/secrets.ts";
 import type { ShellEnvironment } from "./shell-env.ts";

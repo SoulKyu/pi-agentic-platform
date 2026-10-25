@@ -1,4 +1,4 @@
-import { VAULT_CAPS } from "@pap/contracts";
+import { VAULT_CAPS } from "@pap/contracts/pi-host";
 import { closeSync, constants, fstatSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createRedactor, type Redactor, type SecretSet } from "./redact.ts";

@@ -15,7 +15,7 @@ import {
   type GuestCommand,
   type PtyReport,
   type VmLayout,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { errorClass } from "../../bounded.ts";
 import type { GuestClock } from "../guest.ts";
 import { terminalCwd } from "./cwd.ts";

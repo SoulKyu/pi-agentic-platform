@@ -1,4 +1,4 @@
-import { UI_LIMITS } from "@pap/contracts";
+import { UI_LIMITS } from "@pap/contracts/pi-host";
 import { errorClass, logLineOf, MAX_WORKER_TEXT } from "./bounded.ts";
 import { EDGE_BUDGET, isHeadCut, maskCuts, maskEdges, maskTruncationCopy } from "./policy/edges.ts";
 import type { Redactor } from "./policy/redact.ts";

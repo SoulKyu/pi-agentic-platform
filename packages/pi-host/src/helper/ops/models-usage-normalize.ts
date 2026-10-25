@@ -5,7 +5,7 @@ import {
   type ProviderUsageId,
   type UsageBucket,
   type UsageMetric,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 
 /** A provider's answer that holds nothing pap can show: the operation reports it as a failed query. */
 export class UnusableAnswer extends Error {}

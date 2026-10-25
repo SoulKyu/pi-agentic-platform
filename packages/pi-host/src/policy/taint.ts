@@ -1,4 +1,4 @@
-import { MAX_TAINT_CAUSES, type TaintCause, type TaintCauses, type TaintState } from "@pap/contracts";
+import { MAX_TAINT_CAUSES, type TaintCause, type TaintCauses, type TaintState } from "@pap/contracts/pi-host";
 
 export type TaintCauseFacts = Omit<TaintCause, "at" | "count">;
 

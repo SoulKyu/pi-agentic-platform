@@ -6,7 +6,7 @@ import {
   type PlatformResultRecord,
   type TaintState,
   type VaultUpdateRecord,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { Approvals } from "./approvals.ts";
 import { errorClass, logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";

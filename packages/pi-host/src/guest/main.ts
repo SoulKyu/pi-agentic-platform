@@ -2,7 +2,7 @@ import { execFile, spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
-import { parseBoxKey, VmLayout } from "@pap/contracts";
+import { parseBoxKey, VmLayout } from "@pap/contracts/pi-host";
 import { errorClass } from "../bounded.ts";
 import { growFilesystem } from "./grow.ts";
 import { runGuest } from "./guest.ts";

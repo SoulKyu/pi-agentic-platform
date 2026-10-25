@@ -10,7 +10,7 @@ import {
   parsePorcelainV2,
   VCS_LIMITS,
   type VcsStatus,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { openAt } from "../../nofollow.ts";
 import { readAt } from "./fs-read.ts";
 import { runGit } from "./git-run.ts";

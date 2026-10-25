@@ -7,7 +7,7 @@ import {
   type TrustResources,
   type TrustSetHelperResult,
   type TrustStatus,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { logLineOf } from "../../bounded.ts";
 import { within } from "../../policy/target-path.ts";

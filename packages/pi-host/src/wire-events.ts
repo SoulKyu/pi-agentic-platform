@@ -1,5 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import { UI_LIMITS } from "@pap/contracts";
+import { UI_LIMITS } from "@pap/contracts/pi-host";
 import { clipText } from "./bounded.ts";
 
 export type WireEvent = { type: string } & Record<string, unknown>;

@@ -1,5 +1,5 @@
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { HELPER_OPS, MODELS_LIMITS, type RefreshCatalogResult } from "@pap/contracts";
+import { HELPER_OPS, MODELS_LIMITS, type RefreshCatalogResult } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { defineOp, HelperOpError, type HelperOp } from "../ops.ts";
 import { openRuntime } from "./models-open.ts";

@@ -1,4 +1,4 @@
-import { MCP_LIMITS, type McpServerView } from "@pap/contracts";
+import { MCP_LIMITS, type McpServerView } from "@pap/contracts/pi-host";
 import { z } from "zod";
 import { MASK, commandWords, joinWords, maskArgs, maskUrl, tokenLike } from "./mask.ts";
 

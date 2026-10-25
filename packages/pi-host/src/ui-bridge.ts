@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
-import { UI_LIMITS, UiResponseRecord } from "@pap/contracts";
+import { UI_LIMITS, UiResponseRecord } from "@pap/contracts/pi-host";
 import { ANSI_THEME } from "./ansi-theme.ts";
 import {
   type CustomPanels,

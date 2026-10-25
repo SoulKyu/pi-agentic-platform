@@ -1,4 +1,4 @@
-import { INVISIBLE, TaintCause, ToolName } from "@pap/contracts";
+import { INVISIBLE, TaintCause, ToolName } from "@pap/contracts/pi-host";
 import type { TaintCauseFacts } from "./taint.ts";
 import { isMarkableSource, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 

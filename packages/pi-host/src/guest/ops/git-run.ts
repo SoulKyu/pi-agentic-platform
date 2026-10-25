@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { disablingEnv, driversToDisable, FILTER_SCAN_ARGS, gitArgs, gitEnv } from "@pap/contracts";
+import { disablingEnv, driversToDisable, FILTER_SCAN_ARGS, gitArgs, gitEnv } from "@pap/contracts/pi-host";
 import { OpError } from "./paths.ts";
 
 export interface GitOptions {

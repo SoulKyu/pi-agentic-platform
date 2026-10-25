@@ -1,5 +1,10 @@
 import { userInfo } from "node:os";
-import { DaemonToHelper, HELPER_MAX_RECORD_BYTES, type HelperRun, type HelperToDaemon } from "@pap/contracts";
+import {
+  DaemonToHelper,
+  HELPER_MAX_RECORD_BYTES,
+  type HelperRun,
+  type HelperToDaemon,
+} from "@pap/contracts/pi-host";
 import { type HelperContext, HelperOpError, type OpTable } from "./ops.ts";
 
 type DoneRecord = Extract<HelperToDaemon, { type: "helper_done" }>;

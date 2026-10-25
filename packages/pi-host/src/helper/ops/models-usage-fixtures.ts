@@ -1,4 +1,4 @@
-import type { ProviderUsageId } from "@pap/contracts";
+import type { ProviderUsageId } from "@pap/contracts/pi-host";
 
 const RESET_ISO = "2027-01-15T08:00:00Z";
 export const RESET_SECONDS = Date.parse(RESET_ISO) / 1000;

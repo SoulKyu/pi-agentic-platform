@@ -1,4 +1,4 @@
-import type { VmLayout } from "@pap/contracts";
+import type { VmLayout } from "@pap/contracts/pi-host";
 import { proxyEnv } from "../../vm-shell/proxy-env.ts";
 
 /** The `gh` wrapper's folder (the base image copies the bundle here); it comes first in a terminal's PATH. */

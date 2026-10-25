@@ -1,4 +1,4 @@
-import { DaemonToWorker } from "@pap/contracts";
+import { DaemonToWorker } from "@pap/contracts/pi-host";
 import { logLineOf } from "./bounded.ts";
 
 export type Outbound = { type: string } & Record<string, unknown>;

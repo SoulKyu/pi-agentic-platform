@@ -1,4 +1,4 @@
-import { type StageId, type StageVerdict, STAGE_IDS } from "@pap/contracts";
+import { type StageId, type StageVerdict, STAGE_IDS } from "@pap/contracts/pi-host";
 
 /** The longest tool call id the policy keeps (audit rows, the set of external calls). */
 export const MAX_ID_LENGTH = 256;

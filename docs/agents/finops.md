@@ -53,6 +53,8 @@ Re-measure:
 - `pnpm test:int --silent=false` (or the two files `sessions.budgets.int.test.ts`, `daemon.int.test.ts`): the lines `session open payload: <n> bytes` and `idle worker RSS: <n> MB`.
 - `pnpm test:budget`: search p95 and scanner latency (builds the 10 000-session corpus, about 65 s; the step takes about 2.5 minutes).
 
+Idle worker RSS: pi-host imports `@pap/contracts/pi-host` (`packages/contracts/src/pi-host-index.ts`), never the root index, which evaluates every module it lists, the daemon's RPC schemas included (ESLint `no-restricted-imports`). On 2026-10-25 the root index cost each worker 8 to 9 MB (`daemon.int.test.ts`, local: 195-200 MB with it, 187-192 MB without; CI read 201-204 MB). A name pi-host needs from a module the entry does not list: copy that module's line from `index.ts`.
+
 ## Members: budget line and shared providers (M14, ADR 0085)
 
 Code: `apps/daemon/src/modules/runs/member-spend.ts`, `apps/daemon/src/compose-boxes-budget.ts`, `apps/daemon/src/modules/users/{provider-sharing,provider-gate,auth-kinds}.ts`. The owner has no cap.

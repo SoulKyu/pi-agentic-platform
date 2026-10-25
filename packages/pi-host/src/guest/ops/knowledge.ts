@@ -1,5 +1,5 @@
 import { closeSync, constants, readdirSync, writeSync } from "node:fs";
-import { isOkfIndex, OKF_HEAD_BYTES, OKF_INDEX_TEXT, okfLogText } from "@pap/contracts";
+import { isOkfIndex, OKF_HEAD_BYTES, OKF_INDEX_TEXT, okfLogText } from "@pap/contracts/pi-host";
 import { closeQuietly, openAt, openDirAt, openRootDir } from "../../nofollow.ts";
 import { readAt } from "./fs-read.ts";
 import { OpError, type OpEnv, opErrorOf } from "./paths.ts";

@@ -1,4 +1,4 @@
-import type { ApprovalMode, SessionAuditEntry } from "@pap/contracts";
+import type { ApprovalMode, SessionAuditEntry } from "@pap/contracts/pi-host";
 import type { Outbound } from "../ipc.ts";
 import { clipUnits } from "./trail.ts";
 

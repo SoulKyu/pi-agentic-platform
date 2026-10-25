@@ -1,4 +1,4 @@
-import type { AlwaysScope, AlwaysScopes, ToolRule } from "@pap/contracts";
+import type { AlwaysScope, AlwaysScopes, ToolRule } from "@pap/contracts/pi-host";
 import { coverCommand } from "./command-cover.ts";
 import type { PolicyGrants } from "./grants.ts";
 import type { CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";

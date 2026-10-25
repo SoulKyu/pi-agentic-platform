@@ -1,5 +1,5 @@
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { HELPER_OPS, MODELS_LIMITS, type ModelsOverview, type ProviderView } from "@pap/contracts";
+import { HELPER_OPS, MODELS_LIMITS, type ModelsOverview, type ProviderView } from "@pap/contracts/pi-host";
 import type { z } from "zod";
 import { summaryOf } from "../../loadout.ts";
 import { defineOp, type HelperOp } from "../ops.ts";

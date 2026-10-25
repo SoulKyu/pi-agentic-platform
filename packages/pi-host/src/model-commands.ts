@@ -6,7 +6,7 @@ import {
   type ModelSummary,
   type ThinkingLevel,
   WORKER_BUSY,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { freshAvailable } from "./available-models.ts";
 import { messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";

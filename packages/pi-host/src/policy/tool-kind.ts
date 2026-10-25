@@ -4,7 +4,7 @@ import {
   type PlatformOp,
   type ToolCategory,
   type WhenTainted,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 
 /** What Pi records about a registered tool (`ToolInfo.sourceInfo.path` and the tool's own hints). */
 export interface ToolFacts {

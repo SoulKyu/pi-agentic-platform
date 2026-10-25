@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { FILE_LIMITS, INVISIBLE, rank } from "@pap/contracts";
+import { FILE_LIMITS, INVISIBLE, rank } from "@pap/contracts/pi-host";
 import { runGit } from "./git-run.ts";
 import { OpError, type OpEnv } from "./paths.ts";
 

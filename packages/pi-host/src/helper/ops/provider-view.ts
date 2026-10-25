@@ -1,4 +1,4 @@
-import { checkBaseUrl, NO_KEY_LITERAL, PROVIDER_API_TYPES, ProviderInput } from "@pap/contracts";
+import { checkBaseUrl, NO_KEY_LITERAL, PROVIDER_API_TYPES, ProviderInput } from "@pap/contracts/pi-host";
 
 type Json = Record<string, unknown>;
 const isObject = (value: unknown): value is Json =>

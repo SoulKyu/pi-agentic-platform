@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { closeSync, constants, fchmodSync, fstatSync, fsyncSync, writeSync } from "node:fs";
-import { FILE_LIMITS, PAGE_BYTES, sizeOf } from "@pap/contracts";
+import { FILE_LIMITS, PAGE_BYTES, sizeOf } from "@pap/contracts/pi-host";
 import { linkAt, openAt, renameAt, unlinkAt } from "../../nofollow.ts";
 import { etagOf, readAt } from "./fs-read.ts";
 import { OpError, type OpEnv, opErrorOf, segmentsOf, withFolder, withParent } from "./paths.ts";

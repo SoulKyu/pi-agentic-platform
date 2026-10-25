@@ -15,7 +15,7 @@ import {
   writeSync,
 } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { OKF_INDEX_TEXT, okfLogText, type VmLayout } from "@pap/contracts";
+import { OKF_INDEX_TEXT, okfLogText, type VmLayout } from "@pap/contracts/pi-host";
 import { guestGitArgs, guestGitEnv } from "./ops/git-run.ts";
 import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 

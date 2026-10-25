@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { PromptImageRef } from "@pap/contracts";
+import type { PromptImageRef } from "@pap/contracts/pi-host";
 import { logLineOf, messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 import { type PromptImage, readPromptImages } from "./prompt-images.ts";

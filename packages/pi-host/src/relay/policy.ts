@@ -1,4 +1,4 @@
-import { type BoxRef, boxKey, type RelayCommand } from "@pap/contracts";
+import { type BoxRef, boxKey, type RelayCommand } from "@pap/contracts/pi-host";
 
 type BoxPolicy = Omit<Extract<RelayCommand, { type: "box_policy" }>, "type">;
 export type PolicyVerdict =

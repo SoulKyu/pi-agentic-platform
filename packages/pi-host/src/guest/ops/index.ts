@@ -1,4 +1,4 @@
-import { type BoxOp, type BoxOpError } from "@pap/contracts";
+import { type BoxOp, type BoxOpError } from "@pap/contracts/pi-host";
 import { fsGet, fsRead } from "./fs-read.ts";
 import { fsList } from "./fs-list.ts";
 import { createSearch } from "./fs-search.ts";

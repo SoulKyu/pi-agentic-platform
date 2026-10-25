@@ -5,7 +5,7 @@ import {
   type SessionAppend,
   SESSION_CHUNK_BYTES,
   type DaemonToWorker,
-} from "@pap/contracts";
+} from "@pap/contracts/pi-host";
 import { logLineOf } from "./bounded.ts";
 import { closeQuietly, openFileChain, openRootDir } from "./nofollow.ts";
 import type { ShellTimers } from "./shell-process.ts";

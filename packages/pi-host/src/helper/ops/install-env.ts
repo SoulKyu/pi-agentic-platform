@@ -1,4 +1,4 @@
-import { NETWORK_ENV, TOOLING_ENV, unattendedEnv } from "@pap/contracts";
+import { NETWORK_ENV, TOOLING_ENV, unattendedEnv } from "@pap/contracts/pi-host";
 
 /**
  * The environment of a child the helper starts to install something (`npx`, and the `npm` and `git` Pi starts): the

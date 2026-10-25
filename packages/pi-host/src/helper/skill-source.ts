@@ -1,4 +1,4 @@
-import { SKILLS_CLI } from "@pap/contracts";
+import { SKILLS_CLI } from "@pap/contracts/pi-host";
 
 const OWNER_REPO =
   /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\/[A-Za-z0-9][A-Za-z0-9._-]{0,99}(?:@[A-Za-z0-9][A-Za-z0-9._:-]{0,99})?$/;
