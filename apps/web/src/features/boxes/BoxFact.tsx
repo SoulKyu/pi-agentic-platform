@@ -23,14 +23,14 @@ interface Props {
  * it is stopped, PACKAGES CHANGED when the yaml waits for a rebuild, then the one note about backups. The phase is a polite
  * live region so a screen reader hears it change.
  */
-export function BoxFact({ project, onSettings, opened = false }: Props) {
+export function BoxFact({ project, onSettings, opened }: Props) {
   const t = useT();
   const phase = phaseOf(project);
   const { state } = useProjectBox(project.id, phase);
   const box = { kind: "project", id: project.id } as const;
   const launching = useIsLaunching(box);
   const [toggled, setToggled] = useState<boolean | null>(null);
-  const steps = toggled ?? opened;
+  const steps = toggled ?? opened === true;
   const changed = state.kind === "ready" && packagesChanged(state.box);
   return (
     <section data-box-fact="" aria-label={t("boxes.label")} className="flex flex-col gap-s2">

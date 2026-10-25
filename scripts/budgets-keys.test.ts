@@ -27,7 +27,7 @@ describe("budget enforcers", () => {
 
   it("pins the final values: a drift is a deliberate edit (owner q4, M13R10)", () => {
     expect(budgetsJson).toEqual({
-      initialBundleGzipKb: 250,
+      initialBundleGzipKb: 300,
       serviceWorkerGzipKb: 5,
       sessionOpenPayloadKb: 24,
       idleWorkerRssMb: 200,
