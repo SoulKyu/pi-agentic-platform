@@ -41,3 +41,53 @@ describe("CodeBlock while a reply streams (M3 triage: no highlighting on every d
     expect(highlightCode).not.toHaveBeenCalled();
   });
 });
+
+describe("CodeBlock copy button", () => {
+  const LABELS = { copy: "Copy code", copied: "Copied" };
+  const button = (page: { container: HTMLElement }) => page.container.querySelector("button");
+  const click = (page: { container: HTMLElement }) =>
+    act(async () => {
+      button(page)?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+  afterEach(() => {
+    Reflect.deleteProperty(navigator, "clipboard");
+    Reflect.deleteProperty(document, "execCommand");
+  });
+
+  it("has no button without labels", async () => {
+    const page = await mount(<CodeBlock code="ls" lang="sh" />);
+    expect(button(page)).toBeNull();
+    await page.unmount();
+  });
+
+  it("copies the code, says so, then offers to copy again", async () => {
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const page = await mount(<CodeBlock code={"pnpm i\npnpm build"} lang="sh" labels={LABELS} />);
+    expect(button(page)?.getAttribute("aria-label")).toBe("Copy code");
+    await click(page);
+    expect(writeText).toHaveBeenCalledWith("pnpm i\npnpm build");
+    expect(button(page)?.getAttribute("aria-label")).toBe("Copied");
+    await advance(1500);
+    expect(button(page)?.getAttribute("aria-label")).toBe("Copy code");
+    await page.unmount();
+  });
+
+  it("copies through a selected textarea where the Clipboard API is missing (plain HTTP on a LAN)", async () => {
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    let selected: string | undefined;
+    const execCommand = vi.fn((command: string) => {
+      selected = (document.activeElement as HTMLTextAreaElement | null)?.value;
+      return command === "copy";
+    });
+    Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
+    const page = await mount(<CodeBlock code="echo hi" lang="sh" labels={LABELS} />);
+    await click(page);
+    expect(execCommand).toHaveBeenCalledWith("copy");
+    expect(selected).toBe("echo hi");
+    expect(document.querySelector("textarea")).toBeNull();
+    expect(button(page)?.getAttribute("aria-label")).toBe("Copied");
+    await page.unmount();
+  });
+});

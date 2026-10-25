@@ -82,6 +82,8 @@ export const en = {
   "sessions.announce.runEnded": "The agent has finished.",
   "sessions.announce.approval": "The agent is waiting for your approval.",
   "sessions.transcript.thought": "Thought",
+  "sessions.code.copy": "Copy code",
+  "sessions.code.copied": "Copied",
   "sessions.transcript.label": "Conversation",
   "session.status.needsInput": "Needs you",
   "row.actions": "Message actions",

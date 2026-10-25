@@ -1,7 +1,8 @@
+import { createContext, useContext } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../cn.ts";
-import { CodeBlock } from "./CodeBlock.tsx";
+import { CodeBlock, type CodeCopyLabels } from "./CodeBlock.tsx";
 import { safeHref } from "./safe-url.ts";
 
 export const MAX_MARKDOWN_CHARS = 100_000;
@@ -67,6 +68,13 @@ function fenced(node: HastNode | undefined): { code: string; lang: string } {
   return { code: textOf(code).replace(/\n$/, ""), lang };
 }
 
+const CopyLabels = createContext<CodeCopyLabels | undefined>(undefined);
+
+function FencedCode({ node }: { readonly node: HastNode | undefined }) {
+  const { code, lang } = fenced(node);
+  return <CodeBlock code={code} lang={lang} labels={useContext(CopyLabels)} />;
+}
+
 const COMPONENTS: Components = {
   a: ({ href, children }) => {
     const safe = href ? safeHref(href) : null;
@@ -80,10 +88,7 @@ const COMPONENTS: Components = {
   },
   // An image would be a request to wherever the model pointed (zero telemetry, CSP img-src): show its alt text.
   img: ({ alt }) => <span>{alt ?? ""}</span>,
-  pre: ({ node }) => {
-    const { code, lang } = fenced(node as HastNode | undefined);
-    return <CodeBlock code={code} lang={lang} />;
-  },
+  pre: ({ node }) => <FencedCode node={node as HastNode | undefined} />,
   code: ({ children }) => <code className={INLINE_CODE_CLASSES}>{children}</code>,
   ul: ({ children }) => <ul className={cn(LIST_CLASSES, "list-disc")}>{children}</ul>,
   ol: ({ children }) => <ol className={cn(LIST_CLASSES, "list-decimal")}>{children}</ol>,
@@ -104,7 +109,13 @@ const COMPONENTS: Components = {
 };
 
 /** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. */
-export default function MarkdownBody({ text }: { readonly text: string }) {
+export default function MarkdownBody({
+  text,
+  copyLabels,
+}: {
+  readonly text: string;
+  readonly copyLabels?: CodeCopyLabels;
+}) {
   if (text.length > MAX_MARKDOWN_CHARS) {
     return (
       <div data-markdown-plain="" className={PLAIN_CLASSES}>
@@ -114,9 +125,11 @@ export default function MarkdownBody({ text }: { readonly text: string }) {
   }
   return (
     <div data-markdown-body="" className={BODY_CLASSES}>
-      <ReactMarkdown remarkPlugins={[remarkGfm, htmlAsText]} skipHtml components={COMPONENTS}>
-        {text}
-      </ReactMarkdown>
+      <CopyLabels.Provider value={copyLabels}>
+        <ReactMarkdown remarkPlugins={[remarkGfm, htmlAsText]} skipHtml components={COMPONENTS}>
+          {text}
+        </ReactMarkdown>
+      </CopyLabels.Provider>
     </div>
   );
 }

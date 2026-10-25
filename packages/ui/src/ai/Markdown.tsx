@@ -1,4 +1,5 @@
 import { Component, lazy, Suspense, type ReactNode } from "react";
+import type { CodeCopyLabels } from "./markdown/CodeBlock.tsx";
 
 const MarkdownBody = lazy(() => import("./markdown/render.tsx"));
 const PLAIN_CLASSES = "whitespace-pre-wrap break-words";
@@ -30,9 +31,12 @@ class PlainOnError extends Component<FallbackProps, { readonly failed: boolean }
 export function Markdown({
   text,
   onLoadError,
+  copyLabels,
 }: {
   readonly text: string;
   readonly onLoadError?: () => void;
+  /** Code blocks get a copy button when set. */
+  readonly copyLabels?: CodeCopyLabels;
 }) {
   const plain = (
     <div data-slot="markdown" className={PLAIN_CLASSES}>
@@ -42,7 +46,7 @@ export function Markdown({
   return (
     <PlainOnError fallback={plain} onError={onLoadError}>
       <Suspense fallback={plain}>
-        <MarkdownBody text={text} />
+        <MarkdownBody text={text} copyLabels={copyLabels} />
       </Suspense>
     </PlainOnError>
   );

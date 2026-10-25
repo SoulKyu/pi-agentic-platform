@@ -1,5 +1,5 @@
-import { Markdown, Message, Reasoning } from "@pap/ui";
-import { memo } from "react";
+import { Markdown, Message, Reasoning, type CodeCopyLabels } from "@pap/ui";
+import { memo, useMemo } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { FencedPart } from "./FencedPart.tsx";
@@ -26,9 +26,14 @@ function YourText({ text }: { text: string }) {
 
 const markdownFailed = () => reportClientIssue("lazy_chunk_failed");
 
+function useCopyLabels(): CodeCopyLabels {
+  const t = useT();
+  return useMemo(() => ({ copy: t("sessions.code.copy"), copied: t("sessions.code.copied") }), [t]);
+}
+
 /** One block of a streaming reply: it renders again only when its own text changes (M4R113). */
 const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
-  return <Markdown text={text} onLoadError={markdownFailed} />;
+  return <Markdown text={text} onLoadError={markdownFailed} copyLabels={useCopyLabels()} />;
 });
 
 /**
@@ -46,6 +51,7 @@ export function MessageRow({
   grouped?: boolean;
 }) {
   const t = useT();
+  const copyLabels = useCopyLabels();
   const author = item.kind === "partial" ? "agent" : item.author;
   const entryId = item.kind === "message" && author === "you" ? item.entryId : null;
   // The reply is still thinking while no answer text has come.
@@ -70,7 +76,7 @@ export function MessageRow({
           // Blocks only grow at the end, so an index names the same block until the message ends.
           splitBlocks(item.text).map((block, index) => <MarkdownBlock key={index} text={block} />)
         ) : (
-          <Markdown text={item.text} onLoadError={markdownFailed} />
+          <Markdown text={item.text} onLoadError={markdownFailed} copyLabels={copyLabels} />
         )
       ) : author === "you" ? (
         <YourText text={item.text} />

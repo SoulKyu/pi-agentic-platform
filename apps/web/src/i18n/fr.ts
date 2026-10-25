@@ -83,6 +83,8 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.announce.runEnded": "L'agent a terminé.",
   "sessions.announce.approval": "L'agent attend votre approbation.",
   "sessions.transcript.thought": "Réflexion terminée",
+  "sessions.code.copy": "Copier le code",
+  "sessions.code.copied": "Copié",
   "sessions.transcript.label": "Échanges",
   "session.status.needsInput": "Attend votre réponse",
   "row.actions": "Actions du message",
