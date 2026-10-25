@@ -1,3 +1,4 @@
+import type { Role } from "@pap/contracts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 import { syncAccountAppearance } from "../../features/appearance/index.ts";
@@ -9,7 +10,6 @@ import {
 } from "../../features/commands/index.ts";
 import { isOpenPath, landingSegmentOf } from "../../features/notifications/landing-path.ts";
 import { itemFromPath, pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
-import { useRole } from "../../lib/role-context.ts";
 import { runCommand } from "../../lib/command-registry.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime, useConnectionState, windowTimers } from "../../runtime/index.ts";
@@ -19,11 +19,16 @@ import { usePwa } from "../../stores/pwa.ts";
 
 const granted = () => typeof Notification !== "undefined" && Notification.permission === "granted";
 
-export function useShellEffects(shell: { readonly mobile: boolean; treeOpen(): boolean }): void {
+/** `role` comes from AppShell's props: this hook runs above the RoleContext provider AppShell renders, so `useRole()` would read the default. */
+export function useShellEffects(shell: {
+  readonly mobile: boolean;
+  readonly role: Role;
+  treeOpen(): boolean;
+}): void {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const open = useWorkspaceStore((state) => state.open);
   const navigate = useNavigate();
-  const role = useRole();
+  const { role } = shell;
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
 

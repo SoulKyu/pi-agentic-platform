@@ -2,6 +2,7 @@ import type { Role } from "@pap/contracts";
 import { Toaster, TooltipProvider } from "@pap/ui";
 import { createMemoryHistory, RouterProvider, type AnyRouter } from "@tanstack/react-router";
 import { vi } from "vitest";
+import { RoleContext } from "../lib/role-context.ts";
 import { AppShell } from "../routes/shell/AppShell.tsx";
 import { buildRouteTree, createAppRouter } from "../routes/router.tsx";
 import { loadShellChunks, type ChunkName } from "./chunks.ts";
@@ -44,11 +45,14 @@ export async function renderShell(
     />
   );
   const router = createAppRouter(buildRouteTree(Shell), createMemoryHistory({ initialEntries: [path] }));
+  // main.tsx puts no role provider above the shell, so whatever AppShell reads before its own provider gets the default.
   const mounted = await mount(
-    <TooltipProvider>
-      <RouterProvider router={router} />
-      <Toaster closeLabel="Dismiss" regionLabel="Notifications" />
-    </TooltipProvider>,
+    <RoleContext.Provider value="member">
+      <TooltipProvider>
+        <RouterProvider router={router} />
+        <Toaster closeLabel="Dismiss" regionLabel="Notifications" />
+      </TooltipProvider>
+    </RoleContext.Provider>,
   );
   return { ...mounted, router };
 }

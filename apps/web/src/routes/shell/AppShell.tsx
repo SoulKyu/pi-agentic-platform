@@ -115,7 +115,7 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
       resetFolderMemory();
     };
   }, []);
-  useShellEffects({ mobile, treeOpen: readTreeOpen });
+  useShellEffects({ mobile, role, treeOpen: readTreeOpen });
   useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, role, onSignedOut });
   return (
     <ShellContext.Provider value={shell}>

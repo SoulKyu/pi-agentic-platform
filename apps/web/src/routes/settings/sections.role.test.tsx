@@ -10,6 +10,7 @@ import {
 } from "../../features/workspace/index.ts";
 import { setLocale } from "../../i18n/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
+import { settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { useShellStore } from "../../stores/shell-store.ts";
@@ -75,6 +76,19 @@ describe("Settings by role", () => {
     async (section) => {
       const page = await shown(`/settings/${section}`, "member");
       expect(page.container.querySelector("h1")?.textContent).toBe("Appearance");
+      await page.unmount();
+    },
+  );
+
+  it.each(["models", "mcp", "skills", "users"])(
+    "an owner's deep link to /settings/%s opens it, and the URL stays",
+    async (section) => {
+      const page = await shown(`/settings/${section}`, "owner");
+      await settle();
+      expect(page.router.state.location.pathname).toBe(`/settings/${section}`);
+      expect(useWorkspaceStore.getState().ws.tabs.map((tab) => tab.item)).toEqual([
+        { kind: "settings", section },
+      ]);
       await page.unmount();
     },
   );
