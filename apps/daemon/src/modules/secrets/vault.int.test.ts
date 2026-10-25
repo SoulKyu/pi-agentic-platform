@@ -1,7 +1,8 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import type { EventFrame } from "@pap/contracts";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { sha256Hex } from "../../kernel/ids.ts";
 import { canonicalJson } from "../../kernel/ws/dispatcher.ts";
 import { openOwner, outcome, type Owner, result, rows } from "../../security/testing/automation-bed.ts";
@@ -159,8 +160,37 @@ describe("the vault through a real daemon and a real worker in the process-backe
     expect(JSON.stringify(audit)).not.toContain(VALUE);
   });
 
-  it("a planted value is in no log, event, table or file outside the sealed vault (M11R58 style)", () => {
+  it("a planted value is in no log, event, table or file outside the sealed vault (M11R58 style)", async () => {
+    // The search index is a cache of Pi's session files (ADR 0013): once the scanner has read the thread's three replies
+    // (its debounce, or its 60 s reconcile for a mirror file seen before the row named it), it holds their raw text, the
+    // same M5 limit as the session file, and no value anywhere else.
+    const searchDb = join(t.home, "search.db");
+    const indexed = (sql: string, ...params: string[]): Array<Record<string, unknown>> => {
+      const db = new DatabaseSync(searchDb, { readOnly: true });
+      try {
+        return db.prepare(sql).all(...params) as Array<Record<string, unknown>>;
+      } finally {
+        db.close();
+      }
+    };
+    await vi.waitFor(
+      () =>
+        expect(
+          indexed("SELECT id FROM rows WHERE session_id = ? AND role = 'assistant'", sessionId),
+        ).toHaveLength(3),
+      { timeout: 65_000, interval: 100 },
+    );
+    const holding = [VALUE, LATE].flatMap((value) =>
+      indexed("SELECT session_id, role, text FROM rows WHERE instr(text, ?) > 0 ORDER BY id", value),
+    );
+    expect(holding).toEqual([
+      { session_id: sessionId, role: "assistant", text: `first=${VALUE}` },
+      { session_id: sessionId, role: "assistant", text: `gone=[${VALUE}]` },
+      { session_id: sessionId, role: "assistant", text: `late=${LATE}` },
+    ]);
+    const indexRest = JSON.stringify([indexed("SELECT * FROM files"), indexed("SELECT * FROM meta")]);
     const tracked = [
+      indexRest,
       JSON.stringify(logs.lines),
       JSON.stringify(owner.client.events),
       JSON.stringify(rows(t.home, "SELECT * FROM audit")),
@@ -175,11 +205,12 @@ describe("the vault through a real daemon and a real worker in the process-backe
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) scan(path);
-        // Left out: the sealed vault, the test's own scripts (they type the values) and Pi's session files, which keep the
-        // model's typed text raw (M5's documented limit; its tool results are redacted).
+        // Left out: the sealed vault, the test's own scripts (they type the values), Pi's session files, which keep the
+        // model's typed text raw (M5's documented limit; its tool results are redacted), and the search index read above.
         else if (
           entry.isFile() &&
           !path.startsWith(join(t.home, "secrets", "vault")) &&
+          !path.startsWith(searchDb) &&
           !path.endsWith("script.json") &&
           !path.endsWith(".jsonl")
         ) {
@@ -191,5 +222,5 @@ describe("the vault through a real daemon and a real worker in the process-backe
     scan(t.root);
     expect(hits).toEqual([]);
     expect(existsSync(join(t.home, "secrets", "vault", "key"))).toBe(true);
-  });
+  }, 90_000);
 });
