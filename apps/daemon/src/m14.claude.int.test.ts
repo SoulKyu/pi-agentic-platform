@@ -48,6 +48,12 @@ interface Policy {
   claudeToken: string | null;
   blocked: string | null;
 }
+/**
+ * A push reads the box owner's models first (`modelsOf`): past the 10 s cache of `models.available`, or for a member's
+ * providers, that is a Pi helper run. It took 1.9 to 2.6 s on a loaded 3-CPU host, more than vi.waitFor's default 1 s;
+ * 30 s is the helper's read deadline.
+ */
+const PUSHED = { timeout: 30_000 };
 /** The newest `box_policy` the relay was sent for a box. */
 const policyOf = (boxId: string): Policy | undefined =>
   (child.sent as Array<{ type: string } & Partial<Policy>>)
@@ -70,7 +76,7 @@ describe("the relay and the Claude token", () => {
     await vi.waitFor(() => {
       expect(policyOf(ownerBox)).toMatchObject({ claude: true, claudeToken: OWNER_TOKEN });
       expect(policyOf(mine.id)).toMatchObject({ claude: true, claudeToken: MEMBER_TOKEN });
-    });
+    }, PUSHED);
     // A user with no token gets the relay's own no_claude_token refusal: the policy holds none, never another user's.
     expect(policyOf(nones.id)).toMatchObject({ claude: false, claudeToken: null });
 
@@ -80,7 +86,10 @@ describe("the relay and the Claude token", () => {
 
     // The member clears theirs: only their box loses it.
     await ask(u.member, "agents.vm.clearClaudeToken", {});
-    await vi.waitFor(() => expect(policyOf(mine.id)).toMatchObject({ claude: false, claudeToken: null }));
+    await vi.waitFor(
+      () => expect(policyOf(mine.id)).toMatchObject({ claude: false, claudeToken: null }),
+      PUSHED,
+    );
     expect(policyOf(ownerBox)).toMatchObject({ claude: true, claudeToken: OWNER_TOKEN });
 
     // No token is ever in a box the owner of the token does not own, in any message the relay got.
@@ -96,10 +105,14 @@ describe("the relay and the Claude token", () => {
   it("a member's box lists the Claude bridge while their token is set, and the agents' packages list through agents.packages", async () => {
     const { project } = await ask<{ project: ProjectView }>(u.member, "projects.create", { name: "Bridge" });
     await ask(u.member, "projects.startBox", { projectId: project.id });
-    await vi.waitFor(() => expect(policyOf(project.id)).toMatchObject({ claude: false, claudeToken: null }));
+    await vi.waitFor(
+      () => expect(policyOf(project.id)).toMatchObject({ claude: false, claudeToken: null }),
+      PUSHED,
+    );
     await ask(u.member, "agents.vm.setClaudeToken", { token: MEMBER_TOKEN });
-    await vi.waitFor(() =>
-      expect(policyOf(project.id)).toMatchObject({ claude: true, claudeToken: MEMBER_TOKEN }),
+    await vi.waitFor(
+      () => expect(policyOf(project.id)).toMatchObject({ claude: true, claudeToken: MEMBER_TOKEN }),
+      PUSHED,
     );
     // The picker lists the bridge's models for the member, with their token set, and still drops the unshared provider.
     const pickerOf = async (who: Person) =>
@@ -114,7 +127,10 @@ describe("the relay and the Claude token", () => {
     // is told there is none: this project box's policy is `claude: false`, `claudeToken: null`, and the relay answers
     // such a box's claude request with a refusal (`model`: the bridge is off) before it could ever forward the owner's token.
     await ask(u.member, "agents.vm.clearClaudeToken", {});
-    await vi.waitFor(() => expect(policyOf(project.id)).toMatchObject({ claude: false, claudeToken: null }));
+    await vi.waitFor(
+      () => expect(policyOf(project.id)).toMatchObject({ claude: false, claudeToken: null }),
+      PUSHED,
+    );
     expect(await pickerOf(u.member)).toEqual(["claude-bridge"]);
     // `agents.packages` is shared: the member sees the one Pi folder's packages (ids and masked sources), no more.
     const owner = await ask<{ packages: Array<{ id: string; source: string }> }>(
