@@ -75,6 +75,6 @@ describe("ModelMenu default star", () => {
     const other = button(document.body, "Make Claude Sonnet 4 the default");
     expect(star.className).toContain("size-6");
     expect(star.querySelector("svg")?.getAttribute("fill")).toBe("currentColor");
-    expect(other.querySelector("svg")?.getAttribute("fill")).toBeNull();
+    expect(other.querySelector("svg")?.getAttribute("fill")).toBe("none");
   });
 });

@@ -97,6 +97,10 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     expect(html(<Icon icon={IconCheck} />)).not.toContain('fill="currentColor"');
   });
 
+  it("an outline icon keeps lucide's fill none, so its shapes never fill black", () => {
+    expect(html(<Icon icon={IconCheck} />)).toContain('fill="none"');
+  });
+
   it("an open tab is a tab with an agent border when active and a labelled close button", () => {
     const tab = html(
       <OpenTab

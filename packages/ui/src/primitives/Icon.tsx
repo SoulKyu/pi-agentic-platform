@@ -17,7 +17,8 @@ export function Icon({ icon: Glyph, size, label, filled }: IconProps) {
       data-slot="icon"
       size={size ?? 16}
       strokeWidth={1.5}
-      fill={filled ? "currentColor" : undefined}
+      // Never `fill={undefined}`: the prop would override lucide's `fill="none"`, and every outline shape would fill black.
+      {...(filled ? { fill: "currentColor" } : {})}
       focusable="false"
       role={label ? "img" : undefined}
       aria-label={label}
