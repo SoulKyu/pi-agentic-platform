@@ -298,7 +298,7 @@ describe("the relay process", () => {
     expect(bed.stderr()).not.toContain(KEY);
   });
 
-  it("refuses the key from another address, a model outside the list and a revoked key; one request reaches the upstream", async () => {
+  it("refuses the key from another address, a model outside the list and a revoked key; only accepted requests reach the upstream", async () => {
     const bed = await startRelay();
     const port = await ready(bed);
     const OTHER = "cd".repeat(32);
@@ -306,27 +306,26 @@ describe("the relay process", () => {
     grant(bed, { launchId: "b".repeat(32), key: OTHER, address: "127.0.0.1" });
     policy(bed);
     const body = JSON.stringify({ model: MODEL, messages: [] });
+    // A policy or a revoke reaches the relay with no answer, so a request sent before it lands is still served:
+    // what must hold is that only the requests it accepted reach the upstream.
+    let accepted = 0;
+    const asOther = async () => {
+      const answer = await post(port, body, OTHER);
+      if (answer.status === 200) accepted += 1;
+      return answer;
+    };
     // The second launch is live, so the first (same agent, another address) was handled before it.
-    await until(
-      () => post(port, body, OTHER),
-      (answer) => answer.status === 200,
-    );
+    await until(asOther, (answer) => answer.status === 200);
     const wrongAddress = await post(port, body, KEY);
     expect(wrongAddress.status).toBe(403);
     expect(JSON.parse(wrongAddress.text)).toEqual({ error: "key" });
     policy(bed, "other");
-    const wrongModel = await until(
-      () => post(port, body, OTHER),
-      (answer) => answer.status !== 200,
-    );
+    const wrongModel = await until(asOther, (answer) => answer.status !== 200);
     expect(JSON.parse(wrongModel.text)).toEqual({ error: "model" });
     bed.child.send({ type: "relay_revoke", launchId: "b".repeat(32) });
-    const revoked = await until(
-      () => post(port, body, OTHER),
-      (answer) => answer.text.includes('"key"'),
-    );
+    const revoked = await until(asOther, (answer) => answer.text.includes('"key"'));
     expect(revoked.status).toBe(403);
-    expect(bed.upstream).toHaveLength(1);
+    expect(bed.upstream).toHaveLength(accepted);
     expect(bed.stderr()).toContain('agent_relay_refused {"box":"agent:scout-0001","reason":"model"}');
     expect(bed.stderr()).toContain('agent_relay_refused {"box":null,"reason":"key"}');
     expect(bed.stderr()).not.toContain(KEY);
