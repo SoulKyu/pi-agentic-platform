@@ -1,6 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { AgentId, IMAGE_TAG, PapError } from "@pap/contracts";
+import { AgentId, IMAGE_TAG, PapError, ProjectId } from "@pap/contracts";
 import { z } from "zod";
 import { readJsonBounded } from "../../kernel/json-bounded.ts";
 
@@ -35,10 +35,14 @@ export function imageEntriesOf(
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_IMAGES_PER_AGENT = 16;
 const Entry = z.object({ source: z.string().max(512), written: z.string().max(512) }).strict();
+/** An agent, a project box (B1) or the project's build key (`<project>:build`, `project-images.ts`). */
+const BoxImageKey = z
+  .string()
+  .refine((key) => AgentId.safeParse(key).success || ProjectId.safeParse(key.replace(/:build$/, "")).success);
 const FileShape = z
   .object({
     version: z.literal(1),
-    images: z.record(z.string().regex(IMAGE_TAG), z.record(AgentId, z.array(Entry).max(64))),
+    images: z.record(z.string().regex(IMAGE_TAG), z.record(BoxImageKey, z.array(Entry).max(64))),
   })
   .strict();
 

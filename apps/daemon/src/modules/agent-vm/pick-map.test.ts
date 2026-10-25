@@ -131,6 +131,17 @@ describe("createImageEntries on disk (AVM-E44)", () => {
     expect(persisted().held()).toEqual(pairs);
   });
 
+  it("a project box's pairs and its build key load at the next boot beside an agent's (B1)", () => {
+    const project = "0f8e2c1a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+    const entries = persisted();
+    entries.record("scout-0001", TAG_A, WRITTEN);
+    entries.record(project, TAG_B, WRITTEN);
+    entries.record(`${project}:build`, TAG_C, WRITTEN);
+    const warn = vi.fn();
+    expect(persisted(warn).held()).toEqual(entries.held());
+    expect(warn).not.toHaveBeenCalled();
+  });
+
   it("forget drops every image of the agent and none of another's", () => {
     const entries = persisted();
     entries.record("scout-0001", TAG_A, WRITTEN);
