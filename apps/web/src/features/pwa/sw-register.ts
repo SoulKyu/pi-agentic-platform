@@ -179,7 +179,14 @@ export function watchStaleChunks(env: PwaEnv): void {
   const session = sessionOf(env);
   if (!env.production || session.staleWatched) return;
   session.staleWatched = true;
+  // A navigation away aborts the chunks still loading (WebKit reports them): that is not a rebuild, and a reload then
+  // would take the person back to the page they left.
+  let leaving = false;
+  env.win.addEventListener("beforeunload", () => (leaving = true));
+  env.win.addEventListener("pagehide", () => (leaving = true));
+  env.win.addEventListener("pageshow", () => (leaving = false));
   env.win.addEventListener("vite:preloadError", () => {
+    if (leaving) return;
     usePwa.getState().markUpdateReady();
     reloadOnce(session);
   });

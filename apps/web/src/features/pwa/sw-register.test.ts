@@ -223,6 +223,18 @@ describe("vite:preloadError", () => {
     expect(page.reloads).toHaveLength(1);
   });
 
+  it("ignores a chunk the page's own navigation aborted, and acts again once the page is back (bfcache)", () => {
+    const page = fakePwaEnv();
+    watchStaleChunks(page.env);
+    page.win.dispatchEvent(new Event("beforeunload"));
+    page.win.dispatchEvent(new Event("vite:preloadError"));
+    expect(usePwa.getState().updateReady).toBe(false);
+    expect(page.reloads).toEqual([]);
+    page.win.dispatchEvent(new Event("pageshow"));
+    page.win.dispatchEvent(new Event("vite:preloadError"));
+    expect(usePwa.getState().updateReady).toBe(true);
+  });
+
   it("does not reload again in a page that just reloaded (storage guard), but still shows the banner", async () => {
     const first = fakePwaEnv();
     watchStaleChunks(first.env);
