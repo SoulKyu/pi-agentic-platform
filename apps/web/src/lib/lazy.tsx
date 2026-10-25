@@ -1,4 +1,4 @@
-import { toast } from "@pap/ui";
+import { DeferredFallback, toast } from "@pap/ui";
 import {
   Component,
   lazy,
@@ -13,7 +13,7 @@ import { reportClientIssue } from "./report.ts";
 interface BoundaryProps {
   readonly resetKey: number;
   onError(error: unknown): void;
-  /** Shown while the chunk loads and after a failure (until the next `resetKey`); nothing by default. */
+  /** Shown (after 100 ms) while the chunk loads, and at once after a failure (until the next `resetKey`); nothing by default. */
   readonly fallback?: ReactNode;
   readonly children: ReactNode;
 }
@@ -60,7 +60,11 @@ export class LazyBoundary extends Component<BoundaryProps, { readonly failed: bo
 
   override render(): ReactNode {
     const fallback = this.props.fallback ?? null;
-    return this.state.failed ? fallback : <Suspense fallback={fallback}>{this.props.children}</Suspense>;
+    return this.state.failed ? (
+      fallback
+    ) : (
+      <Suspense fallback={<DeferredFallback>{fallback}</DeferredFallback>}>{this.props.children}</Suspense>
+    );
   }
 }
 

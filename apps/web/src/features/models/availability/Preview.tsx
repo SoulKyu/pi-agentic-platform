@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, Heading, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../../i18n/index.ts";
 import type { AvailableState } from "../picker/use-available-models.ts";
@@ -21,7 +21,9 @@ export function Preview({ available }: { readonly available: AvailableState }) {
   const shown = all ? groups : groups.slice(0, GROUPS_SHOWN);
   return (
     <section data-preview className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsAvailability.preview.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsAvailability.preview.title")}
+      </Heading>
       {available.status === "loading" ? (
         <p role="status" className="text-ui text-muted">
           {t("settingsAvailability.preview.loading")}
@@ -29,11 +31,11 @@ export function Preview({ available }: { readonly available: AvailableState }) {
       ) : null}
       {available.status === "failed" ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
+          <InlineError announce="background">
             {available.stale
               ? t("settingsAvailability.reload")
               : (available.message ?? t("settingsAvailability.preview.failed"))}
-          </p>
+          </InlineError>
           <Button onClick={available.reload}>{t("settingsAvailability.preview.retry")}</Button>
         </div>
       ) : null}

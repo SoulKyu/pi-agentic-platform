@@ -1,6 +1,6 @@
 import { PROVIDER_FORM_LIMITS } from "@pap/contracts";
 import type { ModelsDiscoverResult } from "@pap/contracts";
-import { Button, Checkbox } from "@pap/ui";
+import { Button, Checkbox, Heading, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { stripHidden } from "../../../lib/untrusted-text.ts";
@@ -102,7 +102,9 @@ export function DiscoverImport({
 
   return (
     <section aria-label={t("settingsProviders.discover.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsProviders.discover.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.discover.title")}
+      </Heading>
       <div>
         <Button disabled={busy || provider === null} onClick={discover}>
           {t("settingsProviders.discover.button")}
@@ -162,12 +164,13 @@ export function DiscoverImport({
         </div>
       ) : null}
       {notice ? (
-        <p
-          role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {notice.text}
-        </p>
+        notice.tone === "error" ? (
+          <InlineError announce="action">{notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {notice.text}
+          </p>
+        )
       ) : null}
     </section>
   );

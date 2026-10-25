@@ -2,7 +2,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
-import { alerts, button, click, hasButton, settle, text } from "../../../testing/dom.ts";
+import { segmentedGroup } from "../../../testing/names.ts";
+import { alerts, statuses, button, click, hasButton, settle, text } from "../../../testing/dom.ts";
 import {
   availabilityBed,
   BASE,
@@ -30,6 +31,7 @@ const opened = async (over = {}) => {
 };
 const calls = (bed: Awaited<ReturnType<typeof opened>>["bed"], method: string) =>
   bed.called(method).map((call) => call.params);
+const showAll = async (page: { container: HTMLElement }) => click(button(page.container, "All"));
 const expand = async (page: { container: HTMLElement }, name: string) =>
   click(button(page.container, `Show the models of ${name}`));
 
@@ -79,6 +81,7 @@ describe("switching a model", () => {
 
   it("switches a whole provider through the provider op", async () => {
     const { page, bed } = await opened();
+    await showAll(page);
     await click(switchOf(page.container, "Anthropic"));
     await settle();
     expect(calls(bed, "models.setEnabled")).toEqual([
@@ -101,6 +104,7 @@ describe("switching a model", () => {
 describe("unconnected providers", () => {
   it("say so, count zero offered, and their switch still works", async () => {
     const { page, bed } = await opened();
+    await showAll(page);
     const row = page.container.querySelector('[data-provider-row="anthropic"]') as HTMLElement;
     expect(text(row)).toContain("not connected");
     expect(text(row)).toContain("0/2 offered");
@@ -176,7 +180,7 @@ describe("a project selection", () => {
     for (const control of page.container.querySelectorAll('[role="switch"]'))
       expect((control as HTMLButtonElement).disabled).toBe(true);
     // The segmented control has no disabled state: a read-only scope shows the mode as text instead.
-    expect(page.container.querySelector('[data-slot="segmented"]')).toBeNull();
+    expect(segmentedGroup(page.container, "Which models are offered")).toBeNull();
     expect(text(page.container)).toContain("Your selection, among connected providers");
   });
 });
@@ -207,7 +211,7 @@ describe("old daemon", () => {
     };
     const page = await showAvailability();
     await settle();
-    expect(alerts(page.container).join(" ")).toContain("Reload the page");
+    expect(statuses(page.container).join(" ")).toContain("Reload the page");
   });
 });
 
@@ -227,7 +231,9 @@ describe("layout", () => {
     const { page } = await opened();
     await expand(page, "OpenAI");
     for (const control of page.container.querySelectorAll("button")) {
-      expect(control.className, control.textContent ?? "").toContain("pointer-coarse:min-h-11");
+      expect(control.className, control.textContent ?? "").toMatch(
+        /pointer-coarse:min-h-11|pointer-coarse:before:-inset-y-3\.75/,
+      );
     }
   });
 

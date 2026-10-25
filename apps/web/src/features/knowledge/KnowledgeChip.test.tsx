@@ -50,7 +50,7 @@ describe("KnowledgeChip", () => {
     await settle();
     const link = button(page.container, "Enable OKF for this project");
     expect(link.querySelector("[data-slot=chip]")?.getAttribute("data-tone")).toBe("mut");
-    expect(link.textContent).toBe("NO OKF");
+    expect(link.textContent).toBe("No OKF");
     expect(link.className).toContain("focus-ring");
     expect(link.className).toContain("pointer-coarse:min-h-11");
     expect(link.className).toContain("pointer-coarse:min-w-11");
@@ -64,7 +64,7 @@ describe("KnowledgeChip", () => {
     setLocale("fr");
     const page = await mount(chip());
     await settle();
-    expect(button(page.container, "Activer OKF pour ce projet").textContent).toBe("SANS OKF");
+    expect(button(page.container, "Activer OKF pour ce projet").textContent).toBe("Sans OKF");
   });
 
   it("reads again after an enable here and says it applies from the next start, until the worker restarts", async () => {

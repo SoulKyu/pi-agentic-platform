@@ -28,9 +28,9 @@ async function chipText(role: "owner" | "member"): Promise<string | null> {
 
 describe("role chip", () => {
   it("the rail shows an OWNER chip", async () => {
-    expect(await chipText("owner")).toBe("OWNER");
+    expect(await chipText("owner")).toBe("Owner");
   });
   it("the rail shows a MEMBER chip", async () => {
-    expect(await chipText("member")).toBe("MEMBER");
+    expect(await chipText("member")).toBe("Member");
   });
 });

@@ -48,7 +48,7 @@ describe("the forge's words", () => {
       "laneCommit.pr.hint.unsupported",
     );
     expect(forgeNotice(laneView({ id: "a-1a2b", forge: "github" }), null)).toBeNull();
-    expect(en("laneCommit.pr.hint.gh")).toBe("Run `gh auth login` in a terminal");
+    expect(en("laneCommit.pr.hint.gh")).toBe("Run gh auth login in a terminal");
     expect(en("laneCommit.pr.hint.unsupported")).toBe("GitLab and Gitea are not supported yet");
   });
 });

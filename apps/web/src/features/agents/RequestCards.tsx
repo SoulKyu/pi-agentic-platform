@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentRequestView } from "@pap/contracts";
-import { Button, Chip, usePendingAction } from "@pap/ui";
+import { Button, Chip, InlineError, usePendingAction } from "@pap/ui";
 import { type ReactNode, useId, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -68,7 +68,7 @@ function Frame({
       data-request={request.kind}
       className="flex flex-col gap-s1 rounded-md border border-attn-line bg-attn-tint p-s2"
     >
-      <h3 className="flex flex-wrap items-center gap-s2 label-hud text-attn-title">
+      <h3 className="flex flex-wrap items-center gap-s2 text-ui font-semibold text-attn-title">
         <span className="min-w-0 break-words">{title}</span>
         {tainted ? <Chip tone="ext" label={t("agentSpace.header.external")} /> : null}
         <span className="ml-auto">
@@ -127,11 +127,7 @@ function ApprovalRequest({ agentName, request, tainted, now }: CardProps) {
           {t("agentSpace.request.approveButton")}
         </Button>
       </div>
-      {call.problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {call.problem}
-        </p>
-      ) : null}
+      {call.problem !== null ? <InlineError announce="action">{call.problem}</InlineError> : null}
     </Frame>
   );
 }
@@ -172,11 +168,7 @@ function SecretRequest({ agentName, request, tainted, now, onProvide }: CardProp
           </span>
         ) : null}
       </div>
-      {call.problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {call.problem}
-        </p>
-      ) : null}
+      {call.problem !== null ? <InlineError announce="action">{call.problem}</InlineError> : null}
     </Frame>
   );
 }

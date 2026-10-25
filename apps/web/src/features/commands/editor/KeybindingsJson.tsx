@@ -1,5 +1,5 @@
 import type { KeybindingRule } from "@pap/contracts";
-import { Button, Collapsible, TextField, toast } from "@pap/ui";
+import { Button, Collapsible, TextField, toast, InlineError } from "@pap/ui";
 import { useRef, useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { downloadJsonFile } from "../../../lib/download-file.ts";
@@ -136,15 +136,19 @@ function Outcome({ report }: { readonly report: Report | null }) {
       ? "settings.shortcuts.json.fileNotApplied"
       : "settings.shortcuts.json.notApplied";
   return (
-    <div data-slot="shortcuts-json-issues" role="alert" className="flex flex-col gap-s1 text-ui text-attn">
-      {outcome.ok ? <p>{t(heading)}</p> : null}
-      <ul className="list-disc pl-s4">
-        {lines.map((line, index) => (
-          <li key={index}>{line}</li>
-        ))}
-      </ul>
+    <div data-slot="shortcuts-json-issues" className="flex flex-col gap-s1">
+      <InlineError announce="action">{outcome.ok ? t(heading) : (lines[0] ?? "")}</InlineError>
+      {outcome.ok ? (
+        <ul className="list-disc pl-s4 text-ui text-fg">
+          {lines.map((line, index) => (
+            <li key={index}>{line}</li>
+          ))}
+        </ul>
+      ) : null}
       {outcome.ok && outcome.omittedIssues > 0 ? (
-        <p>{t("settings.shortcuts.json.more", { count: outcome.omittedIssues })}</p>
+        <p className="text-ui text-muted">
+          {t("settings.shortcuts.json.more", { count: outcome.omittedIssues })}
+        </p>
       ) : null}
     </div>
   );

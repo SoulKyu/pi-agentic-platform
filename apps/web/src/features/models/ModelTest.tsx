@@ -1,5 +1,5 @@
 import type { ModelsTestResult, ProviderView } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -35,7 +35,9 @@ export function ModelTest({ provider }: { readonly provider: ProviderView }) {
 
   return (
     <section aria-label={t("settingsModels.test.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsModels.test.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsModels.test.title")}
+      </Heading>
       <TextField
         label={t("settingsModels.test.model")}
         value={modelId}
@@ -55,15 +57,9 @@ export function ModelTest({ provider }: { readonly provider: ProviderView }) {
         </p>
       ) : null}
       {result !== null && !result.ok ? (
-        <p role="alert" className="text-ui text-attn">
-          {providerCodeText(result.code)}
-        </p>
+        <InlineError announce="action">{providerCodeText(result.code)}</InlineError>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </section>
   );
 }

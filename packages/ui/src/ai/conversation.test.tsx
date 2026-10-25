@@ -25,6 +25,19 @@ describe("conversation components (DESIGN.md §9.2)", () => {
     expect(html).toContain("text-agent");
   });
 
+  it("a you group's header sits on the right, next to its bubble", () => {
+    const html = (author: "you" | "agent") =>
+      renderToStaticMarkup(
+        <AuthorGroup author={author} name="Ada">
+          <Message author={author} label="Ada" grouped>
+            one
+          </Message>
+        </AuthorGroup>,
+      );
+    expect(/<header[^>]*class="[^"]*justify-end/.test(html("you"))).toBe(true);
+    expect(html("agent")).not.toContain("justify-end");
+  });
+
   it("a day separator is an inline labelled line, not sticky", () => {
     const html = renderToStaticMarkup(<DaySeparator label="Today" />);
     expect(html).toContain('role="separator"');

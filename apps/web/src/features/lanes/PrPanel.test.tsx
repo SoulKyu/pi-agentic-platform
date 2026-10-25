@@ -172,7 +172,7 @@ describe("pull request panel: without a PR", () => {
     bed.handlers["lanes.prCreate"] = () => ({ ok: false, reason: "not_signed_in" });
     await click(button(box, "Create PR"));
     await settle();
-    expect(text(box)).toContain("Run `gh auth login` in a terminal");
+    expect(text(box)).toContain("Run gh auth login in a terminal");
   });
 
   it("says GitLab and Gitea are not supported yet, and offers no Create", async () => {
@@ -219,9 +219,9 @@ describe("pull request panel: with a PR", () => {
     const content = text(box);
     expect(content).toContain("#7");
     expect(content).toContain("open");
-    expect(content).toContain("✓ 2");
-    expect(content).toContain("✗ 1");
-    expect(content).toContain("… 1");
+    expect(content).toContain("2 checks passed");
+    expect(content).toContain("1 check failed");
+    expect(content).toContain("1 check pending");
     expect(content).toContain("conflicts");
   });
 
@@ -241,7 +241,7 @@ describe("pull request panel: with a PR", () => {
   it("shows the error word with a Retry that calls prRefresh", async () => {
     const { bed, box } = await show({ pr: prView({ error: "not_signed_in" }) as LaneView["pr"] });
     expect(text(box)).toContain("not signed in");
-    expect(text(box)).toContain("Run `gh auth login` in a terminal");
+    expect(text(box)).toContain("Run gh auth login in a terminal");
     bed.handlers["lanes.prRefresh"] = () => ({ pr: prView() });
     await click(button(box, "Retry"));
     await settle();

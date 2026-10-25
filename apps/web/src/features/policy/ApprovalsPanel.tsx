@@ -1,5 +1,5 @@
 import { MAX_ALLOW_HOSTS, MAX_DENY_PATTERNS } from "@pap/contracts";
-import { Button, Switch } from "@pap/ui";
+import { Button, InlineError, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { BuiltinPreset } from "./BuiltinPreset.tsx";
 import { LocalToolsField } from "./LocalToolsField.tsx";
@@ -20,9 +20,7 @@ export function ApprovalsPanel() {
   if (!state.ready) {
     return state.error ? (
       <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {state.error}
-        </p>
+        <InlineError announce="background">{state.error}</InlineError>
         <Button variant="secondary" onClick={state.reload}>
           {t("approvals.retry")}
         </Button>
@@ -35,18 +33,18 @@ export function ApprovalsPanel() {
     <div className="flex flex-col gap-s6">
       <div className="flex flex-col gap-s5">
         <section className="flex flex-col gap-s2">
-          <h3 className={HEADING}>{t("approvals.mode.title")}</h3>
+          <h2 className={HEADING}>{t("approvals.mode.title")}</h2>
           <ModeField mode={form.defaultMode} onChange={(defaultMode) => state.edit({ defaultMode })} />
         </section>
         <section className="flex flex-col gap-s3">
-          <h3 className={HEADING}>{t("approvals.readOnly.title")}</h3>
+          <h2 className={HEADING}>{t("approvals.readOnly.title")}</h2>
           <ReadOnlyCommands
             on={form.readOnlyCommands}
             onChange={(readOnlyCommands) => state.edit({ readOnlyCommands })}
           />
         </section>
         <section className="flex flex-col gap-s3">
-          <h3 className={HEADING}>{t("approvals.blocked.title")}</h3>
+          <h2 className={HEADING}>{t("approvals.blocked.title")}</h2>
           <PatternField
             kind="pattern"
             label={t("approvals.blocked.label")}
@@ -65,7 +63,7 @@ export function ApprovalsPanel() {
           />
         </section>
         <section className="flex flex-col gap-s3">
-          <h3 className={HEADING}>{t("approvals.hosts.title")}</h3>
+          <h2 className={HEADING}>{t("approvals.hosts.title")}</h2>
           <Switch
             label={t("approvals.hosts.switch")}
             hint={t("approvals.hosts.switchHint")}
@@ -88,7 +86,7 @@ export function ApprovalsPanel() {
           ) : null}
         </section>
         <section className="flex flex-col gap-s3">
-          <h3 className={HEADING}>{t("approvals.local.title")}</h3>
+          <h2 className={HEADING}>{t("approvals.local.title")}</h2>
           <LocalToolsField
             rules={form.localTools}
             draft={form.localDraft}
@@ -98,29 +96,21 @@ export function ApprovalsPanel() {
         </section>
         <div className="flex flex-col items-start gap-s2">
           {check.tooLarge ? (
-            <p role="alert" className="text-ui text-attn">
-              {t("approvals.error.tooLarge")}
-            </p>
+            <InlineError announce="action">{t("approvals.error.tooLarge")}</InlineError>
           ) : null}
           {check.draftPending ? <p className={NOTE}>{t("approvals.local.pending")}</p> : null}
           {check.deny.errors.length > 0 || check.hosts.errors.length > 0 ? (
             <p className={NOTE}>{t("approvals.invalid")}</p>
           ) : null}
           {state.notice === "conflict" ? (
-            <p role="status" className="text-ui text-attn">
-              {t("approvals.conflict")}
-            </p>
+            <InlineError announce="action">{t("approvals.conflict")}</InlineError>
           ) : null}
           {state.notice === "saved" ? (
             <p role="status" className={NOTE}>
               {t("approvals.saved")}
             </p>
           ) : null}
-          {state.error ? (
-            <p role="alert" className="text-ui text-attn">
-              {state.error}
-            </p>
-          ) : null}
+          {state.error ? <InlineError announce="action">{state.error}</InlineError> : null}
           <Button variant="primary" disabled={!check.valid || state.busy} onClick={state.save}>
             {t("approvals.save")}
           </Button>

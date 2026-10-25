@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { login, loginWithPasskey, type AuthResult } from "./auth-api.ts";
@@ -60,11 +60,7 @@ export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: 
         </Button>
       </form>
       <p className="text-ui text-muted">{t("login.throttleNote")}</p>
-      {error ? (
-        <p role="alert" className="text-ui text-err">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </AuthFrame>
   );
 }

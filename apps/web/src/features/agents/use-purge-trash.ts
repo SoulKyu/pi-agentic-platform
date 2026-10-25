@@ -18,7 +18,10 @@ export function usePurgeTrash(): (agentId: string, name: string) => Promise<bool
         return purged !== null;
       },
       (failure: unknown) => {
-        toast({ message: t(errorKey(failure instanceof RpcError ? failure.code : "internal")) });
+        toast({
+          message: t(errorKey(failure instanceof RpcError ? failure.code : "internal")),
+          tone: "error",
+        });
         return false;
       },
     );

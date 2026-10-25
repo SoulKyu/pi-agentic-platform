@@ -1,5 +1,5 @@
 import type { DeviceView } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -120,23 +120,17 @@ export function DevicesList({ signOutHere }: { signOutHere(): void }) {
   const devices = list.value?.devices ?? null;
   return (
     <section className="flex w-full flex-col gap-s2">
-      <h3 className="text-ui font-semibold text-fg">{t("access.devices.title")}</h3>
+      <h2 className="text-ui font-semibold text-fg">{t("access.devices.title")}</h2>
       <p className={META}>{t("access.devices.hint")}</p>
       {list.error ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {list.error}
-          </p>
+          <InlineError announce="background">{list.error}</InlineError>
           <Button variant="secondary" onClick={list.reload}>
             {t("access.retry")}
           </Button>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       {notice ? (
         <p role="status" className="text-ui text-muted">
           {notice}

@@ -1,6 +1,6 @@
 import "./register-mcp-catalog.ts";
 import type { McpServerView, McpTestResult } from "@pap/contracts";
-import { Button, useIsPhone } from "@pap/ui";
+import { Button, InlineError, useIsPhone } from "@pap/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -68,9 +68,7 @@ function McpPanel({ stepUp, cwd }: { readonly stepUp: StepUpRunner; readonly cwd
       <div data-mcp-section className="flex flex-col items-start gap-s2">
         {list.error ? (
           <>
-            <p role="alert" className="text-ui text-attn">
-              {list.error}
-            </p>
+            <InlineError announce="background">{list.error}</InlineError>
             <Button onClick={list.reload}>{t("settingsMcp.retry")}</Button>
           </>
         ) : (
@@ -226,40 +224,39 @@ function McpPanel({ stepUp, cwd }: { readonly stepUp: StepUpRunner; readonly cwd
 
   return (
     <div ref={root} tabIndex={-1} data-mcp-section className="flex flex-col gap-s4 focus:outline-none">
-      <p className="text-ui text-muted">{t("settingsMcp.intro")}</p>
-      {list.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {list.error}
-        </p>
-      ) : null}
-      {writes.notice ? (
-        <p
-          role={writes.notice.tone === "error" ? "alert" : "status"}
-          className={writes.notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {writes.notice.text}
-        </p>
-      ) : null}
-      {pending !== null ? (
-        <ProtectedAsk
-          path={overview.project?.path ?? ""}
-          disabled={writes.busy}
-          onSave={() => {
-            setPending(null);
-            pending.go(true);
-          }}
-          onCancel={() => setPending(null)}
-        />
-      ) : null}
-      {undo !== null ? (
-        <UndoToast
-          key={undo.token}
-          offer={undo}
-          disabled={writes.busy}
-          onUndo={() => undoRemoval(undo)}
-          onExpire={expire}
-        />
-      ) : null}
+      <div className="flex max-w-settings flex-col gap-s4">
+        <p className="text-ui text-muted">{t("settingsMcp.intro")}</p>
+        {list.error ? <InlineError announce="background">{list.error}</InlineError> : null}
+        {writes.notice ? (
+          writes.notice.tone === "error" ? (
+            <InlineError announce="action">{writes.notice.text}</InlineError>
+          ) : (
+            <p role="status" className="text-ui text-muted">
+              {writes.notice.text}
+            </p>
+          )
+        ) : null}
+        {pending !== null ? (
+          <ProtectedAsk
+            path={overview.project?.path ?? ""}
+            disabled={writes.busy}
+            onSave={() => {
+              setPending(null);
+              pending.go(true);
+            }}
+            onCancel={() => setPending(null)}
+          />
+        ) : null}
+        {undo !== null ? (
+          <UndoToast
+            key={undo.token}
+            offer={undo}
+            disabled={writes.busy}
+            onUndo={() => undoRemoval(undo)}
+            onExpire={expire}
+          />
+        ) : null}
+      </div>
       <div className={phone ? "flex flex-col gap-s4" : "flex items-start gap-s4"}>
         <div className={phone ? "" : "w-64 shrink-0"}>
           <ServerList
@@ -311,13 +308,15 @@ function McpPanel({ stepUp, cwd }: { readonly stepUp: StepUpRunner; readonly cwd
           onFailed={() => setReviewing(false)}
         />
       )}
-      <AddServer stepUp={stepUp} cwd={cwd} project={overview.project} writes={writes} />
-      <CodemodePane
-        settings={overview.settings}
-        builtinOff={overview.codemodeBuiltinOff}
-        busy={writes.busy}
-        onChange={setCodemode}
-      />
+      <div className="flex max-w-settings flex-col gap-s4">
+        <AddServer stepUp={stepUp} cwd={cwd} project={overview.project} writes={writes} />
+        <CodemodePane
+          settings={overview.settings}
+          builtinOff={overview.codemodeBuiltinOff}
+          busy={writes.busy}
+          onChange={setCodemode}
+        />
+      </div>
     </div>
   );
 }

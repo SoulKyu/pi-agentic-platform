@@ -1,5 +1,5 @@
 import type { ModelsOverview } from "@pap/contracts";
-import { Button, useIsPhone } from "@pap/ui";
+import { Button, Heading, InlineError, useIsPhone } from "@pap/ui";
 import { useMemo, useState } from "react";
 import "../../../i18n/register-settings-availability.ts";
 import { useT } from "../../../i18n/index.ts";
@@ -51,7 +51,9 @@ export function AvailabilitySection({
   return (
     <section data-availability data-layout={phone ? "stack" : "wide"} className="flex flex-col gap-s4">
       <div className="flex flex-col gap-s1">
-        <h2 className="label-hud text-muted">{t("settingsAvailability.title")}</h2>
+        <Heading level={2} variant="section">
+          {t("settingsAvailability.title")}
+        </Heading>
         <p className="text-ui text-muted">{t("settingsAvailability.intro")}</p>
       </div>
       {readOnly ? (
@@ -75,12 +77,13 @@ export function AvailabilitySection({
         <p className="text-ui text-muted">{t("settingsAvailability.mode.allNote")}</p>
       ) : null}
       {view.notice ? (
-        <p
-          role={view.notice.tone === "error" ? "alert" : "status"}
-          className={view.notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {view.notice.text}
-        </p>
+        view.notice.tone === "error" ? (
+          <InlineError announce="action">{view.notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {view.notice.text}
+          </p>
+        )
       ) : null}
       {unmatched.length > 0 ? (
         <div className="flex flex-col items-start gap-s2">

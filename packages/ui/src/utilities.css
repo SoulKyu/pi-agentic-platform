@@ -57,12 +57,27 @@ html[data-keyboard-open] .pb-safe {
   }
 }
 
-/* DESIGN.md §4 HUD label: mono 10.5 px, 600, 0.12em, upper case unless the owner turned it off. */
+/* F07, F58: browser surfaces read the tokens. --you, not --you-fill, for the caret: Day's fill is 2.26:1 on white. */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+::selection {
+  background-color: color-mix(in srgb, var(--agent) 30%, transparent);
+}
+
+html {
+  caret-color: var(--you);
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* DESIGN.md §4 HUD label: mono 11 px, 600, 0.08em, upper case unless the owner turned it off. */
 @utility label-hud {
   font-family: var(--font-code);
-  font-size: 0.65625rem;
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.08em;
   text-transform: var(--label-transform);
 }
 

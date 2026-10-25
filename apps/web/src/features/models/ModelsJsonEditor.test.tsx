@@ -203,7 +203,7 @@ describe("loading and saving", () => {
     await click(providerButton(page.container, "mine"));
     await click(button(page.container, "Edit models.json"));
     await settle();
-    expect(alerts(page.container).length).toBe(1);
+    expect(page.container.querySelectorAll('[data-slot="inline-error"]')).toHaveLength(1);
     expect(hasButton(page.container, "Save models.json")).toBe(false);
   });
 });

@@ -3,7 +3,7 @@
 import "./register-session-catalog.ts";
 import { describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { alerts, button, click, hasButton, settle, text } from "../../testing/dom.ts";
+import { alerts, button, click, hasButton, settle, statuses, text } from "../../testing/dom.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 
@@ -223,7 +223,9 @@ describe("branch switcher", () => {
       throw new RpcError("internal");
     };
     await screen.emit(sessionSnapshot(rows));
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toContain(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
     expect(text(container)).toContain("2/3");
   });
 

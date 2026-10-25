@@ -101,13 +101,18 @@ describe("the list (M11R126, M11R85)", () => {
 
   it("says when there is none", async () => {
     entries = [];
-    expect(text((await show()).container)).toContain("No secret saved yet");
+    expect(text((await show()).container)).toContain(
+      "No secret saved yet. A saved secret reaches the agent's shell as an environment variable.",
+    );
   });
 
   it("shows a fixed sentence and no entry while the vault cannot be read", async () => {
     state = "unreadable";
     const page = await show();
     expect(text(page.container)).toContain("The vault cannot be read");
+    const failure = page.container.querySelector('[data-slot="inline-error"]');
+    expect(failure?.getAttribute("role")).toBe("status");
+    expect(failure?.className).toContain("text-err");
     expect(text(page.container)).not.toContain("GITHUB_TOKEN");
     expect(secretField()).toBeNull();
   });
@@ -116,7 +121,9 @@ describe("the list (M11R126, M11R85)", () => {
     bed.handlers["secrets.list"] = () => {
       throw new RpcError("internal");
     };
-    expect(alerts((await show()).container)).not.toEqual([]);
+    expect(
+      (await show()).container.querySelector('[data-slot="inline-error"][role="status"]'),
+    ).not.toBeNull();
   });
 });
 
@@ -145,7 +152,7 @@ describe("the copy says what the vault protects and what it does not (RT-13)", (
   it("is in French too", async () => {
     setLocale("fr");
     const words = text((await show()).container);
-    expect(words).toContain("Pas contre : une sauvegarde de tout $PAP_HOME");
+    expect(words).toContain("Pas contre\u202f: une sauvegarde de tout $PAP_HOME");
   });
 });
 
@@ -245,7 +252,9 @@ describe("deleting a secret", () => {
       expect.objectContaining({ params: { agentId: "atlas-1a2b", name: "GITHUB_TOKEN" } }),
     ]);
     expect(page.container.querySelector("li")).toBeNull();
-    expect(text(page.container)).toContain("No secret saved yet");
+    expect(text(page.container)).toContain(
+      "No secret saved yet. A saved secret reaches the agent's shell as an environment variable.",
+    );
   });
 
   it("does nothing when the question is cancelled", async () => {

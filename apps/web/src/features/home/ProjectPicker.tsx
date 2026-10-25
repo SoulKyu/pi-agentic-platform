@@ -1,7 +1,7 @@
 import "../../i18n/register-home.ts";
 import "../../i18n/register-boxes.ts";
 import type { ProjectSummary } from "@pap/contracts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, usePendingAction, InlineError } from "@pap/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -75,11 +75,7 @@ export default function ProjectPicker({ projects, onPick, onAdd, onClose }: Proj
       <p id={hintId} className="text-ui text-muted">
         {t("boxes.picker.scratchHint")}
       </p>
-      {problem === null ? null : (
-        <p role="alert" className="text-ui text-err">
-          {problem}
-        </p>
-      )}
+      {problem === null ? null : <InlineError announce="action">{problem}</InlineError>}
     </div>
   );
 }

@@ -1,6 +1,8 @@
 export const settingsScreenEn = {
   "settings.nav.label": "Settings sections",
-  "settings.nav.personal": "Personal",
+  "settings.nav.group.you": "You",
+  "settings.nav.group.work": "Work",
+  "settings.nav.group.install": "This pap",
   "settings.nav.section": "Section",
   "settings.section.appearance": "Appearance",
   "settings.section.shortcuts": "Keyboard shortcuts",
@@ -27,6 +29,7 @@ export const settingsScreenEn = {
   "settings.automation.loading": "Loading…",
   "settings.automation.retry": "Try again",
   "settings.health.loading": "Loading…",
+  "settings.github.loading": "Loading the GitHub settings…",
   "settings.health.retry": "Try again",
   "settings.language.label": "Language",
   "settings.language.en": "English",
@@ -39,7 +42,9 @@ export const settingsScreenEn = {
 } as const;
 export const settingsScreenFr: { readonly [K in keyof typeof settingsScreenEn]: string } = {
   "settings.nav.label": "Sections des réglages",
-  "settings.nav.personal": "Personnel",
+  "settings.nav.group.you": "Vous",
+  "settings.nav.group.work": "Travail",
+  "settings.nav.group.install": "Ce pap",
   "settings.nav.section": "Section",
   "settings.section.appearance": "Apparence",
   "settings.section.shortcuts": "Raccourcis clavier",
@@ -66,6 +71,7 @@ export const settingsScreenFr: { readonly [K in keyof typeof settingsScreenEn]: 
   "settings.automation.loading": "Chargement…",
   "settings.automation.retry": "Réessayer",
   "settings.health.loading": "Chargement…",
+  "settings.github.loading": "Chargement des réglages GitHub…",
   "settings.health.retry": "Réessayer",
   "settings.language.label": "Langue",
   "settings.language.en": "English",

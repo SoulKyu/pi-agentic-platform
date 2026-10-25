@@ -30,6 +30,18 @@ const ocean = {
 } as const;
 
 describe("appearance model", () => {
+  it("a device with no stored choice reads density mixed and line length limited", () => {
+    expect([parseDevice(null).density, parseDevice(null).proseMeasure]).toEqual(["mixed", "limited"]);
+    expect(parseDevice('{"proseMeasure":"wide"}').proseMeasure).toBe("limited");
+    expect(parseDevice('{"proseMeasure":"full"}').proseMeasure).toBe("full");
+    const attrs = resolveAppearance(DEFAULT_ACCOUNT, parseDevice('{"proseMeasure":"full"}'), false).attrs;
+    expect(attrs.prose).toBe("full");
+  });
+
+  it("a stored compact density is kept", () => {
+    expect(parseDevice('{"density":"compact"}').density).toBe("compact");
+  });
+
   it("pins the storage keys the boot script reads", () => {
     expect([DEVICE_KEY, ACCOUNT_CACHE_KEY]).toEqual([
       "pap.appearance.device.v1",

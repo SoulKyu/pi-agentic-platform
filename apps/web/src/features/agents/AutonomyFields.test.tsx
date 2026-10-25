@@ -114,7 +114,7 @@ describe("AutonomyFields", () => {
     setLocale("fr");
     const fr = await fields({ ownHosts: true });
     expect(text(fr.page.container)).toContain(
-      "atlas n'a pas de liste d'hôtes à lui : seuls agent_remind et agent_delegate sont couverts.",
+      "atlas n'a pas de liste d'hôtes à lui\u202f: seuls agent_remind et agent_delegate sont couverts.",
     );
     await fr.page.unmount();
   });

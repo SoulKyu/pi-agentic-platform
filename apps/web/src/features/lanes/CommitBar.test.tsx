@@ -291,7 +291,7 @@ describe("commit bar: suggest", () => {
 
   it.each([
     ["capacity", "at capacity"],
-    ["worker_failed", "The session process failed"],
+    ["worker_failed", "The session process stopped"],
   ])("maps the error %s", async (code, words) => {
     const { bed, box } = await show();
     bed.handlers["lanes.suggestCommit"] = () => {

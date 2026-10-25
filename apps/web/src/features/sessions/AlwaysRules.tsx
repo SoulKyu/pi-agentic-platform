@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { coverText } from "../../lib/rule-text.ts";
@@ -56,11 +56,7 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
           {t("rules.revoke")}
         </Button>
       </div>
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </li>
   );
 }
@@ -95,11 +91,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
 
   return (
     <div className="flex flex-col gap-s2">
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="background">{error}</InlineError> : null}
       {rules === null ? (
         error ? null : (
           <p className="text-ui text-muted">{t("rules.loading")}</p>
@@ -113,7 +105,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
           ))}
         </ul>
       )}
-      {truncated ? <p className="text-ui text-attn">{t("rules.more")}</p> : null}
+      {truncated ? <p className="text-ui text-muted">{t("rules.more")}</p> : null}
     </div>
   );
 }

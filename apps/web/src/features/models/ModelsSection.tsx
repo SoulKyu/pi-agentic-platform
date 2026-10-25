@@ -1,6 +1,6 @@
 import "./register-catalog.ts";
 import type { ModelsOverview } from "@pap/contracts";
-import { Button, useIsPhone } from "@pap/ui";
+import { Button, Heading, InlineError, useIsPhone } from "@pap/ui";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -26,7 +26,9 @@ function Defaults({ defaults }: { readonly defaults: ModelsOverview["defaults"] 
   const t = useT();
   return (
     <div className="flex flex-col gap-s1">
-      <h3 className="label-hud text-muted">{t("settingsModels.defaults.title")}</h3>
+      <Heading level={2} variant="section">
+        {t("settingsModels.defaults.title")}
+      </Heading>
       <p className="text-ui text-fg">
         {defaults.provider !== null && defaults.model !== null
           ? t("settingsModels.defaults.value", { model: defaults.model, provider: defaults.provider })
@@ -110,9 +112,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
       <div data-models-section className="flex flex-col items-start gap-s2">
         {list.error ? (
           <>
-            <p role="alert" className="text-ui text-attn">
-              {list.error}
-            </p>
+            <InlineError announce="background">{list.error}</InlineError>
             <Button onClick={list.reload}>{t("settingsModels.retry")}</Button>
           </>
         ) : (
@@ -134,57 +134,52 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
   };
   return (
     <div data-models-section className="flex flex-col gap-s4">
-      <p className="text-ui text-muted">{t("settingsModels.intro")}</p>
-      <div className="flex flex-wrap items-start justify-between gap-s4">
-        <Defaults defaults={overview.defaults} />
-        <Button disabled={refreshing || overview.offline} onClick={refresh}>
-          {t("settingsModels.refresh")}
-        </Button>
+      <div className="flex max-w-settings flex-col gap-s4">
+        <p className="text-ui text-muted">{t("settingsModels.intro")}</p>
+        <div className="flex flex-wrap items-start justify-between gap-s4">
+          <Defaults defaults={overview.defaults} />
+          <Button disabled={refreshing || overview.offline} onClick={refresh}>
+            {t("settingsModels.refresh")}
+          </Button>
+        </div>
+        <PricingSwitch setting={pricing} />
+        {overview.offline ? <p className="text-ui text-muted">{t("settingsModels.offline")}</p> : null}
+        {overview.truncated ? <p className="text-ui text-muted">{t("settingsModels.truncated")}</p> : null}
+        {path !== null ? (
+          <p className="text-ui text-muted">{t("settingsModels.scope.project", { path })}</p>
+        ) : null}
+        {list.error ? <InlineError announce="background">{list.error}</InlineError> : null}
+        {login.notice ? <InlineError announce="action">{login.notice}</InlineError> : null}
+        {writes.notice ? (
+          writes.notice.tone === "error" ? (
+            <InlineError announce="action">{writes.notice.text}</InlineError>
+          ) : (
+            <p role="status" className="text-ui text-muted">
+              {writes.notice.text}
+            </p>
+          )
+        ) : null}
+        {forms.orphanKey !== null ? (
+          <OrphanKey
+            key={forms.orphanKey}
+            id={forms.orphanKey}
+            stepUp={stepUp}
+            onDone={() => forms.setOrphanKey(null)}
+            onChanged={reloadAfterWrite}
+          />
+        ) : null}
+        {switchTo !== null ? (
+          <DiscardConfirm
+            onDiscard={() => {
+              setDirty(false);
+              show(switchTo);
+              setSwitchTo(null);
+            }}
+            onKeep={() => setSwitchTo(null)}
+          />
+        ) : null}
+        <LazyAvailability overview={overview} reloadOverview={list.reload} />
       </div>
-      <PricingSwitch setting={pricing} />
-      {overview.offline ? <p className="text-ui text-muted">{t("settingsModels.offline")}</p> : null}
-      {overview.truncated ? <p className="text-ui text-muted">{t("settingsModels.truncated")}</p> : null}
-      {path !== null ? (
-        <p className="text-ui text-muted">{t("settingsModels.scope.project", { path })}</p>
-      ) : null}
-      {list.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {list.error}
-        </p>
-      ) : null}
-      {login.notice ? (
-        <p role="alert" className="text-ui text-attn">
-          {login.notice}
-        </p>
-      ) : null}
-      {writes.notice ? (
-        <p
-          role={writes.notice.tone === "error" ? "alert" : "status"}
-          className={writes.notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {writes.notice.text}
-        </p>
-      ) : null}
-      {forms.orphanKey !== null ? (
-        <OrphanKey
-          key={forms.orphanKey}
-          id={forms.orphanKey}
-          stepUp={stepUp}
-          onDone={() => forms.setOrphanKey(null)}
-          onChanged={reloadAfterWrite}
-        />
-      ) : null}
-      {switchTo !== null ? (
-        <DiscardConfirm
-          onDiscard={() => {
-            setDirty(false);
-            show(switchTo);
-            setSwitchTo(null);
-          }}
-          onKeep={() => setSwitchTo(null)}
-        />
-      ) : null}
-      <LazyAvailability overview={overview} reloadOverview={list.reload} />
       <div className={phone ? "flex flex-col gap-s4" : "flex items-start gap-s4"}>
         <div className={phone ? "" : "w-64 shrink-0"}>
           <ProviderList providers={overview.providers} selected={selected} onSelect={choose} forms={forms} />

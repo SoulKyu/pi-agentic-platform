@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { cn } from "../cn.ts";
 import { FOCUS_RING } from "../focus.ts";
 import { Button } from "../primitives/Button.tsx";
+import { InlineError } from "../primitives/InlineError.tsx";
 import { AnsiText } from "./AnsiText.tsx";
 import { terminalKeyData } from "./terminal-keys.ts";
 
@@ -148,11 +149,7 @@ export function CustomPanel(props: CustomPanelProps) {
               }}
             />
           </label>
-          {props.error ? (
-            <p role="alert" className="text-ui text-attn">
-              {props.error}
-            </p>
-          ) : null}
+          {props.error ? <InlineError announce="action">{props.error}</InlineError> : null}
         </div>
       )}
     </section>

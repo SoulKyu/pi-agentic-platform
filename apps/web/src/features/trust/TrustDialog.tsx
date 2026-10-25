@@ -1,5 +1,5 @@
 import "./register-dialog-catalog.ts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -82,9 +82,7 @@ export function TrustDialog({
         <p className="break-all text-ui text-muted">{t("trust.folder", { path: escapeHidden(cwd) })}</p>
         {error !== null ? (
           <div className="flex flex-col items-start gap-s2">
-            <p role="alert" className="text-ui text-attn">
-              {error}
-            </p>
+            <InlineError announce="background">{error}</InlineError>
             <Button onClick={retry}>{t("trust.retry")}</Button>
           </div>
         ) : status === null ? (
@@ -114,11 +112,7 @@ export function TrustDialog({
           </>
         )}
         <p className="text-ui text-muted">{t("trust.restart")}</p>
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {problem}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{problem}</InlineError> : null}
         <div className="flex flex-wrap justify-end gap-s2">
           <Button disabled={busy} onClick={onClose}>
             {t("trust.action.cancel")}

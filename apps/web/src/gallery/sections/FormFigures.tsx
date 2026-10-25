@@ -40,6 +40,7 @@ export function FormFigures() {
       <GalleryItem name="Switch" column>
         <Switch label={SAMPLE.switchLabel} hint={SAMPLE.switchHint} checked={notify} onChange={setNotify} />
         <Switch label={SAMPLE.switchLabel} checked={false} onChange={setNotify} disabled />
+        <Switch label={SAMPLE.switchLabel} meta={SAMPLE.checkbox} checked={notify} onChange={setNotify} />
       </GalleryItem>
       <GalleryItem name="Checkbox" column>
         <Checkbox label={SAMPLE.checkbox} checked={remember} onChange={setRemember} />

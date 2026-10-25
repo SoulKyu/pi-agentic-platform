@@ -31,7 +31,6 @@ export interface PrBadge {
   readonly state: MessageKey | null;
   readonly checks: ReadonlyArray<{
     readonly kind: "passed" | "failed" | "pending";
-    readonly symbol: "✓" | "✗" | "…";
     readonly count: number;
   }>;
   readonly conflicts: boolean;
@@ -49,9 +48,9 @@ export function prBadge(pr: NonNullable<LaneView["pr"]>): PrBadge {
       checks === null
         ? []
         : [
-            { kind: "passed", symbol: "✓", count: checks.passed },
-            { kind: "failed", symbol: "✗", count: checks.failed },
-            { kind: "pending", symbol: "…", count: checks.pending },
+            { kind: "passed", count: checks.passed },
+            { kind: "failed", count: checks.failed },
+            { kind: "pending", count: checks.pending },
           ].filter((one): one is PrBadge["checks"][number] => one.count > 0),
     conflicts: pr.conflicts === true,
     error: pr.error === null ? null : (`lanes.pr.error.${pr.error}` as MessageKey),

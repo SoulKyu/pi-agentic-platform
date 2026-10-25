@@ -105,7 +105,7 @@ describe("task and trigger rows", () => {
       source: { type: "manual" },
     } as unknown as TriggerView;
     expect(triggerRows([trigger])).toEqual([
-      { id: "g1", name: "Nightly", glyph: "▸", enabled: true, canFire: true },
+      { id: "g1", name: "Nightly", source: "manual", enabled: true, canFire: true },
     ]);
   });
 

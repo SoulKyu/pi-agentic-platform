@@ -241,7 +241,7 @@ describe("tree drawer, first load", () => {
       await act(async () => vi.advanceTimersByTimeAsync(199));
       expect(spinner()).toBeUndefined();
       await act(async () => vi.advanceTimersByTimeAsync(1));
-      expect(spinner()).toBe("Loading sessions");
+      expect(spinner()).toBe("Loading sessions…");
     } finally {
       vi.useRealTimers();
     }

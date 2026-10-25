@@ -146,7 +146,7 @@ export function AuditRow({ row }: { row: AuditView }) {
           </span>
           <span className="break-all font-mono text-label text-muted">{session}</span>
         </div>
-        <p className="text-ui text-attn">{t("audit.gap")}</p>
+        <p className="text-ui text-muted">{t("audit.gap")}</p>
       </li>
     );
   }

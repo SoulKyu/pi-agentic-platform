@@ -1,5 +1,5 @@
 import type { ConfigGetResult, ProviderView } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, TextField } from "@pap/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -159,16 +159,14 @@ function Editor({
   if (phase === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {loadError}
-        </p>
+        <InlineError announce="background">{loadError}</InlineError>
         <Button onClick={load}>{t("settingsModels.retry")}</Button>
       </div>
     );
   if (phase === "unparsable")
     return (
-      <div role="alert" className="flex flex-col items-start gap-s2">
-        <p className="text-ui text-attn">{t("settingsModels.json.unparsable")}</p>
+      <div className="flex flex-col items-start gap-s2">
+        <InlineError announce="background">{t("settingsModels.json.unparsable")}</InlineError>
         <ul className="flex flex-col gap-s1">
           {loadIssues.map((issue, index) => (
             <li key={index} className="font-mono text-ui text-fg">
@@ -217,18 +215,19 @@ function Editor({
         </ul>
       ) : null}
       {conflict ? (
-        <div role="alert" className="flex flex-col items-start gap-s2">
-          <p className="text-ui text-attn">{t("settingsModels.json.conflict")}</p>
+        <div className="flex flex-col items-start gap-s2">
+          <InlineError announce="action">{t("settingsModels.json.conflict")}</InlineError>
           <Button onClick={load}>{t("settingsModels.json.reload")}</Button>
         </div>
       ) : null}
       {notice ? (
-        <p
-          role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {notice.text}
-        </p>
+        notice.tone === "error" ? (
+          <InlineError announce="action">{notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {notice.text}
+          </p>
+        )
       ) : null}
       <div>
         <Button variant="primary" disabled={busy} onClick={save}>
@@ -264,7 +263,9 @@ export function ModelsJsonEditor(props: {
   const [confirming, setConfirming] = useState(false);
   return (
     <section aria-label={t("settingsModels.json.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsModels.json.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsModels.json.title")}
+      </Heading>
       <div>
         <Button
           onClick={() => {

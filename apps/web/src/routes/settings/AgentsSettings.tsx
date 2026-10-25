@@ -36,7 +36,7 @@ export function AgentsSettings() {
     onChange: (preset: typeof value) => void,
   ) => <PresetPicker value={value} onChange={onChange} />;
   return (
-    <div ref={root} className="flex flex-col gap-s6">
+    <div ref={root} className="flex flex-col gap-s5">
       <p className="text-ui text-muted">{t("settings.agents.intro")}</p>
       {openId === null ? (
         <>

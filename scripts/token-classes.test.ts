@@ -40,6 +40,20 @@ describe("the token utilities compile to the DESIGN.md variables", () => {
     expect(await rule(className)).toContain(expected);
   });
 
+  it("max-w-measure reads --spacing-measure through --prose-measure", async () => {
+    expect(await rule("max-w-measure")).toContain("var(--prose-measure)");
+  });
+
+  it("max-w-settings is 48rem", async () => {
+    expect(await rule("max-w-settings")).toContain("48rem");
+  });
+
+  it("max-xs:hidden applies under 25rem", async () => {
+    const css = (await compileStyles())(["max-xs:hidden"]);
+    expect(css).toMatch(/@media \(width < 25rem\)/);
+    expect(css).toContain("display: none");
+  });
+
   it("no longer compiles the M1 alias utilities (post-merge task P1)", async () => {
     const aliases = [
       "bg-panel",

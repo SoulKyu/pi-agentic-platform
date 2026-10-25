@@ -1,5 +1,5 @@
 import "../../i18n/register-github.ts";
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -67,11 +67,7 @@ function PushBarBody({ projectId }: { readonly projectId: string }) {
           {t(done.key, { branch: done.branch })}
         </p>
       )}
-      {push.problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(push.problem)}
-        </p>
-      )}
+      {push.problem === null ? null : <InlineError announce="action">{t(push.problem)}</InlineError>}
       {opening ? <PrDialog projectId={projectId} onClose={() => setOpening(false)} /> : null}
     </div>
   );

@@ -1,5 +1,7 @@
 # ADR 0012 — contrast amendments to DESIGN.md (R120)
 
+Amended by ADR 0086 (the Day focus ring is `#c2410c`).
+
 Status: accepted · Date: 2026-10-11 · Spec: DESIGN.md §3, §7.4 (decision 33) · Rulings: R54, R120 · Owner decision: M3-Q1, option (b)
 
 DESIGN.md was validated by the owner. Measuring it against WCAG 2.x (1.4.11 non-text contrast ≥ 3:1, 1.4.3 text ≥ 4.5:1)

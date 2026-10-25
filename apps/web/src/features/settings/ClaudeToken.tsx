@@ -1,6 +1,6 @@
 import "./register-settings-catalog.ts";
 import { ClaudeToken as TokenValue } from "@pap/contracts";
-import { Button, TextField, toast, usePendingAction } from "@pap/ui";
+import { Button, Heading, InlineError, TextField, toast, usePendingAction } from "@pap/ui";
 import { useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
@@ -78,9 +78,9 @@ export function ClaudeToken({ state, onChanged }: Props) {
 
   return (
     <section data-slot="claude-token" aria-labelledby="claude-token-title" className="flex flex-col gap-s2">
-      <h3 id="claude-token-title" className="label-hud text-fg">
+      <Heading level={2} variant="group" id="claude-token-title">
         {t("agentVm.token.title")}
-      </h3>
+      </Heading>
       <p
         role="status"
         data-token={state}
@@ -133,11 +133,7 @@ export function ClaudeToken({ state, onChanged }: Props) {
           </Button>
         </div>
       )}
-      {problem === null ? null : (
-        <p role="alert" className="text-ui text-attn">
-          {t(problem)}
-        </p>
-      )}
+      {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
     </section>
   );
 }

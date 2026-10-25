@@ -85,7 +85,7 @@ describe("TabBar", () => {
     const list = page.container.querySelector('[role="tablist"]') as HTMLElement;
     expect(list.getAttribute("aria-label")).toBe("Open items");
     expect(tabs(list).map((one) => [one.textContent, one.getAttribute("aria-selected")])).toEqual([
-      ["a", "true"],
+      ["a Working", "true"],
       ["New session", "false"],
       ["Settings", "false"],
     ]);
@@ -104,16 +104,33 @@ describe("TabBar", () => {
     await page.unmount();
   });
 
-  it("scrolls the new active tab into view when the active tab changes (M4R90)", async () => {
+  it("scrolls the strip to the new active tab, never with scrollIntoView (skip link)", async () => {
     const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     const page = await renderShell("/s/a");
-    scrollIntoView.mockClear();
-    await act(async () => {
-      useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "home" } });
+    const strip = page.container.querySelector<HTMLElement>('[role="tablist"]') as HTMLElement;
+    let offset = 0; // happy-dom has no layout: the strip's scroll offset is a plain value here
+    Object.defineProperty(strip, "scrollLeft", {
+      get: () => offset,
+      set: (value: number) => void (offset = value),
     });
-    await settle();
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
-    expect(scrollIntoView.mock.contexts.at(-1)).toBe(document.getElementById("tab-home"));
+    const rect = (left: number, right: number) => () => ({ left, right }) as DOMRect;
+    vi.spyOn(strip, "getBoundingClientRect").mockImplementation(rect(100, 300));
+    const homeTab = document.getElementById("tab-home") as HTMLElement;
+    const homeRect = vi.spyOn(homeTab, "getBoundingClientRect").mockImplementation(rect(120, 200));
+    const activate = async (key: string) => {
+      await act(async () => {
+        useWorkspaceStore.setState({ ws: { tabs: [session, home], active: key } });
+      });
+      await settle();
+    };
+    await activate("home");
+    expect(offset).toBe(0); // fully visible: nothing moves
+    await activate("session:a");
+    offset = 0;
+    homeRect.mockImplementation(rect(250, 380));
+    await activate("home");
+    expect(offset).toBe(80); // cut off on the right: the strip scrolls by the overflow
+    expect(scrollIntoView).not.toHaveBeenCalled();
     await page.unmount();
   });
 
@@ -171,7 +188,7 @@ describe("TabBar", () => {
     expect(document.activeElement).toBe(named(page.container, "New tab"));
     useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
     await settle();
-    named(page.container, "Split pane").focus();
+    named(page.container, "Split the pane").focus();
     await click(named(page.container, "Close New session"));
     await settle();
     expect(document.activeElement).not.toBe(named(page.container, "New tab"));
@@ -192,7 +209,7 @@ describe("TabBar", () => {
   it("splits a lone non-home item with the start screen", async () => {
     useWorkspaceStore.setState({ ws: { tabs: [session], active: "session:a" } });
     const page = await renderShell("/s/a");
-    await click(named(page.container, "Split pane"));
+    await click(named(page.container, "Split the pane"));
     expect(useWorkspaceStore.getState().ws.tabs[0]?.split?.item).toEqual({ kind: "home" });
     await page.unmount();
   });
@@ -207,10 +224,10 @@ describe("TabBar", () => {
 
   it("splits with the most recent other item, and the button then closes the split", async () => {
     const page = await renderShell("/s/a");
-    await click(named(page.container, "Split pane"));
+    await click(named(page.container, "Split the pane"));
     expect(useWorkspaceStore.getState().ws.tabs[0]?.split).toEqual({ item: { kind: "home" }, ratio: 0.5 });
-    expect(named(page.container, "Split pane")).toBeNull();
-    await click(named(page.container, "Close split"));
+    expect(named(page.container, "Split the pane")).toBeNull();
+    await click(named(page.container, "Close the split"));
     expect(useWorkspaceStore.getState().ws.tabs[0]?.split).toBeNull();
     await page.unmount();
   });
@@ -218,7 +235,7 @@ describe("TabBar", () => {
   it("has nothing to split with when the start screen is the only item", async () => {
     useWorkspaceStore.setState({ ws: { tabs: [home], active: "home" } });
     const page = await renderShell("/");
-    expect((named(page.container, "Split pane") as HTMLButtonElement).disabled).toBe(true);
+    expect((named(page.container, "Split the pane") as HTMLButtonElement).disabled).toBe(true);
     await page.unmount();
   });
 

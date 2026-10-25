@@ -1,7 +1,7 @@
 // Lazy: only the Tasks board shows these (`i18n/register-automation.ts`, imported by the board's file).
 export const automationEn = {
   "automation.board.title": "Tasks",
-  "automation.board.loading": "Loading the tasks",
+  "automation.board.loading": "Loading the tasks…",
   "automation.board.running": "{running} / {slots} running",
   "automation.board.queued": "{count} queued",
   "automation.board.today": "Today {spent} / {budget}",
@@ -14,7 +14,7 @@ export const automationEn = {
   "automation.column.other": "Other folders",
   "automation.column.running": "{count} running",
   "automation.column.cost": "{cost} today",
-  "automation.column.empty": "No tasks yet",
+  "automation.column.empty": "No tasks yet. A trigger adds one here each time it fires.",
   "automation.strip.label": "Triggers of {project}",
   "automation.trigger.edit": "Edit",
   "automation.trigger.editLabel": "Edit {name}",
@@ -45,7 +45,7 @@ export const automationEn = {
   "automation.reason.stopped": "stopped",
   "automation.reason.crash": "crash",
   "automation.reason.archived": "archived",
-  "automation.card.fence": "UNTRUSTED · {source}",
+  "automation.card.fence": "Untrusted · {source}",
   "automation.card.toolsReleased": "normal tools",
   "automation.card.noSession": "No session",
   "automation.action.steer": "Steer",
@@ -87,7 +87,7 @@ export const automationEn = {
 
 export const automationFr: { readonly [K in keyof typeof automationEn]: string } = {
   "automation.board.title": "Tâches",
-  "automation.board.loading": "Chargement des tâches",
+  "automation.board.loading": "Chargement des tâches…",
   "automation.board.running": "{running} / {slots} en cours",
   "automation.board.queued": "{count} en file",
   "automation.board.today": "Aujourd'hui {spent} / {budget}",
@@ -101,7 +101,7 @@ export const automationFr: { readonly [K in keyof typeof automationEn]: string }
   "automation.column.other": "Autres dossiers",
   "automation.column.running": "{count} en cours",
   "automation.column.cost": "{cost} aujourd'hui",
-  "automation.column.empty": "Aucune tâche pour l'instant",
+  "automation.column.empty": "Aucune tâche pour l'instant. Un déclencheur en ajoute une ici à chaque tir.",
   "automation.strip.label": "Déclencheurs de {project}",
   "automation.trigger.edit": "Modifier",
   "automation.trigger.editLabel": "Modifier {name}",
@@ -132,7 +132,7 @@ export const automationFr: { readonly [K in keyof typeof automationEn]: string }
   "automation.reason.stopped": "arrêtée",
   "automation.reason.crash": "crash",
   "automation.reason.archived": "archivée",
-  "automation.card.fence": "NON FIABLE · {source}",
+  "automation.card.fence": "Non fiable · {source}",
   "automation.card.toolsReleased": "outils habituels",
   "automation.card.noSession": "Pas de session",
   "automation.action.steer": "Guider",

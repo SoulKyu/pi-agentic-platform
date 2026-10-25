@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { mount } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "../i18n/catalog/gallery.ts";
 import { setLocale } from "../i18n/index.ts";
+import { frenchSpacing } from "../i18n/fr-spacing.ts";
 import { Gallery } from "./Gallery.tsx";
 
 // Exports that are not components to show: providers, hooks, helpers, constants and types erase at runtime.
@@ -32,7 +33,7 @@ const ancestorsThatTakeThePress = (el: Element): Element[] =>
 
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
-const PROBED_CONTROLS = 81;
+const PROBED_CONTROLS = 82;
 // Mounts nine copies of the whole gallery: pure render work (about 1 s unloaded), not a wait on anything.
 const NINE_FRAMES_MS = 20_000;
 
@@ -41,6 +42,9 @@ const NINE_FRAMES_MS = 20_000;
 const hasClass = (classes: string, name: string) => classes.split(/\s+/).includes(name);
 const isCoarseTarget = (classes: string) =>
   hasClass(classes, "pointer-coarse:size-11") ||
+  // Switch: the track stays small, a pseudo-element grows the hit area to 44 px.
+  (hasClass(classes, "pointer-coarse:before:-inset-x-1.75") &&
+    hasClass(classes, "pointer-coarse:before:-inset-y-3.75")) ||
   ((hasClass(classes, "pointer-coarse:min-w-11") || hasClass(classes, "w-full")) &&
     (hasClass(classes, "pointer-coarse:min-h-11") || hasClass(classes, "pointer-coarse:h-11")));
 
@@ -144,7 +148,7 @@ describe("/dev/ui gallery", () => {
     expect(galleryEn["gallery.overlayNote"]).toContain("not the frame");
     await act(async () => setLocale("fr"));
     expect(page.container.querySelector('[data-gallery-note="overlays"]')?.textContent).toBe(
-      galleryFr["gallery.overlayNote"],
+      frenchSpacing(galleryFr["gallery.overlayNote"]),
     );
     setLocale("en");
     const adr = readFileSync(

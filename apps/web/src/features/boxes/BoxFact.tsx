@@ -28,7 +28,9 @@ export function BoxFact({ project, onSettings }: Props) {
         <span className="label-hud text-muted">{t("boxes.label")}</span>
         <PhaseChip phase={phase} live />
         {changed ? <Chip tone="att" label={t("boxes.packagesChanged")} /> : null}
-        {phase === "running" ? null : <BoxStart projectId={project.id} phase={phase} size="sm" />}
+        {phase === "running" ? null : (
+          <BoxStart projectId={project.id} phase={phase} size="sm" variant="secondary" />
+        )}
         <Button variant="ghost" size="sm" onClick={() => onSettings(project.id)}>
           {t("boxes.settings")}
         </Button>

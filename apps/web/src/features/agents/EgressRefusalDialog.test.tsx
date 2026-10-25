@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { alerts, button, click, hasButton, mount, settle } from "../../testing/dom.ts";
+import { alerts, statuses, button, click, hasButton, mount, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { EgressRefusalDialog } from "./EgressRefusalDialog.tsx";
 
@@ -215,8 +215,8 @@ describe("the refused host dialog (spec §6)", () => {
     const owner = Array.from({ length: AGENT_LIMITS.hosts }, (_, i) => `h${i}.example.com`);
     bed.handlers["policy.getSettings"] = () => ({ value: { ...DEFAULT_POLICY_SETTINGS, allowHosts: owner } });
     await show(null);
-    expect(alerts(document.body).join(" ")).toContain(`${AGENT_LIMITS.hosts}`);
-    expect(alerts(document.body).join(" ")).toContain("Nothing was added");
+    expect(statuses(document.body).join(" ")).toContain(`${AGENT_LIMITS.hosts}`);
+    expect(statuses(document.body).join(" ")).toContain("Nothing was added");
     expect(button(document.body, "Add to list").disabled).toBe(true);
     expect(bed.called("agents.update")).toEqual([]);
   });
@@ -224,7 +224,7 @@ describe("the refused host dialog (spec §6)", () => {
   it("an agent already at the cap says so too", async () => {
     const own = Array.from({ length: AGENT_LIMITS.hosts }, (_, i) => `h${i}.example.com`);
     await show(own);
-    expect(alerts(document.body).join(" ")).toContain("Nothing was added");
+    expect(statuses(document.body).join(" ")).toContain("Nothing was added");
     expect(button(document.body, "Add to list").disabled).toBe(true);
   });
 

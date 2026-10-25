@@ -1,9 +1,10 @@
 // Child process of catalog.ts: imports the rewritten copy of apps/web/src/i18n in the directory given as argument and
 // prints `{en, fr}` as JSON. en.ts and fr.ts hold only four of the catalogs; the rest register lazily in the web app, so
-// every `*En` / `*Fr` export of catalog/*.ts is merged here. catalog/dev.ts stays out: en.ts drops it when DEV is false.
+// French values get the app's spacing (fr-spacing.ts, imported by relative path); every `*En` / `*Fr` export of catalog/*.ts is merged here. catalog/dev.ts stays out: en.ts drops it when DEV is false.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { frenchSpacing } from "../../apps/web/src/i18n/fr-spacing.ts";
 
 type Entries = Record<string, string>;
 const dir = process.argv[2];
@@ -30,4 +31,5 @@ for (const file of readdirSync(join(dir, "catalog")).sort()) {
   take("en", exports, "En");
   take("fr", exports, "Fr");
 }
+merged.fr = Object.fromEntries(Object.entries(merged.fr).map(([key, value]) => [key, frenchSpacing(value)]));
 process.stdout.write(JSON.stringify(merged));

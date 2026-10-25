@@ -4,12 +4,16 @@ import {
   Banner,
   Button,
   Chip,
+  CodeText,
+  DeferredFallback,
   EmptyState,
+  Heading,
   Icon,
   IconAccount,
   IconButton,
   IconCopy,
   IconSearch,
+  InlineError,
   Kbd,
   Meter,
   OpenTab,
@@ -140,6 +144,33 @@ export function DisplayFigures() {
           purpose={SAMPLE.emptyPurpose}
           action={<Button variant="primary">{SAMPLE.emptyAction}</Button>}
         />
+      </GalleryItem>
+      <GalleryItem name="InlineError" column>
+        <InlineError announce="background">{SAMPLE.bannerTitle}</InlineError>
+        <InlineError tone="attn" announce="background">
+          {SAMPLE.bannerBody}
+        </InlineError>
+      </GalleryItem>
+      <GalleryItem name="CodeText" column>
+        <p className="text-ui text-muted">
+          <CodeText text={SAMPLE.codeText} />
+        </p>
+      </GalleryItem>
+      <GalleryItem name="DeferredFallback" column>
+        <DeferredFallback>
+          <p className="text-ui text-muted">{SAMPLE.progress}</p>
+        </DeferredFallback>
+      </GalleryItem>
+      <GalleryItem name="Heading" column>
+        <Heading level={2} variant="section">
+          {SAMPLE.emptyTitle}
+        </Heading>
+        <Heading level={3} variant="group">
+          {SAMPLE.emptyTitle}
+        </Heading>
+        <Heading level={4} variant="card">
+          {SAMPLE.emptyTitle}
+        </Heading>
       </GalleryItem>
       <GalleryItem name="OpenTab" column>
         <Tabs />

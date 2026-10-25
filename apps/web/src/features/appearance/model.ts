@@ -39,17 +39,20 @@ export interface DeviceAppearance {
   readonly motion: "system" | "reduced" | "none";
   /** Default full width (pi-web rejected a 72ch cap, decision 28). */
   readonly chatWidth: "full" | "wide" | "narrow";
+  /** Line length of prose: capped at the reading measure, or the whole column (`data-prose`, D3). */
+  readonly proseMeasure: "limited" | "full";
   /** A short tone when a run ends while the tab is hidden or unfocused (M13R21); off by default. */
   readonly completionSound: boolean;
 }
 
 export const DEFAULT_DEVICE: DeviceAppearance = {
-  density: "compact",
+  density: "mixed",
   uiSize: null,
   chatSize: null,
   codeSize: null,
   motion: "system",
   chatWidth: "full",
+  proseMeasure: "limited",
   completionSound: false,
 };
 export const SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] } as const;
@@ -233,6 +236,7 @@ export function parseDevice(raw: string | null): DeviceAppearance {
     codeSize: size(value.codeSize, SIZE_RANGES.codeSize),
     motion: oneOf(value.motion, ["system", "reduced", "none"] as const, DEFAULT_DEVICE.motion),
     chatWidth: oneOf(value.chatWidth, ["full", "wide", "narrow"] as const, DEFAULT_DEVICE.chatWidth),
+    proseMeasure: oneOf(value.proseMeasure, ["limited", "full"] as const, DEFAULT_DEVICE.proseMeasure),
     completionSound: value.completionSound === true,
   };
 }
@@ -247,6 +251,7 @@ export const APPEARANCE_ATTRS = [
   "rail",
   "motion",
   "chat-width",
+  "prose",
   "tool-detail",
   "avatar",
 ] as const;
@@ -291,6 +296,7 @@ function plainAttrs(
     rail: account.railPosition,
     motion: device.motion,
     "chat-width": device.chatWidth,
+    prose: device.proseMeasure,
     "tool-detail": account.toolDetail,
     avatar: account.avatarStyle,
   };

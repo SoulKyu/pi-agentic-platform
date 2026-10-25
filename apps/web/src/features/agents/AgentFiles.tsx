@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentFileView } from "@pap/contracts";
-import { Button, EmptyState, TextField, usePendingAction } from "@pap/ui";
+import { Button, EmptyState, Heading, InlineError, TextField, usePendingAction } from "@pap/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -111,9 +111,7 @@ export function AgentFiles({ agentId }: { readonly agentId: string }) {
           {t("agentFiles.loading")}
         </p>
       ) : load.kind === "failed" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("agentFiles.failed")}
-        </p>
+        <InlineError announce="background">{t("agentFiles.failed")}</InlineError>
       ) : files.length === 0 ? (
         <EmptyState
           title={t("agentFiles.empty.title")}
@@ -192,7 +190,9 @@ export function AgentFiles({ agentId }: { readonly agentId: string }) {
         </table>
       )}
       <section className="flex flex-col gap-s2">
-        <h4 className="label-hud text-muted">{t("agentFiles.add.title")}</h4>
+        <Heading level={4} variant="group">
+          {t("agentFiles.add.title")}
+        </Heading>
         <TextField
           label={t("agentFiles.add.path")}
           hint={t("agentFiles.add.path.hint")}
@@ -230,11 +230,7 @@ export function AgentFiles({ agentId }: { readonly agentId: string }) {
           </Button>
         </div>
       </section>
-      {problem === null ? null : (
-        <p role="alert" className="text-ui text-attn">
-          {t(problem)}
-        </p>
-      )}
+      {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
       <input
         ref={importPicker}
         type="file"

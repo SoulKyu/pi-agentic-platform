@@ -1,6 +1,6 @@
 import "../../i18n/register-github.ts";
 import { RepoFullName, type ProjectGithubView } from "@pap/contracts";
-import { Button, Chip, type ChipTone } from "@pap/ui";
+import { Button, Chip, InlineError, type ChipTone } from "@pap/ui";
 import { useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -99,9 +99,7 @@ export function ProjectGithubSettings({ projectId }: { readonly projectId: strin
         </>
       )}
       {(link.problem ?? unlink.problem) === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t((link.problem ?? unlink.problem) as MessageKey)}
-        </p>
+        <InlineError announce="action">{t((link.problem ?? unlink.problem) as MessageKey)}</InlineError>
       )}
     </div>
   );

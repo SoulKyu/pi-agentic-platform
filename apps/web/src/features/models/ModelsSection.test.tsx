@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/index.ts";
-import { alerts, button, click, hasButton, settle, text } from "../../testing/dom.ts";
+import { alerts, statuses, button, click, hasButton, settle, text } from "../../testing/dom.ts";
 import { forgetExtensions, readExtensions } from "./extension-read.ts";
 import {
   current,
@@ -86,7 +86,7 @@ describe("providers", () => {
   it("is in French with no key left over", async () => {
     setLocale("fr");
     const { page } = await open("anthropic");
-    expect(text(page.container)).toContain("ANTHROPIC_API_KEY : définie");
+    expect(text(page.container)).toContain("ANTHROPIC_API_KEY\u202f: définie");
     expect(hasButton(page.container, "Actualiser le catalogue")).toBe(true);
     expect(text(page.container)).not.toMatch(/settingsModels\./);
   });
@@ -277,7 +277,7 @@ describe("defaults and catalog", () => {
     };
     const page = await show();
     await settle();
-    expect(alerts(page.container)).toHaveLength(1);
+    expect(statuses(page.container)).toHaveLength(1);
     bed.handlers["models.overview"] = () => overviewOf();
     await click(button(page.container, "Try again"));
     await settle();

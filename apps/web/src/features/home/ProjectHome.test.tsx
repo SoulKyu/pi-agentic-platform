@@ -50,7 +50,7 @@ describe("ProjectHome: the composer and a Session launch (§3.1)", () => {
   it("comes first: the composer has the focus, and the page names the project", async () => {
     const { page } = await showHome();
     expect(document.activeElement).toBe(composer());
-    expect(composer().getAttribute("placeholder")).toBe("What do you want to do in api?");
+    expect(composer().getAttribute("placeholder")).toBe("Fix the flaky login test, then open a PR");
     expect(page.container.querySelector("h1")?.textContent).toBe("api");
   });
 

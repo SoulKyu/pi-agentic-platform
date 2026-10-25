@@ -1,4 +1,4 @@
-import { Button, TextField, usePendingAction } from "@pap/ui";
+import { Button, TextField, usePendingAction, Heading } from "@pap/ui";
 import { FONT_FAMILY_PATTERN } from "@pap/contracts";
 import { useEffect, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
@@ -60,7 +60,9 @@ export function FontsBlock() {
 
   return (
     <div className="flex flex-col gap-s2" data-slot="fonts-block">
-      <h4 className="label-hud text-muted">{t("settings.appearance.fonts.title")}</h4>
+      <Heading level={3} variant="group">
+        {t("settings.appearance.fonts.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("settings.appearance.fonts.note")}</p>
       <div className="flex items-end gap-s2">
         <div className="min-w-0 flex-1">
@@ -79,7 +81,9 @@ export function FontsBlock() {
           {t("settings.appearance.fonts.add")}
         </Button>
       </div>
-      <h4 className="label-hud text-muted">{t("settings.appearance.fonts.installed")}</h4>
+      <Heading level={3} variant="group">
+        {t("settings.appearance.fonts.installed")}
+      </Heading>
       {families === null || families.length === 0 ? (
         <p className="text-ui text-muted">{t("settings.appearance.fonts.empty")}</p>
       ) : (

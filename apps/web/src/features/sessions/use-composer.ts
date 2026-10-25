@@ -214,6 +214,11 @@ export function useComposer(
     (note === "files" && !attached?.uploading && !attached?.failed)
   )
     setNote(null);
+  /** Picks the way a message goes while the agent works; Send uses it, and the device remembers it. */
+  const choose = (way: Behavior) => {
+    setBehavior(way);
+    saveBehavior(storage, way);
+  };
   /** `remember: false` sends this message the given way without changing the saved choice (the one-shot chord). */
   const send = (way?: Behavior, options?: { readonly remember?: boolean }) => {
     if (pending || compacting || sendingRef.current) {
@@ -237,10 +242,7 @@ export function useComposer(
       planSend(textRef.current, way ?? behavior) ??
       (ids.length ? { text: "", streamingBehavior: way ?? behavior } : null);
     if (!plan) return;
-    if (way && way !== behavior && options?.remember !== false) {
-      setBehavior(way);
-      saveBehavior(storage, way);
-    }
+    if (way && way !== behavior && options?.remember !== false) choose(way);
     setNote(null);
     commit("");
     void deliver(
@@ -253,6 +255,7 @@ export function useComposer(
   return {
     text,
     behavior,
+    choose,
     /** Something to send, and nothing still uploading. */
     canSend: !attached?.uploading && (text.trim() !== "" || (attached?.ready ?? 0) > 0),
     pending,

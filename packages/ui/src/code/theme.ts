@@ -29,11 +29,11 @@ export const THEME_SPEC: Rules = {
   ".cm-activeLine": { backgroundColor: "var(--surface)" },
   ".cm-gutters": {
     backgroundColor: "var(--bg)",
-    color: "var(--text-dim)",
+    color: MUTED,
     borderRightColor: "var(--border)",
   },
   ".cm-activeLineGutter": { backgroundColor: "var(--surface)", color: MUTED },
-  ".cm-lineNumbers .cm-gutterElement": { color: "var(--text-dim)" },
+  ".cm-lineNumbers .cm-gutterElement": { color: MUTED },
   ".cm-foldPlaceholder": { backgroundColor: "var(--surface-2)", borderColor: "var(--border)", color: MUTED },
   ".cm-matchingBracket": { backgroundColor: "var(--surface-2)", outlineColor: "var(--border-strong)" },
   ".cm-nonmatchingBracket": { backgroundColor: "var(--surface-2)", color: "var(--err)" },

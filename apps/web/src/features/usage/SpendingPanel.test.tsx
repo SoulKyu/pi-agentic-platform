@@ -124,7 +124,7 @@ describe("SpendingPanel", () => {
     });
     expect(text(empty.container)).toContain("Nothing ran in this period.");
     const failed = await panel({ summary: null, failed: true });
-    expect(failed.container.querySelector('[role="alert"]')?.textContent).toBe(
+    expect(failed.container.querySelector('[role="status"]')?.textContent).toBe(
       "The spending could not be read.",
     );
   });

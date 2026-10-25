@@ -48,6 +48,16 @@ describe("Toast", () => {
     await page.unmount();
   });
 
+  it("renders a backticked run of a string message as code, never as raw backticks", async () => {
+    const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
+    await act(async () => {
+      toast({ message: "Run `sudo pap vm setup` first." });
+    });
+    expect(document.querySelector('[data-slot="toast"] code')?.textContent).toBe("sudo pap vm setup");
+    expect(document.querySelector('[data-slot="toast"]')?.textContent).not.toContain("`");
+    await page.unmount();
+  });
+
   it("closes by itself after 5 s", async () => {
     const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
     await act(async () => {

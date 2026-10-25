@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "../cn.ts";
+import { CodeText } from "./CodeText.tsx";
 
 export type BannerTone = "crash" | "capacity" | "offline" | "checkpoint";
 
@@ -31,8 +32,14 @@ export function Banner({ tone, title, children, actions }: BannerProps) {
       )}
     >
       <div className="flex min-w-0 flex-col gap-s1">
-        <p className={cn("text-ui font-semibold", style.title)}>{title}</p>
-        {children ? <div className="text-ui text-muted">{children}</div> : null}
+        <p className={cn("text-ui font-semibold", style.title)}>
+          <CodeText text={title} />
+        </p>
+        {children ? (
+          <div className="text-ui text-muted">
+            {typeof children === "string" ? <CodeText text={children} /> : children}
+          </div>
+        ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-s2">{actions}</div> : null}
     </section>

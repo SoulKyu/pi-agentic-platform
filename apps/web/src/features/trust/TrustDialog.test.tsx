@@ -188,7 +188,7 @@ describe("trust dialog (M7R109)", () => {
     await click(button(document.body, "Trust"));
     await settle();
     expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
-      "The server is at capacity. Try again later.",
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
     );
     expect(decided).not.toHaveBeenCalled();
   });
@@ -197,7 +197,7 @@ describe("trust dialog (M7R109)", () => {
     const bed = newBed();
     bed.handlers["trust.status"] = () => Promise.reject(new RpcError("forbidden"));
     await open();
-    expect(document.body.querySelector('[role="alert"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="status"]')).not.toBeNull();
     expect(button(document.body, "Trust").disabled).toBe(true);
   });
 
@@ -266,7 +266,7 @@ describe("trust dialog (M7R109)", () => {
     setLocale("fr");
     newBed();
     await open();
-    expect(body()).toContain("Faire confiance à ce projet ?");
+    expect(body()).toContain("Faire confiance à ce projet\u202f?");
     expect(() => button(document.body, "Faire confiance")).not.toThrow();
     expect(() => button(document.body, "Rester non fiable")).not.toThrow();
   });

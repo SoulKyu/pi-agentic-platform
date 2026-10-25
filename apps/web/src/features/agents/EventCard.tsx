@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { fenceText, type AgentEventView } from "@pap/contracts";
-import { Button, Chip, type ChipTone, formatCost, formatDuration } from "@pap/ui";
+import { Button, Chip, type ChipTone, formatCost, formatDuration, Heading } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { EgressRefusalDialog } from "./EgressRefusalDialog.tsx";
 import { type MessageKey, type Translate, useLocale, useT } from "../../i18n/index.ts";
@@ -224,7 +224,9 @@ export function EventCard({ event, folded, mode, onInject, agent }: EventCardPro
       className={`flex flex-col gap-s1 rounded-md border p-s2 ${dashed ? "border-dashed border-attn" : "border-border-strong"}`}
     >
       <header className="flex flex-wrap items-center gap-s2">
-        <h3 className="label-hud text-muted">{label}</h3>
+        <Heading level={3} variant="card">
+          {label}
+        </Heading>
         {stateChip}
         {event.kind === "egress_refused" ? <Chip tone="att" label={t("agentEgress.chip")} /> : null}
         {event.kind === "isolated" && event.data.tainted ? (
@@ -246,7 +248,9 @@ export function EventCard({ event, folded, mode, onInject, agent }: EventCardPro
       <Figures event={event} />
       {folded !== null ? (
         <details>
-          <summary className="cursor-pointer label-hud text-muted">{t("agentSpace.event.prompt")}</summary>
+          <summary className="cursor-pointer label-hud text-muted focus-ring">
+            {t("agentSpace.event.prompt")}
+          </summary>
           <UntrustedText text={folded} />
         </details>
       ) : null}

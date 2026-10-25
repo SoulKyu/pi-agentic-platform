@@ -1,6 +1,6 @@
 import "../../i18n/register-github.ts";
 import type { ProjectGithubView } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, Heading, InlineError } from "@pap/ui";
 import type { ReactNode } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { PullRow } from "./PullRow.tsx";
@@ -26,7 +26,9 @@ function Section({
   const t = useT();
   return (
     <section className="flex min-w-0 flex-col gap-s1">
-      <h3 className="label-hud text-muted">{title}</h3>
+      <Heading level={3} variant="group">
+        {title}
+      </Heading>
       {empty === null ? (
         <ul className="flex flex-col">{children}</ul>
       ) : (
@@ -113,11 +115,7 @@ export function GithubTab({ projectId, github, onRefresh, onOpenSession }: Props
           </li>
         ))}
       </Section>
-      {send.problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(send.problem)}
-        </p>
-      )}
+      {send.problem === null ? null : <InlineError announce="action">{t(send.problem)}</InlineError>}
     </div>
   );
 }

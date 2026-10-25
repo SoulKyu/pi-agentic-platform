@@ -1,5 +1,5 @@
 import { USERS_LIMITS, type UserView } from "@pap/contracts";
-import { Button, Chip, TextField } from "@pap/ui";
+import { Button, Chip, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
@@ -124,11 +124,7 @@ export function UserRow({ user, stepUp, onChanged }: Props) {
           ) : null}
         </div>
       )}
-      {problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(problem)}
-        </p>
-      )}
+      {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
       {deleting ? (
         <DeleteUserDialog
           user={user}

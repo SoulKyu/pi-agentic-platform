@@ -64,10 +64,7 @@ export function MessageRow({
       actions={actions && entryId !== null ? <RowButtons entryId={entryId} actions={actions} /> : undefined}
     >
       {item.thinking ? (
-        <Reasoning
-          streaming={thinking}
-          label={thinking ? t("sessions.transcript.thinking") : t("sessions.transcript.thought")}
-        >
+        <Reasoning label={thinking ? t("sessions.transcript.thinking") : t("sessions.transcript.thought")}>
           <p className="whitespace-pre-wrap break-words">{item.thinking}</p>
         </Reasoning>
       ) : null}
@@ -96,7 +93,7 @@ export function SummaryRow({ item }: { item: SummaryItem }) {
       : t("sessions.transcript.branchSummary");
   return (
     <details data-summary={item.variant} className="border-l-2 border-border bg-bg px-s3 py-s2 text-muted">
-      <summary className="cursor-pointer label-hud">{title}</summary>
+      <summary className="cursor-pointer label-hud focus-ring">{title}</summary>
       <p className="mt-s1 whitespace-pre-wrap break-words text-ui">{item.text}</p>
     </details>
   );

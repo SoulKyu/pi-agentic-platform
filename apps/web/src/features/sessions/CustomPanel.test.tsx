@@ -88,7 +88,9 @@ describe("CustomPanel", () => {
     const container = await show([{ id: "p1", lines: ["x"] }]);
     await press(inputOf(container), { key: "Enter" });
     await settle();
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(alerts(container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
     expect(sent()).toEqual(["\r"]);
   });
 
@@ -102,7 +104,9 @@ describe("CustomPanel", () => {
     await typeInto(inputOf(container), "z".repeat(4096 * 3));
     await settle();
     expect(sent()).toHaveLength(2);
-    expect(alerts(container)).toEqual(["The session process failed."]);
+    expect(alerts(container)).toEqual([
+      "The session process stopped. The transcript is intact. Send again to restart it.",
+    ]);
   });
 
   it("renders nothing without a panel", async () => {

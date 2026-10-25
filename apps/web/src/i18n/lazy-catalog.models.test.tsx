@@ -24,7 +24,9 @@ describe("lazy catalog (session models)", () => {
     expect(translate("en", "sessionModels.idleOnly")).toBe("sessionModels.idleOnly");
     await act(async () => registerCatalog({ en: sessionModelsEn, fr: sessionModelsFr }));
     expect(translate("en", "sessionModels.idleOnly")).toBe("Change the model when the agent is idle");
-    expect(translate("fr", "sessionModels.pill.thinking", { level: "élevée" })).toBe("réflexion : élevée");
+    expect(translate("fr", "sessionModels.pill.thinking", { level: "élevée" })).toBe(
+      "réflexion\u202f: élevée",
+    );
     expect(Object.keys(sessionModelsFr)).toEqual(Object.keys(sessionModelsEn));
     const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     for (const key of Object.keys(sessionModelsEn) as Array<keyof typeof sessionModelsEn>)

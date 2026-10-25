@@ -102,7 +102,7 @@ const load = (archived = 0) =>
   });
 
 describe("the tree's lane level", () => {
-  it("shows a lane under its project with status word, title, branch, +ahead, ●dirty, #PR", async () => {
+  it("shows a lane under its project with status word, title, branch, +ahead, dirty dot, #PR", async () => {
     await load();
     const box = await show();
     const row = box.querySelector("[data-lane-title]")?.closest("li") as HTMLElement;
@@ -111,7 +111,7 @@ describe("the tree's lane level", () => {
     expect(row.querySelector("[data-lane-branch]")?.textContent).toBe("pi/fix-a");
     const facts = row.textContent ?? "";
     expect(facts).toContain("+3");
-    expect(facts).toContain("●2");
+    expect(facts).toContain("2");
     expect(facts).toContain("#12");
     expect(row.querySelector(".sr-only")?.textContent).toBeTruthy();
   });

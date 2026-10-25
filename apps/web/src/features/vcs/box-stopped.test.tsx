@@ -47,7 +47,7 @@ describe("Changes in a stopped box", () => {
     await settle();
     expect(bed.called("subscribe.vcs")).toHaveLength(1);
     expect(text(page.container)).toContain("The project's box is stopped. Start it to see its files.");
-    expect(button(page.container, "START")).toBeDefined();
+    expect(button(page.container, "Start")).toBeDefined();
 
     running = true;
     await act(async () => {

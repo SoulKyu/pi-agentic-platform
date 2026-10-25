@@ -48,8 +48,8 @@ describe("lane screen: header", () => {
     const content = text((await show()).container);
     expect(content).toContain("In review");
     expect(content).toContain("#7 · open");
-    expect(content).toContain("✓ 2");
-    expect(content).toContain("✗ 1");
+    expect(content).toContain("2 checks passed");
+    expect(content).toContain("1 check failed");
     expect(content).toContain("conflicts");
   });
 

@@ -1,5 +1,5 @@
 import { KEY_NONE, type KeybindingRule } from "@pap/contracts";
-import { Button, TextField, toast } from "@pap/ui";
+import { Button, Heading, TextField, toast, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT, type MessageKey } from "../../../i18n/index.ts";
 import type { AccountStatus } from "../../../lib/account-setting.ts";
@@ -102,8 +102,7 @@ export function ShortcutsEditor({ platform }: { readonly platform?: Platform }) 
 
   return (
     <div className="flex flex-col gap-s4">
-      <header className="flex flex-wrap items-center justify-between gap-s2">
-        <h2 className="text-h2 text-fg">{t("settings.shortcuts.title")}</h2>
+      <header className="flex justify-end">
         <Button variant="secondary" disabled={user.length === 0} onClick={resetAll}>
           {t("settings.shortcuts.resetAll")}
         </Button>
@@ -111,16 +110,14 @@ export function ShortcutsEditor({ platform }: { readonly platform?: Platform }) 
       <p role="status" data-slot="shortcuts-status" className="text-ui text-muted">
         {line === null ? "" : t(line)}
       </p>
-      {tooMany ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("settings.shortcuts.tooMany")}
-        </p>
-      ) : null}
+      {tooMany ? <InlineError announce="action">{t("settings.shortcuts.tooMany")}</InlineError> : null}
       <TextField label={t("settings.shortcuts.search")} value={query} onChange={setQuery} />
       {sections.length === 0 ? <p className="text-ui text-muted">{t("settings.shortcuts.empty")}</p> : null}
       {sections.map((section) => (
         <section key={section.id} data-group={section.id} className="flex flex-col gap-s1">
-          <h3 className="text-label text-muted">{t(section.titleKey)}</h3>
+          <Heading level={2} variant="section">
+            {t(section.titleKey)}
+          </Heading>
           <ul className="flex flex-col">
             {section.specs.map((spec) => {
               const index = rules.findLastIndex((candidate) => candidate.command === spec.id);

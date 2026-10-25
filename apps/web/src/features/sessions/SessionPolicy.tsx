@@ -1,5 +1,5 @@
 import { APPROVAL_MODES, type ApprovalMode, type SessionPolicyView } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, Heading, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
@@ -240,7 +240,9 @@ export function SessionPolicy({
           className="order-last flex w-full flex-col gap-s2"
         >
           <div className="flex items-center justify-between gap-s2">
-            <h2 className="label-hud text-muted">{t("rules.title")}</h2>
+            <Heading level={2} variant="card">
+              {t("rules.title")}
+            </Heading>
             <Button
               size="sm"
               onClick={() => {
@@ -265,9 +267,9 @@ export function SessionPolicy({
       ) : null}
       {failures.map(({ key, message }) =>
         message === null ? null : (
-          <p key={key} role="alert" className="order-last w-full text-ui text-attn">
-            {message}
-          </p>
+          <div key={key} className="order-last w-full">
+            <InlineError announce="action">{message}</InlineError>
+          </div>
         ),
       )}
     </div>

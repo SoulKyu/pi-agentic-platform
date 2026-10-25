@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
+import { duplicateNames } from "../../testing/names.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (importOriginal) => ({
@@ -83,5 +84,36 @@ describe("SessionScreen run status chip", () => {
     await screen.emit({ kind: "status", status: "cold" });
     // A stopped worker is settled, not limited: the quota limit comes from the usage stream (Task 17).
     expect(state(container)).toEqual(["ok", "Stopped"]);
+  });
+});
+
+describe("SessionScreen header order", () => {
+  it("the name is an h1 in text-h2 with its chips after it; policy and the menu end the row", async () => {
+    const container = await screen.show({ name: "Release prep", title: "Fix the build", status: "idle" });
+    const header = container.querySelector("header") as HTMLElement;
+    const name = header.querySelector("h1[data-session-name]") as HTMLElement;
+    expect(name.className).toContain("text-h2");
+    expect(name.className).not.toContain("label-hud");
+    const part = (selector: string) => header.querySelector(selector) as HTMLElement;
+    const sequence = [
+      name,
+      part("[data-session-title]"),
+      part("[data-slot='chip']"),
+      part("[data-header-spacer]"),
+      part("[data-session-policy]"),
+      part("[data-session-actions]"),
+    ];
+    sequence.forEach((one) => expect(one).not.toBeNull());
+    for (let i = 1; i < sequence.length; i++)
+      expect(
+        (sequence[i - 1] as HTMLElement).compareDocumentPosition(sequence[i] as HTMLElement) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+        `part ${i}`,
+      ).toBeTruthy();
+  });
+
+  it("duplicateNames is empty", async () => {
+    const container = await screen.show({ name: "Release prep", status: "idle" });
+    expect(duplicateNames(container)).toEqual([]);
   });
 });

@@ -7,6 +7,9 @@ import {
   itemKey,
   MAX_TABS,
   openItem,
+  SETTINGS_GROUPS,
+  SETTINGS_LAYOUT,
+  SETTINGS_SECTIONS,
   setSplitRatio,
   splitTab,
   unsplitTab,
@@ -134,5 +137,15 @@ describe("workspace model", () => {
     ws = openItem(ws, { kind: "home" });
     ws = openItem(ws, { kind: "tasks" });
     expect([keys(ws), ws.active]).toEqual([["tasks", "home"], "tasks"]);
+  });
+
+  it("every section is in exactly one group", () => {
+    const listed = SETTINGS_GROUPS.flatMap((group) => group.sections);
+    expect([...listed].sort()).toEqual([...SETTINGS_SECTIONS].sort());
+  });
+
+  it("every section but appearance, models and mcp is a column", () => {
+    const split = SETTINGS_SECTIONS.filter((section) => SETTINGS_LAYOUT[section] === "split");
+    expect(split.sort()).toEqual(["appearance", "mcp", "models"]);
   });
 });

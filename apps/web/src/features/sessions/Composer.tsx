@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, Segmented, TextField, InlineError } from "@pap/ui";
 import { useEffect, useRef } from "react";
 import { useT } from "../../i18n/index.ts";
 import { useCommand } from "../../lib/use-command.ts";
@@ -89,7 +89,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
       {c.pending ? (
         <div role="status" className="flex items-center gap-s2 border-l-2 border-attn-line px-s3 py-s2">
           <p className="flex-1 text-ui text-fg">{t("sessions.composer.mayHaveBeenSent")}</p>
-          <Button variant="primary" disabled={c.resending} onClick={() => void c.sendAgain()}>
+          <Button variant="secondary" disabled={c.resending} onClick={() => void c.sendAgain()}>
             {t("sessions.composer.sendAgain")}
           </Button>
           <Button disabled={c.resending} onClick={c.edit}>
@@ -102,11 +102,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
           {c.note}
         </p>
       ) : null}
-      {c.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {c.error}
-        </p>
-      ) : null}
+      {c.error ? <InlineError announce="action">{c.error}</InlineError> : null}
       <form
         className="flex flex-col gap-s2"
         onSubmit={(event) => {
@@ -127,32 +123,25 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         />
         <MentionMenu menu={mentions.menu} />
         {commands.menu}
-        <div className="flex flex-wrap gap-s2">
+        <div className="flex flex-wrap items-center gap-s2">
+          {c.canStop ? <Button onClick={c.stop}>{t("sessions.composer.stop")}</Button> : null}
           <ModelBar sessionId={sessionId} loadout={view.loadout} running={c.running} />
           {c.running ? (
-            <div role="group" aria-label={t("sessions.composer.whenWorking")} className="flex gap-s2">
-              <Button
-                variant={c.behavior === "steer" ? "primary" : "secondary"}
-                disabled={blocked || !c.canSend}
-                onClick={() => c.send("steer")}
-              >
-                {t("sessions.composer.steer")}
-              </Button>
-              <Button
-                variant={c.behavior === "followUp" ? "primary" : "secondary"}
-                disabled={blocked || !c.canSend}
-                onClick={() => c.send("followUp")}
-              >
-                {t("sessions.composer.followUp")}
-              </Button>
-            </div>
-          ) : (
-            <Button type="submit" variant="primary" disabled={blocked || !c.canSend}>
-              {t("sessions.composer.send")}
-            </Button>
-          )}
+            <Segmented
+              label={t("sessions.composer.whenWorking")}
+              labelHidden
+              value={c.behavior}
+              options={[
+                { value: "steer", label: t("sessions.composer.steer") },
+                { value: "followUp", label: t("sessions.composer.followUp") },
+              ]}
+              onChange={c.choose}
+            />
+          ) : null}
+          <Button type="submit" variant="primary" disabled={blocked || !c.canSend}>
+            {t("sessions.composer.send")}
+          </Button>
           <AttachButton attachments={attachments} />
-          {c.canStop ? <Button onClick={c.stop}>{t("sessions.composer.stop")}</Button> : null}
         </div>
       </form>
     </div>

@@ -1,5 +1,5 @@
 import "../../i18n/register-github.ts";
-import { Button, Chip, TextField } from "@pap/ui";
+import { Button, Chip, InlineError, TextField } from "@pap/ui";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { useRepositories } from "./use-repositories.ts";
 
@@ -34,11 +34,7 @@ export function RepositoryPicker({ value, error, onChange }: Props) {
           {t("github.repo.loading")}
         </p>
       ) : null}
-      {found.kind === "failed" ? (
-        <p role="status" className="text-ui text-err">
-          {t(found.key)}
-        </p>
-      ) : null}
+      {found.kind === "failed" ? <InlineError announce="background">{t(found.key)}</InlineError> : null}
       {found.kind === "ready" && found.repositories.length === 0 ? (
         <p className="text-ui text-muted">{t("github.repo.none")}</p>
       ) : null}

@@ -80,12 +80,25 @@ describe("Composer sending", () => {
     };
     const container = await show({ status: "running" });
     await typeInto(field(container, "Message"), "one more");
-    await click(button(container, "Steer"));
+    await click(button(container, "Send"));
     await settle();
     expect(field(container, "Message").value).toBe("one more");
     expect(alerts(container)).toContain(
       "Too many messages are waiting in this session. Wait for the agent, or clear the queue.",
     );
+  });
+
+  it("a failed send is a red alert", async () => {
+    screen.bed.handlers["sessions.prompt"] = () => {
+      throw new RpcError("queue_full");
+    };
+    const container = await show({ status: "running" });
+    await typeInto(field(container, "Message"), "one more");
+    await click(button(container, "Send"));
+    await settle();
+    const failure = container.querySelector('[data-slot="inline-error"]');
+    expect(failure?.getAttribute("role")).toBe("alert");
+    expect(failure?.className).toContain("text-err");
   });
 
   it("does not overwrite what was typed meanwhile when it puts a refused message back", async () => {
@@ -102,35 +115,28 @@ describe("Composer sending", () => {
 });
 
 describe("Composer while the agent works", () => {
-  it("offers Steer, Follow up and Stop, the preferred way primary, and remembers the way last used per device", async () => {
+  it("sends the chosen way with Send, and remembers the way last used per device", async () => {
     const container = await show({ status: "running" });
-    expect(hasButton(container, "Send")).toBe(false);
-    expect(
-      container
-        .querySelector('[role="group"][aria-label="While the agent works"]')
-        ?.getAttribute("aria-label"),
-    ).toBe("While the agent works");
-    expect(button(container, "Steer").dataset.variant).toBe("primary");
-    expect(button(container, "Follow up").dataset.variant).toBe("secondary");
-    expect(button(container, "Stop").dataset.variant).toBe("secondary");
+    expect(button(container, "Steer").getAttribute("aria-checked")).toBe("true");
     await typeInto(field(container, "Message"), "then this");
     await click(button(container, "Follow up"));
+    await click(button(container, "Send"));
     await settle();
     expect(screen.bed.called("sessions.prompt")[0]?.params).toMatchObject({ streamingBehavior: "followUp" });
     expect(localStorage.getItem("pap.sessions.streaming")).toBe("followUp");
-    expect(button(container, "Follow up").dataset.variant).toBe("primary");
-    expect(button(container, "Steer").dataset.variant).toBe("secondary");
+    expect(button(container, "Follow up").getAttribute("aria-checked")).toBe("true");
     await typeInto(field(container, "Message"), "and this");
     await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
     await settle();
     expect(screen.bed.called("sessions.prompt")[1]?.params).toMatchObject({ streamingBehavior: "followUp" });
   });
 
-  it("Steer sends a steer whatever the preference is", async () => {
+  it("Steer sends a steer once chosen, whatever the stored preference was", async () => {
     localStorage.setItem("pap.sessions.streaming", "followUp");
     const container = await show({ status: "running" });
     await typeInto(field(container, "Message"), "change course");
     await click(button(container, "Steer"));
+    await click(button(container, "Send"));
     await settle();
     expect(screen.bed.called("sessions.prompt")[0]?.params).toMatchObject({ streamingBehavior: "steer" });
   });
@@ -171,13 +177,10 @@ describe("Composer while the agent works", () => {
     expect(field(container, "Message").value).toBe("wait for me");
   });
 
-  it("disables Steer and Follow up while a running session compacts", async () => {
+  it("disables Send while a running session compacts", async () => {
     const container = await show({ status: "running", activity: { compacting: true, retry: null } });
     await typeInto(field(container, "Message"), "wait for me");
-    expect([button(container, "Steer").disabled, button(container, "Follow up").disabled]).toEqual([
-      true,
-      true,
-    ]);
+    expect(button(container, "Send").disabled).toBe(true);
   });
 });
 
@@ -214,7 +217,9 @@ describe("Composer Stop", () => {
     };
     await click(button(container, "Stop"));
     await settle();
-    expect(alerts(container)).toContain("The session process failed.");
+    expect(alerts(container)).toContain(
+      "The session process stopped. The transcript is intact. Send again to restart it.",
+    );
   });
 
   it("keeps what was cleared in the draft even when the abort fails", async () => {
@@ -230,7 +235,9 @@ describe("Composer Stop", () => {
     await click(button(container, "Stop"));
     await settle();
     expect(field(container, "Message").value).toBe("kept");
-    expect(alerts(container)).toContain("The session process failed.");
+    expect(alerts(container)).toContain(
+      "The session process stopped. The transcript is intact. Send again to restart it.",
+    );
   });
 
   it("the queue strip's Clear puts the waiting texts back in the draft, and shows a failure", async () => {
@@ -253,6 +260,8 @@ describe("Composer Stop", () => {
     };
     await click(button(container, "Clear"));
     await settle();
-    expect(alerts(container)).toContain("The session process failed.");
+    expect(alerts(container)).toContain(
+      "The session process stopped. The transcript is intact. Send again to restart it.",
+    );
   });
 });

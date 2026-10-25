@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, TextField, Heading } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { ScopePicker, useInstallScope } from "./ScopePicker.tsx";
@@ -21,7 +21,9 @@ export function PluginInstall({
   const [scope, setScope] = useInstallScope(project, needsTrust);
   return (
     <section data-plugin-install className="flex flex-col items-start gap-s2">
-      <h4 className="label-hud text-muted">{t("settingsSkills.plugin.install.title")}</h4>
+      <Heading level={4} variant="group">
+        {t("settingsSkills.plugin.install.title")}
+      </Heading>
       <ScopePicker scope={scope} project={project} needsTrust={needsTrust} onChange={setScope} />
       <TextField
         label={t("settingsSkills.plugin.install.source")}

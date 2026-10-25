@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
 import { useShellStore } from "../../../stores/shell-store.ts";
-import { alerts, button, click, hasButton, settle, text } from "../../../testing/dom.ts";
+import { alerts, statuses, button, click, hasButton, settle, text } from "../../../testing/dom.ts";
 import { forgetExtensions, useExtensionRead } from "../extension-read.ts";
 import { availabilityBed, BASE, current, showAvailability } from "./availability-models-bed.tsx";
 
@@ -190,14 +190,14 @@ describe("extension providers", () => {
     const stale = await read(() => {
       throw new RpcError("unknown_method");
     });
-    expect(alerts(stale.page.container).join(" ")).toContain("Reload the page");
+    expect(statuses(stale.page.container).join(" ")).toContain("Reload the page");
     await stale.page.unmount();
     forgetExtensions();
     const slow = await read(() => {
       throw new RpcError("timeout");
     });
-    expect(alerts(slow.page.container)).not.toEqual([]);
-    expect(alerts(slow.page.container).join(" ")).not.toContain("Reload the page");
+    expect(statuses(slow.page.container)).not.toEqual([]);
+    expect(statuses(slow.page.container).join(" ")).not.toContain("Reload the page");
   });
 
   it("is in French with vous", async () => {

@@ -1,5 +1,5 @@
 import type { HomeLayout, ToolPreset } from "@pap/contracts";
-import { Button, TextField, useIsPhone } from "@pap/ui";
+import { Button, TextField, useIsPhone, InlineError } from "@pap/ui";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
@@ -96,7 +96,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
       aria-labelledby={titleId}
       className="mx-auto flex w-full max-w-3xl flex-col gap-s4 overflow-y-auto p-s4"
     >
-      <h1 id={titleId} className="text-xl font-extrabold text-fg">
+      <h1 id={titleId} className="text-h1 text-fg">
         {project?.name ?? t("shell.project.all")}
       </h1>
       <form
@@ -123,9 +123,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
           rows={3}
           name="launch"
           inputRef={field}
-          placeholder={
-            project === null ? t("launch.placeholderAll") : t("launch.placeholder", { project: project.name })
-          }
+          placeholder={project === null ? t("launch.placeholderAll") : t("launch.placeholder")}
           onKeyDown={(event) => {
             if (!isLaunchKey(event, phone)) return;
             event.preventDefault();
@@ -159,11 +157,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
             {presetField(busy)}
           </div>
         ) : null}
-        {error === null ? null : (
-          <p role="alert" className="text-ui text-attn">
-            {error}
-          </p>
-        )}
+        {error === null ? null : <InlineError announce="action">{error}</InlineError>}
       </form>
       <LazyPanel
         text={lazyText}

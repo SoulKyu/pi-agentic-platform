@@ -116,7 +116,7 @@ describe("SessionActions keyboard, focus and errors", () => {
     await settle();
     expect(alerts(container)).toEqual([
       "This session has no messages to work with yet.",
-      "The server is at capacity. Try again later.",
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
     ]);
   });
 
@@ -139,7 +139,9 @@ describe("SessionActions keyboard, focus and errors", () => {
       await click(button(container, "Download"));
       await settle();
       expect(clicked).not.toHaveBeenCalled();
-      expect(alerts(container)).toEqual(["Something went wrong."]);
+      expect(alerts(container)).toEqual([
+        "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+      ]);
     } finally {
       clicked.mockRestore();
     }

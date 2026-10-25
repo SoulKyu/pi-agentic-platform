@@ -1,5 +1,5 @@
 import "./register-lanes-catalog.ts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -76,9 +76,7 @@ export function ScriptLogDialog({ laneId, onClose }: { readonly laneId: string; 
         ) : null}
         {failed ? (
           <div className="flex flex-col items-start gap-s2">
-            <p role="alert" className="text-ui text-attn">
-              {t("lanes.log.failed")}
-            </p>
+            <InlineError announce="background">{t("lanes.log.failed")}</InlineError>
             <Button onClick={() => read(log?.next ?? 0)}>{t("lanes.action.tryAgain")}</Button>
           </div>
         ) : null}

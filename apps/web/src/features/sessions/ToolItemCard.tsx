@@ -1,9 +1,10 @@
-import { Button, Fence, ToolCard, type ToolDetail, type ToolStatus } from "@pap/ui";
+import { Button, Fence, ToolCard, type ToolDetail, type ToolStatus, InlineError } from "@pap/ui";
 import { useRef, useState } from "react";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { CodemodeBody } from "./CodemodeBody.tsx";
 import { codemodeView, withoutHeader } from "./codemode.vm.ts";
+import { EditDiff } from "./EditDiff.tsx";
 import { codeText, failureCode } from "./failure.ts";
 import { splitFences, stripFenceMarkers, type FencePart } from "./fence.vm.ts";
 import "./register-policy-catalog.ts";
@@ -81,9 +82,7 @@ export function ToolItemCard({
             {t("sessions.tool.notYet")}
           </p>
         ) : (
-          <p role="alert" className="text-ui text-attn">
-            {codeText(output.code)}
-          </p>
+          <InlineError announce="action">{codeText(output.code)}</InlineError>
         )
       ) : null}
       <Button disabled={output.state === "loading"} onClick={() => void load()}>
@@ -128,33 +127,49 @@ export function ToolItemCard({
       />
     );
   }
+  const plainFooter =
+    showArgs || offerAll || fenced ? (
+      <div className="flex flex-col gap-s1">
+        {fenced
+          ? parts.map((part, index) =>
+              part.kind === "fenced" ? (
+                <Fence key={index} label={t("sessionPolicy.fence", { source: part.source })}>
+                  {part.text}
+                </Fence>
+              ) : part.text.trim() === "" ? null : (
+                <pre key={index} className={PRE}>
+                  {part.text}
+                </pre>
+              ),
+            )
+          : null}
+        {showArgs ? <pre className={PRE}>{loaded.args}</pre> : null}
+        {offer}
+      </div>
+    ) : undefined;
+  const asEdit = item.name === "edit" && item.status === "done";
   return (
     <ToolCard
       {...common}
       summary={item.summary}
       footer={
-        showArgs || offerAll || fenced ? (
-          <div className="flex flex-col gap-s1">
-            {fenced
-              ? parts.map((part, index) =>
-                  part.kind === "fenced" ? (
-                    <Fence key={index} label={t("sessionPolicy.fence", { source: part.source })}>
-                      {part.text}
-                    </Fence>
-                  ) : part.text.trim() === "" ? null : (
-                    <pre key={index} className={PRE}>
-                      {part.text}
-                    </pre>
-                  ),
-                )
-              : null}
-            {showArgs ? <pre className={PRE}>{loaded.args}</pre> : null}
-            {offer}
-          </div>
-        ) : undefined
+        asEdit ? (
+          <EditDiff
+            item={item}
+            sessionId={sessionId}
+            fallback={
+              <div className="flex flex-col gap-s1">
+                {shown ? <pre className={PRE}>{shown}</pre> : null}
+                {plainFooter}
+              </div>
+            }
+          />
+        ) : (
+          plainFooter
+        )
       }
     >
-      {fenced ? undefined : shown || undefined}
+      {fenced || asEdit ? undefined : shown || undefined}
     </ToolCard>
   );
 }

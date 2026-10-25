@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary, ToolPreset } from "@pap/contracts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, InlineError, usePendingAction } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
@@ -50,9 +50,11 @@ export function AgentSettingsTab(props: AgentSettingsTabProps) {
           <div className="flex flex-col gap-s6 p-s3">
             {agent.unreadable ? null : permissions.kind === "ready" ? (
               <PermissionsSheet view={permissions.view} />
+            ) : permissions.kind === "failed" ? (
+              <InlineError announce="background">{t("agentSafety.perm.failed")}</InlineError>
             ) : (
-              <p role={permissions.kind === "failed" ? "alert" : "status"} className="text-ui text-muted">
-                {t(permissions.kind === "failed" ? "agentSafety.perm.failed" : "agentSafety.perm.loading")}
+              <p role="status" className="text-ui text-muted">
+                {t("agentSafety.perm.loading")}
               </p>
             )}
             <SecretsList agentId={agent.id} />
@@ -71,11 +73,7 @@ export function AgentSettingsTab(props: AgentSettingsTabProps) {
                 pendingSince={resuming.since}
                 onClick={resume}
               />
-              {problem === null ? null : (
-                <p role="alert" className="text-ui text-attn">
-                  {t(problem)}
-                </p>
-              )}
+              {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
               <Action
                 label={t("agentSafety.actions.quarantine")}
                 hint={t("agentSafety.actions.quarantineHint")}

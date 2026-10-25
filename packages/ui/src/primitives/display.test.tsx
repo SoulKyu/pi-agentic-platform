@@ -8,11 +8,19 @@ import { Banner } from "./Banner.tsx";
 import { Chip } from "./Chip.tsx";
 import { EmptyState } from "./EmptyState.tsx";
 import { Meter } from "./Meter.tsx";
+import { Icon } from "./Icon.tsx";
 import { OpenTab } from "./OpenTab.tsx";
+import { IconCheck } from "../icons.ts";
 
 const html = (node: React.ReactElement) => renderToStaticMarkup(node);
 
 describe("status and structure (DESIGN.md §9.1, §2)", () => {
+  it("the ext chip reads attn-title", () => {
+    expect(html(<Chip tone="ext" label="External content" />)).toMatch(
+      /border-dashed[^"]*border-attn[^"]*text-attn-title/,
+    );
+  });
+
   it("chips always carry a word; external content is dashed attention", () => {
     expect(html(<Chip tone="run" label="Working" />)).toContain(">Working<");
     expect(html(<Chip tone="ext" label="External content" />)).toMatch(
@@ -48,6 +56,12 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     );
   });
 
+  it("Banner renders a backticked run of its title as code", () => {
+    const markup = html(<Banner tone="offline" title="Needs `sudo pap vm setup`" />);
+    expect(markup).toContain('<code data-slot="code-text"');
+    expect(markup).not.toContain("`");
+  });
+
   it("banners: crash is an alert in error, offline is dashed, checkpoint is you tint", () => {
     expect(html(<Banner tone="crash" title="Agent process killed" />)).toContain('role="alert"');
     expect(html(<Banner tone="offline" title="Reconnecting…" />)).toContain("border-dashed");
@@ -64,6 +78,23 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     );
     expect(empty).toContain("border-dashed");
     expect(empty).toContain("<h2");
+  });
+
+  it("EmptyState level 3 renders an h3", () => {
+    const empty = html(<EmptyState level={3} title="No tokens" purpose="A token lets a script call pap." />);
+    expect(empty).toContain("<h3");
+    expect(empty).not.toContain("<h2");
+  });
+
+  it("a purpose with backticks shows code and no backtick", () => {
+    const empty = html(<EmptyState title="No secret" purpose="Set `PAP_HOME` first." />);
+    expect(empty).toContain('data-slot="code-text"');
+    expect(empty).not.toContain("`");
+  });
+
+  it("Icon filled fills with currentColor", () => {
+    expect(html(<Icon icon={IconCheck} filled />)).toContain('fill="currentColor"');
+    expect(html(<Icon icon={IconCheck} />)).not.toContain('fill="currentColor"');
   });
 
   it("an open tab is a tab with an agent border when active and a labelled close button", () => {

@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import "./register-space-catalog.ts";
-import { Button, toast, usePendingAction } from "@pap/ui";
+import { Button, InlineError, toast, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
@@ -76,11 +76,7 @@ export function DeleteAgentDialog({ agent, onClose }: DeleteAgentDialogProps) {
       }
     >
       <div className="flex flex-col gap-s2 p-s3">
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem, { name })}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{t(problem, { name })}</InlineError> : null}
       </div>
     </Dialog>
   );

@@ -1,6 +1,6 @@
 import "../../i18n/register-notifications.ts";
 import "../../i18n/register-push.ts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, InlineError, usePendingAction } from "@pap/ui";
 import { useMemo, useState, type ReactNode } from "react";
 import { getLocale, useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError, windowTimers } from "../../runtime/index.ts";
@@ -50,9 +50,7 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
   if (loaded.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {t("notifications.loadFailed")}
-        </p>
+        <InlineError announce="background">{t("notifications.loadFailed")}</InlineError>
         <Button onClick={reload}>{t("notifications.retry")}</Button>
       </div>
     );
@@ -120,7 +118,7 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
     });
 
   return (
-    <div data-notifications-settings="" className="flex flex-col gap-s6">
+    <div data-notifications-settings="" className="flex flex-col gap-s5">
       <StatusBlock view={view} />
       <ThisDevice
         view={view}
@@ -129,8 +127,10 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
         onEnable={enable}
         onDisable={disable}
       />
-      {notice === null ? null : (
-        <p role="alert" className={`text-ui ${notice.tone === "error" ? "text-err" : "text-fg"}`}>
+      {notice === null ? null : notice.tone === "error" ? (
+        <InlineError announce="action">{notice.text}</InlineError>
+      ) : (
+        <p role="status" className="text-ui text-fg">
           {notice.text}
         </p>
       )}
@@ -148,8 +148,10 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
           <Button disabled={testing.since !== null} pendingSince={testing.since} onClick={sendTest}>
             {t("notifications.test")}
           </Button>
-          {testNotice === null ? null : (
-            <p role="status" className={`text-ui ${testNotice.tone === "error" ? "text-err" : "text-muted"}`}>
+          {testNotice === null ? null : testNotice.tone === "error" ? (
+            <InlineError announce="action">{testNotice.text}</InlineError>
+          ) : (
+            <p role="status" className="text-ui text-muted">
               {testNotice.text}
             </p>
           )}
@@ -193,8 +195,8 @@ function withFlagsInCode(hint: string): ReactNode[] {
 function StatusBlock({ view }: { readonly view: ReturnType<typeof statusView> }) {
   const t = useT();
   return (
-    <section data-slot="notifications-status" className="flex max-w-xl flex-col gap-s1">
-      <p role="status" className={`text-ui ${view.line.tone === "ok" ? "text-fg" : "text-attn"}`}>
+    <section data-slot="notifications-status" className="flex flex-col gap-s1">
+      <p role="status" className={`text-ui ${view.line.tone === "ok" ? "text-fg" : "text-muted"}`}>
         {t(view.line.key)}
       </p>
       {view.hint === null ? null : <p className="text-ui text-muted">{withFlagsInCode(view.hint)}</p>}
@@ -203,7 +205,7 @@ function StatusBlock({ view }: { readonly view: ReturnType<typeof statusView> })
           {t(key)}
         </p>
       ))}
-      {view.keysReset ? <p className="text-ui text-attn">{t("notifications.keysReset")}</p> : null}
+      {view.keysReset ? <p className="text-ui text-muted">{t("notifications.keysReset")}</p> : null}
       {view.lastFailure === null ? null : (
         <p className="text-ui text-muted">
           {t("notifications.lastFailure", { reason: t(`notifications.failure.${view.lastFailure}`) })}
@@ -261,7 +263,7 @@ function QuietHours({
   const t = useT();
   const window = quiet !== null && quiet.from !== quiet.to ? quiet : null;
   return (
-    <div data-slot="notifications-quiet" className="flex max-w-xl flex-col gap-s1">
+    <div data-slot="notifications-quiet" className="flex flex-col gap-s1">
       <p className="text-ui text-fg">
         {window === null
           ? t("notifications.quiet.none")

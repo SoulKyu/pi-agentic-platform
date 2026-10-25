@@ -1,5 +1,5 @@
 import type { TaintCause } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { getRuntime } from "../../../runtime/index.ts";
@@ -76,9 +76,9 @@ export function MarkLocal({
         </p>
       ) : null}
       {action.error === null ? null : (
-        <p role="alert" className="w-full text-ui text-attn">
-          {action.error}
-        </p>
+        <div className="w-full">
+          <InlineError announce="action">{action.error}</InlineError>
+        </div>
       )}
     </>
   );

@@ -95,14 +95,11 @@ describe("Composer serialized sends", () => {
     const call = inFlight();
     const container = await show({ status: "running" });
     await typeInto(field(container, "Message"), "first");
-    await click(button(container, "Steer"));
+    await click(button(container, "Send"));
     await settle();
     const first = screen.bed.called("sessions.prompt")[0];
     await typeInto(field(container, "Message"), "second");
-    expect([button(container, "Steer").disabled, button(container, "Follow up").disabled]).toEqual([
-      true,
-      true,
-    ]);
+    expect(button(container, "Send").disabled).toBe(true);
     await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
     expect(screen.bed.called("sessions.prompt")).toHaveLength(1);
     expect(field(container, "Message").value).toBe("second");
@@ -116,7 +113,7 @@ describe("Composer serialized sends", () => {
     await settle();
     expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
     expect(container.querySelector('[data-composer] [role="status"]')).toBeNull();
-    expect(button(container, "Steer").disabled).toBe(false);
+    expect(button(container, "Send").disabled).toBe(false);
   });
 
   it("keeps the entry of a send whose outcome is unknown", async () => {

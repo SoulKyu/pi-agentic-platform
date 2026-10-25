@@ -1,7 +1,6 @@
 // Settings › Automation (`settingsAutomation.*`): this account's automation settings, what it spent, and the state of
 // the exports. Lazy, registered with the section's chunk (`features/usage/register-catalog.ts`).
 export const settingsAutomationEn = {
-  "settingsAutomation.automation.title": "Automation",
   "settingsAutomation.pause.label": "Pause automation",
   "settingsAutomation.pause.hint":
     "While paused, no automatic run starts. The same switch is on the Tasks board. Your own sessions are not affected.",
@@ -71,7 +70,6 @@ export const settingsAutomationEn = {
 } as const;
 
 export const settingsAutomationFr: { readonly [K in keyof typeof settingsAutomationEn]: string } = {
-  "settingsAutomation.automation.title": "Automatisation",
   "settingsAutomation.pause.label": "Mettre l'automatisation en pause",
   "settingsAutomation.pause.hint":
     "En pause, aucun lancement automatique ne démarre. Le même interrupteur est sur le tableau des tâches. Vos propres sessions ne changent pas.",

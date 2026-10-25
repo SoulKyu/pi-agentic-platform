@@ -66,7 +66,7 @@ describe("TasksBoard", () => {
     newBed();
     const page = await showWithStepUp(<TasksBoard {...handlers()} />);
     expect(page.container.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe(
-      "Loading the tasks",
+      "Loading the tasks…",
     );
   });
 

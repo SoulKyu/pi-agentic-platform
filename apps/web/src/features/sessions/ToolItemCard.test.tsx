@@ -120,7 +120,9 @@ describe("ToolItemCard", () => {
     const container = await show(item());
     await click(button(container, "Show the whole output (29 KB)"));
     await settle();
-    expect(alerts(container)).toEqual(["Something went wrong."]);
+    expect(alerts(container)).toEqual([
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    ]);
     expect(hasButton(container, "Try again")).toBe(true);
   });
 
@@ -168,7 +170,9 @@ describe("ToolItemCard", () => {
     const container = await show(item());
     await click(button(container, "Show the whole output (29 KB)"));
     await settle();
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(alerts(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     expect(hasButton(container, "Try again")).toBe(true);
   });
 

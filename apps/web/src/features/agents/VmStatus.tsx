@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import type { VmStatusView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, Heading, InlineError } from "@pap/ui";
 import { vmPhaseLifecycle, type Lifecycle } from "./agent-lifecycle.ts";
 import { useT } from "../../i18n/index.ts";
 import { stripHidden } from "../../lib/untrusted-text.ts";
@@ -24,16 +24,18 @@ export function VmStatus({ status, reload }: { readonly status: VmStatusView; re
   ];
   return (
     <section data-slot="agents-vm" aria-labelledby="agents-vm-title" className="flex flex-col gap-s3">
-      <h3 id="agents-vm-title" className="label-hud text-fg">
+      <Heading level={2} variant="group" id="agents-vm-title">
         {t("agentVm.status.title")}
-      </h3>
-      <p
-        role="status"
-        data-vm={status.usable ? "usable" : "unusable"}
-        className={status.usable ? "text-ui text-fg" : "text-ui text-attn"}
-      >
-        {status.usable ? t("agentVm.status.usable") : t("agentVm.unusable")}
-      </p>
+      </Heading>
+      {status.usable ? (
+        <p role="status" data-vm="usable" className="text-ui text-fg">
+          {t("agentVm.status.usable")}
+        </p>
+      ) : (
+        <div data-vm="unusable">
+          <InlineError announce="background">{t("agentVm.unusable")}</InlineError>
+        </div>
+      )}
       {status.usable ? (
         <p className="text-ui text-muted">
           {[

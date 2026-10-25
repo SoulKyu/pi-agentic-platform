@@ -1,4 +1,4 @@
-import { Button, Icon, IconBack, EmptyState, useIsPhone } from "@pap/ui";
+import { Button, Icon, IconBack, EmptyState, useIsPhone, InlineError } from "@pap/ui";
 import { useEffect, useId, useState } from "react";
 import "../../i18n/register-files.ts";
 import { useT } from "../../i18n/index.ts";
@@ -103,9 +103,9 @@ export function FilesPane({ root, stepUp: given }: FilesPaneProps) {
         onClose={close}
       />
       {full ? (
-        <p role="alert" className="px-s3 py-s1 text-ui text-attn">
-          {t("files.tabs.full")}
-        </p>
+        <div className="px-s3 py-s1">
+          <InlineError announce="action">{t("files.tabs.full")}</InlineError>
+        </div>
       ) : null}
       {discarding === null ? null : (
         <div className="border-b border-border px-s3 py-s2">

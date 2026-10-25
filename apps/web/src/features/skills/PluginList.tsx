@@ -1,5 +1,5 @@
 import type { PluginView } from "@pap/contracts";
-import { Button, Chip, Switch } from "@pap/ui";
+import { Button, Chip, Switch, Heading, InlineError } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { escapeHidden, groupSwitch, pluginKey } from "./skills.vm.ts";
 
@@ -51,11 +51,15 @@ export function PluginList({
           const failures = rows.flatMap((row) => refused.get(pluginKey(row)) ?? []);
           return (
             <section key={scope} data-plugin-group={scope} className="flex flex-col gap-s2">
-              <h4 className="label-hud text-muted">{title}</h4>
+              <Heading level={4} variant="group">
+                {title}
+              </Heading>
               {failures.length > 0 ? (
-                <ul role="alert" className="text-ui text-attn">
+                <ul className="flex flex-col gap-s1">
                   {failures.map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line}>
+                      <InlineError announce="action">{line}</InlineError>
+                    </li>
                   ))}
                 </ul>
               ) : null}

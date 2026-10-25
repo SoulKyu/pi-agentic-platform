@@ -44,7 +44,7 @@
 
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);
-  --text-label: 0.65625rem;
+  --text-label: 0.6875rem;
   --text-ui: var(--size-ui);
   --text-chat: var(--size-chat);
   --text-chat--line-height: var(--leading-chat);
@@ -59,7 +59,7 @@
   --text-display--line-height: 1.15;
   --text-display--font-weight: 800;
   --text-display--letter-spacing: -0.02em;
-  --tracking-label: 0.12em;
+  --tracking-label: 0.08em;
   --tracking-display: -0.02em;
   --radius-sm: 2px;
   --radius-md: 3px;
@@ -78,6 +78,9 @@
   --spacing-pane: 20rem;
   --spacing-explorer: 17.5rem;
   --spacing-status-panel: 20.625rem;
+  --spacing-measure: var(--prose-measure);
+  --spacing-settings: 48rem;
+  --breakpoint-xs: 25rem;
 }
 
 :root,
@@ -130,7 +133,7 @@
   --text-muted: #6b645a;
   --text-dim: #a8a196;
   --grid: #1c19170a;
-  --focus-ring: #ea580c;
+  --focus-ring: #c2410c;
   --agent: #6d28d9;
   --agent-fill: #7c3aed;
   --agent-ink: #ffffff;
@@ -205,7 +208,7 @@
     --text-muted: #6b645a;
     --text-dim: #a8a196;
     --grid: #1c19170a;
-    --focus-ring: #ea580c;
+    --focus-ring: #c2410c;
     --agent: #6d28d9;
     --agent-fill: #7c3aed;
     --agent-ink: #ffffff;
@@ -257,7 +260,7 @@
   --space-3: 16px;
   --space-4: 24px;
   --space-5: 32px;
-  --space-6: 32px;
+  --space-6: 48px;
   --control-h: 32px;
   --rail-w: 56px;
   --bar-h: 40px;
@@ -280,6 +283,11 @@
   --motion-base: 200ms;
   --grid-size: 24px;
   --chat-max-width: none;
+  --prose-measure: 72ch;
+}
+
+[data-prose="full"] {
+  --prose-measure: none;
 }
 
 [data-font-ui="system"] {

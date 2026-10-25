@@ -59,7 +59,7 @@ describe("the action row (§3.2)", () => {
       ["Project", ["Archived lanes (2)", "Project settings"]],
       ["Help", ["Keyboard shortcuts"]],
     ]);
-    expect(container.querySelector("[data-home-actions] h2")?.className).toContain("label-hud");
+    expect(container.querySelector("[data-home-actions] h2")?.className).toContain("font-semibold");
   });
 
   it("shows a shortcut as a hint where there is one, and the unread count on Inbox", async () => {
@@ -103,14 +103,14 @@ describe("the action row (§3.2)", () => {
     await click(button(container, "Terminal"));
     await settle();
     expect(button(container, "Terminal").disabled).toBe(false);
-    expect(container.querySelector('[role="status"]')?.textContent).toBe(
-      "The server is at capacity. Try again later.",
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
     );
     bed.handlers["terminal.create"] = () => ({ terminalId: TERMINAL });
     await click(button(container, "Terminal"));
     await settle();
     expect(bed.called("terminal.create")).toHaveLength(2);
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(actions.open).toHaveBeenCalledExactlyOnceWith({ kind: "terminal", id: TERMINAL });
   });
 

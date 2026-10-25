@@ -1,6 +1,13 @@
 // M2's session-screen strings. Lazy: only the session chunk shows them (`features/sessions/register-session-catalog.ts`).
 export const sessionScreenEn = {
   "sessions.queue.title": "Waiting · {count}",
+  "sessions.missing.title": "This session no longer exists",
+  "sessions.missing.purpose":
+    "It was deleted, or this link comes from another pap. Your other sessions are intact.",
+  "sessions.missing.back": "Back to the project",
+  "sessions.missing.search": "Search sessions",
+  "session.failure.next":
+    "The transcript is intact. Send your message again to retry, or choose another model.",
   "sessions.queue.clear": "Clear",
   "sessions.queue.steer": "Steer",
   "sessions.queue.followUp": "Follow-up",
@@ -21,7 +28,7 @@ export const sessionScreenEn = {
   "sessions.unreadable":
     "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
   "sessions.transcript.loadOlder": "Load older messages",
-  "sessions.transcript.thinking": "Thinking",
+  "sessions.transcript.thinking": "Thinking…",
   "sessions.transcript.compacted": "Conversation compacted · from {tokens} tokens",
   "sessions.transcript.branchSummary": "Summary of another branch",
   "sessions.transcript.compacting": "Compacting…",
@@ -123,6 +130,13 @@ export const sessionScreenEn = {
 
 export const sessionScreenFr = {
   "sessions.queue.title": "En attente · {count}",
+  "sessions.missing.title": "Cette session n'existe plus",
+  "sessions.missing.purpose":
+    "Elle a été supprimée, ou ce lien vient d'un autre pap. Vos autres sessions sont intactes.",
+  "sessions.missing.back": "Retour au projet",
+  "sessions.missing.search": "Chercher dans les sessions",
+  "session.failure.next":
+    "La transcription est intacte. Renvoyez votre message pour réessayer, ou choisissez un autre modèle.",
   "sessions.queue.clear": "Vider",
   "sessions.queue.steer": "Orientation",
   "sessions.queue.followUp": "À la suite",
@@ -143,7 +157,7 @@ export const sessionScreenFr = {
   "sessions.unreadable":
     "Cette session ne peut pas être affichée. Rechargez la page ; si cela persiste, le fichier de session est peut-être abîmé.",
   "sessions.transcript.loadOlder": "Charger les messages plus anciens",
-  "sessions.transcript.thinking": "Réflexion",
+  "sessions.transcript.thinking": "Réflexion…",
   "sessions.transcript.compacted": "Conversation compactée · à partir de {tokens} jetons",
   "sessions.transcript.branchSummary": "Résumé d'une autre branche",
   "sessions.transcript.compacting": "Compactage…",

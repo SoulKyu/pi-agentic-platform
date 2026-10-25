@@ -36,7 +36,7 @@ describe("the knowledge row of a stopped box", () => {
     const page = await mount(<KnowledgeRow projectId="b1" />);
     await settle();
     expect(text(page.container)).toContain("The project's box is stopped. Start it to see its files.");
-    await click(button(page.container, "START"));
+    await click(button(page.container, "Start"));
     expect(bed.called("projects.startBox")[0]?.params).toEqual({ projectId: "b1" });
 
     running = true;

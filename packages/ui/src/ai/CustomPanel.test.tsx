@@ -74,6 +74,15 @@ describe("CustomPanel", () => {
     expect(p.onKeyData).not.toHaveBeenCalled();
   });
 
+  it("a panel error is red", async () => {
+    const page = await mount(<CustomPanel {...props({ error: "Not found." })} />);
+    const alert = page.container.querySelector('[role="alert"]') as HTMLElement;
+    expect(alert.className).toContain("text-err");
+    expect(alert.className).not.toContain("text-attn");
+    expect(alert.querySelector("svg")).not.toBeNull();
+    await page.unmount();
+  });
+
   it("Ctrl+] leaves without sending", async () => {
     const p = props();
     const page = await mount(<CustomPanel {...p} />);

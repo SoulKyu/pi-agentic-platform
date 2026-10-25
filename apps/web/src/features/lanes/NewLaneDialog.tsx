@@ -1,6 +1,6 @@
 import "./register-lane-new-catalog.ts";
 import type { ModelPick, ProjectSummary, ResultOf } from "@pap/contracts";
-import { Button, Select, TextField, useIsPhone } from "@pap/ui";
+import { Button, Select, TextField, useIsPhone, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
@@ -197,13 +197,13 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
           />
         ) : null}
         {preview === null ? (
-          <p className="text-ui text-muted" role={error === null ? undefined : "alert"}>
-            {t(error ?? "laneNew.loading")}
-          </p>
+          error === null ? (
+            <p className="text-ui text-muted">{t("laneNew.loading")}</p>
+          ) : (
+            <InlineError announce="background">{t(error)}</InlineError>
+          )
         ) : !preview.repo ? (
-          <p role="alert" className="text-ui text-attn">
-            {t("laneNew.noRepo")}
-          </p>
+          <InlineError announce="background">{t("laneNew.noRepo")}</InlineError>
         ) : (
           <>
             <TextField
@@ -273,11 +273,7 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
             ) : null}
           </>
         )}
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem)}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{t(problem)}</InlineError> : null}
       </div>
     </Dialog>
   );

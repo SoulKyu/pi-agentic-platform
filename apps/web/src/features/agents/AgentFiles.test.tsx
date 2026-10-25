@@ -4,7 +4,18 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/index.ts";
-import { alerts, button, click, field, hasButton, mount, settle, text, typeInto } from "../../testing/dom.ts";
+import {
+  alerts,
+  statuses,
+  button,
+  click,
+  field,
+  hasButton,
+  mount,
+  settle,
+  text,
+  typeInto,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { AgentFiles } from "./AgentFiles.tsx";
 
@@ -156,6 +167,6 @@ describe("the Files tab (sub-project 2, spec 7)", () => {
       throw new RpcError("internal");
     };
     const page = await show();
-    expect(alerts(page.container).join(" ")).toContain("could not be read");
+    expect(statuses(page.container).join(" ")).toContain("could not be read");
   });
 });

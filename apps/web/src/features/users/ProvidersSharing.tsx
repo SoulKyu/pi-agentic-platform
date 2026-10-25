@@ -1,5 +1,5 @@
 import type { ProviderSharingView } from "@pap/contracts";
-import { Switch } from "@pap/ui";
+import { InlineError, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { useUserAction } from "./use-users.ts";
@@ -42,11 +42,7 @@ export function ProvidersSharing({ providers, onChanged }: Props) {
           ))}
         </ul>
       )}
-      {action.problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(action.problem)}
-        </p>
-      )}
+      {action.problem === null ? null : <InlineError announce="action">{t(action.problem)}</InlineError>}
     </section>
   );
 }

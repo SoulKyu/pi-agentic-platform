@@ -14,8 +14,12 @@ describe("failure", () => {
     expect(failureText(new RpcError("invalid_cwd"))).toBe(
       "The working directory must be an absolute path to an existing folder.",
     );
-    expect(failureText(new RpcError("teapot" as never))).toBe("Something went wrong.");
-    expect(failureText(new Error("x"))).toBe("Something went wrong.");
+    expect(failureText(new RpcError("teapot" as never))).toBe(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
+    expect(failureText(new Error("x"))).toBe(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
   });
 
   it("knows which failures leave the outcome of a mutation open", () => {

@@ -48,7 +48,7 @@ const day: Tokens = {
   "text-muted": "#6b645a",
   "text-dim": "#a8a196",
   grid: "#1c19170a",
-  "focus-ring": "#ea580c",
+  "focus-ring": "#c2410c",
   agent: "#6d28d9",
   "agent-fill": "#7c3aed",
   "agent-ink": "#ffffff",

@@ -1,5 +1,5 @@
 import type { InviteView } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, InlineError } from "@pap/ui";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { whenText } from "./format.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -33,11 +33,7 @@ export function InviteRow({ invite, onRevoked }: { readonly invite: InviteView; 
           {t("users.invite.revoke")}
         </Button>
       </div>
-      {action.problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(action.problem)}
-        </p>
-      )}
+      {action.problem === null ? null : <InlineError announce="action">{t(action.problem)}</InlineError>}
     </li>
   );
 }

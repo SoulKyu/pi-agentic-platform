@@ -1,9 +1,10 @@
 import type { AvailableModelsData } from "@pap/contracts";
-import { Button, usePendingAction, usePendingFeedback } from "@pap/ui";
+import { usePendingAction, usePendingFeedback, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { StarButton } from "../models/StarButton.tsx";
 import ModelList from "../models/picker/ModelList.tsx";
 import { modelKey, toPickerModel, type PickerModel } from "../models/picker/model-picker.vm.ts";
 import type { AvailableState } from "../models/picker/use-available-models.ts";
@@ -156,17 +157,12 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
         {isCurrent ? (
           <span className="px-s2 text-ui text-muted">{t("sessionModels.menu.current")}</span>
         ) : null}
-        <Button
-          variant="ghost"
-          aria-label={t("sessionModels.menu.setDefault", { model: label })}
-          aria-pressed={isDefault}
+        <StarButton
+          label={t("sessionModels.menu.setDefault", { model: label })}
+          isDefault={isDefault}
           disabled={starring}
-          onClick={() => void makeDefault(model)}
-        >
-          <span aria-hidden="true" className={isDefault ? "text-agent" : "text-muted"}>
-            {isDefault ? "★" : "☆"}
-          </span>
-        </Button>
+          onPress={() => void makeDefault(model)}
+        />
       </>
     );
   };
@@ -195,11 +191,7 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
             {notice}
           </p>
         ) : null}
-        {error ? (
-          <p role="alert" className="text-ui text-attn">
-            {error}
-          </p>
-        ) : null}
+        {error ? <InlineError announce="action">{error}</InlineError> : null}
       </div>
     </Dialog>
   );

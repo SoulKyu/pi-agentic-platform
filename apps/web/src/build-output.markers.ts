@@ -154,6 +154,10 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
     ],
   },
   {
+    title: "the edit diff loads from the lazy @pap/ui/code entry",
+    markers: [/The edit's changes/, /Les modifications de l'édition/, /This edit changed nothing\./],
+  },
+  {
     title: "keeps the palette (cmdk) out of the initial assets",
     markers: [/cmdk-input/],
   },

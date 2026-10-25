@@ -1,5 +1,5 @@
 import type { ModelsDiscoverResult, ProviderView } from "@pap/contracts";
-import { Button, Checkbox } from "@pap/ui";
+import { Button, Checkbox, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -125,12 +125,13 @@ export function DiscoverPanel({
         </div>
       ) : null}
       {notice ? (
-        <p
-          role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {notice.text}
-        </p>
+        notice.tone === "error" ? (
+          <InlineError announce="action">{notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {notice.text}
+          </p>
+        )
       ) : null}
     </section>
   );

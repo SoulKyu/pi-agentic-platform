@@ -3,7 +3,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthStatus } from "../features/auth/auth-api.ts";
 import type { Runtime } from "../runtime/index.ts";
-import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../testing/dom.ts";
+import { button, click, hasButton, mount, settle, statuses, text, type Mounted } from "../testing/dom.ts";
 import { fakeRuntime } from "../testing/runtime-bed.ts";
 import { RootLayout } from "./RootLayout.tsx";
 
@@ -119,12 +119,16 @@ describe("RootLayout", () => {
 
   it("says the server is unreachable when the status cannot be read", async () => {
     const container = await show(new TypeError("Failed to fetch"));
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(statuses(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
   });
 
   it("says why when the server answered the status with an error code, not that it is unreachable", async () => {
     const container = await show(Object.assign(new Error("auth status unavailable"), { code: "read_only" }));
-    expect(alerts(container)).toEqual(["The database was written by a newer pap and is read-only."]);
+    expect(statuses(container)).toEqual([
+      "A newer pap wrote this database, so this one opened it read-only. Nothing was changed. Update pap to use it again.",
+    ]);
     expect(hasButton(container, "Retry")).toBe(true);
   });
 
@@ -140,7 +144,9 @@ describe("RootLayout", () => {
 
   it("offers a Retry when the status cannot be read, and goes on once it can", async () => {
     const container = await show(new TypeError("Failed to fetch"));
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(statuses(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     api.fetchAuthStatus.mockResolvedValue(status({ authenticated: false, username: null }));
     await click(button(container, "Retry"));
     await settle();
@@ -152,7 +158,9 @@ describe("RootLayout", () => {
     const container = await show(new TypeError("Failed to fetch"));
     await click(button(container, "Retry"));
     await settle();
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(statuses(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     expect(api.fetchAuthStatus).toHaveBeenCalledTimes(2);
     expect(hasButton(container, "Retry")).toBe(true);
   });

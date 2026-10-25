@@ -94,7 +94,11 @@ describe("notices in the session screen", () => {
     ];
     const container = await open({ notices });
     expect(lines(container)).toEqual(["Disk is nearly full", "Boom"]);
-    expect(container.querySelector('[data-notice][role="alert"]')?.textContent).toBe("Boom");
+    // a server-pushed notice is a background event: a polite status with the warning icon, never an alert
+    const boom = container.querySelector('[data-notice][role="status"]');
+    expect(boom?.textContent).toBe("Boom");
+    expect(boom?.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector('[data-notice][role="alert"]')).toBeNull();
     expect(toasts()).toEqual([]);
     const dismiss = container.querySelectorAll<HTMLElement>('[data-notice] [aria-label="Dismiss"]');
     await click(dismiss[1] as HTMLElement);

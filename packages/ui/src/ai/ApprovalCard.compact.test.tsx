@@ -231,12 +231,12 @@ describe("ApprovalCard, compact form", () => {
     await page.unmount();
   });
 
-  it("is padded by the 8 px step, not the 12 px one, and its buttons are the 24 px size", async () => {
+  it("is padded by the 8 px step, not the 12 px one, and its buttons are the md size", async () => {
     const page = await mount(card("1 line\nls"));
     const section = page.container.querySelector('[role="alertdialog"]') as HTMLElement;
     expect(section.className).toContain("p-s2");
     expect(section.className).not.toContain("p-s3");
-    expect(button(page.container, "Deny").className).toContain("h-6");
+    expect(button(page.container, "Deny").className).toContain("h-control");
     await page.unmount();
   });
 

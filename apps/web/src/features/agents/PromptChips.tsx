@@ -1,5 +1,5 @@
 import "./register-space-catalog.ts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -69,11 +69,7 @@ export function PromptChips({
           </Button>
         ))}
       </div>
-      {failed ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("agentCompose.chips.failed")}
-        </p>
-      ) : null}
+      {failed ? <InlineError announce="action">{t("agentCompose.chips.failed")}</InlineError> : null}
     </div>
   );
 }

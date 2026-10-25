@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { TaskView } from "@pap/contracts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, InlineError, usePendingAction } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -102,9 +102,9 @@ function PendingRow({ task, now }: { readonly task: TaskView; readonly now: numb
         {t("agentCompose.strip.cancel")}
       </Button>
       {problem === null ? null : (
-        <p role="alert" className="w-full text-ui text-attn">
-          {problem}
-        </p>
+        <div className="w-full">
+          <InlineError announce="action">{problem}</InlineError>
+        </div>
       )}
     </li>
   );

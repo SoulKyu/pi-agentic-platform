@@ -27,6 +27,36 @@ export const sectionsFor = (role: Role): readonly SettingsSection[] =>
     ? SETTINGS_SECTIONS
     : SETTINGS_SECTIONS.filter((section) => !OWNER_SECTIONS.includes(section));
 
+export type SettingsGroupId = "you" | "work" | "install";
+
+/** The three groups of the Settings nav (D4): what is yours, how the work runs, what this pap installs. */
+export const SETTINGS_GROUPS: readonly {
+  readonly id: SettingsGroupId;
+  readonly sections: readonly SettingsSection[];
+}[] = [
+  { id: "you", sections: ["appearance", "shortcuts", "language", "notifications", "account"] },
+  { id: "work", sections: ["agents", "approvals", "automation", "github"] },
+  { id: "install", sections: ["models", "mcp", "skills", "users", "health"] },
+];
+
+/** `split` sections draw a list beside a detail (their forms cap themselves); every other body is one column. */
+export const SETTINGS_LAYOUT: Record<SettingsSection, "column" | "split"> = {
+  appearance: "split",
+  shortcuts: "column",
+  language: "column",
+  approvals: "column",
+  models: "split",
+  mcp: "split",
+  skills: "column",
+  automation: "column",
+  health: "column",
+  github: "column",
+  agents: "column",
+  notifications: "column",
+  account: "column",
+  users: "column",
+};
+
 /** A deep link to a section the role is not shown opens Appearance. */
 export const sectionFor = (role: Role, section: SettingsSection): SettingsSection =>
   sectionsFor(role).includes(section) ? section : "appearance";

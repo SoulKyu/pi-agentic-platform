@@ -148,7 +148,7 @@ describe("server texts by code (R128)", () => {
     const override = { text: "x", code: "extension_override" };
     expect(codedServerText(override, "en")).not.toMatch(/fail/i);
     expect(codedServerText(override, "fr")).toBe(
-      "Une extension a enregistré un outil que pap fournit lui-même : l'outil de pap est celui utilisé.",
+      "Une extension a enregistré un outil que pap fournit lui-même\u202f: l'outil de pap est celui utilisé.",
     );
   });
 

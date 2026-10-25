@@ -99,7 +99,7 @@ describe("PaneHost with a split", () => {
       ratio: 0.4,
     });
     await click(
-      page.container.querySelector('[data-pane-role="split"] [aria-label="Close split"]') as HTMLElement,
+      page.container.querySelector('[data-pane-role="split"] [aria-label="Close the split"]') as HTMLElement,
     );
     expect(useWorkspaceStore.getState().ws.tabs[0]?.split).toBeNull();
     await page.unmount();

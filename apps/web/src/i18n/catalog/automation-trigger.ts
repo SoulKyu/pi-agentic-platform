@@ -1,6 +1,6 @@
 // Lazy: only the trigger editor shows these (`i18n/register-automation-trigger.ts`, imported by the editor's entry file).
 export const automationTriggerEn = {
-  "automation.editor.loading": "Loading the trigger",
+  "automation.editor.loading": "Loading the trigger…",
   "automation.editor.loadFailed": "This trigger could not be loaded.",
   "automation.editor.unreadable":
     "The saved settings of this trigger can no longer be read, so it cannot be edited here.",
@@ -126,7 +126,7 @@ export const automationTriggerEn = {
   "automation.dry.clean": "starts clean",
   "automation.dry.editsUnasked": "edits in this folder run unasked",
   "automation.dry.cwd": "Folder",
-  "automation.dry.trusted": "{cwd} (trusted ✓)",
+  "automation.dry.trusted": "{cwd} (trusted)",
   "automation.dry.untrusted": "{cwd} (not trusted)",
   "automation.dry.undecided": "{cwd} (no trust decision)",
   "automation.dry.nothingToTrust": "{cwd} (nothing to trust)",
@@ -149,7 +149,7 @@ export const automationTriggerEn = {
   "automation.journal.task": "Task",
   "automation.journal.duration": "Duration",
   "automation.journal.cost": "Cost",
-  "automation.journal.empty": "No fires yet",
+  "automation.journal.empty": "No fires yet. Each fire or skip of this trigger is logged here.",
   "automation.journal.more": "Load more",
   "automation.journal.failed": "The journal could not be loaded.",
   "automation.journal.open": "Open",
@@ -177,7 +177,7 @@ export const automationTriggerEn = {
 } as const;
 
 export const automationTriggerFr: { readonly [K in keyof typeof automationTriggerEn]: string } = {
-  "automation.editor.loading": "Chargement du déclencheur",
+  "automation.editor.loading": "Chargement du déclencheur…",
   "automation.editor.loadFailed": "Ce déclencheur n'a pas pu être chargé.",
   "automation.editor.unreadable":
     "Les réglages enregistrés de ce déclencheur ne sont plus lisibles : il ne peut pas être modifié ici.",
@@ -305,7 +305,7 @@ export const automationTriggerFr: { readonly [K in keyof typeof automationTrigge
   "automation.dry.clean": "démarre propre",
   "automation.dry.editsUnasked": "les modifications de ce dossier s'exécutent sans demander",
   "automation.dry.cwd": "Dossier",
-  "automation.dry.trusted": "{cwd} (confiance ✓)",
+  "automation.dry.trusted": "{cwd} (dossier de confiance)",
   "automation.dry.untrusted": "{cwd} (sans confiance)",
   "automation.dry.undecided": "{cwd} (aucune décision de confiance)",
   "automation.dry.nothingToTrust": "{cwd} (rien à approuver)",
@@ -328,7 +328,7 @@ export const automationTriggerFr: { readonly [K in keyof typeof automationTrigge
   "automation.journal.task": "Tâche",
   "automation.journal.duration": "Durée",
   "automation.journal.cost": "Coût",
-  "automation.journal.empty": "Aucun tir pour l'instant",
+  "automation.journal.empty": "Aucun tir pour l'instant. Chaque tir ou saut de ce déclencheur est noté ici.",
   "automation.journal.more": "Charger plus",
   "automation.journal.failed": "Le journal n'a pas pu être chargé.",
   "automation.journal.open": "Ouvrir",

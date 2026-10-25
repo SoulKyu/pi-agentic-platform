@@ -1,4 +1,4 @@
-/** The lane's commit bar and pull request panel (task 20): a lazy catalog, registered by `features/lanes/register-lane-commit-catalog.ts`. */
+/** The lane's commit bar and pull request panel (task 20): a lazy catalog, registered by features/lanes/register-lane-commit-catalog.ts. */
 export const laneCommitEn = {
   "laneCommit.region": "Commit and push",
   "laneCommit.message": "Commit message",
@@ -65,7 +65,7 @@ export const laneCommitEn = {
   "laneCommit.pr.refused.unsupported_remote": "pap cannot open a pull request on this remote.",
   "laneCommit.pr.refused.not_pushed": "The branch is not on the remote yet.",
   "laneCommit.pr.refused.failed": "The pull request could not be created: see the daemon log",
-  "laneCommit.pr.hint.gh": "Run `gh auth login` in a terminal",
+  "laneCommit.pr.hint.gh": "Run gh auth login in a terminal",
   "laneCommit.pr.hint.unsupported": "GitLab and Gitea are not supported yet",
   "laneCommit.pr.unknown":
     "The forge did not answer in time. The pull request may exist: check before creating another.",
@@ -149,7 +149,7 @@ export const laneCommitFr: { readonly [K in keyof typeof laneCommitEn]: string }
   "laneCommit.pr.refused.unsupported_remote": "pap ne peut pas ouvrir de pull request sur ce dépôt distant.",
   "laneCommit.pr.refused.not_pushed": "La branche n'est pas encore sur le dépôt distant.",
   "laneCommit.pr.refused.failed": "La pull request n'a pas pu être créée : voir le journal du daemon",
-  "laneCommit.pr.hint.gh": "Lancez `gh auth login` dans un terminal",
+  "laneCommit.pr.hint.gh": "Lancez gh auth login dans un terminal",
   "laneCommit.pr.hint.unsupported": "GitLab et Gitea ne sont pas encore pris en charge",
   "laneCommit.pr.unknown":
     "La forge n'a pas répondu à temps. La pull request existe peut-être : vérifiez avant d'en créer une autre.",

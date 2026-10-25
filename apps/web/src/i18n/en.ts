@@ -48,27 +48,34 @@ export const en = {
   "connection.retryIn": "Retrying in {seconds} s",
   "connection.retry": "Retry",
   "connection.reconnecting": "Reconnecting…",
-  "error.bad_request": "The request is invalid.",
+  "error.bad_request":
+    "pap refused this request: a value is missing or out of range. Nothing was changed. Check the fields and try again.",
   "error.unauthenticated": "Sign in first.",
   "error.forbidden": "You do not have permission for this action.",
-  "error.not_found": "Not found.",
-  "error.conflict": "This already exists or changed meanwhile.",
+  "error.not_found":
+    "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+  "error.conflict":
+    "This changed in the meantime, or it already exists. Your version was not saved. Reload, then make your change again.",
   "error.rate_limited": "Too many attempts. Try again later.",
   "error.payload_too_large": "The message is too large.",
-  "error.capacity": "The server is at capacity. Try again later.",
+  "error.capacity":
+    "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
   "error.capacityWorkers": "{used} / {max} workers running.",
-  "error.worker_failed": "The session process failed.",
+  "error.worker_failed": "The session process stopped. The transcript is intact. Send again to restart it.",
   "error.timeout":
     "The session did not answer in time. The action may still have gone through: check before trying again.",
   "error.prompt_rejected": "The session could not start this prompt. Check the model and provider settings.",
   "error.invalid_cwd": "The working directory must be an absolute path to an existing folder.",
   "error.step_up_required": "Confirm your password to continue.",
-  "error.read_only": "The database was written by a newer pap and is read-only.",
+  "error.read_only":
+    "A newer pap wrote this database, so this one opened it read-only. Nothing was changed. Update pap to use it again.",
   "error.unknown_method": "This version of the page does not match the server. Reload it.",
-  "error.internal": "Something went wrong.",
+  "error.internal":
+    "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
   "error.connection_lost":
     "The connection dropped before the answer arrived. The action may still have gone through: check before trying again.",
-  "error.offline": "pap is unreachable right now.",
+  "error.offline":
+    "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
   "error.passkey_cancelled": "The passkey prompt was cancelled.",
   "error.passkey_failed": "The passkey could not be used. Try again, or use your password.",
   "error.password_incorrect": "Password incorrect.",

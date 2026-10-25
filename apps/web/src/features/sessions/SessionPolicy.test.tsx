@@ -215,13 +215,17 @@ describe("SessionPolicy asks", () => {
     };
     const page = await show(policy({ tainted: true }));
     await pick("Read only");
-    expect(alerts(page.container)).toEqual(["Not found."]);
+    expect(alerts(page.container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
     expect(text(page.container)).not.toContain("Approval mode saved.");
     await pick("Clear external content");
     await click(button(page.container, "Clear"));
     await settle();
     expect(alerts(page.container)).toHaveLength(1);
-    expect(alerts(page.container)[0]).not.toBe("Not found.");
+    expect(alerts(page.container)[0]).not.toBe(
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    );
     expect(text(page.container)).not.toContain("External content cleared.");
     expect(bed.called("policy.clearTaint")).toHaveLength(1);
   });
@@ -253,7 +257,7 @@ describe("SessionPolicy links", () => {
     const page = await show(policy({ tainted: true }));
     expect(text(page.container)).toContain("Contenu externe");
     expect(chip().getAttribute("aria-label")).toBe(
-      "Mode d'approbation : Modifications acceptées (votre mode par défaut)",
+      "Mode d'approbation\u202f: Modifications acceptées (votre mode par défaut)",
     );
     await openMenu(chip());
     expect(menuLabels()).toContain("Gérer les approbations");

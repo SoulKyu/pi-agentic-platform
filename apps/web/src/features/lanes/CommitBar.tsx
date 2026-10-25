@@ -1,6 +1,6 @@
 import "./register-lane-commit-catalog.ts";
 import type { LaneView } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, TextField, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
@@ -74,15 +74,11 @@ function Bar({ lane, worktree }: { readonly lane: LaneView; readonly worktree: s
           </div>
         </div>
       ) : null}
-      {bar.problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {t(bar.problem)}
-        </p>
-      ) : null}
+      {bar.problem !== null ? <InlineError announce="action">{t(bar.problem)}</InlineError> : null}
       {bar.tooMany ? (
-        <p role="alert" className="text-ui text-attn">
+        <InlineError announce="action">
           {t("laneCommit.files.tooMany", { max: MAX_COMMIT_PATHS })}
-        </p>
+        </InlineError>
       ) : null}
       {bar.push.whyNot !== null ? <p className="text-ui text-muted">{t(bar.push.whyNot)}</p> : null}
       {bar.note !== null ? (

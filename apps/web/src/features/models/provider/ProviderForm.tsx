@@ -1,5 +1,5 @@
 import "../../../i18n/register-settings-providers.ts";
-import { Button, useIsPhone } from "@pap/ui";
+import { Button, InlineError, useIsPhone } from "@pap/ui";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { stripHidden } from "../../../lib/untrusted-text.ts";
@@ -110,11 +110,7 @@ export function ProviderForm(props: ProviderFormProps) {
           onStored={() => props.onKeyStored(offer)}
           onDone={form.finishOffer}
         />
-        {form.saveFailure ? (
-          <p role="alert" className="text-ui text-attn">
-            {codeText(form.saveFailure)}
-          </p>
-        ) : null}
+        {form.saveFailure ? <InlineError announce="action">{codeText(form.saveFailure)}</InlineError> : null}
       </>
     );
   else if (phase.kind === "loading")
@@ -126,9 +122,7 @@ export function ProviderForm(props: ProviderFormProps) {
   else if (phase.kind === "failed")
     body = (
       <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {codeText(phase.code)}
-        </p>
+        <InlineError announce="background">{codeText(phase.code)}</InlineError>
         <div className="flex gap-s2">
           {phase.code === "unknown_method" ? (
             <Button variant="primary" onClick={() => window.location.reload()}>
@@ -177,35 +171,23 @@ export function ProviderForm(props: ProviderFormProps) {
         />
         {form.advanced ? <p className="text-ui text-muted">{t("settingsProviders.advanced.note")}</p> : null}
         {form.issues.file ? (
-          <p role="alert" className="text-ui text-attn">
-            {t("settingsProviders.notEditable.needs_raw_editor")}
-          </p>
+          <InlineError announce="action">{t("settingsProviders.notEditable.needs_raw_editor")}</InlineError>
         ) : null}
         {form.issues.providers ? (
-          <p role="alert" className="text-ui text-attn">
-            {t("settingsProviders.issue.providers")}
-          </p>
+          <InlineError announce="action">{t("settingsProviders.issue.providers")}</InlineError>
         ) : null}
         {form.issues.other ? (
-          <p role="alert" className="text-ui text-attn">
-            {t("settingsProviders.issue.other")}
-          </p>
+          <InlineError announce="action">{t("settingsProviders.issue.other")}</InlineError>
         ) : null}
         {form.conflict ? (
           <div className="flex flex-col items-start gap-s2">
-            <p role="alert" className="text-ui text-attn">
-              {t("settingsProviders.conflict")}
-            </p>
+            <InlineError announce="action">{t("settingsProviders.conflict")}</InlineError>
             {form.fileVersion !== null ? (
               <Button onClick={form.showFileVersion}>{t("settingsProviders.conflict.show")}</Button>
             ) : null}
           </div>
         ) : null}
-        {form.saveFailure ? (
-          <p role="alert" className="text-ui text-attn">
-            {codeText(form.saveFailure)}
-          </p>
-        ) : null}
+        {form.saveFailure ? <InlineError announce="action">{codeText(form.saveFailure)}</InlineError> : null}
         {confirming ? (
           <DiscardConfirm onDiscard={props.onClose} onKeep={() => setConfirming(false)} />
         ) : (

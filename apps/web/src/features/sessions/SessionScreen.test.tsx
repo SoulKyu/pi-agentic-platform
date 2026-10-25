@@ -113,12 +113,13 @@ describe("SessionScreen feed", () => {
     );
   });
 
-  it("shows why a subscription was refused, without subscribing again", async () => {
+  it("shows the missing-session screen when the subscription is refused as not found, without subscribing again", async () => {
     bed.handlers["subscribe.session"] = () => {
       throw new RpcError("not_found");
     };
     const container = await show();
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(container.querySelector("[data-session-missing]")).not.toBeNull();
+    expect(alerts(container)).toEqual([]);
     expect(bed.called("subscribe.session")).toHaveLength(1);
   });
 
@@ -181,7 +182,7 @@ describe("SessionScreen unreadable snapshot", () => {
   it("says so instead of staying blank (M2-RT-06)", async () => {
     const container = await show();
     await emit({ kind: "snapshot", rows: 5 });
-    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
     );
   });
@@ -195,7 +196,7 @@ describe("SessionScreen approvals", () => {
     await emit(snapshot("running", [], [approval("12 characters, 1 line\nbash: echo hello")]));
     expect(card(container).getAttribute("aria-label")).toBe("Approval exec");
     // The separator is an aria-hidden span: the heading's text is "Approval·exec", never "Approval · exec".
-    expect(container.querySelector("h3")?.textContent).toBe("Approval·exec");
+    expect(container.querySelector("h2")?.textContent).toBe("Approval·exec");
     expect(card(container).querySelector("[data-approval-header]")?.textContent).toBe(
       "12 characters, 1 line",
     );
@@ -250,7 +251,9 @@ describe("SessionScreen approvals", () => {
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
     await click(button(container, "Yes"));
     await settle();
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(alerts(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     expect(button(container, "Yes").disabled).toBe(false);
     expect(button(container, "No").disabled).toBe(false);
     await click(button(container, "Yes"));
@@ -322,6 +325,8 @@ describe("SessionScreen approvals", () => {
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
     await click(button(container, "Yes"));
     await settle();
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(alerts(container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
   });
 });

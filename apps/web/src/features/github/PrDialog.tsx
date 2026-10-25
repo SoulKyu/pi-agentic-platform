@@ -1,5 +1,5 @@
 import "../../i18n/register-github.ts";
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
@@ -92,9 +92,7 @@ export function PrDialog({ projectId, onClose }: Props) {
               onChange={setBody}
             />
             {action.problem === null ? null : (
-              <p role="status" className="text-ui text-err">
-                {t(action.problem)}
-              </p>
+              <InlineError announce="action">{t(action.problem)}</InlineError>
             )}
           </>
         ) : (

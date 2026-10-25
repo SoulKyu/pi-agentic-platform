@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import { AGENT_VM_LIMITS, SystemPackage } from "@pap/contracts";
-import { Button, Checkbox, Chip, TextField } from "@pap/ui";
+import { Button, Checkbox, Chip, IconButton, IconClose, InlineError, TextField } from "@pap/ui";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -126,13 +126,12 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
             {systemPackages.map((name) => (
               <li key={name} className="flex items-center gap-s1">
                 <Chip tone="mut" label={name} />
-                <Button
+                <IconButton
                   size="sm"
-                  aria-label={t("agentVm.system.remove", { name })}
+                  icon={IconClose}
+                  label={t("agentVm.system.remove", { name })}
                   onClick={() => set({ systemPackages: systemPackages.filter((one) => one !== name) })}
-                >
-                  ×
-                </Button>
+                />
               </li>
             ))}
           </ul>
@@ -149,9 +148,7 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
         {pi.state === "loading" ? <p className="text-ui text-muted">{t("agentVm.pi.loading")}</p> : null}
         {pi.state === "failed" ? (
           <div className="flex items-center gap-s2">
-            <p role="alert" className="text-ui text-attn">
-              {t("agentVm.pi.failed")}
-            </p>
+            <InlineError announce="background">{t("agentVm.pi.failed")}</InlineError>
             <Button onClick={pi.retry}>{t("agentVm.pi.retry")}</Button>
           </div>
         ) : null}

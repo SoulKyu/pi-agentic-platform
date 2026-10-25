@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
@@ -72,5 +73,43 @@ describe("the streaming row (M4R112)", () => {
     expect(text(page.container)).toContain("All green.");
     expect(page.container.querySelectorAll(selector)).toHaveLength(1);
     expect(page.container.querySelector(selector)).toBe(streaming);
+  });
+
+  it("keeps the Reasoning block the person opened when the stream ends (A3 removed the auto close)", async () => {
+    useSessionStore.getState().apply("sess-1", sessionSnapshot({ status: "running" }));
+    page = await mount(<Live />);
+    await settle();
+    await emit({
+      kind: "pi",
+      event: { type: "message_start", message: { role: "assistant", timestamp: 9 } },
+    });
+    await emit({
+      kind: "pi",
+      event: {
+        type: "message_update",
+        assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "Weighing options" },
+      },
+    });
+    const trigger = page.container.querySelector('[data-slot="reasoning"] button') as HTMLElement;
+    await act(async () => trigger.click());
+    const block = page.container.querySelector('[data-slot="reasoning"]');
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    await emit({
+      kind: "pi",
+      event: {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "thinking", thinking: "Weighing options" },
+            { type: "text", text: "Done." },
+          ],
+          timestamp: 9,
+        },
+      },
+    });
+    expect(text(page.container)).toContain("Done.");
+    expect(page.container.querySelector('[data-slot="reasoning"]')).toBe(block);
+    expect(block?.querySelector("button")?.getAttribute("aria-expanded")).toBe("true");
   });
 });

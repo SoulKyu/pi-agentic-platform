@@ -1,5 +1,5 @@
 import type { FireView } from "@pap/contracts";
-import { Button, Chip, Segmented } from "@pap/ui";
+import { Button, Chip, Heading, InlineError, Segmented } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -79,9 +79,12 @@ export function FireJournal({ triggerId, refreshKey, onOpenSession }: FireJourna
   return (
     <section data-slot="fire-journal" className="flex flex-col gap-s2 border-t border-border">
       <div className="flex flex-wrap items-center gap-s3 px-s3 pt-s2">
-        <h3 className="label-hud text-agent">{t("automation.journal.title")}</h3>
+        <Heading level={3} variant="card" tone="agent">
+          {t("automation.journal.title")}
+        </Heading>
         <Segmented<JournalFilter>
           label={t("automation.journal.filter")}
+          labelHidden
           value={filter}
           options={[
             { value: "all", label: t("automation.journal.all") },
@@ -92,9 +95,9 @@ export function FireJournal({ triggerId, refreshKey, onOpenSession }: FireJourna
         />
       </div>
       {loaded.kind === "failed" ? (
-        <p role="alert" className="px-s3 text-ui text-err">
-          {t("automation.journal.failed")}
-        </p>
+        <div className="px-s3">
+          <InlineError announce="background">{t("automation.journal.failed")}</InlineError>
+        </div>
       ) : null}
       {loaded.kind === "ready" && loaded.entries.length === 0 ? (
         <p className="px-s3 text-ui text-muted">{t("automation.journal.empty")}</p>

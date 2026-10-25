@@ -1,3 +1,4 @@
+import { Heading } from "@pap/ui";
 import { useId, type ReactNode } from "react";
 
 /** A titled group of controls that says which scope it writes to. */
@@ -14,9 +15,9 @@ export function AppearanceSection({
   return (
     <section aria-labelledby={id} className="flex flex-col gap-s3">
       <header className="flex items-baseline justify-between gap-s2 border-b border-border pb-s1">
-        <h3 id={id} className="label-hud text-fg">
+        <Heading level={2} variant="section" id={id}>
           {title}
-        </h3>
+        </Heading>
         <span className="text-ui text-muted">{scope}</span>
       </header>
       {children}

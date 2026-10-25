@@ -1,6 +1,6 @@
 import type { MessageKey } from "../../../i18n/index.ts";
 import { useT } from "../../../i18n/index.ts";
-import { Button } from "@pap/ui";
+import { Button, Heading } from "@pap/ui";
 import { PRESETS, type Preset, type PresetKey } from "./presets.ts";
 
 const LABEL: Record<PresetKey, MessageKey> = {
@@ -19,7 +19,9 @@ export function PresetCards({ onPick }: { onPick(preset: Preset): void }) {
   const t = useT();
   return (
     <section aria-label={t("settingsProviders.presets.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsProviders.presets.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.presets.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("settingsProviders.presets.hint")}</p>
       <div data-slot="preset-cards" className="flex flex-wrap gap-s2">
         {PRESETS.map((preset) => (

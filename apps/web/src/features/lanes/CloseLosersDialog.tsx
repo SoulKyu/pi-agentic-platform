@@ -1,6 +1,6 @@
 import "./register-compare-catalog.ts";
 import type { ResultOf } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Fragment, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
@@ -125,9 +125,9 @@ export function CloseLosersDialog({ fanoutId, winner, losers, onClose, now }: Pr
             ))}
           </ul>
         ) : (
-          <div role="alert" className="flex flex-col gap-s2 text-ui text-attn">
-            <p>{t("compare.close.stays")}</p>
-            <ul className="flex flex-col gap-s1">
+          <div className="flex flex-col gap-s2">
+            <InlineError announce="action">{t("compare.close.stays")}</InlineError>
+            <ul className="flex flex-col gap-s1 text-ui text-fg">
               {answer.refused.map((one) => {
                 const loser = byId.get(one.laneId);
                 return (
@@ -144,11 +144,7 @@ export function CloseLosersDialog({ fanoutId, winner, losers, onClose, now }: Pr
         {asking ? (
           <TaintedConfirm busy={busy} onConfirm={() => send(true)} onCancel={() => setAsking(false)} />
         ) : null}
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem)}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{t(problem)}</InlineError> : null}
       </div>
     </Dialog>
   );

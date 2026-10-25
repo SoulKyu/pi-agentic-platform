@@ -1,4 +1,4 @@
-import { Button, Checkbox } from "@pap/ui";
+import { Button, Checkbox, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { stripHidden } from "../../../lib/untrusted-text.ts";
@@ -109,16 +109,8 @@ export function RemoveProvider({
           {t("settingsProviders.remove.button")}
         </Button>
       )}
-      {notice ? (
-        <p role="alert" className="text-ui text-attn">
-          {notice}
-        </p>
-      ) : null}
-      {failed ? (
-        <p role="alert" className="text-ui text-attn">
-          {codeText(failed)}
-        </p>
-      ) : null}
+      {notice ? <InlineError announce="action">{notice}</InlineError> : null}
+      {failed ? <InlineError announce="action">{codeText(failed)}</InlineError> : null}
     </div>
   );
 }

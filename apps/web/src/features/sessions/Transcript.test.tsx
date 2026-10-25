@@ -5,7 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import {
+  alerts,
+  button,
+  click,
+  hasButton,
+  mount,
+  settle,
+  statuses,
+  text,
+  type Mounted,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { Transcript } from "./Transcript.tsx";
@@ -152,11 +162,13 @@ describe("Transcript older history", () => {
     intersect(true);
     await settle();
     expect(bed.called("sessions.history")).toHaveLength(1);
-    expect(alerts(container)).toContain("Something went wrong.");
+    expect(statuses(container)).toContain(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
     await click(button(container, "Load older messages"));
     await settle();
     expect(bed.called("sessions.history")).toHaveLength(2);
-    expect(alerts(container)).toEqual([]);
+    expect(statuses(container)).toEqual([]);
   });
 
   it("drops a page that lands after the view moved to another branch (M2-RT-12)", async () => {
@@ -179,8 +191,23 @@ describe("Transcript older history", () => {
     const container = await show({ rows: [row("e5", "newest")], history: cursor("e5") });
     await click(button(container, "Load older messages"));
     await settle();
-    expect(alerts(container)).toContain("Something went wrong.");
+    expect(statuses(container)).toContain(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
     expect(hasButton(container, "Load older messages")).toBe(true);
+  });
+
+  it("a failed load of older messages is a red polite status", async () => {
+    bed.handlers["sessions.history"] = () => {
+      throw new RpcError("internal");
+    };
+    const container = await show({ rows: [row("e5", "newest")], history: cursor("e5") });
+    await click(button(container, "Load older messages"));
+    await settle();
+    const failure = container.querySelector('[data-slot="inline-error"]');
+    expect(failure?.getAttribute("role")).toBe("status");
+    expect(failure?.className).toContain("text-err");
+    expect(alerts(container)).toEqual([]);
   });
 
   it("disconnects the sentinel and minimap observers when the transcript goes away", async () => {
@@ -201,7 +228,9 @@ describe("Transcript older history", () => {
     const container = await show({ rows: [row("e5", "newest")], history: cursor("e5") });
     await click(button(container, "Load older messages"));
     await settle();
-    expect(alerts(container)).toContain("Something went wrong.");
+    expect(statuses(container)).toContain(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
     expect(hasButton(container, "Load older messages")).toBe(true);
   });
 

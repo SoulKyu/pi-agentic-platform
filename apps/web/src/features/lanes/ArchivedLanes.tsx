@@ -1,6 +1,6 @@
 import "./register-lanes-catalog.ts";
 import type { LaneView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { useArchivedLanes } from "./archived.vm.ts";
 
@@ -59,9 +59,7 @@ export default function ArchivedLanes({ count }: { readonly count: number; onPic
       )}
       {list.failed ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {t("lanes.archived.failed")}
-          </p>
+          <InlineError announce="background">{t("lanes.archived.failed")}</InlineError>
           <Button onClick={list.more}>{t("lanes.archived.retry")}</Button>
         </div>
       ) : list.hasMore && list.lanes.length > 0 ? (

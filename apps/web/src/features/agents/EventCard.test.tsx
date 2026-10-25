@@ -134,7 +134,7 @@ describe("EventCard untrusted text (RT-18)", () => {
   it("labels an isolated run's summary UNTRUSTED with its source and strips hidden characters", async () => {
     const { page } = await show(isolated("safe\u202etxet\u200b text"));
     const words = text(page.container);
-    expect(words).toContain("UNTRUSTED · webhook");
+    expect(words).toContain("Untrusted · webhook");
     expect(words).toContain("safetxet text");
     expect(words).not.toMatch(/[\u202e\u200b]/);
   });
@@ -222,7 +222,7 @@ describe("clipped text of a run", () => {
     const long = { ...event, data: { ...event.data, source: "s".repeat(600) } } as AgentEventView;
     const { page } = await show(long);
     const label = page.container.querySelector("figcaption")?.textContent ?? "";
-    expect(label).toBe(`UNTRUSTED \u00b7 ${"s".repeat(499)}\u2026`);
+    expect(label).toBe(`Untrusted \u00b7 ${"s".repeat(499)}\u2026`);
   });
 });
 

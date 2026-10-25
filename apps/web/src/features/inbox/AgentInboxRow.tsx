@@ -8,6 +8,7 @@ import {
   cn,
   FOCUS_RING,
   usePendingAction,
+  InlineError,
 } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
@@ -96,11 +97,7 @@ function Buttons({
           </>
         )}
       </div>
-      {answer.problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {answer.problem}
-        </p>
-      ) : null}
+      {answer.problem !== null ? <InlineError announce="action">{answer.problem}</InlineError> : null}
     </div>
   );
 }

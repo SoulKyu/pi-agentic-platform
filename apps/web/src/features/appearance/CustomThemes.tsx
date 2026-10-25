@@ -2,6 +2,7 @@ import type { CustomTheme } from "@pap/contracts";
 import {
   Button,
   Chip,
+  Heading,
   IconAppearance,
   IconButton,
   IconClose,
@@ -159,7 +160,9 @@ export function CustomThemes() {
       data-slot="theme-editor-idle"
       className="flex flex-col gap-s2"
     >
-      <h3 className="label-hud text-muted">{t("settings.theme.editorTitle")}</h3>
+      <Heading level={3} variant="group">
+        {t("settings.theme.editorTitle")}
+      </Heading>
       <p className="text-ui text-muted">{t("settings.theme.columnHint")}</p>
     </section>
   );
@@ -181,7 +184,9 @@ export function CustomThemes() {
         pressed.current = button instanceof HTMLElement ? button : null;
       }}
     >
-      <h4 className="label-hud text-muted">{t("settings.theme.title")}</h4>
+      <Heading level={3} variant="group">
+        {t("settings.theme.title")}
+      </Heading>
       {themes.length === 0 ? <p className="text-ui text-muted">{t("settings.theme.empty")}</p> : null}
       <ul className="flex flex-col">
         {themes.map((theme) => (

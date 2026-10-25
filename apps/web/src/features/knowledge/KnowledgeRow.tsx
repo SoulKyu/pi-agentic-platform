@@ -1,6 +1,6 @@
 import "../../i18n/register-knowledge.ts";
 import "../../i18n/register-boxes.ts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { t as translate, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -75,7 +75,7 @@ export function KnowledgeRow({ projectId }: { readonly projectId: string }) {
     return (
       <div data-knowledge-row="" className="flex flex-wrap items-center gap-s3 text-ui text-muted">
         <p>{t("boxes.stopped.purpose")}</p>
-        <BoxStart projectId={projectId} phase={phase} size="sm" />
+        <BoxStart projectId={projectId} phase={phase} size="sm" variant="secondary" />
       </div>
     );
   }
@@ -106,16 +106,16 @@ export function KnowledgeRow({ projectId }: { readonly projectId: string }) {
       ) : (
         <>
           <p>{withFolder(t("knowledge.row.absent", { folder: MARK }))}</p>
-          <Button variant="primary" disabled={enable.busy} onClick={onEnable}>
+          <Button variant="secondary" disabled={enable.busy} onClick={onEnable}>
             {t("knowledge.row.enable")}
           </Button>
         </>
       )}
       {origin?.lane ? <p className="w-full">{t("knowledge.row.lane")}</p> : null}
       {enable.error === null ? null : (
-        <p role="alert" className="w-full text-attn">
-          {enable.error}
-        </p>
+        <div className="w-full">
+          <InlineError announce="action">{enable.error}</InlineError>
+        </div>
       )}
     </div>
   );

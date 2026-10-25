@@ -1,4 +1,4 @@
-import { AuthorGroup, Button, type ToolDetail } from "@pap/ui";
+import { AuthorGroup, Button, type ToolDetail, InlineError } from "@pap/ui";
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -184,11 +184,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
         >
           {canLoad ? (
             <li ref={sentinel} className="flex flex-col items-center gap-s1">
-              {older.error ? (
-                <p role="alert" className="text-ui text-attn">
-                  {older.error}
-                </p>
-              ) : null}
+              {older.error ? <InlineError announce="background">{older.error}</InlineError> : null}
               <Button disabled={older.loading} onClick={() => void older.load()}>
                 {t("sessions.transcript.loadOlder")}
               </Button>
@@ -234,6 +230,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
                       >
                         <p className="label-hud">{t("session.failure")}</p>
                         <p className="mt-s1 whitespace-pre-wrap break-words">{group.item.text}</p>
+                        <p className="mt-s1 text-muted">{t("session.failure.next")}</p>
                       </div>
                     ) : group.item.kind === "message" ? (
                       <MessageRow item={group.item} actions={actionsFor(group.item)} />
@@ -251,11 +248,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
         </ol>
         <Minimap scope={scope} items={shown} view={view} onLoadOlder={() => void older.load()} />
       </div>
-      {branches.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {branches.error}
-        </p>
-      ) : null}
+      {branches.error ? <InlineError announce="background">{branches.error}</InlineError> : null}
       {matchNotice ? (
         <p role="status" className="text-ui text-muted">
           {t(matchNotice)}

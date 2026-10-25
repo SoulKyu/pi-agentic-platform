@@ -8,13 +8,13 @@ import { safeHref } from "./safe-url.ts";
 export const MAX_MARKDOWN_CHARS = 100_000;
 
 const BODY_CLASSES = "flex min-w-0 flex-col gap-s2 whitespace-normal break-words text-chat";
-const PLAIN_CLASSES = "whitespace-pre-wrap break-words text-chat";
+const PLAIN_CLASSES = "max-w-measure whitespace-pre-wrap break-words text-chat";
 const LINK_CLASSES = "text-agent underline underline-offset-2 focus-ring";
 const INLINE_CODE_CLASSES = "rounded-sm bg-surface-2 px-s1 font-mono text-code";
-const LIST_CLASSES = "flex flex-col gap-s1 pl-s4";
+const LIST_CLASSES = "flex max-w-measure flex-col gap-s1 pl-s4";
 const TABLE_CLASSES = "w-full border-collapse text-ui";
 const CELL_CLASSES = "border border-border px-s2 py-s1 text-left align-top";
-const QUOTE_CLASSES = "border-l-2 border-border pl-s3 text-muted";
+const QUOTE_CLASSES = "max-w-measure border-l-2 border-border pl-s3 text-muted";
 
 /** A node of the markdown tree, read structurally (no direct dependency on mdast's types). */
 interface MdNode {
@@ -89,6 +89,8 @@ const COMPONENTS: Components = {
   // An image would be a request to wherever the model pointed (zero telemetry, CSP img-src): show its alt text.
   img: ({ alt }) => <span>{alt ?? ""}</span>,
   pre: ({ node }) => <FencedCode node={node as HastNode | undefined} />,
+  p: ({ children }) => <p className="max-w-measure text-pretty">{children}</p>,
+  li: ({ children }) => <li className="text-pretty">{children}</li>,
   code: ({ children }) => <code className={INLINE_CODE_CLASSES}>{children}</code>,
   ul: ({ children }) => <ul className={cn(LIST_CLASSES, "list-disc")}>{children}</ul>,
   ol: ({ children }) => <ol className={cn(LIST_CLASSES, "list-decimal")}>{children}</ol>,
@@ -100,12 +102,12 @@ const COMPONENTS: Components = {
   ),
   th: ({ children }) => <th className={cn(CELL_CLASSES, "font-semibold")}>{children}</th>,
   td: ({ children }) => <td className={CELL_CLASSES}>{children}</td>,
-  h1: ({ children }) => <p className="font-bold">{children}</p>,
-  h2: ({ children }) => <p className="font-bold">{children}</p>,
-  h3: ({ children }) => <p className="font-semibold">{children}</p>,
-  h4: ({ children }) => <p className="font-semibold">{children}</p>,
-  h5: ({ children }) => <p className="font-semibold">{children}</p>,
-  h6: ({ children }) => <p className="font-semibold">{children}</p>,
+  h1: ({ children }) => <p className="max-w-measure font-bold">{children}</p>,
+  h2: ({ children }) => <p className="max-w-measure font-bold">{children}</p>,
+  h3: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
+  h4: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
+  h5: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
+  h6: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
 };
 
 /** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. */

@@ -1,5 +1,5 @@
 import type { ModelsOverview } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, InlineError } from "@pap/ui";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -51,9 +51,7 @@ export function PiStep({
       <p className="text-ui text-muted">{t("firstRun.pi.intro")}</p>
       {failed ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {t("firstRun.pi.unreadable")}
-          </p>
+          <InlineError announce="background">{t("firstRun.pi.unreadable")}</InlineError>
           <Button
             onClick={() => {
               setFailed(false);

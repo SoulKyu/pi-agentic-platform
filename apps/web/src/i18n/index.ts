@@ -3,6 +3,7 @@ import type { LazyFailureText } from "../lib/lazy.tsx";
 import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
+import { frenchSpacing } from "./fr-spacing.ts";
 
 import type { agentsPhoneEn } from "./catalog/agents-phone.ts";
 import type { agentEgressEn } from "./catalog/agent-egress.ts";
@@ -143,7 +144,9 @@ export const CLIENT_ERROR_CODES = [
 ] as const;
 type Catalogs = Readonly<Record<Locale, Readonly<Record<string, string>>>>;
 // Replaced, never mutated: a registration gives `useT` a new snapshot.
-let CATALOGS: Catalogs = { en, fr };
+const spaced = (entries: Readonly<Record<string, string>>): Readonly<Record<string, string>> =>
+  Object.fromEntries(Object.entries(entries).map(([key, value]) => [key, frenchSpacing(value)]));
+let CATALOGS: Catalogs = { en, fr: spaced(fr) };
 let current: Locale = "en";
 
 export function pickLocale(languages: readonly string[], stored: string | null): Locale {
@@ -167,7 +170,7 @@ export function registerCatalog(entries: {
   readonly en: Readonly<Record<string, string>>;
   readonly fr: Readonly<Record<string, string>>;
 }): void {
-  CATALOGS = { en: { ...CATALOGS.en, ...entries.en }, fr: { ...CATALOGS.fr, ...entries.fr } };
+  CATALOGS = { en: { ...CATALOGS.en, ...entries.en }, fr: { ...CATALOGS.fr, ...spaced(entries.fr) } };
   for (const listener of [...listeners]) listener();
 }
 

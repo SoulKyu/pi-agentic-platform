@@ -1,5 +1,5 @@
 import type { SkillView } from "@pap/contracts";
-import { Switch } from "@pap/ui";
+import { Switch, Heading, InlineError } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { escapeHidden, groupSwitch, skillGroups, type SkillGroupId } from "./skills.vm.ts";
 
@@ -38,11 +38,15 @@ export function SkillList({
           const failures = group.rows.flatMap((row) => refused.get(row.path) ?? []);
           return (
             <section key={group.id} data-skill-group={group.id} className="flex flex-col gap-s2">
-              <h4 className="label-hud text-muted">{title}</h4>
+              <Heading level={4} variant="group">
+                {title}
+              </Heading>
               {failures.length > 0 ? (
-                <ul role="alert" className="text-ui text-attn">
+                <ul className="flex flex-col gap-s1">
                   {failures.map((line) => (
-                    <li key={line}>{line}</li>
+                    <li key={line}>
+                      <InlineError announce="action">{line}</InlineError>
+                    </li>
                   ))}
                 </ul>
               ) : null}

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { settingsAgentsEn, settingsAgentsFr } from "../../i18n/catalog/settings-agents.ts";
 import { registerCatalog, setLocale } from "../../i18n/index.ts";
 import { button, click, mount, text } from "../../testing/dom.ts";
+import { segmentedGroup } from "../../testing/names.ts";
 import { AgentsSection } from "./AgentsSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { DEFAULT_ACCOUNT, parseAccount } from "./model.ts";
@@ -34,8 +35,8 @@ describe("Settings › Appearance › Agents", () => {
   it("offers both options with the boards' defaults selected", async () => {
     const page = await mount(<AgentsSection />);
     expect(text(page.container)).toContain("Agents");
-    expect(page.container.querySelector('[aria-label="Event cards"]')).not.toBeNull();
-    expect(page.container.querySelector('[aria-label="Status panel"]')).not.toBeNull();
+    expect(segmentedGroup(page.container, "Event cards")).not.toBeNull();
+    expect(segmentedGroup(page.container, "Status panel")).not.toBeNull();
     const selected = [...page.container.querySelectorAll('[aria-checked="true"]')].map((n) => n.textContent);
     expect(selected).toEqual(["Cards", "Shown"]);
   });

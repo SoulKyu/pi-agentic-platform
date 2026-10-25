@@ -51,8 +51,8 @@ export function BottomNav({ section, inboxCount, agentsUnread, onSection }: Bott
           aria-current={section === id ? "page" : undefined}
           onClick={() => onSection(id)}
           className={cn(
-            "relative flex h-full min-h-11 flex-col items-center justify-center gap-s1 label-hud",
-            section === id ? "text-fg" : "text-muted",
+            "relative flex h-full min-h-11 flex-col items-center justify-center gap-s1 border-t-2 label-hud",
+            section === id ? "border-agent text-fg" : "border-transparent text-muted",
             FOCUS_RING,
           )}
         >

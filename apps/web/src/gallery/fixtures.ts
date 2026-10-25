@@ -55,6 +55,7 @@ export const SAMPLE = {
   bannerBody: "Nothing is lost; your work is intact.",
   emptyTitle: "No agent yet",
   emptyPurpose: "Start a session to see it here.",
+  codeText: "Run `pap doctor` to check this machine.",
   emptyAction: "New session",
   agentName: "Agent",
   badge: "unread",

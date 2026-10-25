@@ -59,7 +59,7 @@ export function ProjectHeading({
           </>
         )}
       </div>
-      {root === null ? null : <p className="break-all font-mono text-code text-dim">{root}</p>}
+      {root === null ? null : <p className="break-all font-mono text-code text-muted">{root}</p>}
     </div>
   );
 }

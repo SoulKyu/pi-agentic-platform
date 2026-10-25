@@ -119,7 +119,7 @@ describe("theme tokens (DESIGN.md §3)", () => {
   it("applies ADR 0012's values (R120)", () => {
     const pick = (token: "focus-ring" | "control-border" | "attn-title" | "attn-ink") =>
       THEMES.map((theme) => PRESET_TOKENS[theme][token]);
-    expect(pick("focus-ring")).toEqual(["#fb923c", "#ea580c", "#fb923c"]);
+    expect(pick("focus-ring")).toEqual(["#fb923c", "#c2410c", "#fb923c"]);
     expect(pick("control-border")).toEqual(["#6b6485", "#8f877a", "#8a8a8a"]);
     expect(pick("attn-title")).toEqual(["#f472b6", "#be185d", "#f9a8d4"]);
     expect(pick("attn-ink")).toEqual(["#110f18", "#ffffff", "#110f18"]);
@@ -139,8 +139,38 @@ describe("theme tokens (DESIGN.md §3)", () => {
     expect(ratio(t["attn-ink"], t["attn-fill"]), "ink on the attention fill").toBeGreaterThanOrEqual(4.5);
   });
 
+  it("the focus ring reaches 3:1 on bg, surface and surface-2 in every theme", () => {
+    for (const theme of THEMES) {
+      const t = PRESET_TOKENS[theme];
+      for (const ground of [t.bg, t.surface, t["surface-2"]]) {
+        expect(ratio(t["focus-ring"], ground), `${theme} ring on ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("placeholders use text-muted at 4.5:1 on bg and surface in every theme", () => {
+    expect(utilities).toMatch(/::placeholder \{\s*color: var\(--text-muted\);\s*opacity: 1;\s*\}/);
+    for (const theme of THEMES) {
+      const t = PRESET_TOKENS[theme];
+      for (const ground of [t.bg, t.surface]) {
+        expect(ratio(t["text-muted"], ground), `${theme} placeholder on ${ground}`).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+    }
+  });
+
+  it("the ratios this plan quotes stay true", () => {
+    const day = PRESET_TOKENS.day;
+    expect(ratio("#c2410c", day.bg)).toBeCloseTo(4.92, 2);
+    expect(ratio("#c2410c", day.surface)).toBeCloseTo(5.18, 2);
+    expect(ratio("#c2410c", day["surface-2"])).toBeCloseTo(4.35, 2);
+    expect(ratio(day["text-muted"], day.bg)).toBeCloseTo(5.55, 2);
+    expect(ratio(day["text-muted"], day.surface)).toBeCloseTo(5.84, 2);
+  });
+
   it("measures what ADR 0012 records, so its numbers stay true", () => {
-    expect(ratio("#ea580c", "#faf9f6")).toBeCloseTo(3.38, 2);
+    expect(ratio("#ea580c", "#faf9f6")).toBeCloseTo(3.38, 2); // the Day ring before A2
     expect(ratio("#8f877a", "#faf9f6")).toBeCloseTo(3.37, 2);
     expect(ratio("#6b6485", "#1a1724")).toBeCloseTo(3.18, 2);
     expect(ratio("#f472b6", over("#ec48991a", "#1a1724"))).toBeCloseTo(5.96, 2);
@@ -239,13 +269,20 @@ describe("densities (DESIGN.md §5)", () => {
       "24px",
       "32px",
     ]);
-    expect([1, 2, 3, 4, 5].map((n) => comfortable?.get(`--space-${n}`))).toEqual([
+    expect([1, 2, 3, 4, 5, 6].map((n) => comfortable?.get(`--space-${n}`))).toEqual([
       "6px",
       "10px",
       "16px",
       "24px",
       "32px",
+      "48px",
     ]);
+  });
+
+  it("text-label is 11 px", () => {
+    const theme = blocks.find((block) => block.selector === "@theme inline");
+    expect(theme?.decls.get("--text-label")).toBe("0.6875rem");
+    expect(theme?.decls.get("--tracking-label")).toBe("0.08em");
   });
 });
 
@@ -279,6 +316,14 @@ describe("motion, labels and fonts", () => {
     expect(
       blocks.find((b) => b.selector === '[data-labels="sentence"]')?.decls.get("--label-transform"),
     ).toBe("none");
+  });
+
+  it('the prose measure is 72ch on :root and none under data-prose="full"', () => {
+    const root = blocks.filter((b) => b.selector === ":root").find((b) => b.decls.has("--prose-measure"));
+    expect(root?.decls.get("--prose-measure")).toBe("72ch");
+    expect(blocks.find((b) => b.selector === '[data-prose="full"]')?.decls.get("--prose-measure")).toBe(
+      "none",
+    );
   });
 
   it("serves its own woff2 files", () => {

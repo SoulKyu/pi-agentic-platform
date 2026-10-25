@@ -1,5 +1,5 @@
 import type { PasskeyView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -127,25 +127,19 @@ export function PasskeysList({
   const passkeys = list.value?.passkeys ?? null;
   return (
     <section className="flex w-full flex-col gap-s2">
-      <h3 ref={heading} tabIndex={-1} className="text-ui font-semibold text-fg outline-none">
+      <h2 ref={heading} tabIndex={-1} className="text-ui font-semibold text-fg outline-none">
         {t("access.passkeys.title")}
-      </h3>
+      </h2>
       <p className={META}>{t("access.passkeys.hint")}</p>
       {list.error ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {list.error}
-          </p>
+          <InlineError announce="background">{list.error}</InlineError>
           <Button variant="secondary" onClick={list.reload}>
             {t("access.retry")}
           </Button>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       {revoked !== null && revoked > 0 ? (
         <p role="status" className="text-ui text-muted">
           {t(revoked === 1 ? "access.passkeys.signedOut.one" : "access.passkeys.signedOut.other", {

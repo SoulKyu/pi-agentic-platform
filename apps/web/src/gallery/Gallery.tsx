@@ -42,12 +42,14 @@ export function Gallery() {
           <div role="group" aria-label={t("gallery.controls")} className="flex flex-wrap items-center gap-s4">
             <Segmented<ThemeName>
               label={t("gallery.theme")}
+              labelHidden
               value={theme}
               options={THEMES.map((value) => ({ value, label: t(`gallery.themeName.${value}`) }))}
               onChange={setTheme}
             />
             <Segmented<Density>
               label={t("gallery.density")}
+              labelHidden
               value={density}
               options={DENSITIES.map((value) => ({ value, label: t(`gallery.densityName.${value}`) }))}
               onChange={setDensity}

@@ -40,6 +40,16 @@ describe("Button (DESIGN.md §9.1)", () => {
     expect(renderToStaticMarkup(<Button>Allow once</Button>)).toContain(">Allow once<");
   });
 
+  it("cannot shrink by default, and truncate lets it shrink with an ellipsis label", () => {
+    const plain = renderToStaticMarkup(<Button>Save</Button>);
+    expect(plain).toContain("shrink-0 ");
+    expect(plain).toContain("whitespace-nowrap");
+    const cut = renderToStaticMarkup(<Button truncate>A very long project name</Button>);
+    expect(cut).toContain("min-w-0");
+    expect(cut).not.toContain("shrink-0");
+    expect(cut).toMatch(/<span class="[^"]*truncate[^"]*">A very long project name<\/span>/);
+  });
+
   it("uses a fixed 24 px row for the sm size", () => {
     expect(renderToStaticMarkup(<Button size="sm">Go</Button>)).toContain("h-6");
   });

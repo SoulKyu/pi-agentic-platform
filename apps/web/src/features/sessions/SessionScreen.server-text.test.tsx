@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import { alerts, mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import { mount, settle, statuses, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { SessionScreen } from "./SessionScreen.tsx";
 
@@ -84,7 +84,7 @@ describe("SessionScreen server texts (R128)", () => {
     const container = await show();
     await emit({ kind: "notice", level: "error", text: "Brand new sentence.", code: "from_the_future" });
     await emit({ kind: "notice", level: "warning", text: "An extension failed.", source: "extension" });
-    expect(alerts(container)).toEqual(["Brand new sentence."]);
+    expect(statuses(container)).toContain("Brand new sentence.");
     expect(text(container)).toContain("An extension failed.");
   });
 

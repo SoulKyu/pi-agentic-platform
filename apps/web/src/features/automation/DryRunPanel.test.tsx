@@ -89,7 +89,7 @@ describe("DryRunPanel", () => {
     expect(shown).toContain("Budget: $1.84 of $5.00 today");
     expect(shown).toContain("read, grep, bash");
     expect(shown).toContain("read-only preset · Supervised · starts tainted");
-    expect(shown).toContain("/work/atlas (trusted ✓)");
+    expect(shown).toContain("/work/atlas (trusted)");
     expect(bed.called("trust.status")[0]?.params).toEqual({ cwd: "/work/atlas" });
     expect(shown).toContain("Tokens");
     expect(shown).toContain("none");
@@ -139,7 +139,7 @@ describe("DryRunPanel", () => {
     await run(page.container);
     const fence = page.container.querySelector('[data-slot="fence"]') as HTMLElement;
     expect(fence.className).toContain("border-dashed");
-    expect(fence.querySelector("figcaption")?.textContent).toBe("UNTRUSTED · alertmanager");
+    expect(fence.querySelector("figcaption")?.textContent).toBe("Untrusted · alertmanager");
     expect(fence.textContent).toContain("<img src=x onerror=alert(1)>");
     expect(fence.textContent).toContain("\\u202Eevil");
     expect(page.container.querySelector("img")).toBeNull();

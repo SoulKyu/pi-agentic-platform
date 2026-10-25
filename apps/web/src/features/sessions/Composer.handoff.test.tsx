@@ -57,12 +57,12 @@ describe("the composer's hand-off port (M11R123)", () => {
     expect(screen.bed.called("sessions.prompt")[0]?.params).toMatchObject({ text: "@Scout do it" });
   });
 
-  it("also hands off while the agent is working (Steer)", async () => {
+  it("also hands off while the agent is working (running)", async () => {
     const handOff = vi.fn(() => true);
     act(() => useHandOffPorts.getState().register("sess-1", { names: ["Scout"], handOff }));
     const container = await screen.show({ status: "running" });
     await typeInto(field(container, "Message"), "@Scout do it");
-    await click(button(container, "Steer"));
+    await click(button(container, "Send"));
     await settle();
     expect(handOff).toHaveBeenCalledTimes(1);
     expect(screen.bed.called("sessions.prompt")).toEqual([]);

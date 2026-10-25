@@ -2,6 +2,7 @@ import { Select as Radix } from "radix-ui";
 import { useId } from "react";
 import { IconCheck, IconChevronDown } from "../icons.ts";
 import { Icon } from "./Icon.tsx";
+import { InlineError } from "./InlineError.tsx";
 
 export interface Option<V extends string> {
   readonly value: V;
@@ -14,6 +15,7 @@ export interface SelectProps<V extends string> {
   readonly options: readonly Option<V>[];
   onChange(value: V): void;
   readonly hint?: string;
+  readonly error?: string | null;
   readonly disabled?: boolean;
 }
 
@@ -29,9 +31,11 @@ export function Select<V extends string>({
   options,
   onChange,
   hint,
+  error,
   disabled,
 }: SelectProps<V>) {
   const id = useId();
+  const described = [hint ? `${id}-hint` : "", error ? `${id}-error` : ""].filter(Boolean).join(" ");
   return (
     <div data-slot="select" className="relative flex flex-col gap-s1">
       <span id={`${id}-label`} className="label-hud text-muted">
@@ -40,7 +44,8 @@ export function Select<V extends string>({
       <Radix.Root value={value} onValueChange={(next) => onChange(next as V)} disabled={disabled}>
         <Radix.Trigger
           aria-labelledby={`${id}-label`}
-          aria-describedby={hint ? `${id}-hint` : undefined}
+          aria-describedby={described || undefined}
+          aria-invalid={error ? true : undefined}
           className={TRIGGER_CLASSES}
         >
           <Radix.Value />
@@ -79,6 +84,11 @@ export function Select<V extends string>({
         <span id={`${id}-hint`} className="text-ui text-muted">
           {hint}
         </span>
+      ) : null}
+      {error ? (
+        <InlineError id={`${id}-error`} announce="action">
+          {error}
+        </InlineError>
       ) : null}
     </div>
   );

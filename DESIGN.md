@@ -39,6 +39,8 @@ The one rule everyone must know. Hues are never decorative.
 | Dashed attention chip "external content" | the run is tainted: exfiltration-capable actions will ask again (spec C §5) |
 | Solid attention fill / tint | waiting for your answer |
 
+**Red and pink do not mix.** An error line is red (`--err`) with the warning icon and words: red means something failed. Pink means something waits for you to answer. A failure that happened in the background announces itself as a polite status; only the result of your own last action is an alert. The `ext` chip keeps its dashed frame and uses `--attn-title` for its text (5.96:1 on the approval card, Night).
+
 Colour is never the only carrier. Every status chip carries a word, and dashed versus solid adds a cue that does not depend on colour.
 
 ## 3. Tokens
@@ -66,6 +68,9 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--attn` / `--attn-fill` / `--attn-ink` | `#EC4899` / `#EC4899` / `#110F18` | attention role |
 | `--attn-tint` / `--attn-line` | `#EC48991A` / `#EC48998C` | approval cards, Inbox highlight |
 | `--focus-ring` | `#FB923C` (the you fill) | keyboard focus outline (§7.4) |
+| `::placeholder` | `--text-muted`, opacity 1 | 6.68:1 on bg, 6.19:1 on surface |
+| `::selection` | `--agent` at 30 % | text selection in the page |
+| `caret-color` / `scrollbar-color` | `--you` / `--border-strong` on transparent | browser surfaces; `--you`, not `--you-fill`, because Day's fill is 2.26:1 on white |
 | `--attn-title` | `#F472B6` | approval card titles on the attention tint |
 | `--ok` | `#34D399` | success |
 | `--err` | `#F87171` | error |
@@ -88,7 +93,9 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--attn-tint` / `--attn-line` | `#FDF1F6` / `#F9A8D4` |
 | `--ok` / `--err` | `#047857` / `#DC2626` |
 | `--diff-add` / `--diff-del` | `#04785714` / `#DC262614` |
-| `--control-border` / `--focus-ring` / `--attn-title` | `#8F877A` / `#EA580C` / `#BE185D` |
+| `--control-border` / `--focus-ring` / `--attn-title` | `#8F877A` / `#C2410C` / `#BE185D` |
+
+The Day ring is `#C2410C` (ADR 0086, amending ADR 0012): 4.92:1 on bg, 5.18:1 on surface, 4.35:1 on surface-2.
 
 ### 3.3 High contrast (accessibility preset)
 
@@ -126,23 +133,27 @@ Two families, **self-hosted as woff2 in `packages/ui`**. No font CDN at runtime:
 | display | Manrope 28 / 800 / −0.02em |
 | h1 | Manrope 20 / 800 |
 | h2 | Manrope 16 / 700 |
-| label (HUD) | JetBrains Mono 10–10.5 / 600 / uppercase / 0.1–0.12em, muted or role colour |
+| label (HUD) | JetBrains Mono 11 / 600 / uppercase / 0.08em, muted or role colour (`--text-label`, `--tracking-label`; ADR 0086, D1) |
+| heading, section | Manrope 16 / 700 (`Heading variant="section"`) |
+| heading, group | Manrope 13 / 600 (`Heading variant="group"`) |
 | numbers | JetBrains Mono with `font-variant-numeric: tabular-nums` (costs, durations, diff counts) |
 | body, prose, code | per density (§5) |
 
-Uppercase HUD labels can be switched off in Settings; they then render in sentence case at the same size.
+Card labels (`Heading variant="card"`) and field labels stay HUD. A section or group heading is never a HUD label (D5). Uppercase HUD labels can be switched off in Settings; they then render in sentence case at the same size.
 
-## 5. Density (decision 27)
+## 5. Density (decisions 27 and 131)
 
-| Token | Compact (default) | Comfortable | Mixed |
+| Token | Compact | Comfortable | Mixed (default) |
 |---|---|---|---|
 | UI text | 13 px | 14 px | 13 px |
 | chat prose / line-height | 14 px / 1.55 | 15 px / 1.65 | 15 px / 1.65 |
 | code | 12 px | 12.5 px | 12 px |
-| spacing steps | 4 · 8 · 12 · 16 · 24 · 32 | 6 · 10 · 16 · 24 · 32 | as Compact |
+| spacing steps | 4 · 8 · 12 · 16 · 24 · 32 | 6 · 10 · 16 · 24 · 32 · 48 | as Compact |
 | control height | 26 px | 32 px | 26 px |
 | rail / top bar / tab bar | 48 / 34 / 34 px | 56 / 40 / 40 px | 48 / 34 / 34 px |
 | agent avatar | 28 px | 32 px | 28 px |
+
+The default is `mixed` (compact controls, comfortable chat prose; ADR 0086, D2). Rhythm: 4 px under a title (`gap-s1`), 16 px between groups (`gap-s4`), 24 px between sections (`gap-s5`; 32 px in comfortable).
 
 Under `pointer: coarse`, every interactive target is at least **44 × 44 px**, whatever the density.
 
@@ -161,7 +172,7 @@ It reads as an agent and a human under one roof.
 ### 6.2 Name and wordmark
 
 - The displayed name is **`pap`**, set in Manrope 800, −0.02em, lowercase.
-- The optional tagline "pi agentic platform" is set in mono uppercase, 0.12em, muted.
+- The optional tagline "pi agentic platform" is set in the label style (`label-hud`, muted).
 - The repository and npm package keep the name `pi-agentic-platform`.
 
 ### 6.3 Sizes and assets
@@ -193,16 +204,16 @@ Never use gradients, glow, outlines around the legs, rotation, or swapped leg co
 
 | Delay | Feedback |
 |---|---|
-| under 100 ms | nothing |
+| under 100 ms | nothing (`DeferredFallback` renders its loading line only after 100 ms) |
 | 100 ms to 1 s | control disabled |
 | 1 s to 3 s | spinner |
 | over 3 s | a stage label ("Preparing worktree…") |
 
-Remote spinners are deferred by about 200 ms, but the control is disabled immediately.
+Remote spinners are deferred by about 200 ms, but the control is disabled immediately. Loading lines end with "…", never "...".
 
 ### 7.4 Focus
 
-A 2 px solid `--focus-ring` outline with a 2 px offset on `:focus-visible`: the you fill in night and high contrast, `#EA580C` in day, where the fill reaches only 2.15:1 (ADR 0012). It is never removed.
+A 2 px solid `--focus-ring` outline with a 2 px offset on `:focus-visible`: the you fill in night and high contrast, `#C2410C` in day, where the fill reaches only 2.15:1 (ADR 0012, amended by ADR 0086). In day it reaches 3:1 on bg, surface and surface-2. It is never removed. The one exception is the palette field on an overlay, which draws an agent bottom rule instead (`focus:border-agent`, 6.47:1 on surface).
 
 ## 8. Layout (decision 25)
 
@@ -241,13 +252,13 @@ Built on Radix and owned in shadcn style. Each primitive owns its look: callers 
 
 | Component | Variants and rules |
 |---|---|
-| Button | `primary` (you fill), `secondary` (outline), `ghost`, `danger` (error, outline, used only for irreversible actions). Labels in mono uppercase. **Cancel is never `danger`.** |
+| Button | `primary` (you fill), `secondary` (outline), `ghost`, `danger` (error, outline, used only for irreversible actions). Labels in mono uppercase. **Cancel is never `danger`.** `pill` (agent outline) is for suggestions and quick replies; `size="sm"` is 24 px high (still 44 px under a coarse pointer). At most one `primary` per view. |
 | IconButton | square, label and tooltip mandatory |
-| Input, Textarea, Select | 1 px `--border-strong`, `--bg` fill, focus ring |
-| Segmented | mono uppercase items; the active item gets an agent underline |
-| Switch, Checkbox | square, no pill shapes |
+| Input, Textarea, Select | 1 px `--control-border`, `--bg` fill, focus ring; an invalid field is red with its reason beneath (`InlineError`) |
+| Segmented | mono uppercase items; the active item gets an agent underline; a visible label by default, `labelHidden` keeps it for screen readers when the text around it names the control |
+| Switch, Checkbox | square, no pill shapes. The Switch track stays `h-4 w-8`; under `pointer: coarse` a `before:` box (7 px and 15 px insets around the 1 px-bordered track) makes a 44 × 44 hit area, and the visible box does not grow |
 | Slider | 2 px track, square thumb |
-| Chip (status) | mono uppercase word + optional dot; tone = role (`run`, `ok`, `att`, `err`, `mut`, `ext` dashed) |
+| Chip (status) | mono uppercase word + optional dot; tone = role (`run`, `ok`, `att`, `err`, `mut`, `ext` dashed with `attn-title` text, `you` for your own state) |
 | Badge (count) | round, attention fill |
 | Kbd | mono, bordered |
 | Tabs (open items) | mono uppercase; active tab gets an agent border and the `--surface-2` fill |
@@ -258,6 +269,10 @@ Built on Radix and owned in shadcn style. Each primitive owns its look: callers 
 | Meter | budget bars: tokens in agent colour, cost in you colour |
 | ProgressBar | determinate, or thin indeterminate (running tool) |
 | EmptyState | dashed frame, one sentence of purpose, one primary action |
+| InlineError | `<p data-slot="inline-error">`: warning icon (14 px, `aria-hidden`) and words, red by default; `tone="attn"` when the person must answer. `announce="action"` is `role="alert"` (result of your last action), `"background"` is `role="status"` |
+| Heading | `level` 2–4, `variant` section (16/700), group (13/600) or card (HUD label, muted or agent) |
+| DeferredFallback | renders nothing for 100 ms, then its children (§7.3) |
+| CodeText | renders backticked runs of a catalog value as code (§11) |
 
 ### 9.2 AI components
 
@@ -266,11 +281,11 @@ All live in `packages/ui/src/ai`.
 | Component | Spec |
 |---|---|
 | Message · you | right-aligned box with `--you-tint`, a `--you-line` border and `--you-text`; label `YOU` |
-| Message · agent | 2 px agent rule on the left, mono uppercase name and meta (time, "thought Ns") |
+| Message · agent | 2 px agent rule on the left, mono uppercase name and meta (time, "thought Ns"). Prose is capped at 72ch (`max-w-measure`) unless Line length is Full width (§13); code blocks stay full width and carry an always-visible copy button, which copies the same way over HTTP and HTTPS (one `copyText` in `@pap/ui`) |
 | AuthorGroup | consecutive messages share one avatar and header (pi-web conversation view) |
-| Reasoning | collapsed "▸ thought for 14s", expandable |
-| ToolCard | header with tool name (mono uppercase, agent colour), argument summary and duration; output body; indeterminate bar while running. Detail level compact (one line) / expanded / full is selectable in Settings. Renderers for bash, edit (diff), read, MCP (server/tool from result details), codemode (nested calls) |
-| ApprovalCard | attention tint and line; header `Approval · <category>` (+ `· external content` when tainted); the question; context (diff stats, trigger, tests); answers **Deny / Session / Always / Allow once** |
+| Reasoning | collapsed "▸ thought for 14s", expandable; it stays collapsed while it streams |
+| ToolCard | header with tool name (mono uppercase, agent colour), argument summary and duration; output body; indeterminate bar while running. Detail level compact (one line) / expanded / full is selectable in Settings. Renderers for bash, edit (a `{path} · +{added} −{removed}` summary and an expandable diff, at most 8 edits drawn), read, MCP (server/tool from result details), codemode (nested calls) |
+| ApprovalCard | attention tint and line; header `Approval · <category>` (+ `· external content` when tainted); the question; context (diff stats, trigger, tests); answers **Deny / Session / Always / Allow once**, all at `size="md"` at every width |
 | InputRequestCard | Pi `select` / `input` / `editor` dialogs rendered in the stream; unknown methods are cancelled |
 | CustomPanel | `ctx.ui.custom()` lines in mono; takes keyboard focus; re-rendered whole on each update |
 | StatusBar, Widgets | extension `setStatus` / `setWidget` / `setTitle`, with `command:` buttons |
@@ -279,7 +294,7 @@ All live in `packages/ui/src/ai`.
 | CheckpointBanner | "Files differ from this point" → Restore files / Undo |
 | PendingRequestsStrip | outgoing requests still queued or running, with Cancel |
 | PromptChips | `/name` chips from the agent's `prompts/`, at most 12 |
-| Composer | tiptap; chips `@file`, `$skill`, `/command`, `@Agent`; model and reasoning pill; send button in you fill; orange focus border; steer / follow-up queue displayed above |
+| Composer | a textarea with mention and command menus (`@file`, `$skill`, `/command`, `@Agent`) and the AttachmentTray; model and reasoning pills; orange focus border; the steer / follow-up queue displayed above. During a run the order is Stop (secondary), model pills, Steer \| Follow up (Segmented, `labelHidden`), one Send (primary, you fill), Attach files (decision 131, D6) |
 | DaySeparator | inline line with a mono label, not sticky |
 | RunStatusChip | working · settled · interrupted · limited · needs input |
 | DiffView | unified; line numbers; line comments in you colour; file checklist with Seen state |
@@ -287,8 +302,8 @@ All live in `packages/ui/src/ai`.
 | TriggerVerdict | dry-run outcome (would fire / would skip + reason), the fenced prompt preview |
 
 **ANSI colours in extension text.** Statuses, widgets and custom panels may carry ANSI SGR codes. The 8 colours and
-their bright variants map to role tokens: black → `--text-dim`, red → `--err`, green → `--ok`, yellow → `--you`,
-blue → `--agent`, magenta → `--attn`, cyan → `--agent`, white → `--text`. Bold is weight 600, dim is
+their bright variants map to role tokens: black → `--text-muted`, red → `--err`, green → `--ok`, yellow → `--you`,
+blue → `--agent`, magenta → `--attn`, cyan → a mix of agent and ok, white → a mix of text and text-muted (35 %). Each bright is its base mixed 35 % toward `--text`; bright white is `--text`. That gives 16 distinct colours (ADR 0086, D8). The terminal pane uses the same map with a minimum contrast of 4.5 and a selection of `--agent` at 35 % (text on it: 9.01 Night, 9.08 Day, 10.01 High contrast). Bold is weight 600, dim is
 `--text-muted`, italic and underline are kept. Backgrounds, inverse, 256-colour and truecolor codes are ignored and
 their text is kept. Extension text is parsed into styled spans, never inserted as HTML, and loses bidi and control
 characters first.
@@ -308,12 +323,17 @@ Each screen was validated in a visual round; the HTML page next to it is the ref
 | Settings › Appearance | [08-settings-appearance](docs/design/explorations/08-settings-appearance.html) | per account vs per device, role-token theme editor |
 | Mobile + system | [12-mobile-system](docs/design/explorations/12-mobile-system.html) | push approval, thread, review, Inbox; setup, login, ⌘K, states |
 
+Settings sections are grouped **You** (appearance, shortcuts, language, notifications, account) · **Work** (agents, approvals, automation, GitHub) · **This pap** (models, MCP, skills, users, health); a member sees only what M14 leaves them (ADR 0086, D4). Every column section has one width, `max-w-settings` (48rem), with no inner caps; Appearance, Models and MCP split into two columns and cap their forms at the same width. The home has one orange action (D7).
+
 Screens not drawn in a round follow the same components and patterns: MCP, models, skills, memory, security, health, files, terminal. The pi-web settings panels are the functional reference; they are restyled, not redesigned.
 
 ## 11. Content and voice
 
 - **Languages**: English and French. Every string goes through the internal i18n layer; no string is concatenated around variables.
-- **Case**: sentence case for text. HUD labels are short mono capitals ("APPROVAL NEEDED", "WORKING").
+- **Case**: sentence case for text. Catalog values are written in sentence case; `label-hud` uppercases them, so a value is never typed in capitals. HUD labels are short mono capitals ("APPROVAL NEEDED", "WORKING").
+- **French**: « vous »; a narrow no-break space (U+202F) before `? ! : ; »` and after `«`, applied when the French catalog registers.
+- **Code in copy**: a backtick run in a catalog value renders as code (`CodeText`), only in the keys that opt in.
+- **Glossary**: the shared words (split, pane, lane, box) live in `docs/agents/web.md`.
 - **Never overclaim**: "Allow once", not "Safely allow". "Archived", not "Done!". No exclamation marks in system copy.
 - **Errors** say three things: what happened, what is intact, and what you can do. Example: "Agent process killed: out of memory (MemoryMax 2 GB). The transcript is intact. Retry."
 - **Refusals** are explicit, never silent. Example: "Capacity reached · 6 / 6 workers…".
@@ -330,16 +350,16 @@ Screens not drawn in a round follow the same components and patterns: MCP, model
 - Text meets WCAG AA (4.5:1, 3:1 for large text) in all three themes. The theme editor shows the ratio per role and asks for confirmation below AA.
 - 44 px touch targets; full keyboard reachability; ⌘K for every navigation; a visible focus ring.
 - Reduced motion honoured. Colour is never the only signal (§2).
-- Status chips and badges expose their text to screen readers. Live regions announce run end, approvals and errors politely.
+- Status chips and badges expose their text to screen readers. Live regions announce run end and approvals politely. An error follows the InlineError rule (§2, §11): the result of your own action is an alert, a failure in the background is a polite status.
 
-## 13. Customization (decisions 27–28)
+## 13. Customization (decisions 27–28, amended by 131)
 
 Everything visual can be changed in **Settings › Appearance**, with a live preview and a reset to defaults.
 
 | Scope | Settings |
 |---|---|
 | Per account (server) | mode Night / Day / System (default System); theme preset (Night Control, Day · Papier, High contrast) or custom theme; UI and mono fonts; uppercase labels on/off; grid on/off; rail position left/right; avatar style; tool card detail level |
-| Per device (local) | density; UI, chat and code sizes; motion; chat max width (default full width) |
+| Per device (local) | density (default `mixed`); UI, chat and code sizes; motion; Line length (Limited or Full width, default Limited; `data-prose` on `<html>`, ADR 0086, D3) |
 
 ### 13.1 Custom themes
 
@@ -349,8 +369,8 @@ A custom theme edits **roles**, not individual variables. Its JSON can be import
 {
   "name": "My theme",
   "base": "night",
-  "roles": { "bg": "#0E1626", "surface": "#132033", "agent": "#38BDF8", "you": "#FB923C",
-             "attn": "#EC4899", "ok": "#34D399", "err": "#F87171", "text": "#E6EDF7" }
+  "roles": { "bg": "#161514", "surface": "#201E1C", "agent": "#60A5FA", "you": "#FB923C",
+             "attn": "#EC4899", "ok": "#34D399", "err": "#F87171", "text": "#EEEAE6" }
 }
 ```
 
@@ -370,7 +390,7 @@ Custom CSS and full cross-device sync are out of scope.
 | Concern | Where |
 |---|---|
 | tokens per theme and density | `packages/ui/src/tokens.css` (`[data-theme="night\|day\|hc"]`, `[data-density="compact\|comfortable\|mixed"]`) |
-| Tailwind 4 | `@theme static` maps tokens to utilities; no raw colours or arbitrary values (lint) |
+| Tailwind 4 | `@theme inline` maps tokens to utilities, so a `data-theme` on a subtree re-themes it (a non-inline theme resolves each variable once, on `:root`; F44); no raw colours or arbitrary values (lint) |
 | fonts | `packages/ui/fonts/*.woff2`, `font-display: swap` |
 | primitives / AI components | `packages/ui/src/primitives`, `packages/ui/src/ai` |
 | icons | `lucide-react`, wrapped by `Icon` (size and stroke defaults) |

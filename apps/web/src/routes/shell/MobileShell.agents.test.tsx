@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { createElement } from "react";
+import { act, createElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { startKeybindings } from "../../features/commands/index.ts";
@@ -50,10 +50,19 @@ describe("the phone Agents tab while its chunk loads", () => {
   it("shows a loading line instead of an empty page, then the tab", async () => {
     const page = await renderShell("/", { phone: true });
     const nav = page.container.querySelector("nav") as HTMLElement;
-    await click(button(nav, "Agents"));
-    await settle();
+    // The loading line is a timer of the page (DESIGN.md 7.3: nothing under 100 ms): the test owns that clock.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const main = page.container.querySelector("main") as HTMLElement;
-    expect(main.textContent).toBe("Loading…");
+    try {
+      await click(button(nav, "Agents"));
+      expect(main.textContent).toBe("");
+      await act(async () => vi.advanceTimersByTimeAsync(99));
+      expect(main.textContent).toBe("");
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(main.textContent).toBe("Loading…");
+    } finally {
+      vi.useRealTimers();
+    }
     expect(main.querySelector('[data-stub="agents"]')).toBeNull();
     chunk.release();
     await vi.waitFor(async () => {

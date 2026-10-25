@@ -3,6 +3,7 @@ import type { VmStatusView } from "@pap/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentVmEn, agentVmFr } from "../../i18n/catalog/agent-vm.ts";
 import { setLocale } from "../../i18n/index.ts";
+import { frenchSpacing } from "../../i18n/fr-spacing.ts";
 import { button, click, mount, text } from "../../testing/dom.ts";
 import { VmStatus } from "./VmStatus.tsx";
 
@@ -62,6 +63,9 @@ describe("VmStatus", () => {
     expect(body).toContain(agentVmEn["agentVm.unusable"]);
     expect(body).toContain("Reason: pap-vmd is older than pap");
     expect(document.querySelector("[data-vm]")?.getAttribute("data-vm")).toBe("unusable");
+    const failure = document.querySelector('[data-slot="inline-error"]');
+    expect(failure?.getAttribute("role")).toBe("status");
+    expect(failure?.className).toContain("text-err");
   });
 
   it("draws the reason as plain text, hidden characters removed", async () => {
@@ -80,7 +84,7 @@ describe("VmStatus", () => {
   it("speaks French", async () => {
     setLocale("fr");
     await mount(<VmStatus status={status({ usable: false })} reload={vi.fn()} />);
-    expect(text(document.body)).toContain(agentVmFr["agentVm.unusable"]);
+    expect(text(document.body)).toContain(frenchSpacing(agentVmFr["agentVm.unusable"]));
     expect(text(document.body)).toContain("sudo pap vm setup");
   });
 });

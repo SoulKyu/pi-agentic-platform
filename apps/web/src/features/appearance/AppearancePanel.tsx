@@ -2,6 +2,7 @@ import { Banner, Button, toast } from "@pap/ui";
 import { useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import type { AccountStatus } from "../../lib/account-setting.ts";
+import { SettingsToolbar } from "../../lib/SettingsToolbar.tsx";
 import { AgentsSection } from "./AgentsSection.tsx";
 import { AppearancePreview } from "./AppearancePreview.tsx";
 import { DetailsSection } from "./DetailsSection.tsx";
@@ -55,20 +56,19 @@ export function AppearancePanel() {
   };
   return (
     <div className="flex flex-col gap-s4">
-      <header className="flex flex-wrap items-center justify-between gap-s2">
-        <h2 className="text-h2 text-fg">{t("settings.appearance.title")}</h2>
+      <SettingsToolbar>
         <Button variant="secondary" onClick={reset}>
           {t("settings.appearance.reset")}
         </Button>
-      </header>
+      </SettingsToolbar>
       <p role="status" data-slot="appearance-status" className="text-ui text-muted">
         {line === null ? "" : t(line)}
       </p>
       {deviceStored ? null : <Banner tone="capacity" title={t("settings.appearance.deviceNotStored")} />}
       <ThemeEditorSlot value={editorSlot}>
-        <div className="flex flex-col gap-s6 lg:flex-row">
-          <div className="flex min-w-0 flex-1 flex-col gap-s6">
-            <div className="flex min-w-0 flex-col gap-s6">
+        <div className="flex flex-col gap-s5 lg:flex-row">
+          <div className="flex min-w-0 flex-1 flex-col gap-s5">
+            <div className="flex min-w-0 max-w-settings flex-col gap-s5">
               <ThemeSection />
               <ReadingSection />
               <DetailsSection />

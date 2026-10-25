@@ -51,9 +51,11 @@ export function ThemeCards({
                   style={{ background: option.swatch.bg, borderLeftColor: option.swatch.agent }}
                 />
               </span>
-              <span className="flex items-baseline justify-between gap-s1 bg-surface px-s2 py-s1 text-fg">
-                <span className="min-w-0 truncate">{option.name}</span>
-                <em className="shrink-0 font-mono text-label not-italic text-muted">{option.tag}</em>
+              <span className="flex flex-col gap-s1 bg-surface px-s2 py-s1 text-fg">
+                <span data-theme-name className="min-w-0 break-words">
+                  {option.name}
+                </span>
+                <em className="font-mono text-label not-italic text-muted">{option.tag}</em>
               </span>
             </button>
           );

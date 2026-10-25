@@ -60,7 +60,7 @@ test("J03: lane, commit, push and pull request", async ({ page, pap, signedIn })
     ).toBeVisible();
     const panel = bar.locator("[data-slot=lane-pr-panel]");
     await expect(panel.getByText("#1", { exact: true })).toBeVisible();
-    await expect(panel.getByText(t("lanes.pr.checks.passed"))).toBeAttached();
+    await expect(panel.getByText(plural("lanes.pr.checks.passed", 1))).toBeAttached();
   });
 
   // From outside: the remote holds the commit and the branch, the forge CLI was asked once, without a token.

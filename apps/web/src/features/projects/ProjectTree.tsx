@@ -1,6 +1,6 @@
 import "../../i18n/register-sidebar.ts";
 import type { ShellSession } from "@pap/contracts";
-import { Banner, Button, Collapsible, TextField } from "@pap/ui";
+import { Banner, Button, Collapsible, Heading, TextField } from "@pap/ui";
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { errorKey, plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -177,9 +177,9 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
       {!view.loaded && !broken ? <Loading label={t("sidebar.loading")} /> : null}
       {model.pinned.length > 0 ? (
         <section aria-labelledby={`${uid}-pinned`} className="flex flex-col gap-s1">
-          <h3 id={`${uid}-pinned`} className="label-hud text-muted">
+          <Heading level={3} variant="card" id={`${uid}-pinned`}>
             {t("sidebar.pinned")}
-          </h3>
+          </Heading>
           <ul className="flex flex-col gap-s1">
             {model.pinned.map((session) => (
               <SessionRow

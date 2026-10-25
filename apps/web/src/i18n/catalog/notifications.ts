@@ -25,7 +25,8 @@ export const notificationsEn = {
   "notifications.test.rate_limited": "Wait a few seconds before sending another test.",
   "notifications.test.failed": "The test notification could not be sent.",
   "notifications.devices.title": "Devices",
-  "notifications.devices.empty": "No device is registered yet.",
+  "notifications.devices.empty":
+    "No device is registered yet. Turn on notifications in this browser or on your phone to get an alert when an agent needs you.",
   "notifications.devices.current": "This device",
   "notifications.devices.unnamed": "Unnamed device",
   "notifications.devices.host": "Push service: {host}",
@@ -101,7 +102,8 @@ export const notificationsFr: Record<keyof typeof notificationsEn, string> = {
   "notifications.test.rate_limited": "Patientez quelques secondes avant un autre test.",
   "notifications.test.failed": "La notification de test n'a pas pu être envoyée.",
   "notifications.devices.title": "Appareils",
-  "notifications.devices.empty": "Aucun appareil n'est enregistré pour l'instant.",
+  "notifications.devices.empty":
+    "Aucun appareil n'est enregistré pour l'instant. Activez les notifications dans ce navigateur ou sur votre téléphone pour recevoir une alerte quand un agent a besoin de vous.",
   "notifications.devices.current": "Cet appareil",
   "notifications.devices.unnamed": "Appareil sans nom",
   "notifications.devices.host": "Service de notification : {host}",

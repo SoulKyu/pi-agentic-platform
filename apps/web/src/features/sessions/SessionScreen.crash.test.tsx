@@ -87,9 +87,10 @@ describe("SessionScreen crash banner", () => {
     await emit(oom);
     await click(button(container, "Retry"));
     expect(container.querySelector("[data-crash-error]")?.textContent).toBe(
-      "The server is at capacity. Try again later. 6 / 6 workers running.",
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one. 6 / 6 workers running.",
     );
-    expect(alerts(container)).toHaveLength(1);
+    // the crash banner and the answer to the person's own Retry click
+    expect(alerts(container)).toHaveLength(2);
   });
 
   it("does not bring a crash back after a clean stop", async () => {

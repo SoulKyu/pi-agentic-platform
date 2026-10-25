@@ -8,7 +8,7 @@ const CHIP_TONES: Record<ChipTone, string> = {
   att: "border-attn text-attn",
   err: "border-err text-err",
   mut: "border-border-strong text-muted",
-  ext: "border-dashed border-attn text-attn",
+  ext: "border-dashed border-attn text-attn-title",
   // The person's turn: a lane waiting for review.
   you: "border-you-line text-you-text",
 };

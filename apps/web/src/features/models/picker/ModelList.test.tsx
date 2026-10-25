@@ -213,21 +213,21 @@ describe("ModelList touch and scroll", () => {
 describe("ModelList states", () => {
   it("loading is announced", async () => {
     await show({ state: { status: "loading" } });
-    expect(document.querySelector('[role="status"]')?.textContent).toBe("Loading models");
+    expect(document.querySelector('[role="status"]')?.textContent).toBe("Loading models…");
     expect(options()).toHaveLength(0);
   });
 
   it("failed shows the message and a retry that calls reload", async () => {
     const reload = vi.fn();
     await show({ state: { status: "failed", stale: false, reload } });
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe("The models could not be loaded.");
+    expect(document.querySelector('[role="status"]')?.textContent).toBe("The models could not be loaded.");
     await click(button(document.body, "Try again"));
     expect(reload).toHaveBeenCalledOnce();
   });
 
   it("a stale page asks for a reload instead of a raw error", async () => {
     await show({ state: { status: "failed", stale: true, reload: () => {} } });
-    expect(document.querySelector('[role="alert"]')?.textContent).toBe("Reload the page: pap was updated.");
+    expect(document.querySelector('[role="status"]')?.textContent).toBe("Reload the page: pap was updated.");
   });
 
   it("empty shows the link to Settings > Models", async () => {

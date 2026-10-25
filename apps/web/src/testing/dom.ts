@@ -127,6 +127,10 @@ export function alerts(container: ParentNode): string[] {
   return [...container.querySelectorAll('[role="alert"]')].map(words);
 }
 
+export function statuses(container: ParentNode): string[] {
+  return [...container.querySelectorAll('[role="status"]')].map(words);
+}
+
 export function text(container: ParentNode): string {
   return words(container as Element);
 }

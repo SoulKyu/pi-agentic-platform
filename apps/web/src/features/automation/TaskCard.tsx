@@ -1,5 +1,5 @@
 import type { TaskView } from "@pap/contracts";
-import { Button, Chip, cn, Fence, RunStatusChip } from "@pap/ui";
+import { Button, Chip, cn, Fence, InlineError, RunStatusChip } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
@@ -110,11 +110,7 @@ export function TaskCard({ task, now, current, onOpenSession, onOpenAgent }: Tas
           </Button>
         ))}
       </div>
-      {actions.error ? (
-        <p role="alert" className="text-ui text-err">
-          {actions.error}
-        </p>
-      ) : null}
+      {actions.error ? <InlineError announce="action">{actions.error}</InlineError> : null}
       <TaskDialogs
         kind={asking}
         onClose={() => setAsking(null)}

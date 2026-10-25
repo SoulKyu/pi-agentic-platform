@@ -1,6 +1,6 @@
 import "./register-skills-catalog.ts";
 import type { PluginView, SkillView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, Heading, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -186,9 +186,7 @@ function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
       <div data-skills-section className="flex flex-col items-start gap-s2">
         {data.error ? (
           <>
-            <p role="alert" className="text-ui text-attn">
-              {data.error}
-            </p>
+            <InlineError announce="background">{data.error}</InlineError>
             <Button onClick={data.reload}>{t("settingsSkills.retry")}</Button>
           </>
         ) : (
@@ -202,18 +200,15 @@ function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
   return (
     <div data-skills-section className="flex flex-col gap-s4">
       <p className="text-ui text-muted">{t("settingsSkills.intro")}</p>
-      {data.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {data.error}
-        </p>
-      ) : null}
+      {data.error ? <InlineError announce="background">{data.error}</InlineError> : null}
       {writes.notice ? (
-        <p
-          role={writes.notice.tone === "error" ? "alert" : "status"}
-          className={writes.notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {writes.notice.text}
-        </p>
+        writes.notice.tone === "error" ? (
+          <InlineError announce="action">{writes.notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {writes.notice.text}
+          </p>
+        )
       ) : null}
       {pending !== null && project !== null ? (
         <ProtectedAsk
@@ -234,7 +229,9 @@ function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
         </div>
       ) : null}
       <section className="flex flex-col gap-s2">
-        <h3 className="label-hud text-muted">{t("settingsSkills.skills.title")}</h3>
+        <Heading level={3} variant="group">
+          {t("settingsSkills.skills.title")}
+        </Heading>
         <SkillList
           skills={data.skills.skills}
           busy={writes.busy}
@@ -253,7 +250,9 @@ function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
         onInstall={installSkill}
       />
       <section className="flex flex-col gap-s2">
-        <h3 className="label-hud text-muted">{t("settingsSkills.plugins.title")}</h3>
+        <Heading level={3} variant="group">
+          {t("settingsSkills.plugins.title")}
+        </Heading>
         <PluginList
           plugins={data.plugins.plugins}
           busy={writes.busy}

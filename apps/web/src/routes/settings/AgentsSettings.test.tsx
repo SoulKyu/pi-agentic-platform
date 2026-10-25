@@ -269,7 +269,7 @@ describe("Settings › Agents: one agent", () => {
     expect(document.activeElement?.textContent).toBe("atlas");
     await click(button(document.body, "All agents"));
     await settle();
-    expect(document.activeElement?.tagName).toBe("H3");
+    expect(document.activeElement?.tagName).toBe("H2");
     expect(document.activeElement?.id).toBe("agents-list-title");
   });
 

@@ -35,17 +35,17 @@ beforeEach(() => setLocale("en"));
 describe("Settings › GitHub, as a member", () => {
   it("shows Authorize, Disconnect and the install link, and no App creation or deletion", async () => {
     const connected = await show(githubStatus({ state: "connected" }));
-    expect(hasButton(connected, "DISCONNECT")).toBe(true);
-    expect(hasButton(connected, "INSTALL ON GITHUB")).toBe(true);
-    expect(hasButton(connected, "DELETE THE APP")).toBe(false);
+    expect(hasButton(connected, "Disconnect")).toBe(true);
+    expect(hasButton(connected, "Install on GitHub")).toBe(true);
+    expect(hasButton(connected, "Delete the app")).toBe(false);
     const created = await show(githubStatus({ state: "created", login: null }));
-    expect(hasButton(created, "AUTHORIZE")).toBe(true);
-    expect(hasButton(created, "DELETE THE APP")).toBe(false);
+    expect(hasButton(created, "Authorize")).toBe(true);
+    expect(hasButton(created, "Delete the app")).toBe(false);
   });
 
   it("offers no App creation while none exists", async () => {
     const absent = await show(githubStatus({ state: "absent", app: null, login: null }));
-    expect(hasButton(absent, "CREATE THE GITHUB APP")).toBe(false);
+    expect(hasButton(absent, "Create the GitHub App")).toBe(false);
     expect(text(absent)).toContain("has not created the GitHub App");
   });
 
@@ -54,7 +54,7 @@ describe("Settings › GitHub, as a member", () => {
     const connected = await show(githubStatus({ state: "connected" }));
     (
       [...connected.querySelectorAll("button")].find(
-        (one) => one.textContent === "INSTALL ON GITHUB",
+        (one) => one.textContent === "Install on GitHub",
       ) as HTMLElement
     ).click();
     expect(open).toHaveBeenCalledWith(

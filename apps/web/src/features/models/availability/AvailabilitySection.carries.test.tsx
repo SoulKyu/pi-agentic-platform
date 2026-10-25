@@ -3,7 +3,7 @@ import type { ProviderView } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
-import { alerts, button, click, settle, text } from "../../../testing/dom.ts";
+import { alerts, statuses, button, click, settle, text } from "../../../testing/dom.ts";
 import { forgetExtensions } from "../extension-read.ts";
 import { availabilityBed, BASE, current, showAvailability } from "./availability-models-bed.tsx";
 
@@ -144,7 +144,7 @@ describe("a stale page (an old shell, a chunk that is gone)", () => {
     };
     const page = await showAvailability();
     await settle();
-    expect(alerts(page.container).join(" ")).toContain("Reload the page");
+    expect(statuses(page.container).join(" ")).toContain("Reload the page");
   });
 
   it("asks for a reload when the extension read dies on a stale chunk", async () => {
@@ -156,7 +156,7 @@ describe("a stale page (an old shell, a chunk that is gone)", () => {
     await settle();
     await click(button(page.container, "Read providers added by extensions"));
     await settle();
-    expect(alerts(page.container).join(" ")).toContain("Reload the page");
+    expect(statuses(page.container).join(" ")).toContain("Reload the page");
   });
 });
 

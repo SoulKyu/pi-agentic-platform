@@ -1,4 +1,5 @@
 import type { TriggerView } from "@pap/contracts";
+import { cn, useIsPhone } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { DryRunPanel } from "./DryRunPanel.tsx";
@@ -21,6 +22,7 @@ interface TriggerFormProps {
 /** The editor on the left, the dry-run beside it, the journal under both (board 11 §1, "Éditeur" with the dry-run beside it). */
 export function TriggerForm({ view, draft: initial, onOpenSession, onCreated }: TriggerFormProps) {
   const t = useT();
+  const phone = useIsPhone();
   const editor = useTriggerEditor({ view, draft: initial, ...(onCreated ? { onCreated } : {}) });
   const [now] = useState(() => Date.now());
   const { draft, set, errors } = editor;
@@ -30,7 +32,7 @@ export function TriggerForm({ view, draft: initial, onOpenSession, onCreated }: 
   return (
     <div data-trigger-editor="" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex flex-wrap items-start gap-s3 p-s3">
-        <div className="flex min-w-pane flex-1 flex-col gap-s3">
+        <div className={cn("flex flex-1 flex-col gap-s3", phone ? "min-w-0" : "min-w-pane")}>
           <EditorHeader
             draft={draft}
             set={set}
@@ -55,7 +57,7 @@ export function TriggerForm({ view, draft: initial, onOpenSession, onCreated }: 
           <ExecutionSection draft={draft} set={set} errors={errors} />
           <PromptSection draft={draft} set={set} errors={errors} />
         </div>
-        <div className="min-w-pane flex-1">
+        <div className={phone ? "min-w-0 flex-1" : "min-w-pane flex-1"}>
           <DryRunPanel
             input={editor.input}
             sourceType={draft.sourceType}

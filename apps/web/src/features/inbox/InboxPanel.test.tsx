@@ -110,10 +110,10 @@ describe("InboxPanel", () => {
     page = await show(<InboxPanel onOpenSession={() => {}} />);
     await click(button(page.container, "Read all"));
     await settle();
-    expect(page.container.querySelector('[role="alert"]')?.textContent).toBe(
-      "The database was written by a newer pap and is read-only.",
+    expect(page.container.querySelector('[role="status"][data-slot="inline-error"]')?.textContent).toBe(
+      "A newer pap wrote this database, so this one opened it read-only. Nothing was changed. Update pap to use it again.",
     );
-    expect(page.container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(page.container.querySelector('[role="status"][data-slot="inline-error"]')).not.toBeNull();
   });
 
   it("opens the session of a clicked row and marks that row read", async () => {

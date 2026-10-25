@@ -1,6 +1,6 @@
 import type { DryRunResult } from "@pap/contracts";
 import { AUTOMATION_WRITE_TOOLS } from "@pap/contracts";
-import { Button, Chip, cn, TextField, usePendingAction } from "@pap/ui";
+import { Button, Chip, cn, Heading, InlineError, TextField, usePendingAction } from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
@@ -155,7 +155,9 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
       className="flex flex-col gap-s3 rounded-md border border-border-strong bg-bg-side p-s3"
     >
       <div className="flex items-center gap-s2">
-        <h3 className="label-hud text-agent">{t("automation.dry.title")}</h3>
+        <Heading level={3} variant="card" tone="agent">
+          {t("automation.dry.title")}
+        </Heading>
         <Chip tone="mut" label={t("automation.dry.nothingWritten")} />
       </div>
       {payloadHidden ? null : (
@@ -174,14 +176,10 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
         </Button>
       </div>
       {state.kind === "invalid" && !input.ok ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("automation.dry.invalid")}
-        </p>
+        <InlineError announce="action">{t("automation.dry.invalid")}</InlineError>
       ) : null}
       {state.kind === "failed" ? (
-        <p role="alert" className="text-ui text-err">
-          {t("automation.dry.failed")}
-        </p>
+        <InlineError announce="action">{t("automation.dry.failed")}</InlineError>
       ) : null}
       {result === null ? null : (
         <Result result={result} dedupMinutes={dedup} isolated={agent?.target === "isolated"} />

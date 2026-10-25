@@ -37,7 +37,7 @@ describe("the project's GitHub tab", () => {
   it("lists pull requests with check chips that carry a word", async () => {
     const container = await tab();
     const body = text(container);
-    for (const words of ["Pull requests", "Issues", "Releases", "#7", "by hubot", "PASSING", "FAILING"])
+    for (const words of ["Pull requests", "Issues", "Releases", "#7", "by hubot", "Passing", "Failing"])
       expect(body).toContain(words);
     expect(body).toContain("v1.0.0");
     const tones = [...container.querySelectorAll('[data-slot="chip"]')].map((chip) =>
@@ -49,20 +49,20 @@ describe("the project's GitHub tab", () => {
   it("a failed check opens its log fenced", async () => {
     const container = await tab();
     expect(container.querySelector('[data-slot="fence"]')).toBeNull();
-    await click(button(container, "SHOW LOG"));
+    await click(button(container, "Show log"));
     await settle();
     expect(bed.called("projects.checkLog")[0]?.params).toEqual({ projectId: "b1", checkId: "c2" });
     const fence = container.querySelector('[data-slot="fence"]') as HTMLElement;
     expect(fence.querySelector("figcaption")?.textContent).toBe("UNTRUSTED · github log");
     expect(fence.textContent).toContain(BAD_LOG);
     expect(text(container)).toContain("The log is cut: only its end shows.");
-    await click(button(container, "HIDE LOG"));
+    await click(button(container, "Hide log"));
     expect(container.querySelector('[data-slot="fence"]')).toBeNull();
   });
 
   it("GitHub text is never HTML", async () => {
     const container = await tab();
-    await click(button(container, "SHOW LOG"));
+    await click(button(container, "Show log"));
     await settle();
     expect(container.querySelector("script, img, b, a, strong, em")).toBeNull();
     expect(text(container)).toContain("Fix <b>the</b> build");
@@ -73,7 +73,7 @@ describe("the project's GitHub tab", () => {
   it("send to a session calls sendToSession for a check and for an issue, then opens the session", async () => {
     const container = await tab();
     const sends = [...container.querySelectorAll("button")].filter(
-      (node) => node.textContent === "SEND TO A SESSION",
+      (node) => node.textContent === "Send to a session",
     );
     expect(sends).toHaveLength(2);
     await click(sends[0] as HTMLButtonElement);
@@ -98,7 +98,7 @@ describe("the project's GitHub tab", () => {
     const container = await tab();
     await click(
       [...container.querySelectorAll("button")].filter(
-        (node) => node.textContent === "SEND TO A SESSION",
+        (node) => node.textContent === "Send to a session",
       )[1] as HTMLButtonElement,
     );
     await settle();
@@ -144,7 +144,7 @@ describe("the GitHub part of the project page", () => {
     expect(text(container)).toContain(
       "The clone of octo/notes failed: GitHub refused the access. The project is intact and empty.",
     );
-    await click(button(container, "RETRY"));
+    await click(button(container, "Retry"));
     await settle();
     expect(bed.called("projects.cloneAgain")[0]?.params).toEqual({ projectId: "b1" });
     expect(bed.called("projects.github")).toHaveLength(2);
@@ -163,6 +163,6 @@ describe("the GitHub part of the project page", () => {
     });
     const container = await entry();
     expect(text(container)).toContain("Cloning octo/notes…");
-    expect(hasButton(container, "RETRY")).toBe(false);
+    expect(hasButton(container, "Retry")).toBe(false);
   });
 });

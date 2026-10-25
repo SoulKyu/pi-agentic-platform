@@ -1,5 +1,5 @@
 import type { McpFileView } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, TextField, Heading } from "@pap/ui";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { parseUrl } from "../../lib/parse-url.ts";
@@ -196,7 +196,9 @@ function AddPanel({
       className="flex w-full flex-col gap-s4 focus:outline-none"
     >
       <section className="flex flex-col items-start gap-s2" aria-label={t("settingsMcp.add.target")}>
-        <h3 className="label-hud text-muted">{t("settingsMcp.add.target")}</h3>
+        <Heading level={3} variant="group">
+          {t("settingsMcp.add.target")}
+        </Heading>
         <div className="flex gap-s2">
           <Button
             variant={scope === "global" ? "primary" : "secondary"}

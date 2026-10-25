@@ -85,7 +85,7 @@ describe("Language section", () => {
     expect(document.documentElement.lang).toBe("fr");
     expect(banner()?.getAttribute("role")).toBe("status");
     expect(banner()?.textContent).toBe(
-      "Appliqué à cette page seulement : ce navigateur ne garde pas les réglages.",
+      "Appliqué à cette page seulement\u202f: ce navigateur ne garde pas les réglages.",
     );
     await page.unmount();
   });

@@ -1,5 +1,14 @@
 import type { InboxItem } from "@pap/contracts";
-import { type AvatarStyle, Button, Chip, EmptyState, Segmented, toast, type Option } from "@pap/ui";
+import {
+  type AvatarStyle,
+  Button,
+  Chip,
+  EmptyState,
+  Segmented,
+  toast,
+  type Option,
+  InlineError,
+} from "@pap/ui";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "../../i18n/register-inbox.ts";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -96,15 +105,16 @@ export default function InboxPanel({
       <div className="border-b border-border px-s3 py-s1">
         <Segmented<InboxFilter>
           label={t("inbox.filters")}
+          labelHidden
           value={filter}
           options={options}
           onChange={setFilter}
         />
       </div>
       {error ? (
-        <p role="alert" className="px-s3 py-s2 text-ui text-attn">
-          {error}
-        </p>
+        <div className="px-s3 py-s2">
+          <InlineError announce="background">{error}</InlineError>
+        </div>
       ) : null}
       {rows.length === 0 ? (
         <div className="p-s3">

@@ -4,6 +4,8 @@ export {
   itemKey,
   OWNER_SECTIONS,
   sectionFor,
+  SETTINGS_GROUPS,
+  SETTINGS_LAYOUT,
   SETTINGS_SECTIONS,
   sectionsFor,
 } from "./model.ts";

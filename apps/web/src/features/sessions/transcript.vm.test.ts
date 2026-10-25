@@ -157,7 +157,12 @@ describe("transcriptItems", () => {
       EMPTY_VIEW,
       snapshotOf("idle", [{ role: "assistant", content: [], stopReason: "error", timestamp: 2 }]),
     );
-    expect(rowsOf(view)).toMatchObject([{ kind: "failure", text: "Something went wrong." }]);
+    expect(rowsOf(view)).toMatchObject([
+      {
+        kind: "failure",
+        text: "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+      },
+    ]);
   });
 
   it("shows an oversize row as an item with its size instead of dropping it, in English and French (R109)", () => {

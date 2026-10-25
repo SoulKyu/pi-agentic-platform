@@ -1,5 +1,5 @@
 import "../../i18n/register-inbox.ts";
-import { Button, Chip, usePendingAction } from "@pap/ui";
+import { Button, Chip, usePendingAction, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useCallback, useId, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -155,11 +155,7 @@ function OpenDialog({ requestId }: { readonly requestId: string }) {
                 note={t("inbox.secret.vaultNote")}
               />
             </fieldset>
-            {problem !== null ? (
-              <p role="alert" className="text-ui text-attn">
-                {problem}
-              </p>
-            ) : null}
+            {problem !== null ? <InlineError announce="action">{problem}</InlineError> : null}
           </>
         )}
       </div>

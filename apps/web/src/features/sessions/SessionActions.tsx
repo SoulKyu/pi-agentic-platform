@@ -1,4 +1,4 @@
-import { Button, IconButton, IconMore, TextField } from "@pap/ui";
+import { Button, IconButton, IconMore, TextField, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -213,9 +213,9 @@ export function SessionActions(props: SessionActionsProps) {
       ) : null}
       {[rename, autoName, compact, exportHtml, duplicate].map((action, index) =>
         action.error ? (
-          <p key={index} role="alert" className="order-last w-full text-ui text-attn">
-            {action.error}
-          </p>
+          <div key={index} className="order-last w-full">
+            <InlineError announce="action">{action.error}</InlineError>
+          </div>
         ) : null,
       )}
     </div>

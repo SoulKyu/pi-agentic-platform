@@ -1,5 +1,5 @@
 import type { TaskFailure } from "@pap/contracts";
-import { Banner, Button } from "@pap/ui";
+import { Banner, Button, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
@@ -54,11 +54,7 @@ export function FailuresBanner({
           </li>
         ))}
       </ul>
-      {error ? (
-        <p role="alert" className="text-ui text-err">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </Banner>
   );
 }

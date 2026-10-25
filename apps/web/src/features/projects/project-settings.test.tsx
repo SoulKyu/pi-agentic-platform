@@ -56,14 +56,14 @@ describe("project settings", () => {
   it("shows the sections with the saved values", async () => {
     await open();
     const body = text(document.body);
-    for (const label of ["BOX", "RESOURCES", "HOSTS", "PACKAGES"]) expect(body).toContain(label);
+    for (const label of ["Box", "Resources", "Hosts", "Packages"]) expect(body).toContain(label);
     expect(field(document.body, "Memory (MiB)").value).toBe("2048");
     expect(field(document.body, "Disk (MiB)").value).toBe("8192");
     expect(field(document.body, "Hosts, one per line").value).toBe("api.example.com");
     expect(body).toContain("In the box image");
     expect(body).toContain("git");
     expect(body).not.toContain("Asked by");
-    expect(button(document.body, "RESTART BOX")).toBeDefined();
+    expect(button(document.body, "Restart box")).toBeDefined();
   });
 
   it("says the hosts belong to this project and come on top of the owner's list", async () => {
@@ -77,7 +77,7 @@ describe("project settings", () => {
     await open();
     await typeInto(field(document.body, "Memory (MiB)"), "4096");
     await typeInto(field(document.body, "Hosts, one per line"), "api.example.com\n*.example.org\n");
-    await click(button(document.body, "SAVE"));
+    await click(button(document.body, "Save"));
     await settle();
     expect(bed.called("projects.setBox")[0]?.params).toEqual({
       projectId: "b1",
@@ -89,7 +89,7 @@ describe("project settings", () => {
   it("a smaller disk is refused", async () => {
     await open();
     await typeInto(field(document.body, "Disk (MiB)"), "4096");
-    await click(button(document.body, "SAVE"));
+    await click(button(document.body, "Save"));
     await settle();
     expect(bed.called("projects.setBox")).toEqual([]);
     expect(text(document.body)).toContain("The disk cannot go below its saved size");
@@ -98,7 +98,7 @@ describe("project settings", () => {
   it("refuses a host that is not a host before any call", async () => {
     await open();
     await typeInto(field(document.body, "Hosts, one per line"), "not a host");
-    await click(button(document.body, "SAVE"));
+    await click(button(document.body, "Save"));
     await settle();
     expect(bed.called("projects.setBox")).toEqual([]);
     expect(text(document.body)).toContain("Host names (api.example.com or *.example.com)");
@@ -107,15 +107,15 @@ describe("project settings", () => {
   it("offers START on a stopped box, and RESTART BOX and REBUILD call their methods", async () => {
     bed.handlers["projects.box"] = () => ({ box: boxView() });
     await open("stopped");
-    expect(button(document.body, "START")).toBeDefined();
-    expect(document.body.textContent).not.toContain("RESTART BOX");
-    await click(button(document.body, "REBUILD"));
+    expect(button(document.body, "Start")).toBeDefined();
+    expect(document.body.textContent).not.toContain("Restart box");
+    await click(button(document.body, "Rebuild"));
     expect(bed.called("projects.rebuild")[0]?.params).toEqual({ projectId: "b1" });
   });
 
   it("restarts a running box", async () => {
     await open();
-    await click(button(document.body, "RESTART BOX"));
+    await click(button(document.body, "Restart box"));
     expect(bed.called("projects.restartBox")[0]?.params).toEqual({ projectId: "b1" });
   });
 
@@ -127,24 +127,24 @@ describe("project settings", () => {
     // Both lists show before Rebuild, so the owner sees what a rebuild would install.
     const body = text(document.body);
     expect(body).toContain("In the box image");
-    expect(body).toContain("Asked by `.pi/project.yaml`");
+    expect(body).toContain("Asked by .pi/project.yaml");
     expect(body).toContain("git, jq");
-    expect(text(document.body)).toContain("PACKAGES CHANGED");
+    expect(text(document.body)).toContain("Packages changed");
     expect(text(document.body)).toContain(
-      "`.pi/project.yaml` asks for other packages than the box image. Rebuild to install them; the new image applies at the next start.",
+      ".pi/project.yaml asks for other packages than the box image. Rebuild to install them; the new image applies at the next start.",
     );
   });
 
   it("delete shows the counts and asks for the step-up", async () => {
     bed.handlers["projects.delete"] = () => ({ ok: true });
     await open();
-    await click(button(document.body, "DELETE PROJECT"));
+    await click(button(document.body, "Delete project"));
     const dialog = dialogs().at(-1) as HTMLElement;
     expect(text(dialog)).toContain(
       "Delete notes? Its box, 3 sessions and 1 triggers go. The disk stays in the trash for 7 days.",
     );
     expect(button(dialog, "Cancel").getAttribute("data-variant")).toBe("secondary");
-    const confirm = button(dialog, "DELETE PROJECT");
+    const confirm = button(dialog, "Delete project");
     expect(confirm.getAttribute("data-variant")).toBe("danger");
     await click(confirm);
     await settle();
@@ -160,8 +160,8 @@ describe("project settings", () => {
       throw new RpcError("conflict");
     };
     await open();
-    await click(button(document.body, "DELETE PROJECT"));
-    await click(button(dialogs().at(-1) as HTMLElement, "DELETE PROJECT"));
+    await click(button(document.body, "Delete project"));
+    await click(button(dialogs().at(-1) as HTMLElement, "Delete project"));
     await settle();
     const said = text(dialogs().at(-1) as HTMLElement);
     expect(said).toContain(
@@ -177,8 +177,8 @@ describe("project settings", () => {
       throw new RpcError("conflict");
     };
     await open();
-    await click(button(document.body, "DELETE PROJECT"));
-    await click(button(dialogs().at(-1) as HTMLElement, "DELETE PROJECT"));
+    await click(button(document.body, "Delete project"));
+    await click(button(dialogs().at(-1) as HTMLElement, "Delete project"));
     await settle();
     expect(text(dialogs().at(-1) as HTMLElement)).toContain(
       "Scratch was not deleted: it still holds sessions.",
@@ -192,9 +192,9 @@ describe("project settings", () => {
     bed.handlers["projects.box"] = () => ({ box: boxView() });
     await open("stopped");
     expect(text(document.body)).toContain("Project settings · notes");
-    await click(button(document.body, "START"));
+    await click(button(document.body, "Start"));
     await settle();
-    expect(document.querySelector('[role="alert"]')).toBeNull();
+    expect(document.querySelector('[data-slot="inline-error"][role="alert"]')).not.toBeNull();
     expect(text(document.body)).toContain("Your files are intact.");
   });
 
@@ -202,10 +202,10 @@ describe("project settings", () => {
     const { setLocale } = await import("../../i18n/index.ts");
     setLocale("fr");
     await open();
-    expect(text(document.body)).toContain("RESSOURCES");
-    await click(button(document.body, "SUPPRIMER LE PROJET"));
+    expect(text(document.body)).toContain("Ressources");
+    await click(button(document.body, "Supprimer le projet"));
     expect(text(dialogs().at(-1) as HTMLElement)).toContain(
-      "Supprimer notes ? Sa box, 3 sessions et 1 déclencheurs disparaissent. Le disque reste 7 jours dans la corbeille.",
+      "Supprimer notes\u202f? Sa box, 3 sessions et 1 déclencheurs disparaissent. Le disque reste 7 jours dans la corbeille.",
     );
     setLocale("en");
   });

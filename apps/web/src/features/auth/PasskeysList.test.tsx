@@ -61,7 +61,7 @@ const two = [
 ];
 const dialog = () => document.querySelector('[data-slot="dialog"]') as HTMLElement;
 const removeLabel = (day: string) => `Remove passkey created ${day}`;
-const heading = () => document.querySelector("h3[tabindex]");
+const heading = () => document.querySelector("h2[tabindex]");
 const when = (millis: number) => new Date(millis).toLocaleString("en");
 
 async function show(passkeys: unknown[] = two, available = true) {
@@ -242,7 +242,9 @@ describe("passkeys", () => {
       throw new RpcError("not_found");
     };
     await startRemoval(container);
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(alerts(container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
     expect(bed.called("auth.passkeys.list")).toHaveLength(2);
   });
 

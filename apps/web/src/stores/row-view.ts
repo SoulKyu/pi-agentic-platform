@@ -1,3 +1,4 @@
+import { summarize } from "./tool-summary.ts";
 import { CODEMODE_TOOL, nestedCallsOf, type NestedCallView } from "./nested-calls.ts";
 
 export interface ToolCallView {
@@ -56,17 +57,8 @@ export interface MessageView {
 }
 
 const MAX_ERROR = 500;
-const MAX_SUMMARY = 200;
 const MAX_NAME = 64;
 const MAX_CALL_ID = 256;
-
-const summarize = (args: unknown): { readonly summary: string; readonly argsTruncated: boolean } => {
-  const command = (args as { command?: unknown } | null)?.command;
-  const text = typeof command === "string" ? command : (JSON.stringify(args ?? {}) ?? "");
-  return text.length > MAX_SUMMARY
-    ? { summary: `${text.slice(0, MAX_SUMMARY)}…`, argsTruncated: true }
-    : { summary: text, argsTruncated: false };
-};
 
 const clip = (text: string, max: number): string =>
   text.length > max ? `${[...text.slice(0, max * 2)].slice(0, max).join("")}…` : text;
@@ -130,7 +122,7 @@ export function toMessageView(
       return {
         id: clip(String(block.id ?? ""), MAX_CALL_ID),
         name: clip(String(block.name ?? "tool"), MAX_NAME),
-        ...summarize(args),
+        ...summarize(String(block.name ?? "tool"), args),
         ...(typeof code === "string" ? { code } : {}),
       };
     });

@@ -58,7 +58,7 @@ describe("approval request cards (M11R102, M11R120)", () => {
     expect(words).toContain("Atlas asks: Deploy the site?");
     expect(words).toContain("Ships v2 now");
     expect(words).not.toContain("\u202e");
-    expect(words).toContain("UNTRUSTED");
+    expect(words).toContain("Untrusted");
     expect(words).toContain("20 min");
   });
 

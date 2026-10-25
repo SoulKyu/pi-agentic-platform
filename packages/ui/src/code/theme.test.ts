@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { REVIEW_THEME_SPEC } from "./review-gutter.ts";
 import { HIGHLIGHT_SPEC, THEME_SPEC } from "./theme.ts";
 
 const TOKEN = /^var\(--[a-z0-9-]+\)/;
@@ -62,6 +63,16 @@ describe("the editor theme", () => {
     expect(rules(".cm-textfield:focus, .cm-button:focus-visible")).toMatchObject({
       outlineColor: "var(--focus-ring)",
     });
+  });
+
+  it("gutters and line numbers read text-muted, and the label tracking is the token", () => {
+    expect(THEME_SPEC[".cm-gutters"]?.color).toBe("var(--text-muted)");
+    expect(THEME_SPEC[".cm-lineNumbers .cm-gutterElement"]?.color).toBe("var(--text-muted)");
+    expect(REVIEW_THEME_SPEC[".cm-review-gutter"]?.color).toBe("var(--text-muted)");
+    expect(REVIEW_THEME_SPEC[".cm-lineNumbers .cm-gutterElement"]?.color).toBe("var(--text-muted)");
+    expect(REVIEW_THEME_SPEC[".cm-review-comment small"]?.letterSpacing).toBe(
+      "var(--tracking-label, 0.08em)",
+    );
   });
 
   it("never blinks: no animation on the cursor", () => {

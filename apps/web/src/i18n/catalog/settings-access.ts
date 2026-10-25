@@ -59,7 +59,9 @@ export const settingsAccessEn = {
   "access.tokens.title": "API tokens",
   "access.tokens.hint": "Let a script or another program use pap in your name.",
   "access.tokens.loading": "Loading tokens…",
-  "access.tokens.empty": "No tokens yet.",
+  "access.tokens.empty":
+    "No tokens yet. A token lets a script or another machine call pap with the permissions you choose.",
+  "access.tokens.emptyTitle": "No tokens yet",
   "access.tokens.name": "Name",
   "access.tokens.nameHint": "1 to 64 characters.",
   "access.tokens.lifetime": "Lifetime",
@@ -177,7 +179,9 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
   "access.tokens.title": "Jetons d'API",
   "access.tokens.hint": "Permettez à un script ou à un autre programme d'utiliser pap en votre nom.",
   "access.tokens.loading": "Chargement des jetons…",
-  "access.tokens.empty": "Aucun jeton pour le moment.",
+  "access.tokens.empty":
+    "Aucun jeton pour l'instant. Un jeton permet à un script ou à une autre machine d'appeler pap avec les permissions que vous choisissez.",
+  "access.tokens.emptyTitle": "Aucun jeton pour l'instant",
   "access.tokens.name": "Nom",
   "access.tokens.nameHint": "De 1 à 64 caractères.",
   "access.tokens.lifetime": "Durée de vie",

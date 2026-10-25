@@ -1,6 +1,6 @@
 import "../../i18n/register-health.ts";
 import type { HealthEvent } from "@pap/contracts";
-import { Button, Chip, EmptyState, Segmented, TextField } from "@pap/ui";
+import { Button, Chip, EmptyState, Segmented, TextField, InlineError } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -68,8 +68,8 @@ export function HealthSection() {
         {announce}
       </p>
       {failed ? (
-        <div role="alert" className="flex flex-wrap items-center gap-s2">
-          <p className="text-ui text-err">{t("health.failed")}</p>
+        <div className="flex flex-wrap items-center gap-s2">
+          <InlineError announce="background">{t("health.failed")}</InlineError>
           <Button onClick={retry}>{t("health.retry")}</Button>
         </div>
       ) : null}

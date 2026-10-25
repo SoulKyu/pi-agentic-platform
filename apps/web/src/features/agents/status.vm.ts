@@ -1,5 +1,6 @@
 import type { AgentStatus, TaskView, TriggerView } from "@pap/contracts";
 import { formatCost, type ChipTone } from "@pap/ui";
+import type { TriggerSourceType } from "../../lib/trigger-icon.ts";
 import { stripHidden } from "./untrusted-text.ts";
 
 /** DESIGN §8: the panel is a column on the right, a pane of its own, or a sheet. */
@@ -92,12 +93,11 @@ export function taskRows(tasks: readonly TaskView[]): readonly TaskRowVm[] {
 }
 const needsInput = (task: TaskView): boolean => task.state === "running" && task.needsInput;
 
-const GLYPH = { schedule: "⏱", webhook: "⇢", feed: "◉", manual: "▸" } as const;
-
 export interface TriggerRowVm {
   readonly id: string;
   readonly name: string;
-  readonly glyph: string;
+  /** The source type the row draws as an icon; null for a source this build does not know. */
+  readonly source: TriggerSourceType | null;
   readonly enabled: boolean;
   /** The owner's Run button: any source type; the daemon would also fire a disabled one, the row just hides it. */
   readonly canFire: boolean;
@@ -107,7 +107,7 @@ export const triggerRows = (triggers: readonly TriggerView[]): readonly TriggerR
   triggers.map((trigger) => ({
     id: trigger.id,
     name: stripHidden(trigger.name),
-    glyph: trigger.source === null ? "?" : GLYPH[trigger.source.type],
+    source: trigger.source === null ? null : trigger.source.type,
     enabled: trigger.enabled,
     canFire: trigger.enabled,
   }));

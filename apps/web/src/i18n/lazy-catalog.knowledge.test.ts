@@ -11,13 +11,13 @@ describe("catalog (OKF knowledge)", () => {
   });
 
   it("carries the exact words", () => {
-    expect([knowledgeEn["knowledge.chip.on"], knowledgeEn["knowledge.chip.off"]]).toEqual(["OKF", "NO OKF"]);
+    expect([knowledgeEn["knowledge.chip.on"], knowledgeEn["knowledge.chip.off"]]).toEqual(["OKF", "No OKF"]);
     expect([knowledgeFr["knowledge.chip.on"], knowledgeFr["knowledge.chip.off"]]).toEqual([
       "OKF",
-      "SANS OKF",
+      "Sans OKF",
     ]);
-    expect(knowledgeEn["knowledge.row.enable"]).toBe("ENABLE OKF");
-    expect(knowledgeFr["knowledge.row.enable"]).toBe("ACTIVER OKF");
+    expect(knowledgeEn["knowledge.row.enable"]).toBe("Enable OKF");
+    expect(knowledgeFr["knowledge.row.enable"]).toBe("Activer OKF");
     expect(knowledgeFr["knowledge.chip.pending"]).toBe(
       "OKF activé ; il s'applique au prochain démarrage de cette session",
     );

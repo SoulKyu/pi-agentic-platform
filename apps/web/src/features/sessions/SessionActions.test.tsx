@@ -341,7 +341,9 @@ describe("SessionActions duplicate", () => {
     const container = await show();
     await pick(container, "Duplicate");
     await settle();
-    expect(alerts(container)).toEqual(["The server is at capacity. Try again later."]);
+    expect(alerts(container)).toEqual([
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
+    ]);
     expect(current.navigate).not.toHaveBeenCalled();
   });
 });

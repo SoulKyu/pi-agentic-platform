@@ -1,3 +1,4 @@
+import { Heading } from "@pap/ui";
 import type { ReactNode } from "react";
 import type { Draft } from "./editor.vm.ts";
 
@@ -12,7 +13,9 @@ export interface SectionProps {
 export function EditorSection({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
     <section className="flex flex-col gap-s3 rounded-md border border-border-strong bg-surface p-s3">
-      <h3 className="label-hud text-agent">{title}</h3>
+      <Heading level={3} variant="card" tone="agent">
+        {title}
+      </Heading>
       {children}
     </section>
   );

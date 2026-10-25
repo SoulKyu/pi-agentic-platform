@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { coverText } from "../../lib/rule-text.ts";
@@ -93,18 +93,10 @@ export function RulesByProject() {
   const shown = rules === null ? [] : rules.filter((rule) => needle === "" || matches(rule, needle));
   return (
     <section className="flex flex-col gap-s3">
-      <h3 className="text-ui font-semibold text-fg">{t("approvals.rules.title")}</h3>
+      <h2 className="text-ui font-semibold text-fg">{t("approvals.rules.title")}</h2>
       <p className="text-ui text-muted">{t("approvals.rules.hint")}</p>
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
-      {revokeError ? (
-        <p role="alert" className="text-ui text-attn">
-          {revokeError}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="background">{error}</InlineError> : null}
+      {revokeError ? <InlineError announce="action">{revokeError}</InlineError> : null}
       {rules === null ? (
         error ? null : (
           <p className="text-ui text-muted">{t("approvals.rules.loading")}</p>
@@ -147,7 +139,7 @@ export function RulesByProject() {
         </>
       )}
       {truncated ? (
-        <p role="status" className="text-ui text-attn">
+        <p role="status" className="text-ui text-muted">
           {t("approvals.rules.more")}
         </p>
       ) : null}

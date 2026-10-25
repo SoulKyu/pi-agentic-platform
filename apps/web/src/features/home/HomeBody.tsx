@@ -22,7 +22,7 @@ export interface HomeBodyProps {
  */
 export default function HomeBody({ project, layout, actions, shortcuts }: HomeBodyProps) {
   return (
-    <div data-home-body="" className="flex flex-col gap-s4">
+    <div data-home-body="" className="flex flex-col gap-s5">
       {project?.kind === "box" ? (
         <BoxFact project={project} onSettings={(id) => useProjectSettingsRequest.getState().ask(id)} />
       ) : null}

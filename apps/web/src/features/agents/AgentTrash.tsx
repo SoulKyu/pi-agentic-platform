@@ -1,5 +1,5 @@
 import "./register-agent-catalog.ts";
-import { Button } from "@pap/ui";
+import { Button, Heading } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { visibleName } from "../../lib/visible-name.ts";
@@ -38,9 +38,9 @@ export function AgentTrash() {
   if (entries.length === 0) return null;
   return (
     <section data-slot="agents-trash" aria-labelledby="agents-trash-title" className="flex flex-col gap-s3">
-      <h3 id="agents-trash-title" className="label-hud text-fg">
+      <Heading level={2} variant="group" id="agents-trash-title">
         {t("agentVm.trash.title")}
-      </h3>
+      </Heading>
       <p className="text-ui text-muted">{t("agentVm.trash.hint")}</p>
       <ul className="flex flex-col gap-s2">
         {entries.map((entry) => {

@@ -1,6 +1,6 @@
 import "../../i18n/register-subagents.ts";
 import type { ChildView, SubagentState } from "@pap/contracts";
-import { Button, Chip, type ChipTone, formatCost } from "@pap/ui";
+import { Button, Chip, type ChipTone, formatCost, InlineError } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
@@ -115,11 +115,7 @@ export function SubagentBar({
           })}
         </ul>
       ) : null}
-      {failed ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("subagents.stopFailed")}
-        </p>
-      ) : null}
+      {failed ? <InlineError announce="action">{t("subagents.stopFailed")}</InlineError> : null}
     </section>
   );
 }

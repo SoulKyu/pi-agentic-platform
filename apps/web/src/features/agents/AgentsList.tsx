@@ -1,5 +1,5 @@
 import "./register-agent-catalog.ts";
-import { Avatar, type AvatarStyle, Button } from "@pap/ui";
+import { Avatar, Button, Heading, InlineError, type AvatarStyle } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import type { AgentsView } from "../../stores/agents-reducer.ts";
 import { agentLifecycle } from "./agent-lifecycle.ts";
@@ -19,17 +19,15 @@ export function AgentsList({ view, avatarStyle, onOpen, onNew }: Props) {
   return (
     <section aria-labelledby="agents-list-title" className="flex flex-col gap-s3">
       <header className="flex flex-wrap items-center justify-between gap-s2">
-        <h3 id="agents-list-title" tabIndex={-1} className="label-hud text-fg focus:outline-none">
+        <Heading level={2} variant="group" id="agents-list-title" tabIndex={-1}>
           {t("settings.agents.list")}
-        </h3>
+        </Heading>
         <Button variant="primary" onClick={onNew}>
           {t("settings.agents.new")}
         </Button>
       </header>
       {view.failed !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("settings.agents.feedFailed")}
-        </p>
+        <InlineError announce="background">{t("settings.agents.feedFailed")}</InlineError>
       ) : !view.loaded ? (
         <p role="status" className="text-ui text-muted">
           {t("settings.agents.loading")}

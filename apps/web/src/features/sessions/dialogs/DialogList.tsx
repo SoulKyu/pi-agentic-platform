@@ -1,5 +1,5 @@
 import type { Dialog, DialogResponse } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useRef, useState } from "react";
 import { plural, useLocale, useT } from "../../../i18n/index.ts";
 import { getRuntime } from "../../../runtime/index.ts";
@@ -109,11 +109,7 @@ export function DialogList(props: {
             ) : (
               <TextDialog key={key} dialog={dialog} initial={slot?.typed} onAnswer={onAnswer} />
             )}
-            {slot?.error ? (
-              <p role="alert" className="text-ui text-attn">
-                {slot.error}
-              </p>
-            ) : null}
+            {slot?.error ? <InlineError announce="action">{slot.error}</InlineError> : null}
             {slot?.unsure ? (
               <div role="status" className="flex items-center gap-s2 border-l-2 border-attn-line px-s3 py-s2">
                 <p className="flex-1 text-ui text-fg">{slot.unsure.message}</p>

@@ -5,6 +5,7 @@ import { registerCatalog } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import {
   alerts,
+  statuses,
   button,
   click,
   field,
@@ -103,13 +104,25 @@ describe("tokens list", () => {
     expect(text(container)).toContain("No tokens yet.");
   });
 
+  it("a load failure is a status, red, and not an alert", async () => {
+    bed.handlers["auth.tokens.list"] = () => {
+      throw new RpcError("internal");
+    };
+    page = await mount(<TokensPanel onSignedOut={vi.fn()} />);
+    await settle();
+    expect(page.container.querySelector('[data-slot="inline-error"][role="status"]')).not.toBeNull();
+    expect(alerts(page.container)).toEqual([]);
+  });
+
   it("shows a failed load with Try again, which loads again", async () => {
     bed.handlers["auth.tokens.list"] = () => {
       throw new RpcError("internal");
     };
     page = await mount(<TokensPanel onSignedOut={vi.fn()} />);
     await settle();
-    expect(alerts(page.container)).toEqual(["Something went wrong."]);
+    expect(statuses(page.container)).toEqual([
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    ]);
     bed.handlers["auth.tokens.list"] = () => ({ tokens: [live] });
     await click(button(page.container, "Try again"));
     await settle();
@@ -164,7 +177,9 @@ describe("revoke", () => {
     await click(button(container, "Revoke token name-t1"));
     await click(button(container, "Revoke token"));
     await settle();
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(alerts(container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
     expect(bed.called("auth.tokens.list")).toHaveLength(2);
   });
 

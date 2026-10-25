@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { VaultName, type SecretEntry } from "@pap/contracts";
-import { Button, TextField, usePendingAction } from "@pap/ui";
+import { Button, InlineError, TextField, usePendingAction } from "@pap/ui";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -127,13 +127,9 @@ export function SecretsList({ agentId }: { readonly agentId: string }) {
           {t("agentSafety.secrets.loading")}
         </p>
       ) : load.kind === "failed" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("agentSafety.secrets.failed")}
-        </p>
+        <InlineError announce="background">{t("agentSafety.secrets.failed")}</InlineError>
       ) : !load.readable ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("agentSafety.secrets.unreadable")}
-        </p>
+        <InlineError announce="background">{t("agentSafety.secrets.unreadable")}</InlineError>
       ) : (
         <>
           {load.entries.length === 0 ? (
@@ -222,9 +218,9 @@ export function SecretsList({ agentId }: { readonly agentId: string }) {
         </>
       )}
       {problem !== null ? (
-        <p id={problemId} role="alert" className="text-ui text-attn">
+        <InlineError announce="action" id={problemId}>
           {t(problem)}
-        </p>
+        </InlineError>
       ) : null}
     </section>
   );

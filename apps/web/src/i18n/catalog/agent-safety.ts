@@ -103,7 +103,8 @@ export const agentSafetyEn = {
     "Not against: a backup of the whole $PAP_HOME. The key sits beside the vault, so such a backup is as good as plaintext unless it leaves the key out.",
   "agentSafety.secrets.loading": "Reading the secrets…",
   "agentSafety.secrets.failed": "The secrets could not be read.",
-  "agentSafety.secrets.empty": "No secret saved yet.",
+  "agentSafety.secrets.empty":
+    "No secret saved yet. A saved secret reaches the agent's shell as an environment variable.",
   "agentSafety.secrets.unreadable":
     "The vault cannot be read: its file or its key cannot be opened. Nothing is listed until it is restored.",
   "agentSafety.secrets.saved": "saved {date}",
@@ -284,7 +285,8 @@ export const agentSafetyFr: { readonly [K in keyof typeof agentSafetyEn]: string
     "Pas contre : une sauvegarde de tout $PAP_HOME. La clé est à côté du coffre, donc une telle sauvegarde vaut du texte en clair, sauf si elle laisse la clé de côté.",
   "agentSafety.secrets.loading": "Lecture des secrets…",
   "agentSafety.secrets.failed": "Les secrets n'ont pas pu être lus.",
-  "agentSafety.secrets.empty": "Aucun secret enregistré pour l'instant.",
+  "agentSafety.secrets.empty":
+    "Aucun secret enregistré pour l'instant. Un secret enregistré arrive dans le shell de l'agent comme variable d'environnement.",
   "agentSafety.secrets.unreadable":
     "Le coffre est illisible : son fichier ou sa clé ne s'ouvre pas. Rien n'est listé tant qu'il n'est pas restauré.",
   "agentSafety.secrets.saved": "enregistré le {date}",

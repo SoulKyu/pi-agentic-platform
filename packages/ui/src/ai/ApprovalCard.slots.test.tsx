@@ -19,7 +19,7 @@ describe("ApprovalCard as the session screen uses it", () => {
     const card = page.container.querySelector('[role="alertdialog"]');
     expect(card?.getAttribute("aria-label")).toBe("Approval exec");
     // The separator is its own aria-hidden span: the heading's text is not "Approval · exec".
-    const heading = page.container.querySelector("h3");
+    const heading = page.container.querySelector("h2");
     expect(heading?.textContent).toBe("Approval·exec");
     expect(heading?.querySelector('[aria-hidden="true"]')?.textContent).toBe("·");
     await page.unmount();

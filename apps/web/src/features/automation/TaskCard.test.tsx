@@ -29,7 +29,7 @@ describe("TaskCard", () => {
     newBed();
     const page = await card({ detail: "<img src=x onerror=alert(1)> FIRING" });
     const fence = page.container.querySelector('[data-slot="fence"]') as HTMLElement;
-    expect(fence.querySelector("figcaption")?.textContent).toBe("UNTRUSTED · webhook");
+    expect(fence.querySelector("figcaption")?.textContent).toBe("Untrusted · webhook");
     expect(fence.textContent).toContain("<img src=x onerror=alert(1)> FIRING");
     expect(page.container.querySelector("img")).toBeNull();
   });

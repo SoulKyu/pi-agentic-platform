@@ -37,7 +37,14 @@ export function TabBar() {
 
   useEffect(() => {
     if (ws.active === null) return;
-    document.getElementById(`tab-${ws.active}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    // scrollIntoView would also move the browser's focus starting point past the skip link: scroll the strip itself.
+    const tab = document.getElementById(`tab-${ws.active}`);
+    const strip = listRef.current;
+    if (!tab || !strip) return;
+    const from = strip.getBoundingClientRect();
+    const box = tab.getBoundingClientRect();
+    if (box.left < from.left) strip.scrollLeft += box.left - from.left;
+    else if (box.right > from.right) strip.scrollLeft += box.right - from.right;
   }, [ws.active]);
 
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -79,7 +86,11 @@ export function TabBar() {
               title={title}
               active={tab.key === ws.active}
               status={running ? "running" : dot}
-              {...(laneStatus && dot ? { statusLabel: t(`shell.lane.status.${laneStatus}`) } : {})}
+              {...(running
+                ? { statusLabel: t("session.status.running") }
+                : laneStatus && dot
+                  ? { statusLabel: t(`shell.lane.status.${laneStatus}`) }
+                  : {})}
               closeLabel={t("shell.tabs.close", { title })}
               onSelect={() => go(navigate, pathOfItem(tab.item))}
               onClose={() => closeItem(navigate, tab.key)}

@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { IMPORT_LIMITS, parsePaste, previewOf, type Candidate } from "./import.ts";
@@ -57,9 +57,7 @@ export function ImportPaste({
         </p>
       ) : null}
       {outcome === "tooBig" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("settingsMcp.add.tooBig")}
-        </p>
+        <InlineError announce="action">{t("settingsMcp.add.tooBig")}</InlineError>
       ) : null}
       {outcome === "cut" ? (
         <p role="status" className="text-ui text-muted">

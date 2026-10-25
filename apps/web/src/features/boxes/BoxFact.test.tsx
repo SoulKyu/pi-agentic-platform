@@ -30,11 +30,11 @@ const show = async (phase: "stopped" | "starting" | "running") => {
 describe("the box fact", () => {
   it("says BOX, STOPPED (neutral) and START, starts the box, and carries the no-backup note", async () => {
     const fact = await show("stopped");
-    expect(text(fact)).toContain("BOX");
-    expect(text(fact)).toContain("STOPPED");
+    expect(text(fact)).toContain("Box");
+    expect(text(fact)).toContain("Stopped");
     expect(text(fact)).toContain("This project's files live only in its box: push them to keep a copy.");
     expect(fact.querySelector('[data-tone="mut"]')).not.toBeNull();
-    await click(button(fact, "START"));
+    await click(button(fact, "Start"));
     expect(bed.called("projects.startBox")[0]?.params).toEqual({ projectId: "b1" });
   });
 
@@ -43,16 +43,16 @@ describe("the box fact", () => {
       throw new RpcError("internal");
     };
     const fact = await show("stopped");
-    await click(button(fact, "START"));
+    await click(button(fact, "Start"));
     await settle();
-    expect(fact.querySelector('[role="alert"]')).toBeNull();
+    expect(fact.querySelector('[data-slot="inline-error"][role="alert"]')).not.toBeNull();
     expect(text(fact)).toContain("Your files are intact.");
   });
 
   it("shows a starting box with START off", async () => {
     const fact = await show("starting");
-    expect(text(fact)).toContain("STARTING");
-    expect(button(fact, "START").disabled).toBe(true);
+    expect(text(fact)).toContain("Starting");
+    expect(button(fact, "Start").disabled).toBe(true);
   });
 
   it("shows a running box without START, and PACKAGES CHANGED when the yaml wants other packages", async () => {
@@ -60,14 +60,14 @@ describe("the box fact", () => {
       box: boxView({ phase: "running", packages: { built: ["git"], wanted: ["git", "ripgrep"] } }),
     });
     const fact = await show("running");
-    expect(text(fact)).toContain("RUNNING");
-    expect(text(fact)).toContain("PACKAGES CHANGED");
+    expect(text(fact)).toContain("Running");
+    expect(text(fact)).toContain("Packages changed");
     expect(fact.querySelectorAll("button")).toHaveLength(1);
   });
 
   it("opens the settings of the project", async () => {
     const fact = await show("running");
-    await click(button(fact, "PROJECT SETTINGS"));
+    await click(button(fact, "Project settings"));
     expect(onSettings).toHaveBeenCalledExactlyOnceWith("b1");
   });
 
@@ -75,14 +75,14 @@ describe("the box fact", () => {
     const { setLocale } = await import("../../i18n/index.ts");
     setLocale("fr");
     const fact = await show("stopped");
-    expect(text(fact)).toContain("ARRÊTÉE");
-    expect(button(fact, "DÉMARRER")).toBeDefined();
+    expect(text(fact)).toContain("Arrêtée");
+    expect(button(fact, "Démarrer")).toBeDefined();
     setLocale("en");
   });
 
   it.each([
     ["capacity", "the server is at capacity. Your files are intact."],
-    ["vm_bundle_stale", "its code is older than pap. Your files are intact. Run `sudo pap vm setup`"],
+    ["vm_bundle_stale", "its code is older than pap. Your files are intact. Run sudo pap vm setup"],
     ["agent_paused", "crashed 3 times in 10 minutes and is paused. Your files are intact."],
     ["sandbox_unavailable", "no microVM support set up. Your files are intact."],
   ] as const)("says a start refused with %s in three parts", async (code, words) => {
@@ -90,9 +90,9 @@ describe("the box fact", () => {
       throw new RpcError(code);
     };
     const fact = await show("stopped");
-    await click(button(fact, "START"));
+    await click(button(fact, "Start"));
     await settle();
     expect(text(fact)).toContain(words);
-    expect(fact.querySelector('[role="alert"]')).toBeNull();
+    expect(fact.querySelector('[data-slot="inline-error"][role="alert"]')).not.toBeNull();
   });
 });

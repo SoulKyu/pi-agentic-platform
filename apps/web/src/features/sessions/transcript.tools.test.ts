@@ -46,7 +46,7 @@ describe("transcriptItems: tool calls", () => {
     ]);
     expect(items[1]).toMatchObject({
       name: "read",
-      summary: '{"path":"a.txt"}',
+      summary: "a.txt",
       status: "done",
       truncatedChars: 30000,
       toolCallId: "c1",

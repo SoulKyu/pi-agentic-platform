@@ -65,6 +65,14 @@ export {
   IconUndo,
   IconWarning,
   IconWork,
+  IconSchedule,
+  IconWebhook,
+  IconFeed,
+  IconManual,
+  IconStar,
+  IconFailed,
+  IconCancelled,
+  IconOpenItems,
 } from "./icons.ts";
 export { useIsPhone, useMediaQuery } from "./media.ts";
 export { once } from "./once.ts";
@@ -74,6 +82,10 @@ export { cancelsComposition } from "./primitives/composition.ts";
 export { Avatar, type AvatarProps, type AvatarStyle } from "./primitives/Avatar.tsx";
 export { Badge } from "./primitives/Badge.tsx";
 export { Banner, type BannerProps, type BannerTone } from "./primitives/Banner.tsx";
+export { CodeText } from "./primitives/CodeText.tsx";
+export { DeferredFallback } from "./primitives/DeferredFallback.tsx";
+export { Heading, type HeadingProps } from "./primitives/Heading.tsx";
+export { InlineError, type InlineErrorProps } from "./primitives/InlineError.tsx";
 export { Chip, type ChipTone } from "./primitives/Chip.tsx";
 export { Collapsible, type CollapsibleProps } from "./primitives/Collapsible.tsx";
 export { EmptyState } from "./primitives/EmptyState.tsx";

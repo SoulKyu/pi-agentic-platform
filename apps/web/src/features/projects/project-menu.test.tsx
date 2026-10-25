@@ -214,7 +214,9 @@ describe("the project menu", () => {
     await press(input, { key: "Enter" });
     await settle();
     expect(projectTrigger(box, "Alpha")).not.toBeNull();
-    expect(toastTexts().at(-1)).toBe("Not found.");
+    expect(toastTexts().at(-1)).toBe(
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    );
   });
 
   it("an unknown outcome on a project change toasts, frees the menus and reads the list back", async () => {

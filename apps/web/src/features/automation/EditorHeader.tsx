@@ -1,4 +1,4 @@
-import { Button, Chip, Switch, TextField, Tooltip } from "@pap/ui";
+import { Button, Chip, InlineError, Switch, TextField, Tooltip, useIsPhone } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import type { EditorStatus } from "./use-trigger-editor.ts";
 import type { Draft } from "./editor.vm.ts";
@@ -28,6 +28,7 @@ export function EditorHeader({
   onSave,
 }: EditorHeaderProps) {
   const t = useT();
+  const phone = useIsPhone();
   const idle = since === null;
   const fire = (
     <Button disabled={!canFire || !idle} onClick={onFire}>
@@ -37,7 +38,7 @@ export function EditorHeader({
   return (
     <header className="flex flex-col gap-s2">
       <div className="flex flex-wrap items-end gap-s3">
-        <div className="min-w-pane flex-1">
+        <div className={phone ? "min-w-0 flex-1" : "min-w-pane flex-1"}>
           <TextField
             label={t("automation.editor.name")}
             value={draft.name}
@@ -67,11 +68,10 @@ export function EditorHeader({
           {t("automation.editor.save")}
         </Button>
       </div>
-      {status === null ? null : (
-        <p
-          role={status.tone === "err" ? "alert" : "status"}
-          className={status.tone === "err" ? "text-ui text-err" : "text-ui text-muted"}
-        >
+      {status === null ? null : status.tone === "err" ? (
+        <InlineError announce="action">{status.text}</InlineError>
+      ) : (
+        <p role="status" className="text-ui text-muted">
           {status.text}
         </p>
       )}

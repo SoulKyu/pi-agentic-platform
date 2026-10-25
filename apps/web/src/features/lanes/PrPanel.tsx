@@ -1,10 +1,12 @@
 import "./register-lane-commit-catalog.ts";
 import { LANE_LIMITS, type LaneView } from "@pap/contracts";
-import { Button, Checkbox, Chip, TextField } from "@pap/ui";
+import { Button, Checkbox, Chip, TextField, InlineError } from "@pap/ui";
 import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
 import { useT } from "../../i18n/index.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { pushModel } from "./commit-bar.vm.ts";
+import { CheckCount } from "./CheckCount.tsx";
+import { PrError } from "./PrError.tsx";
 import { prBadge } from "./lane-header.vm.ts";
 import { FORGE_NAME, forgeNotice, openUrl, PR_REFUSED, PR_TITLE_MAX } from "./pr.vm.ts";
 import { usePrPanel } from "./use-pr-panel.ts";
@@ -31,18 +33,12 @@ function Panel({ lane }: { readonly lane: LaneView }) {
   const messages = (
     <>
       {panel.refusal !== null && panel.refusal !== "not_pushed" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t(PR_REFUSED[panel.refusal])}
-        </p>
+        <InlineError announce="action">{t(PR_REFUSED[panel.refusal])}</InlineError>
       ) : null}
       {panel.refusal === "not_pushed" ? (
         <p className="text-ui text-muted">{t(PR_REFUSED.not_pushed)}</p>
       ) : null}
-      {panel.problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {t(panel.problem)}
-        </p>
-      ) : null}
+      {panel.problem !== null ? <InlineError announce="action">{t(panel.problem)}</InlineError> : null}
       {panel.checkedNone ? <p className="text-ui text-muted">{t("laneCommit.pr.checkNone")}</p> : null}
       {notice !== null ? <p className="text-ui text-muted">{t(notice)}</p> : null}
     </>
@@ -56,13 +52,10 @@ function Panel({ lane }: { readonly lane: LaneView }) {
           <span className="text-fg">{`#${badge.number}`}</span>
           {badge.state !== null ? <Chip tone="mut" label={t(badge.state)} /> : null}
           {badge.checks.map((check) => (
-            <span key={check.kind} className={check.kind === "failed" ? "text-err" : undefined}>
-              {`${check.symbol} ${check.count}`}
-              <span className="sr-only">{` ${t(`lanes.pr.checks.${check.kind}`)}`}</span>
-            </span>
+            <CheckCount key={check.kind} kind={check.kind} count={check.count} />
           ))}
           {badge.conflicts ? <span className="text-attn">{t("lanes.pr.conflicts")}</span> : null}
-          {badge.error !== null ? <span className="text-attn">{t(badge.error)}</span> : null}
+          {badge.error !== null ? <PrError message={badge.error} /> : null}
         </div>
         {messages}
         <div className="flex flex-wrap items-center gap-s2">
@@ -133,11 +126,7 @@ function Panel({ lane }: { readonly lane: LaneView }) {
           />
         </>
       ) : null}
-      {panel.unknown ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("laneCommit.pr.unknown")}
-        </p>
-      ) : null}
+      {panel.unknown ? <InlineError announce="action">{t("laneCommit.pr.unknown")}</InlineError> : null}
       {messages}
       <div className="flex flex-wrap items-center gap-s2">
         {panel.unknown ? (

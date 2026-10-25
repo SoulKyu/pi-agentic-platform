@@ -42,4 +42,14 @@ describe("the e2e English catalog (M13R37)", () => {
     expect(catalogs().fr["setup.title"]).toBe("Créer le compte propriétaire");
     expect(catalogs().fr["inbox.agent.line.approve"]).toBe("{name} demande votre accord");
   });
+
+  it("the French dump applies the app's spacing", () => {
+    const NNBSP = "\u202f";
+    const bad = Object.entries(catalogs().fr).filter(([, value]) =>
+      /[ \u00a0][?!:;»]|«[ \u00a0]/.test(value),
+    );
+    expect(bad).toEqual([]);
+    expect(catalogs().fr["login.failed"]).toBe("Nom d'utilisateur ou mot de passe incorrect.");
+    expect(Object.values(catalogs().fr).some((value) => value.includes(`${NNBSP}:`))).toBe(true);
+  });
 });

@@ -37,7 +37,7 @@ function AgentButton({
         onClick={() => go(navigate, pathOfItem(agentTarget(agent)))}
         className={cn(
           "rounded-md border p-s1",
-          current ? "border-border-strong bg-surface-2" : "border-transparent",
+          current ? "border-agent bg-surface-2" : "border-transparent",
           greyed ? "opacity-50" : null,
           FOCUS_RING,
         )}

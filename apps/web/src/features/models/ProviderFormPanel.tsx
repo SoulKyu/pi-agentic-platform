@@ -1,6 +1,6 @@
 import "../../i18n/register-settings-providers.ts";
 import type { ProviderView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useMemo, useState } from "react";
 import { DiscardConfirm } from "./DiscardConfirm.tsx";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -56,11 +56,7 @@ export function OrphanKey({
           {t("settingsProviders.orphan.dismiss")}
         </Button>
       </div>
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </div>
   );
 }

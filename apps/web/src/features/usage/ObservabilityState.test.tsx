@@ -53,8 +53,8 @@ describe("ObservabilityState", () => {
     setLocale("fr");
     const page = await mount(<ObservabilityState metrics={false} otlpHost="otel.example.net:4318" />);
     expect(lines(page.container).slice(0, 2)).toEqual([
-      "Prometheus /metrics : désactivé (définir PAP_METRICS_TOKEN)",
-      "Export OTLP : activé, vers otel.example.net:4318",
+      "Prometheus /metrics\u202f: désactivé (définir PAP_METRICS_TOKEN)",
+      "Export OTLP\u202f: activé, vers otel.example.net:4318",
     ]);
   });
 });

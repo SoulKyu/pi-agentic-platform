@@ -4,7 +4,7 @@ import {
   type UsageBucket,
   type UsageReport,
 } from "@pap/contracts";
-import { Button, Meter } from "@pap/ui";
+import { Button, Heading, InlineError, Meter } from "@pap/ui";
 import { useState } from "react";
 import { modelsUsageEn, modelsUsageFr } from "../../i18n/catalog/models-usage.ts";
 import { registerCatalog, type Translate, useLocale, useT } from "../../i18n/index.ts";
@@ -151,7 +151,9 @@ export function ProviderUsage({ providerId }: { readonly providerId: string }) {
   const answer = outcome?.kind === "answer" ? outcome.answer : null;
   return (
     <section aria-label={t("modelsUsage.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("modelsUsage.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("modelsUsage.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("modelsUsage.note")}</p>
       <div>
         <Button disabled={busy} onClick={check}>
@@ -160,15 +162,9 @@ export function ProviderUsage({ providerId }: { readonly providerId: string }) {
       </div>
       {answer?.status === "ready" ? <ReportView report={answer.report} locale={locale} t={t} /> : null}
       {answer !== null && answer.status !== "ready" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t(FAILURE_KEYS[answer.status])}
-        </p>
+        <InlineError announce="action">{t(FAILURE_KEYS[answer.status])}</InlineError>
       ) : null}
-      {outcome?.kind === "error" ? (
-        <p role="alert" className="text-ui text-attn">
-          {outcome.text}
-        </p>
-      ) : null}
+      {outcome?.kind === "error" ? <InlineError announce="action">{outcome.text}</InlineError> : null}
     </section>
   );
 }

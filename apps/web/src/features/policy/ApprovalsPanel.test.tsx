@@ -6,6 +6,7 @@ import { registerCatalog, setLocale, translate } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import {
   alerts,
+  statuses,
   button,
   click,
   field,
@@ -324,7 +325,9 @@ describe("Settings › Approvals", () => {
     const container = await show();
     await click(button(container, "Save"));
     await settle();
-    expect(alerts(container)).toEqual(["The request is invalid."]);
+    expect(alerts(container)).toEqual([
+      "pap refused this request: a value is missing or out of range. Nothing was changed. Check the fields and try again.",
+    ]);
     answers("policy.setSettings", [new RpcError("conflict")]);
     answers("policy.getSettings", [new RpcError("offline")]);
     await click(button(container, "Save"));
@@ -335,7 +338,7 @@ describe("Settings › Approvals", () => {
   it("shows a load failure and loads again on request", async () => {
     answers("policy.getSettings", [new RpcError("internal"), { value: null, revision: 4 }]);
     const container = await show();
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toHaveLength(1);
     expect(() => blocked(container)).toThrow();
     await click(button(container, "Try again"));
     await settle();

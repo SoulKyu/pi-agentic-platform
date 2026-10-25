@@ -1,6 +1,6 @@
 import "./register-models-catalog.ts";
 import type { SessionLoadout, ThinkingLevel } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -87,11 +87,7 @@ export function ModelBar({ sessionId, loadout, running }: ModelBarProps) {
         <SessionTools sessionId={sessionId} loadout={loadout} running={running} />
       </div>
       {running ? <p className="text-ui text-muted">{t("sessionModels.idleOnly")}</p> : null}
-      {level.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {level.error}
-        </p>
-      ) : null}
+      {level.error ? <InlineError announce="action">{level.error}</InlineError> : null}
       <LazyPanel
         load={loadModelMenu}
         open={open && !running}

@@ -1,5 +1,5 @@
 import { AutomationSettings } from "@pap/contracts";
-import { Button, Switch, TextField, usePendingAction } from "@pap/ui";
+import { Button, InlineError, Switch, TextField, usePendingAction } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { useRole } from "../../lib/role-context.ts";
@@ -73,11 +73,7 @@ export function AutomationForm({
 
   if (loaded.kind === "loading") return null;
   if (loaded.kind === "failed")
-    return (
-      <p role="alert" className="text-ui text-err">
-        {t("settingsAutomation.loadFailed")}
-      </p>
-    );
+    return <InlineError announce="background">{t("settingsAutomation.loadFailed")}</InlineError>;
   const { stored, draft } = loaded;
   const checked = check(draft);
   const edit = (patch: Partial<Draft>) => {
@@ -153,7 +149,7 @@ export function AutomationForm({
     });
 
   return (
-    <div data-automation-form className="flex max-w-xl flex-col gap-s3">
+    <div data-automation-form className="flex flex-col gap-s3">
       <Switch
         label={t("settingsAutomation.pause.label")}
         hint={t("settingsAutomation.pause.hint")}
@@ -191,9 +187,7 @@ export function AutomationForm({
       </div>
       <p className="text-ui text-muted">{t("settingsAutomation.quiet.hint")}</p>
       {checked.quiet ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("settingsAutomation.quiet.error")}
-        </p>
+        <InlineError announce="action">{t("settingsAutomation.quiet.error")}</InlineError>
       ) : null}
       {checked.noWindow ? <p className="text-ui text-muted">{t("settingsAutomation.quiet.none")}</p> : null}
       <TextField
@@ -205,7 +199,7 @@ export function AutomationForm({
         onChange={(budget) => edit({ budget })}
       />
       {capped ? (
-        <p role="status" className="text-ui text-attn">
+        <p role="status" className="text-ui text-muted">
           {t("settingsAutomation.cap", { cap })}
         </p>
       ) : null}
@@ -225,12 +219,13 @@ export function AutomationForm({
           {t("settingsAutomation.save")}
         </Button>
         {notice ? (
-          <p
-            role={notice.tone === "error" ? "alert" : "status"}
-            className={notice.tone === "error" ? "text-ui text-err" : "text-ui text-muted"}
-          >
-            {notice.text}
-          </p>
+          notice.tone === "error" ? (
+            <InlineError announce="action">{notice.text}</InlineError>
+          ) : (
+            <p role="status" className="text-ui text-muted">
+              {notice.text}
+            </p>
+          )
         ) : null}
       </div>
     </div>

@@ -1,5 +1,15 @@
 import type { VcsStatus } from "@pap/contracts";
-import { Banner, Button, EmptyState, Icon, IconBack, IconRefresh, Spinner, useIsPhone } from "@pap/ui";
+import {
+  Banner,
+  Button,
+  EmptyState,
+  Icon,
+  IconBack,
+  IconRefresh,
+  Spinner,
+  useIsPhone,
+  InlineError,
+} from "@pap/ui";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import "../../i18n/register-changes.ts";
 import { useT } from "../../i18n/index.ts";
@@ -164,11 +174,7 @@ function Header({
         {`+${status.additions} −${status.deletions}`}
       </span>
       <span className="ms-auto flex items-center gap-s2">
-        {refreshFailed ? (
-          <span role="status" className="text-ui text-attn">
-            {t("changes.refresh.failed")}
-          </span>
-        ) : null}
+        {refreshFailed ? <InlineError announce="action">{t("changes.refresh.failed")}</InlineError> : null}
         {refreshButton}
       </span>
     </div>

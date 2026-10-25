@@ -4,7 +4,7 @@ import { useEffect, type ComponentType } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import {
-  alerts,
+  statuses,
   button,
   click,
   field,
@@ -203,7 +203,7 @@ describe("SetupStepper", () => {
     };
     await click(button(container, "Skip"));
     await settle();
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toHaveLength(1);
     bed.handlers["models.overview"] = () => empty;
     await click(button(container, "Try again"));
     await settle();

@@ -8,7 +8,7 @@ import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { DEFAULT_SESSION_POLICY_VIEW } from "@pap/contracts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import { alerts, button, click, hasButton, mount, settle, text } from "../../testing/dom.ts";
+import { statuses, button, click, hasButton, mount, settle, text } from "../../testing/dom.ts";
 import { isDisabled, menuItem, menuLabels, openMenu, preloadMenu } from "../../testing/menu.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
@@ -144,7 +144,7 @@ describe("the agent screen opens the thread (M11R118)", () => {
     };
     await load([atlas]);
     const { page, onOpenSettings } = await show();
-    expect(alerts(page.container).join(" ")).toContain("Agents run in microVMs");
+    expect(statuses(page.container).join(" ")).toContain("Agents run in microVMs");
     expect(text(page.container)).not.toContain("external content");
     expect(page.container.querySelector("[data-thread]")).toBeNull();
     expect(hasButton(page.container, "Queue task")).toBe(true);
@@ -158,7 +158,7 @@ describe("the agent screen opens the thread (M11R118)", () => {
     };
     await load([atlas]);
     const { page } = await show();
-    expect(alerts(page.container)).not.toEqual([]);
+    expect(page.container.querySelector('[data-slot="inline-error"][role="status"]')).not.toBeNull();
     expect(hasButton(page.container, "Open Settings › Agents")).toBe(false);
     expect(hasButton(page.container, "Try again")).toBe(true);
   });

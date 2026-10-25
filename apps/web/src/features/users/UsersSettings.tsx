@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
@@ -28,19 +28,17 @@ export function UsersSettings({ stepUp }: Props) {
   if (state.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">
-        <p role="status" className="text-ui text-err">
-          {t("users.failed")}
-        </p>
+        <InlineError announce="background">{t("users.failed")}</InlineError>
         <Button onClick={retry}>{t("users.retry")}</Button>
       </div>
     );
 
   return (
-    <div className="flex flex-col gap-s6">
+    <div className="flex flex-col gap-s5">
       <p className="text-ui text-muted">{t("users.intro")}</p>
       <section className="flex flex-col gap-s2">
         <div className="flex flex-wrap items-center gap-s2">
-          <h3 className="flex-1 text-ui font-semibold text-fg">{t("users.title")}</h3>
+          <h2 className="flex-1 text-ui font-semibold text-fg">{t("users.title")}</h2>
           <Button variant="primary" onClick={() => setInviting(true)}>
             {t("users.invite")}
           </Button>

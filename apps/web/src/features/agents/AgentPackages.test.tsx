@@ -200,7 +200,7 @@ describe("Pi packages", () => {
 
   it("keeps All locked and says nothing about an empty profile while the read is pending", async () => {
     await open([], [], () => new Promise(() => {}));
-    expect(body()).toContain("Reading your Pi packages...");
+    expect(body()).toContain("Reading your Pi packages…");
     expect(body()).not.toContain("Your Pi profile has no package.");
     expect((tick("All") as HTMLButtonElement).disabled).toBe(true);
   });

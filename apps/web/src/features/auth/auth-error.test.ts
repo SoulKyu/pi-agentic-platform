@@ -20,7 +20,11 @@ describe("authErrorText", () => {
 
   it("translates the page's own codes, and anything unknown into a generic message", () => {
     expect(authErrorText(failed("password_incorrect"))).toBe("Password incorrect.");
-    expect(authErrorText(failed("offline"))).toBe("pap is unreachable right now.");
-    expect(authErrorText(failed("teapot"))).toBe("Something went wrong.");
+    expect(authErrorText(failed("offline"))).toBe(
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    );
+    expect(authErrorText(failed("teapot"))).toBe(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
   });
 });

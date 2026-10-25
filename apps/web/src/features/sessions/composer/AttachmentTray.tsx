@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { formatBytes } from "./drop.ts";
 import "./register-files-catalog.ts";
@@ -37,9 +37,7 @@ export function AttachmentTray({ attachments }: { readonly attachments: Attachme
               ) : null}
               {item.error ? (
                 <>
-                  <span role="alert" className="text-ui text-attn">
-                    {item.error}
-                  </span>
+                  <InlineError announce="action">{item.error}</InlineError>
                   <Button
                     size="sm"
                     aria-label={t("sessions.files.retry", { name: item.name })}

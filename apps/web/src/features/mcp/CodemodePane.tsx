@@ -1,5 +1,5 @@
 import type { CodemodeSettings } from "@pap/contracts";
-import { Button, Switch, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, Switch, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 
@@ -46,8 +46,12 @@ export function CodemodePane({
   const dirty = draft !== null && parsed !== undefined && parsed !== (settings?.inlineBudget ?? null);
   return (
     <section className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsMcp.codemode.title")}</h3>
-      {unreadable ? <p className="text-ui text-attn">{t("settingsMcp.codemode.unreadable")}</p> : null}
+      <Heading level={3} variant="group">
+        {t("settingsMcp.codemode.title")}
+      </Heading>
+      {unreadable ? (
+        <InlineError announce="background">{t("settingsMcp.codemode.unreadable")}</InlineError>
+      ) : null}
       {builtinOff ? <p className="text-ui text-attn">{t("settingsMcp.codemode.builtinOff")}</p> : null}
       <Switch
         label={t("settingsMcp.codemode.always")}

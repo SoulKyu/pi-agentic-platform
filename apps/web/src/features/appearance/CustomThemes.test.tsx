@@ -69,6 +69,13 @@ describe("CustomThemes", () => {
     await editorOpen();
   }
 
+  it("with no custom theme it says what they are for", async () => {
+    await render();
+    expect(document.body.textContent).toContain(
+      "No custom themes yet. Start one from a preset to change the role colours.",
+    );
+  });
+
   it("Duplicate & edit from Night Control opens the editor with the preset's roles and saves a fresh id", async () => {
     await render();
     await duplicateFrom("Night Control");

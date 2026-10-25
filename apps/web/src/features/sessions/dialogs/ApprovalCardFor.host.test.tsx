@@ -71,7 +71,7 @@ describe("ApprovalCardFor on a network_request card (owner a2)", () => {
     setLocale("fr");
     const page = await show(request());
     expect(button(page, "Autoriser cet hôte pour ce fil")).toBeTruthy();
-    expect(page.querySelector("[data-approval-host]")?.textContent).toBe(`Hôte : ${HOST}`);
+    expect(page.querySelector("[data-approval-host]")?.textContent).toBe(`Hôte\u202f: ${HOST}`);
   });
 
   it("has no host line on a card without a host", async () => {

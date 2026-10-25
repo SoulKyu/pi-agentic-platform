@@ -1,4 +1,4 @@
-import { Button, cn } from "@pap/ui";
+import { Button, Icon, IconCheck, InlineError, cn } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import {
   createContext,
@@ -225,7 +225,7 @@ export default function ModelList({
           ) : null}
           {isSelected(entry) ? (
             <span aria-hidden="true" className="shrink-0">
-              ✓
+              <Icon icon={IconCheck} />
             </span>
           ) : null}
         </div>
@@ -307,9 +307,9 @@ export default function ModelList({
       ) : null}
       {failed ? (
         <div className="flex flex-col items-start gap-s2 px-s2">
-          <p role="alert" className="text-ui text-attn">
+          <InlineError announce="background">
             {failed.stale ? t("modelPicker.reload") : (failed.message ?? t("modelPicker.failed"))}
-          </p>
+          </InlineError>
           <Button onClick={failed.reload}>{t("modelPicker.retry")}</Button>
         </div>
       ) : null}

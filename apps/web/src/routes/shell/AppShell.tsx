@@ -3,7 +3,7 @@ import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectPlatform } from "../../features/commands/index.ts";
-import { useLazyFailureText } from "../../i18n/index.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { RoleContext, useRole } from "../../lib/role-context.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
@@ -156,19 +156,37 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
   );
 }
 
+/** The first stop of the Tab order: it jumps over the rail and the tab strip to the pane. */
+function SkipLink() {
+  const t = useT();
+  return (
+    <a
+      href="#pane-host"
+      onClick={(event) => {
+        event.preventDefault();
+        document.getElementById("pane-host")?.focus();
+      }}
+      className="sr-only focus:not-sr-only focus:absolute focus:left-s2 focus:top-s2 focus:z-50 focus:bg-surface focus:px-s3 focus:py-s2 focus:text-ui focus:text-fg focus-ring"
+    >
+      {t("shell.skip")}
+    </a>
+  );
+}
+
 function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" | "onSignedOut">) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const item = itemFromPath(pathname, import.meta.env.DEV, useRole());
   return (
     <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
+      <SkipLink />
       <Rail username={username} onSignedOut={onSignedOut} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar />
         <TabBar />
         <ConnectionBanner />
         {/* The one main landmark: the screens inside it are sections. */}
-        <main id="pane-host" className="flex min-h-0 flex-1">
+        <main id="pane-host" tabIndex={-1} className="flex min-h-0 flex-1">
           {item ? <PaneHost tab={tab} /> : <Unrouted />}
         </main>
       </div>

@@ -9,6 +9,7 @@ import { useState, type ReactNode } from "react";
 import "../../i18n/register-automation-trigger.ts";
 import { EMPTY_SHELL } from "../../stores/shell-reducer.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { segmentedGroup } from "../../testing/names.ts";
 import { NOW } from "./board-bed.tsx";
 import type { Draft } from "./editor.vm.ts";
 
@@ -90,10 +91,7 @@ export function DraftHarness({
   return <>{children(draft, (patch) => setDraft((previous) => ({ ...previous, ...patch })))}</>;
 }
 
-/** The label of the item that is on in a Segmented group (`aria-label`). */
+/** The label of the item that is on in a Segmented group (its label). */
 export function segmentOn(container: ParentNode, label: string): string | null {
-  const group = [...container.querySelectorAll('[role="group"], [data-slot="segmented"]')].find(
-    (candidate) => candidate.getAttribute("aria-label") === label,
-  );
-  return group?.querySelector('[data-state="on"]')?.textContent ?? null;
+  return segmentedGroup(container, label)?.querySelector('[data-state="on"]')?.textContent ?? null;
 }

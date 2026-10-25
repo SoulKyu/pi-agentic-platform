@@ -7,7 +7,7 @@ import { formatAge } from "../../../i18n/age.ts";
 import { snippetParts } from "./snippet.ts";
 
 const ROW_CLASSES =
-  "flex flex-col gap-s1 rounded-sm border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2 data-disabled:opacity-50";
+  "flex flex-col gap-s1 border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2 data-disabled:opacity-50";
 
 /** The row value of a hit: unique, since the daemon sends one hit per session. */
 export const hitValue = (hit: SearchHit): string => `hit:${hit.sessionId}:${hit.entryId}`;

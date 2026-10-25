@@ -1,3 +1,4 @@
+import { Heading } from "@pap/ui";
 import "./register-space-catalog.ts";
 import type { PermissionsView } from "@pap/contracts";
 import { useId } from "react";
@@ -48,7 +49,9 @@ export function PermissionsSheet({ view }: { readonly view: PermissionsView }) {
       </h3>
       <p className="text-ui text-muted">{t("agentSafety.perm.intro")}</p>
       <div className="flex flex-col gap-s2 rounded-md border border-border p-s3">
-        <h4 className="label-hud text-muted">{t("agentSafety.tri.title", { n: on.length })}</h4>
+        <Heading level={4} variant="card">
+          {t("agentSafety.tri.title", { n: on.length })}
+        </Heading>
         <p className={all ? "text-ui text-attn" : "text-ui text-muted"}>
           {all ? t(`agentSafety.tri.all.${verb}`) : t("agentSafety.tri.none")}
         </p>

@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useEffect } from "react";
 import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
@@ -25,9 +25,9 @@ export function RootLayout() {
   if (state.phase === "error") {
     return (
       <main className="flex flex-col items-start gap-s3 p-s5">
-        <p role="alert" className="text-err">
+        <InlineError announce="background">
           {t(state.code === null ? "error.offline" : errorKey(state.code))}
-        </p>
+        </InlineError>
         <Button onClick={retry}>{t("gate.retry")}</Button>
       </main>
     );

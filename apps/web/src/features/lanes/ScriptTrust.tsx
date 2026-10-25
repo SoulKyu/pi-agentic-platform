@@ -1,6 +1,6 @@
 import "./register-lane-new-catalog.ts";
 import type { LanePreview, ScriptKind } from "@pap/contracts";
-import { useIsPhone } from "@pap/ui";
+import { Heading, useIsPhone } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { escapeHidden } from "../../lib/escape-hidden.ts";
 
@@ -52,9 +52,9 @@ export function ScriptTrust({ script }: { readonly script: Script }) {
       data-slot="script-trust"
       className="flex flex-col gap-s2 rounded-md border border-dashed border-attn p-s2"
     >
-      <h3 className="label-hud text-attn">
+      <Heading level={3} variant="group" tone="attn">
         {t(script.previous === null ? "laneNew.script.new" : "laneNew.script.changed", { kind })}
-      </h3>
+      </Heading>
       {script.previous === null ? (
         <>
           <Size text={script.text} />

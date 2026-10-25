@@ -20,11 +20,25 @@ describe("TextField", () => {
     );
     expect(html).toContain('aria-invalid="true"');
     const hintId = /<p id="([^"]+)"[^>]*>Shown to others</.exec(html)?.[1];
-    const errorId = /<p id="([^"]+)"[^>]*role="alert"[^>]*>Required</.exec(html)?.[1];
+    const errorId = /<p[^>]*data-slot="inline-error"[^>]*id="([^"]+)"[^>]*role="alert"/.exec(html)?.[1];
     expect(hintId).toBeDefined();
     expect(errorId).toBeDefined();
     expect(hintId).not.toBe(errorId);
     expect(/<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1]).toBe(`${hintId} ${errorId}`);
+  });
+
+  it("an error is red with the icon, an alert, and describes the field", () => {
+    const html = renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} error="Required" />);
+    expect(html).toContain('data-slot="inline-error"');
+    expect(html).toContain("text-err");
+    expect(html).not.toContain("text-attn");
+    expect(html).toContain("<svg");
+    expect(html).toContain('role="alert"');
+    const errorId =
+      /<p[^>]*id="([^"]+)"[^>]*data-slot="inline-error"|data-slot="inline-error"[^>]*id="([^"]+)"/.exec(html);
+    const id = errorId?.[1] ?? errorId?.[2];
+    expect(id).toBeDefined();
+    expect(/<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1]).toBe(id);
   });
 
   it("describes the field by its hint alone, with no alert", () => {

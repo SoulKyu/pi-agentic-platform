@@ -81,18 +81,18 @@ describe("Settings › Users", () => {
   it("lists users with their usage and role chips", async () => {
     const { container } = await open();
     expect(body()).toContain("gui");
-    expect(body()).toContain("OWNER");
-    expect(body()).toContain("MEMBER");
+    expect(body()).toContain("Owner");
+    expect(body()).toContain("Member");
     expect(body()).toContain("Today $2.00 of $5.00 · 7 days $3.00");
     expect(body()).toContain("2 boxes running");
     expect(body()).toContain("never");
     expect(body()).toContain("Invitation carol");
-    expect(body()).toContain("PENDING");
-    expect(hasButton(container, "REVOKE")).toBe(true);
+    expect(body()).toContain("Pending");
+    expect(hasButton(container, "Revoke")).toBe(true);
     const owner = container.querySelector('[data-user="u1"]') as HTMLElement;
     expect(text(owner)).toContain("no cap");
-    expect(hasButton(owner, "DISABLE")).toBe(false);
-    expect(hasButton(owner, "DELETE")).toBe(false);
+    expect(hasButton(owner, "Disable")).toBe(false);
+    expect(hasButton(owner, "Delete")).toBe(false);
   });
 
   it("the over-budget line is err only when the spend reached the budget", async () => {
@@ -111,10 +111,10 @@ describe("Settings › Users", () => {
       expiresAt: 1_700_086_400_000,
       invite: INVITE,
     });
-    await click(button(document.body, "INVITE"));
+    await click(button(document.body, "Invite"));
     const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
     await typeInto(field(dialog, "Name hint (optional)"), "carol");
-    await click(button(dialog, "INVITE"));
+    await click(button(dialog, "Invite"));
     await settle();
     expect(stepUp).toHaveBeenCalledTimes(1);
     expect(bed.called("users.invite")[0]?.params).toEqual({ nameHint: "carol" });
@@ -122,7 +122,7 @@ describe("Settings › Users", () => {
     expect((field(document.body, "Invitation link") as HTMLInputElement).value).toBe(
       "https://pap.example/invite#token=SECRET",
     );
-    await click(button(document.body, "COPY THE LINK"));
+    await click(button(document.body, "Copy the link"));
     expect(writeText).toHaveBeenCalledWith("https://pap.example/invite#token=SECRET");
     expect(body()).toContain("Link copied.");
     await click(button(document.body, "Done"));
@@ -134,7 +134,7 @@ describe("Settings › Users", () => {
   it("revokes a pending invitation", async () => {
     const { bed, container } = await open();
     bed.handlers["users.revokeInvite"] = () => ({ ok: true });
-    await click(button(container, "REVOKE"));
+    await click(button(container, "Revoke"));
     await settle();
     expect(bed.called("users.revokeInvite")[0]?.params).toEqual({ inviteId: "i1" });
   });
@@ -144,7 +144,7 @@ describe("Settings › Users", () => {
     bed.handlers["users.setBudget"] = () => ({ ok: true });
     const row = document.querySelector('[data-user="u2"]') as HTMLElement;
     await typeInto(field(row, "Daily budget (USD)"), "12");
-    await click(button(row, "SAVE"));
+    await click(button(row, "Save"));
     await settle();
     expect(bed.called("users.setBudget")[0]?.params).toEqual({ userId: "u2", dailyBudgetUsd: 12 });
   });
@@ -153,10 +153,10 @@ describe("Settings › Users", () => {
     const { bed } = await open();
     bed.handlers["users.delete"] = () => ({ ok: true });
     const row = document.querySelector('[data-user="u2"]') as HTMLElement;
-    await click(button(row, "DELETE"));
+    await click(button(row, "Delete"));
     expect(stepUp).not.toHaveBeenCalled();
     expect(body()).toContain("Cost and audit records are kept.");
-    const confirm = button(document.body, "DELETE ana");
+    const confirm = button(document.body, "Delete ana");
     expect(confirm.className).toContain("text-err");
     expect(button(document.body, "Cancel").className).not.toContain("text-err");
     await click(confirm);
@@ -168,11 +168,11 @@ describe("Settings › Users", () => {
   it("disable needs no step-up; enable asks the step-up", async () => {
     const { bed } = await open();
     bed.handlers["users.setDisabled"] = () => ({ ok: true });
-    await click(button(document.querySelector('[data-user="u2"]') as HTMLElement, "DISABLE"));
+    await click(button(document.querySelector('[data-user="u2"]') as HTMLElement, "Disable"));
     await settle();
     expect(stepUp).not.toHaveBeenCalled();
     expect(bed.called("users.setDisabled")[0]?.params).toEqual({ userId: "u2", disabled: true });
-    await click(button(document.querySelector('[data-user="u3"]') as HTMLElement, "ENABLE"));
+    await click(button(document.querySelector('[data-user="u3"]') as HTMLElement, "Enable"));
     await settle();
     expect(stepUp).toHaveBeenCalledTimes(1);
     expect(bed.called("users.setDisabled")[1]?.params).toEqual({ userId: "u3", disabled: false });
@@ -181,7 +181,7 @@ describe("Settings › Users", () => {
   it("disable shows the DISABLED chip in mut", async () => {
     await open();
     const chip = [...document.querySelectorAll('[data-user="u3"] [data-slot="chip"]')].find(
-      (one) => one.textContent === "DISABLED",
+      (one) => one.textContent === "Disabled",
     );
     expect(chip?.getAttribute("data-tone")).toBe("mut");
     expect(document.querySelectorAll('[data-user="u2"] [data-slot="chip"]')).toHaveLength(1);
@@ -216,7 +216,7 @@ describe("Settings › Users", () => {
   it("speaks French", async () => {
     setLocale("fr");
     const { container } = await open();
-    expect(hasButton(container, "INVITER")).toBe(true);
+    expect(hasButton(container, "Inviter")).toBe(true);
     expect(body()).toContain("Providers partagés avec les membres");
     expect(body()).toContain("Aujourd'hui");
   });

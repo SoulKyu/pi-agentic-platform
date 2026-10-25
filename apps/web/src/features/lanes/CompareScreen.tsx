@@ -1,5 +1,5 @@
 import "./register-compare-catalog.ts";
-import { Button, EmptyState, useIsPhone } from "@pap/ui";
+import { Button, EmptyState, useIsPhone, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { getLocale, useT } from "../../i18n/index.ts";
 import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
@@ -102,14 +102,14 @@ export function CompareScreen({ fanoutId, onOpenLane, onRunAgain, now }: Props) 
           </Button>
         ) : null}
         {winnerModel === undefined ? (
-          <p id="compare-close-hint" className="text-code text-dim">
+          <p id="compare-close-hint" className="text-code text-muted">
             {t("compare.closeLosers.hint")}
           </p>
         ) : null}
       </header>
       {error !== null ? (
-        <div role="alert" className="flex flex-wrap items-center gap-s2 p-s3 text-ui text-attn">
-          <span>{t(error)}</span>
+        <div className="flex flex-wrap items-center gap-s2 p-s3">
+          <InlineError announce="background">{t(error)}</InlineError>
           <Button size="sm" onClick={reload}>
             {t("compare.retry")}
           </Button>

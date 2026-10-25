@@ -68,7 +68,7 @@ const withFiles = (files: VcsFile[], patch: Partial<VcsStatus> = {}) =>
 describe("ChangesPane states", () => {
   it("waits for the first snapshot", async () => {
     const c = await show();
-    expect(c.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe("Loading the changes");
+    expect(c.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe("Loading the changes…");
   });
 
   it("says a folder is not a repository, for a null snapshot and for repo false", async () => {

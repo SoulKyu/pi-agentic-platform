@@ -57,14 +57,19 @@ export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
     setCurrent(key);
   };
 
-  const button = cn("rounded-sm px-s2 py-s1 font-mono text-label text-muted hover:text-fg", FOCUS_RING);
+  const buttonClass = (isCurrent: boolean) =>
+    cn(
+      "border-l-2 px-s2 py-s1 font-mono text-label",
+      isCurrent ? "border-agent bg-surface text-fg" : "border-transparent text-muted hover:text-fg",
+      FOCUS_RING,
+    );
   return (
     <nav
       aria-label={t("sessions.minimap.label")}
       className="hidden w-14 shrink-0 flex-col items-stretch gap-s1 overflow-y-auto md:flex"
     >
       {hasMore && oldestEntryId !== null ? (
-        <button type="button" className={button} onClick={onLoadOlder}>
+        <button type="button" className={buttonClass(false)} onClick={onLoadOlder}>
           {plural(locale, "sessions.minimap.earlier", turnsBefore)}
         </button>
       ) : null}
@@ -78,7 +83,7 @@ export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
               : t("sessions.minimap.turnBare", { number: turn.number })
           }
           aria-current={current === turn.key ? "true" : undefined}
-          className={cn(button, current === turn.key && "bg-surface text-fg")}
+          className={buttonClass(current === turn.key)}
           onClick={() => goTo(turn.key)}
         >
           {turn.number}

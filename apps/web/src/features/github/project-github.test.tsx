@@ -33,25 +33,25 @@ describe("project settings › GitHub", () => {
     bed.handlers["projects.linkGithub"] = () => ({ github: githubView() });
     const container = await show();
     expect(text(container)).toContain("This project is not linked to a repository.");
-    await click(button(container, "LINK"));
+    await click(button(container, "Link"));
     expect(text(container)).toContain("Write the repository as owner/name.");
     await typeInto(field(container, "Repository"), "octo/notes");
-    await click(button(container, "LINK"));
+    await click(button(container, "Link"));
     await settle();
     expect(bed.called("projects.linkGithub")[0]?.params).toEqual({
       projectId: "b1",
       repository: "octo/notes",
     });
     expect(text(container)).toContain("Linked to octo/notes.");
-    expect(text(container)).toContain("KEY ADDED");
+    expect(text(container)).toContain("Key added");
   });
 
   it("unlinks with a danger button and shows the key's state in words", async () => {
     bed.handlers["projects.github"] = () => ({ github: githubView({ key: "failed" }) });
     const container = await show();
-    expect(text(container)).toContain("KEY FAILED");
+    expect(text(container)).toContain("Key failed");
     expect(text(container)).toContain("pap could not add the signing key on GitHub");
-    const unlink = button(container, "UNLINK");
+    const unlink = button(container, "Unlink");
     expect(unlink.className).toContain("border-err");
     await click(unlink);
     await settle();
@@ -65,9 +65,9 @@ describe("project settings › GitHub", () => {
     };
     const container = await show();
     await typeInto(field(container, "Repository"), "octo/missing");
-    await click(button(container, "LINK"));
+    await click(button(container, "Link"));
     await settle();
     expect(text(container)).toContain("GitHub does not know this repository");
-    expect(hasButton(container, "UNLINK")).toBe(false);
+    expect(hasButton(container, "Unlink")).toBe(false);
   });
 });

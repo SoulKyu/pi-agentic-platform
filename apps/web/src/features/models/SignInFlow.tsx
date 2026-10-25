@@ -1,5 +1,5 @@
 import type { LoginPrompt } from "@pap/contracts";
-import { Button, copyText, TextField } from "@pap/ui";
+import { Button, InlineError, TextField, copyText } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { codeText } from "./failure.ts";
@@ -101,9 +101,7 @@ function DeviceCode({ device }: { readonly device: NonNullable<FlowView["device"
         </p>
       ) : null}
       {copy === "failed" ? (
-        <p role="status" className="text-ui text-attn">
-          {t("settingsModels.flow.copyFailed")}
-        </p>
+        <InlineError announce="action">{t("settingsModels.flow.copyFailed")}</InlineError>
       ) : null}
       {device.expiresInSeconds ? (
         <p className="text-ui text-muted">
@@ -188,11 +186,7 @@ export function SignInFlow({
           onAnswer={onAnswer}
         />
       ) : null}
-      {flow.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {flow.error}
-        </p>
-      ) : null}
+      {flow.error ? <InlineError announce="action">{flow.error}</InlineError> : null}
       <div>
         {view.done ? (
           <Button onClick={onClose}>{t("settingsModels.flow.close")}</Button>

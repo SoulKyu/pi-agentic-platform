@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import { type AgentSummary, type ToolPreset } from "@pap/contracts";
-import { Banner, Button, toast } from "@pap/ui";
+import { Banner, Button, InlineError, toast } from "@pap/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { AgentForm } from "./AgentForm.tsx";
@@ -64,22 +64,18 @@ export function AgentSettingsView({ agentId, summary, presetField, onBack, focus
           {t("settings.agents.detail.loading", { name: summary?.name ?? "" })}
         </p>
       ) : load.kind === "gone" ? (
-        <p role="alert" className="text-ui text-attn">
+        <p role="status" className="text-ui text-muted">
           {t("settings.agents.detail.gone")}
         </p>
       ) : load.kind === "failed" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("settings.agents.detail.failed")}
-        </p>
+        <InlineError announce="background">{t("settings.agents.detail.failed")}</InlineError>
       ) : (
         <>
           <h3 ref={heading} tabIndex={-1} className="text-h2 text-fg focus:outline-none">
             {load.agent.name}
           </h3>
           {changed ? (
-            <p role="alert" className="text-ui text-attn">
-              {t("settings.agents.changedElsewhere")}
-            </p>
+            <InlineError announce="action">{t("settings.agents.changedElsewhere")}</InlineError>
           ) : null}
           {load.agent.input === null ? (
             <Banner tone="capacity" title={t("settings.agents.detail.unreadable")} />

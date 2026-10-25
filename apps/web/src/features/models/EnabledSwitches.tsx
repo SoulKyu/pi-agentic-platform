@@ -1,5 +1,6 @@
 import type { ProviderView } from "@pap/contracts";
-import { Button, Switch } from "@pap/ui";
+import { Button, Switch, Heading } from "@pap/ui";
+import { StarButton } from "./StarButton.tsx";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { providerSwitch } from "./models.vm.ts";
@@ -38,7 +39,9 @@ export function EnabledSwitches({
   const visible = provider.models.slice(0, shown);
   return (
     <div className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsModels.models.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsModels.models.title")}
+      </Heading>
       {provider.models.length === 0 ? (
         <p className="text-ui text-muted">{t("settingsModels.models.empty")}</p>
       ) : (
@@ -67,17 +70,12 @@ export function EnabledSwitches({
                       onChange={(on) => handlers.onModel(model.id, on)}
                     />
                   </div>
-                  <Button
-                    variant="ghost"
-                    aria-label={t("settingsModels.star.set", { model: label })}
-                    aria-pressed={isDefault}
+                  <StarButton
+                    label={t("settingsModels.star.set", { model: label })}
+                    isDefault={isDefault}
                     disabled={readOnly || !model.enabled || pending.has("default")}
-                    onClick={() => handlers.onStar(model.id)}
-                  >
-                    <span aria-hidden="true" className={isDefault ? "text-agent" : "text-muted"}>
-                      {isDefault ? "★" : "☆"}
-                    </span>
-                  </Button>
+                    onPress={() => handlers.onStar(model.id)}
+                  />
                 </li>
               );
             })}

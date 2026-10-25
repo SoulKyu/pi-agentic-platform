@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import "./register-review-catalog.ts";
 
@@ -25,9 +25,12 @@ export function SendBar({ ready, sessionLabel, busy, problem, onSend, onNewSessi
       data-slot="review-send"
       className="flex flex-wrap items-center justify-between gap-s2 border-t border-border px-s3 py-s2"
     >
-      <span role="status" className="text-ui text-muted">
-        {problem ? <span className="text-attn">{t("lanes.review.send.failed")}</span> : label}
-      </span>
+      <div className="flex flex-wrap items-center gap-s2">
+        <span role="status" className="text-ui text-muted">
+          {label}
+        </span>
+        {problem ? <InlineError announce="action">{t("lanes.review.send.failed")}</InlineError> : null}
+      </div>
       <span className="flex items-center gap-s2">
         <Button variant="secondary" size="sm" disabled={ready === 0 || busy} onClick={onNewSession}>
           {t("lanes.review.send.new")}

@@ -3,7 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsApprovalsEn, settingsApprovalsFr } from "../../i18n/catalog/settings-approvals.ts";
 import { registerCatalog } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { alerts, click, field, mount, settle, text, typeInto, type Mounted } from "../../testing/dom.ts";
+import {
+  alerts,
+  statuses,
+  click,
+  field,
+  mount,
+  settle,
+  text,
+  typeInto,
+  type Mounted,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { RulesByProject } from "./RulesByProject.tsx";
 
@@ -178,7 +188,7 @@ describe("always rules by project", () => {
     };
     page = await mount(<RulesByProject />);
     await settle();
-    expect(alerts(page.container)).toHaveLength(1);
+    expect(statuses(page.container)).toHaveLength(1);
     expect(text(page.container)).not.toContain("Loading rules…");
   });
 

@@ -1,5 +1,5 @@
 import { THEME_ROLES, type CustomTheme } from "@pap/contracts";
-import { Button, Chip, IconButton, IconClose, Message, Segmented, TextField } from "@pap/ui";
+import { Button, Chip, IconButton, IconClose, Message, Segmented, TextField, Heading } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useEffect, useRef, useState } from "react";
 import { getLocale, useT } from "../../i18n/index.ts";
@@ -137,7 +137,9 @@ export default function ThemeEditor({ layout, open, onOpenChange, initial, onSav
           {verdict(checks.find((check) => check.role === role))}
         </div>
       ))}
-      <h3 className="label-hud text-muted">{t("settings.theme.fills")}</h3>
+      <Heading level={3} variant="group">
+        {t("settings.theme.fills")}
+      </Heading>
       {FILLS.map((fill) => (
         <div key={fill} data-role={`${fill}-fill`} className="flex flex-wrap items-center gap-s2">
           <span className="text-ui text-fg">{label(`${fill}-fill`)}</span>
@@ -175,9 +177,9 @@ export default function ThemeEditor({ layout, open, onOpenChange, initial, onSav
           className="flex flex-col rounded-md border border-border-strong bg-surface"
         >
           <header className="flex items-center justify-between gap-s2 border-b border-border px-s3 py-s2">
-            <h3 ref={heading} tabIndex={-1} className="label-hud text-fg focus-ring">
+            <Heading level={3} variant="group" ref={heading} tabIndex={-1}>
               {t("settings.theme.editorTitle")}
-            </h3>
+            </Heading>
             <IconButton icon={IconClose} label={t("ui.close")} onClick={() => onOpenChange(false)} />
           </header>
           {fields}

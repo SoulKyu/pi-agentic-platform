@@ -14,6 +14,7 @@ export const DENSITY_SIZES: Record<DeviceAppearance["density"], Record<SizeField
   mixed: { uiSize: 13, chatSize: 15, codeSize: 12 },
 };
 const WIDTHS = ["full", "wide", "narrow"] as const;
+const PROSE = ["limited", "full"] as const;
 const MOTIONS = ["system", "reduced", "none"] as const;
 
 /** Device scope: density, the three text sizes, chat width, motion and the completion sound. */
@@ -60,6 +61,12 @@ export function ReadingSection() {
         value={device.chatWidth}
         options={WIDTHS.map((value) => ({ value, label: t(`settings.appearance.chatWidth.${value}`) }))}
         onChange={(chatWidth) => setDevice({ ...device, chatWidth })}
+      />
+      <Segmented
+        label={t("settings.appearance.prose.label")}
+        value={device.proseMeasure}
+        options={PROSE.map((value) => ({ value, label: t(`settings.appearance.prose.${value}`) }))}
+        onChange={(proseMeasure) => setDevice({ ...device, proseMeasure })}
       />
       <Segmented
         label={t("settings.appearance.motion.label")}

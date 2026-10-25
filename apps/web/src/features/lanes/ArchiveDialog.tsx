@@ -1,6 +1,6 @@
 import "./register-lanes-catalog.ts";
 import type { LaneView } from "@pap/contracts";
-import { Button, Checkbox } from "@pap/ui";
+import { Button, Checkbox, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Fragment, useRef, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
@@ -138,13 +138,13 @@ export function ArchiveDialog({ lane, onClose, now }: Props) {
           </p>
         ) : null}
         {asking ? (
-          <p role="alert" className="text-ui font-semibold text-err">
+          <InlineError tone="attn" announce="action">
             {t("lanes.archive.confirmForce")}
-          </p>
+          </InlineError>
         ) : null}
         {refusal !== null && refusal.reason !== "tainted" ? (
-          <div role="alert" className="flex flex-col gap-s1 text-ui text-attn">
-            <p>{t(`lanes.archive.refused.${refusal.reason}`)}</p>
+          <div className="flex flex-col gap-s1">
+            <InlineError announce="action">{t(`lanes.archive.refused.${refusal.reason}`)}</InlineError>
             {refusal.reason === "script_failed" && refusal.logTail !== null ? (
               <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-code text-fg">
                 {visibleLog(refusal.logTail)}
@@ -155,11 +155,7 @@ export function ArchiveDialog({ lane, onClose, now }: Props) {
         {refusal?.reason === "tainted" ? (
           <TaintedConfirm busy={busy} onConfirm={() => send(true)} onCancel={() => setRefusal(null)} />
         ) : null}
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem)}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{t(problem)}</InlineError> : null}
       </div>
     </Dialog>
   );

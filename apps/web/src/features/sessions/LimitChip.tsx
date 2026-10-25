@@ -1,4 +1,4 @@
-import { IconButton, IconMore, RunStatusChip } from "@pap/ui";
+import { IconButton, IconMore, RunStatusChip, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useEffect, useState } from "react";
 import { useLazyFailureText, useLocale, useT } from "../../i18n/index.ts";
@@ -66,9 +66,9 @@ export function LimitChip({ sessionId }: { readonly sessionId: string }) {
       />
       {[resume.error, cancel.error].map((message) =>
         message === null ? null : (
-          <p key={message} role="alert" className="order-last w-full text-ui text-attn">
-            {message}
-          </p>
+          <div key={message} className="order-last w-full">
+            <InlineError announce="action">{message}</InlineError>
+          </div>
         ),
       )}
     </span>

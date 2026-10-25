@@ -3,7 +3,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { settingsProvidersEn } from "../../../i18n/catalog/settings-providers.ts";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
-import { alerts, button, click, field, hasButton, settle, text, typeInto } from "../../../testing/dom.ts";
+import {
+  alerts,
+  statuses,
+  button,
+  click,
+  field,
+  hasButton,
+  settle,
+  text,
+  typeInto,
+} from "../../../testing/dom.ts";
 import {
   CUSTOM,
   current,
@@ -199,7 +209,7 @@ describe("form.not-editable.* (MP-RT-02, MP-RT-18)", () => {
     const { page } = await showForm({ id: "mine" });
     await settle();
     expect(text(page.container)).toContain(
-      "Ce fichier contient des commentaires ou des virgules finales, ou ce fournisseur utilise des réglages que le formulaire ne couvre pas : modifiez-le dans l'éditeur brut",
+      "Ce fichier contient des commentaires ou des virgules finales, ou ce fournisseur utilise des réglages que le formulaire ne couvre pas\u202f: modifiez-le dans l'éditeur brut",
     );
   });
 
@@ -225,7 +235,7 @@ describe("failures and the guard", () => {
     });
     const { page } = await showForm();
     await settle();
-    expect(alerts(page.container)).toContain(
+    expect(statuses(page.container)).toContain(
       "This version of the page does not match the server. Reload it.",
     );
     expect(hasButton(page.container, "Reload")).toBe(true);

@@ -80,10 +80,10 @@ export function listenToWidgets(
 
 /** Colours are tokens (`--you-*` for comments, the diff and status tokens elsewhere); spacing is the `--space-*` scale. */
 export const REVIEW_THEME_SPEC: Record<string, Record<string, string>> = {
-  ".cm-review-gutter": { color: "var(--text-dim)", cursor: "pointer", minWidth: "var(--space-4)" },
+  ".cm-review-gutter": { color: "var(--text-muted)", cursor: "pointer", minWidth: "var(--space-4)" },
   ".cm-review-gutter .cm-gutterElement": { textAlign: "center" },
   ".cm-review-gutter .cm-gutterElement:hover": { color: "var(--you-text)" },
-  ".cm-lineNumbers .cm-gutterElement": { cursor: "pointer", color: "var(--text-dim)" },
+  ".cm-lineNumbers .cm-gutterElement": { cursor: "pointer", color: "var(--text-muted)" },
   ".cm-review-comment": {
     margin: "var(--space-1) var(--space-3) var(--space-1) var(--space-5)",
     padding: "var(--space-2)",
@@ -102,7 +102,7 @@ export const REVIEW_THEME_SPEC: Record<string, Record<string, string>> = {
     color: "var(--you)",
     fontFamily: "var(--font-code)",
     textTransform: "var(--label-transform)",
-    letterSpacing: "0.12em",
+    letterSpacing: "var(--tracking-label, 0.08em)",
   },
   ".cm-review-comment p": { margin: "0" },
   ".cm-review-comment[data-resolved]": { opacity: "0.6" },

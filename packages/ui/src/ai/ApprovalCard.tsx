@@ -34,6 +34,8 @@ interface ApprovalCardCommon {
   readonly withheld?: boolean | undefined;
   /** A phone's card: it fills its row and the answers share the full width as touch-sized buttons. */
   readonly wide?: boolean | undefined;
+  /** The heading level of the title: 2 under a page title (default), 3 inside a section that has its own h2. */
+  readonly level?: 2 | 3 | undefined;
 }
 
 /**
@@ -138,6 +140,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
   useEffect(() => {
     blockedRef.current = blocked;
   });
+  const Heading = props.level === 3 ? "h3" : "h2";
   return (
     <section
       role="alertdialog"
@@ -147,7 +150,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
       aria-describedby={described || undefined}
       className={cn("rounded-md border border-attn-line bg-attn-tint p-s2", props.wide && "w-full")}
     >
-      <h3 className="flex flex-wrap items-center gap-s2 label-hud text-attn-title">
+      <Heading className="flex flex-wrap items-center gap-s2 label-hud text-attn-title">
         <span>{props.title}</span>
         {props.category ? (
           <>
@@ -156,7 +159,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
           </>
         ) : null}
         {props.taintLabel ? <Chip tone="ext" label={props.taintLabel} /> : null}
-      </h3>
+      </Heading>
       {props.question ? (
         <div id={questionId} className="mt-s1">
           {props.question}
@@ -215,7 +218,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
           {answers.map((choice) => (
             <Button
               key={choice}
-              size={props.wide ? "md" : "sm"}
+              size="md"
               variant={choice === "once" ? "primary" : "secondary"}
               disabled={answered || blocked(choice)}
               onClick={() => answer(choice)}

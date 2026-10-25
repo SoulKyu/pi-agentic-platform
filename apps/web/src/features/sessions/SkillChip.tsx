@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { IconButton, IconClose } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import "./register-models-catalog.ts";
 
@@ -13,13 +13,12 @@ export function SkillChip({ skill, onRemove }: { readonly skill: string; onRemov
       className="flex w-fit max-w-full items-center gap-s1 rounded-sm border border-border-strong pl-s2"
     >
       <span className="truncate font-mono text-code text-muted">{`$${skill}`}</span>
-      <Button
-        variant="ghost"
-        aria-label={t("sessionModels.commands.removeSkill", { skill })}
+      <IconButton
+        size="sm"
+        icon={IconClose}
+        label={t("sessionModels.commands.removeSkill", { skill })}
         onClick={onRemove}
-      >
-        <span aria-hidden="true">×</span>
-      </Button>
+      />
     </div>
   );
 }

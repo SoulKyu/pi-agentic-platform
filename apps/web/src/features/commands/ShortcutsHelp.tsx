@@ -1,4 +1,4 @@
-import { Kbd } from "@pap/ui";
+import { Heading, Kbd } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { COMMANDS, type CommandGroup } from "./defaults.ts";
@@ -43,7 +43,9 @@ export default function ShortcutsHelp({ open, onOpenChange, platform }: Shortcut
       <div className="flex flex-col gap-s3 p-s3">
         {sections.map((section) => (
           <section key={section.id} data-group={section.id} className="flex flex-col gap-s1">
-            <h3 className="text-label text-muted">{t(section.titleKey)}</h3>
+            <Heading level={3} variant="card">
+              {t(section.titleKey)}
+            </Heading>
             <ul className="flex flex-col gap-s1">
               {section.entries.map(({ command, rule }) => (
                 <li

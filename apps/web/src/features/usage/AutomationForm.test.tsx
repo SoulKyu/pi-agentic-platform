@@ -161,7 +161,7 @@ describe("AutomationForm", () => {
   it("writes nothing and says so when the stored document cannot be read", async () => {
     stored = { slots: "many" };
     const page = await open();
-    expect(page.container.querySelector('[role="alert"]')?.textContent).toBe(
+    expect(page.container.querySelector('[role="status"]')?.textContent).toBe(
       "The automation settings could not be read.",
     );
     expect(page.container.querySelector("input")).toBeNull();

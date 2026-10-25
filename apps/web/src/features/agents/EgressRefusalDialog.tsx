@@ -6,7 +6,7 @@ import {
   entryFor,
   widensReach,
 } from "@pap/contracts";
-import { Button, toast, usePendingAction } from "@pap/ui";
+import { Button, InlineError, toast, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { errorKey, type MessageKey, useLocale, useT } from "../../i18n/index.ts";
@@ -138,14 +138,12 @@ export function EgressRefusalDialog({ agent, data, onClose }: EgressRefusalDialo
           <p className="text-ui text-muted">{t("agentEgress.d.copy", { name: agent.name })}</p>
         ) : null}
         {full ? (
-          <p role="alert" className="text-ui text-attn">
+          <InlineError announce="background">
             {t("agentEgress.d.full", { name: agent.name, max: AGENT_LIMITS.hosts })}
-          </p>
+          </InlineError>
         ) : null}
         {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem, { name: agent.name })}
-          </p>
+          <InlineError announce="action">{t(problem, { name: agent.name })}</InlineError>
         ) : null}
       </div>
     </Dialog>

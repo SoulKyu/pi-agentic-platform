@@ -5,6 +5,7 @@ import { setLocale } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { button, click, mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import { segmentedGroup } from "../../testing/names.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 import { SubagentsSettings } from "./SubagentsSettings.tsx";
@@ -57,20 +58,24 @@ describe("Settings › Agents › Subagents (M11R155)", () => {
     stored(null, 0);
     const view = await show();
     expect(view.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("true");
-    expect(view.querySelector('[aria-label="Subagents at once"] [data-state="on"]')?.textContent).toBe("2");
+    expect(segmentedGroup(view, "Subagents at once")?.querySelector('[data-state="on"]')?.textContent).toBe(
+      "2",
+    );
   });
 
   it("reads the stored values", async () => {
     stored({ subagents: { enabled: false, maxConcurrent: 4 } });
     const view = await show();
     expect(view.querySelector('[role="switch"]')?.getAttribute("aria-checked")).toBe("false");
-    expect(view.querySelector('[aria-label="Subagents at once"] [data-state="on"]')?.textContent).toBe("4");
+    expect(segmentedGroup(view, "Subagents at once")?.querySelector('[data-state="on"]')?.textContent).toBe(
+      "4",
+    );
   });
 
   it("offers 1 to 4 and nothing else", async () => {
     stored(null, 0);
     const view = await show();
-    const items = [...view.querySelectorAll('[aria-label="Subagents at once"] button')].map(
+    const items = [...(segmentedGroup(view, "Subagents at once")?.querySelectorAll("button") ?? [])].map(
       (b) => b.textContent,
     );
     expect(items).toEqual(["1", "2", "3", "4"]);
@@ -127,7 +132,9 @@ describe("Settings › Agents › Subagents (M11R155)", () => {
     await click(button(view, "4"));
     await settle();
     expect(view.querySelector('[role="alert"]')?.textContent).toContain("changed elsewhere");
-    expect(view.querySelector('[aria-label="Subagents at once"] [data-state="on"]')?.textContent).toBe("3");
+    expect(segmentedGroup(view, "Subagents at once")?.querySelector('[data-state="on"]')?.textContent).toBe(
+      "3",
+    );
   });
 
   it("does not offer the controls while the document is unreadable, and says so", async () => {
@@ -136,7 +143,7 @@ describe("Settings › Agents › Subagents (M11R155)", () => {
     };
     const view = await show();
     expect(view.querySelector('[role="switch"]')).toBeNull();
-    expect(view.querySelector('[role="alert"]')).not.toBeNull();
+    expect(view.querySelector('[data-slot="inline-error"][role="status"]')).not.toBeNull();
   });
 
   it("lists the profiles read-only: name, description, source", async () => {

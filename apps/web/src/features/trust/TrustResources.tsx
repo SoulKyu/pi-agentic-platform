@@ -1,3 +1,4 @@
+import { Heading } from "@pap/ui";
 import type { McpServerView, TrustStatus } from "@pap/contracts";
 import { useT } from "../../i18n/index.ts";
 import { escapeHidden } from "../../lib/escape-hidden.ts";
@@ -34,7 +35,9 @@ function NameList({
 }) {
   return (
     <section className="flex flex-col gap-s1">
-      <h4 className="label-hud text-muted">{title}</h4>
+      <Heading level={4} variant="card">
+        {title}
+      </Heading>
       {note ? <p className="text-ui text-muted">{note}</p> : null}
       <ul className="flex flex-col">
         {list.map((name, index) => (
@@ -56,12 +59,16 @@ export function TrustResources({ status }: { readonly status: TrustStatus }) {
       data-trust-resources
       className="flex flex-col gap-s2 rounded-md border border-dashed border-attn p-s2"
     >
-      <h3 className="label-hud text-attn">{t("trust.resources.title")}</h3>
+      <Heading level={3} variant="group" tone="attn">
+        {t("trust.resources.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("trust.resources.external")}</p>
       {hasResources(status) ? null : <p className="text-ui text-muted">{t("trust.nothing")}</p>}
       {resources.mcpServers.length > 0 ? (
         <section className="flex flex-col gap-s1">
-          <h4 className="label-hud text-muted">{t("trust.mcp", { count: resources.mcpServers.length })}</h4>
+          <Heading level={4} variant="card">
+            {t("trust.mcp", { count: resources.mcpServers.length })}
+          </Heading>
           <ul className="flex flex-col gap-s1">
             {resources.mcpServers.map((server, index) => (
               <Server key={`${index}:${server.name}`} server={server} />

@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { INVITE_USERNAME } from "@pap/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -119,9 +119,7 @@ export function InviteScreen({
   if (phase.kind === "retry")
     return (
       <AuthFrame title={t("invite.title")}>
-        <p role="alert" className="text-ui text-err">
-          {phase.error}
-        </p>
+        <InlineError announce="action">{phase.error}</InlineError>
         <p className="text-ui text-muted">{t("invite.retryHint")}</p>
         <div>
           <Button variant="primary" disabled={waiting} onClick={retry}>
@@ -133,9 +131,7 @@ export function InviteScreen({
   if (phase.kind === "refused")
     return (
       <AuthFrame title={t("invite.title")}>
-        <p role="alert" className="text-ui text-err">
-          {phase.error}
-        </p>
+        <InlineError announce="action">{phase.error}</InlineError>
       </AuthFrame>
     );
   const invited = <p className="text-ui text-fg">{t("invite.inviter", { inviter: phase.inviter })}</p>;
@@ -193,11 +189,7 @@ export function InviteScreen({
           {t("invite.submit")}
         </Button>
       </form>
-      {error ? (
-        <p role="alert" className="text-ui text-err">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </AuthFrame>
   );
 }

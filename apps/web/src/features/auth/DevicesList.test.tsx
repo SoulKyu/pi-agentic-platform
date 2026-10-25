@@ -3,7 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsAccessEn, settingsAccessFr } from "../../i18n/catalog/settings-access.ts";
 import { registerCatalog } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import {
+  alerts,
+  statuses,
+  button,
+  click,
+  hasButton,
+  mount,
+  settle,
+  text,
+  type Mounted,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { DevicesList } from "./DevicesList.tsx";
 
@@ -117,7 +127,9 @@ describe("connected devices", () => {
     await click(button(container, "Revoke Chrome on macOS"));
     await click(button(container, "Sign out"));
     await settle();
-    expect(alerts(container)).toEqual(["Not found."]);
+    expect(alerts(container)).toEqual([
+      "This item no longer exists: it was deleted, or the link is wrong. Nothing else was changed. Pick it again from its list.",
+    ]);
     expect(signOutHere).not.toHaveBeenCalled();
   });
 
@@ -172,7 +184,9 @@ describe("connected devices", () => {
     page = await mount(<DevicesList signOutHere={signOutHere} />);
     await settle();
     const container = page.container;
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(statuses(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     bed.handlers["auth.devices.list"] = () => ({ devices: three });
     await click(button(container, "Try again"));
     await settle();

@@ -1,5 +1,6 @@
 import { useId, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import { cn } from "../cn.ts";
+import { InlineError } from "./InlineError.tsx";
 import { isSubmitShortcut } from "./submit-shortcut.ts";
 
 /** A listbox this field drives (a mention or command menu): the four attributes of the combobox pattern. */
@@ -115,14 +116,14 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
         />
       )}
       {props.hint ? (
-        <p id={hintId} className="text-ui text-muted">
+        <p id={hintId} className="text-pretty text-ui text-muted">
           {props.hint}
         </p>
       ) : null}
       {props.error ? (
-        <p id={errorId} role="alert" className="text-ui text-attn">
+        <InlineError id={errorId} announce="action">
           {props.error}
-        </p>
+        </InlineError>
       ) : null}
     </div>
   );

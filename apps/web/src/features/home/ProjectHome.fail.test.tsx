@@ -48,7 +48,9 @@ describe("ProjectHome: a launch that ends badly", () => {
     const { page } = await showHome(actions);
     await click(button(page.container, "Launch a session"));
     await vi.waitFor(() => expect(alerts(page.container)).not.toEqual([]), { timeout: 20_000 });
-    expect(alerts(page.container)).toEqual(["Something went wrong."]);
+    expect(alerts(page.container)).toEqual([
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    ]);
     expect(button(page.container, "Launch a session").disabled).toBe(false);
     await act(async () => {
       useCurrentProject.getState().choose("p2");

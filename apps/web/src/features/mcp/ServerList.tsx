@@ -1,5 +1,5 @@
 import type { McpFileView, McpServerView } from "@pap/contracts";
-import { Button, Chip, Switch } from "@pap/ui";
+import { Button, Chip, Switch, Heading, InlineError } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { escapeHidden, groupSwitch, rowChip, serverKey, type RowChip } from "./mcp.vm.ts";
 
@@ -50,12 +50,12 @@ function Group({
   const frozen = busy || untrusted || file.problem !== null;
   return (
     <section className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{title}</h3>
+      <Heading level={2} variant="section">
+        {title}
+      </Heading>
       <p className="break-all text-ui text-muted">{escapeHidden(file.path)}</p>
       {file.problem !== null ? (
-        <p role="status" className="text-ui text-attn">
-          {t(`settingsMcp.file.${file.problem}` as const)}
-        </p>
+        <InlineError announce="background">{t(`settingsMcp.file.${file.problem}` as const)}</InlineError>
       ) : null}
       {untrusted ? <p className="text-ui text-attn">{t("settingsMcp.project.untrusted")}</p> : null}
       {untrusted && handlers.onReviewTrust ? (

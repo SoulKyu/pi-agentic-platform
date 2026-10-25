@@ -17,7 +17,7 @@ export function ClassToggles({
 }) {
   const t = useT();
   return (
-    <div className="flex max-w-xl flex-col gap-s3">
+    <div className="flex flex-col gap-s3">
       {KINDS.map((name) => (
         <Switch
           key={name}

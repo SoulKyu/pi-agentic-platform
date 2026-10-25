@@ -23,6 +23,10 @@ export const sessionToolsEn = {
   "sessionTools.switch": "Switch to {name}",
   "sessionTools.cancel": "Cancel",
   "sessionTools.close": "Close",
+  "sessions.tool.edit.diff": "The edit's changes",
+  "sessions.tool.edit.loading": "Loading the edit…",
+  "sessions.tool.edit.same": "This edit changed nothing.",
+  "sessions.tool.edit.more": "{count} more edits not shown",
 } as const;
 
 export const sessionToolsFr: Record<keyof typeof sessionToolsEn, string> = {
@@ -51,4 +55,8 @@ export const sessionToolsFr: Record<keyof typeof sessionToolsEn, string> = {
   "sessionTools.switch": "Passer à « {name} »",
   "sessionTools.cancel": "Annuler",
   "sessionTools.close": "Fermer",
+  "sessions.tool.edit.diff": "Les modifications de l'édition",
+  "sessions.tool.edit.loading": "Chargement de la modification…",
+  "sessions.tool.edit.same": "Cette édition n'a rien changé.",
+  "sessions.tool.edit.more": "{count} autres éditions non affichées",
 };

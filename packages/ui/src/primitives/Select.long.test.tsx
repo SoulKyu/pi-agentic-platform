@@ -56,6 +56,27 @@ async function key(init: KeyboardEventInit): Promise<void> {
 }
 const highlighted = () => document.querySelector("[data-highlighted]")?.textContent;
 
+describe("Select error", () => {
+  it("an error sets aria-invalid and describes the trigger", async () => {
+    const page = await mount(
+      <Select
+        label="Model"
+        value="a"
+        options={[{ value: "a", label: "A" }]}
+        onChange={() => {}}
+        error="Pick one"
+      />,
+    );
+    const trigger = page.container.querySelector('[role="combobox"]') as HTMLElement;
+    expect(trigger.getAttribute("aria-invalid")).toBe("true");
+    const alert = page.container.querySelector('[data-slot="inline-error"]') as HTMLElement;
+    expect(alert.textContent).toBe("Pick one");
+    expect(alert.className).toContain("text-err");
+    expect(trigger.getAttribute("aria-describedby")).toContain(alert.id);
+    await page.unmount();
+  });
+});
+
 describe("Select with a long list", () => {
   afterEach(() => vi.unstubAllGlobals());
 

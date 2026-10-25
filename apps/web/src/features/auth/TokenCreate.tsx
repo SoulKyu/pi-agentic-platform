@@ -1,5 +1,5 @@
 import { TOKEN_LIFETIMES_DAYS, TOKEN_PERMISSIONS, type TokenView } from "@pap/contracts";
-import { Button, Checkbox, copyText, Segmented, TextField } from "@pap/ui";
+import { Button, Checkbox, InlineError, Segmented, TextField, copyText } from "@pap/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -98,9 +98,7 @@ function TokenValue({ created, onDone }: { readonly created: Created; onDone(): 
           </span>
         ) : null}
         {copy === "failed" ? (
-          <span role="alert" className="text-ui text-attn">
-            {t("access.tokens.copyFailed")}
-          </span>
+          <InlineError announce="action">{t("access.tokens.copyFailed")}</InlineError>
         ) : null}
       </div>
     </div>
@@ -218,15 +216,11 @@ export function TokenCreate({ onCreated, onSignedOut }: { onCreated(): void; onS
           ))}
         </fieldset>
         {notice ? (
-          <p role="alert" className="text-ui text-attn">
+          <InlineError announce="action">
             {t(notice === "lost" ? "access.tokens.lost" : "access.tokens.unknown")}
-          </p>
+          </InlineError>
         ) : null}
-        {error ? (
-          <p role="alert" className="text-ui text-attn">
-            {error}
-          </p>
-        ) : null}
+        {error ? <InlineError announce="action">{error}</InlineError> : null}
         <div>
           <Button type="submit" variant="primary" disabled={busy || !valid}>
             {t("access.tokens.create")}

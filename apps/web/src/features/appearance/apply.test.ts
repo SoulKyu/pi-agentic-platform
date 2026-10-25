@@ -30,7 +30,7 @@ describe("applyAppearance", () => {
     );
     expect([root.dataset.theme, root.dataset.density, root.style.getPropertyValue("--size-ui")]).toEqual([
       "night",
-      "compact",
+      "mixed",
       "15px",
     ]);
     expect(root.classList.contains("theme-swap")).toBe(true);

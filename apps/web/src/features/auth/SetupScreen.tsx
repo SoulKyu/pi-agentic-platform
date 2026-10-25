@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { setupOwner } from "./auth-api.ts";
@@ -63,11 +63,7 @@ export function SetupScreen({ onDone, steps }: { onDone(): void; steps?: ReactNo
           {t("setup.submit")}
         </Button>
       </form>
-      {error ? (
-        <p role="alert" className="text-ui text-err">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </AuthFrame>
   );
 }

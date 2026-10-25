@@ -1,6 +1,6 @@
 # End-to-end journeys
 
-Fourteen browser journeys (J01 to J15 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
+Fifteen browser journeys (J01 to J16 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
 
 ## What runs where
 
@@ -10,6 +10,17 @@ Fourteen browser journeys (J01 to J15 except J09, which tested pi-mem0 and is go
 | CI, job `e2e` of `.github/workflows/ci.yml` | `needs: build`, downloads the `dist` artifact, installs Chromium and WebKit with their system packages, runs `pnpm test:e2e`, uploads `scripts/e2e/playwright-report` and `scripts/e2e/test-results` when it fails (25 minute timeout) | Written and pinned by `scripts/ci-config.e2e.test.ts`. The repository is public and `ci.yml` runs on pull requests and on pushes to `main`, but this job has **not yet passed on GitHub** (M13R33, M13-C9: the first GitHub run is the real check) |
 
 Nothing here has run on macOS, Windows or WSL.
+
+## Layout in the journeys (J16)
+
+`j16-layout.e2e.ts` measures what the design pass promises on the rendered page (happy-dom computes no layout), on Chromium and WebKit:
+
+- the longest agent paragraph is no wider than a `width:72ch` probe inserted next to it in the same font (0.5 px slack), and holds at most 90 characters a line on Chromium and 95 on WebKit. WebKit's fallback fonts have a narrower average glyph, so its 72ch holds 91 characters: the width is the promise, the count a sanity check;
+- no page is wider than the screen at 320 px (home, a session, Settings › Appearance, Settings › Automation, Tasks, the trigger editor), with a very long project name selected;
+- the first Tab of a page lands on the skip link and Enter focuses `#pane-host`;
+- Day's focus outline on the active tab reaches 3:1.
+
+The 320 px width is set in the test (`setViewportSize`) on the desktop projects, not by a phone project: the phone projects own J06 only, and a Pixel 7 is 412 px wide. Touch and 44 px targets stay J06's job. J16 injects only the read-only 72ch probe (removed at once); no screenshots, no `bypassCSP`. Time: 7.9 s on Chromium and 8.3 s on WebKit in the full run.
 
 ## Agents in the journeys (J07)
 
@@ -89,7 +100,7 @@ With `PAP_TEST_PUSH_LOOPBACK=1`, `daemon.ts` starts the **daemon process only** 
 
 Default test timeout 60 s. J13 declares 150 s (M13R43): an approval push is enqueued 60 s after the last heartbeat and suppressed while a device is present, a focused page keeps sending heartbeats, and the real clock of a built daemon cannot be advanced. So J13 closes its page, raises the approval from a node client and waits up to 100 s (`WAIT_MS`) for a push that arrives 60 to 70 s later. That is about 10 s over the worst case; a slower host raises `WAIT_MS` and the 150 s timeout together. No test-only delay variable exists for this.
 
-The suite budget is 15 minutes in the container (M13R43). Measured on the development host, full suite, container mode, two workers: 36 passed and 2 skipped (J13 on WebKit) in 4.5 minutes by Playwright's clock; the longest tests were the two J13 tests at 1.0 to 1.1 minutes each. No test went over its own timeout in that run.
+The suite budget is 15 minutes in the container (M13R43). Measured on the development host, full suite, container mode, two workers: 36 passed and 2 skipped (J13 on WebKit) in 4.5 minutes by Playwright's clock before the design pass; with J16 and the design pass joined, the same 36 passed and 2 skipped in 3.3 minutes (3 min 29 s wall clock, the Playwright report: chromium 18, webkit 16, chromium-phone 1, webkit-phone 1; J10 passes). The longest tests were the two J13 tests at 1.0 to 1.1 minutes each. No test went over its own timeout in that run.
 
 ## Verified so far
 

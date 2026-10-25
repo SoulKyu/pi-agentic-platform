@@ -1,5 +1,5 @@
 import type { ModelsOverview, ProviderView } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, Heading, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -100,8 +100,8 @@ function SignIn({
       <p className="text-ui text-fg">{t(statusKey(provider))}</p>
       <Environment provider={provider} />
       {login.stuck === provider.id ? (
-        <div role="alert" className="flex flex-col items-start gap-s2">
-          <p className="text-ui text-attn">{t("settingsModels.flow.stuck")}</p>
+        <div className="flex flex-col items-start gap-s2">
+          <InlineError announce="action">{t("settingsModels.flow.stuck")}</InlineError>
           <Button onClick={() => void login.cancelProvider(provider.id)}>
             {t("settingsModels.flow.stuckCancel")}
           </Button>
@@ -144,11 +144,7 @@ function SignIn({
           </div>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       {mode === "idle" ? (
         <div className="flex flex-wrap gap-s2">
           {oauthLabel !== null ? (
@@ -218,7 +214,9 @@ export function ProviderDetail({
         />
       </div>
       <section aria-label={t("settingsModels.signIn.title")} className="flex flex-col gap-s2">
-        <h3 className="label-hud text-muted">{t("settingsModels.signIn.title")}</h3>
+        <Heading level={3} variant="group">
+          {t("settingsModels.signIn.title")}
+        </Heading>
         <SignIn provider={provider} login={login} stepUp={stepUp} onChanged={onChanged} onSaid={onSaid} />
       </section>
       <EnabledSwitches

@@ -26,7 +26,7 @@ const AFTER_HITS: ReadonlySet<PaletteItem["group"]> = new Set(["settings", "acti
 
 /** The highlighted row: raised surface and the agent rule (board 12). */
 const ROW_CLASSES =
-  "flex items-center justify-between gap-s2 rounded-sm border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2";
+  "flex items-center justify-between gap-s2 border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2";
 
 function RankedGroup({
   entry: { group, items: rows },
@@ -86,6 +86,12 @@ export default function CommandPalette({
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const scope = search ?? null;
+  const inputLabel =
+    scope === null
+      ? t("commands.palette.input")
+      : scope.projectName === null
+        ? t("search.mode.input")
+        : t("search.mode.inputIn", { project: scope.projectName });
   const ranked = useMemo(() => rankItems(scope === null ? items : [], query), [items, query, scope]);
   const found = useTranscriptSearch(query);
   // The daemon's search has no project filter (PH8): the hits it answers are narrowed here.
@@ -139,16 +145,11 @@ export default function CommandPalette({
         >
           <Command.Input
             ref={input}
-            aria-label={
-              scope === null
-                ? t("commands.palette.input")
-                : scope.projectName === null
-                  ? t("search.mode.input")
-                  : t("search.mode.inputIn", { project: scope.projectName })
-            }
+            aria-label={inputLabel}
+            placeholder={inputLabel}
             value={query}
             onValueChange={setQuery}
-            className="w-full border-b border-border bg-transparent px-s3 py-s2 text-ui text-fg outline-none"
+            className="w-full border-b border-border bg-transparent px-s3 py-s2 text-ui text-fg outline-none focus:border-agent"
           />
           <Command.List className="max-h-app overflow-y-auto p-s1">
             {searchLine === null ? (

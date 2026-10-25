@@ -26,6 +26,19 @@ vi.mock("@tanstack/react-router", async () => {
 const screen = screenBed(current);
 const { show, emit, remount } = screen;
 describe("Composer outcome unknown", () => {
+  it("never shows two primary fills while a send waits: Send again is secondary", async () => {
+    screen.bed.handlers["sessions.prompt"] = () => {
+      throw new RpcError("timeout");
+    };
+    const container = await show({ status: "idle" });
+    await typeInto(field(container, "Message"), "deploy");
+    await click(button(container, "Send"));
+    await settle();
+    expect(hasButton(container, "Send again")).toBe(true);
+    expect(button(container, "Send again").dataset.variant).toBe("secondary");
+    expect(container.querySelectorAll("[data-composer] button[data-variant='primary']")).toHaveLength(1);
+  });
+
   it("offers Send again with the same command id, and Edit puts the text back", async () => {
     screen.bed.handlers["sessions.prompt"] = () => {
       throw new RpcError("connection_lost");

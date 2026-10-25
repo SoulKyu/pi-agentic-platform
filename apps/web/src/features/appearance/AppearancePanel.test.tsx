@@ -8,6 +8,7 @@ import { settingsAppearanceEn, settingsAppearanceFr } from "../../i18n/catalog/s
 import { registerCatalog, setLocale } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/index.ts";
 import { click, mount, press } from "../../testing/dom.ts";
+import { segmentedGroup } from "../../testing/names.ts";
 import { AppearancePanel } from "./AppearancePanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { resetCompletionSound } from "./completion-sound.ts";
@@ -61,8 +62,7 @@ const drain = () =>
     for (let i = 0; i < 30; i++) await Promise.resolve();
   });
 
-const group = (label: string) =>
-  document.querySelector(`[data-slot="segmented"][aria-label="${label}"]`) as HTMLElement;
+const group = (label: string) => segmentedGroup(document, label) as HTMLElement;
 const pick = (label: string, item: string) =>
   click(
     [...group(label).querySelectorAll('[role="radio"]')].find(
@@ -261,7 +261,6 @@ describe("Settings > Appearance", () => {
     await render();
     await act(async () => useAppearanceStore.setState({ accountStatus: "saved" }));
     expect(status()).toBe("Enregistré dans votre compte");
-    expect(document.querySelector("h2")?.textContent).toBe("Apparence");
     expect(buttonNamed("Rétablir les valeurs par défaut")).toBeDefined();
   });
 

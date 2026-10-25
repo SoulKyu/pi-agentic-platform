@@ -1,3 +1,4 @@
+import { Heading } from "@pap/ui";
 import "../../i18n/register-subagents.ts";
 import type { ChildView } from "@pap/contracts";
 import { useT } from "../../i18n/index.ts";
@@ -18,7 +19,9 @@ export function ChildApprovals({ subagents }: { readonly subagents: readonly Chi
         const label = t("subagents.from", { title: titleOf(child) });
         return (
           <section key={child.id} aria-label={label} className="flex flex-col gap-s2">
-            <h3 className="label-hud text-muted">{label}</h3>
+            <Heading level={3} variant="card">
+              {label}
+            </Heading>
             <DialogList sessionId={child.id} dialogs={child.dialogs} hidden={child.hiddenDialogs} />
           </section>
         );

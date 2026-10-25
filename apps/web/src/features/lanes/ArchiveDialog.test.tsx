@@ -157,7 +157,7 @@ describe("archive dialog", () => {
       "The branch goes only when its commits are merged or pushed.",
     );
     expect(translate("fr", "lanes.archive.branchKept", { branch: "pi/a" })).toBe(
-      "Branche pi/a conservée : elle a des commits ni fusionnés ni poussés",
+      "Branche pi/a conservée\u202f: elle a des commits ni fusionnés ni poussés",
     );
     expect(translate("fr", "lanes.archive.deleteBranch.note")).toContain("fusionnés ou poussés");
   });

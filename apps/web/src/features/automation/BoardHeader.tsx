@@ -1,5 +1,5 @@
 import type { TasksCounts } from "@pap/contracts";
-import { Chip, Switch, usePendingAction } from "@pap/ui";
+import { Chip, InlineError, Switch, usePendingAction } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { usePauseReread } from "../../lib/use-pause-reread.ts";
@@ -50,11 +50,7 @@ export function BoardHeader({ counts }: { readonly counts: TasksCounts }) {
           onChange={setPaused}
         />
       </div>
-      {failed ? (
-        <p role="alert" className="text-ui text-err">
-          {t("automation.board.pauseFailed")}
-        </p>
-      ) : null}
+      {failed ? <InlineError announce="action">{t("automation.board.pauseFailed")}</InlineError> : null}
     </header>
   );
 }

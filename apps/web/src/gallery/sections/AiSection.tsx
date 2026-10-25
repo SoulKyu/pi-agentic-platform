@@ -94,12 +94,8 @@ function Runs() {
         <Fence label={CHAT.fenceLabel}>{CHAT.fence}</Fence>
       </GalleryItem>
       <GalleryItem name="Reasoning" column>
-        <Reasoning streaming label={CHAT.thinking}>
-          {CHAT.thoughtBody}
-        </Reasoning>
-        <Reasoning streaming={false} label={CHAT.thought}>
-          {CHAT.thoughtBody}
-        </Reasoning>
+        <Reasoning label={CHAT.thinking}>{CHAT.thoughtBody}</Reasoning>
+        <Reasoning label={CHAT.thought}>{CHAT.thoughtBody}</Reasoning>
       </GalleryItem>
       <GalleryItem name="ToolCard" column>
         {TOOL_DETAILS.map((detail) => (
@@ -137,6 +133,7 @@ function Runs() {
       </GalleryItem>
       <GalleryItem name="ApprovalCard" column>
         <ApprovalCard
+          level={3}
           title={CHAT.approvalTitle}
           detail={CHAT.approvalDetail}
           answers={["deny", "once"]}
@@ -144,6 +141,7 @@ function Runs() {
           onChoose={() => {}}
         />
         <ApprovalCard
+          level={3}
           title={CHAT.approvalTitle}
           category={CHAT.approvalCategory}
           detail={CHAT.approvalDetail}

@@ -52,8 +52,8 @@ describe("ApprovalCardFor", () => {
     expect(labels(page)).toEqual(["Deny", "Session", "Always", "Allow once"]);
     // Sentence case in the DOM, uppercase by CSS (R121, M2R130). The separator is an aria-hidden span, so the heading's
     // text is "Approval·exec"; the card is found by role and accessible name instead.
-    expect(page.querySelector("h3")?.textContent).toBe("Approval·exec");
-    expect(page.querySelector("h3")?.className).toContain("label-hud");
+    expect(page.querySelector("h2")?.textContent).toBe("Approval·exec");
+    expect(page.querySelector("h2")?.className).toContain("label-hud");
     expect(page.querySelector('[role="alertdialog"][aria-label="Approval exec"]')).not.toBeNull();
     expect(page.querySelector("[data-approval-header]")?.textContent).toBe("1 line");
     expect(page.querySelector("[data-approval-scroll]")?.textContent).toBe("bash: npm test");
@@ -126,7 +126,9 @@ describe("ApprovalCardFor", () => {
     await settle();
     expect(button(page, "Allow once").disabled).toBe(false);
     expect(button(page, "Deny").disabled).toBe(false);
-    expect(page.querySelector('[role="alert"]')?.textContent).toBe("The request is invalid.");
+    expect(page.querySelector('[role="alert"]')?.textContent).toBe(
+      "pap refused this request: a value is missing or out of range. Nothing was changed. Check the fields and try again.",
+    );
     // The re-armed card answers again, once.
     bed.handlers["sessions.respondDialog"] = () => ({ ok: true });
     await click(button(page, "Deny"));
@@ -290,7 +292,7 @@ describe("ApprovalCardFor", () => {
           alwaysScopes: { prefix: ["curl"], tool: true, toolSource: "builtin" },
         }),
       ]);
-      expect(page.querySelector("h3")?.textContent).toContain("external content");
+      expect(page.querySelector("h2")?.textContent).toContain("external content");
       expect(page.querySelector("[data-approval-guard]")?.textContent).toBe("This run made many tool calls.");
       expect(page.querySelector("[data-approval-header]")?.textContent).toBe("9 lines");
       expect(page.querySelector("[data-approval-question]")?.textContent).toBe("Run a command?");

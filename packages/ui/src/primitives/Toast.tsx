@@ -2,6 +2,7 @@ import { Toast as Radix } from "radix-ui";
 import { useSyncExternalStore } from "react";
 import { cn } from "../cn.ts";
 import { IconClose } from "../icons.ts";
+import { CodeText } from "./CodeText.tsx";
 import { Icon } from "./Icon.tsx";
 
 export interface ToastInput {
@@ -76,7 +77,9 @@ export function Toaster({
             TOAST_TONES[entry.tone ?? "neutral"],
           )}
         >
-          <Radix.Description className="min-w-0 flex-1">{entry.message}</Radix.Description>
+          <Radix.Description className="min-w-0 flex-1">
+            <CodeText text={entry.message} />
+          </Radix.Description>
           {entry.action ? (
             <Radix.Action
               altText={entry.action.altText}

@@ -1,5 +1,5 @@
 import { HTTP_PLAINTEXT_POLICY, keyTravelsInClear, PROVIDER_API_TYPES } from "@pap/contracts";
-import { Segmented, Select, TextField } from "@pap/ui";
+import { Segmented, Select, TextField, Heading } from "@pap/ui";
 import { type MessageKey, useT } from "../../../i18n/index.ts";
 import { columns } from "./layout.ts";
 import {
@@ -56,7 +56,9 @@ export function ConnectionFields(props: FieldsProps) {
     HTTP_PLAINTEXT_POLICY === "any" && keyTravelsInClear(draft.baseUrl.trim(), carriesSecret(draft));
   return (
     <section aria-label={t("settingsProviders.section.connection")} className="flex flex-col gap-s3">
-      <h3 className="label-hud text-muted">{t("settingsProviders.section.connection")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.section.connection")}
+      </Heading>
       <div className={columns(props.stack)}>
         <TextField
           label={t("settingsProviders.field.name")}
@@ -87,7 +89,7 @@ export function ConnectionFields(props: FieldsProps) {
         onChange={(baseUrl) => onChange({ ...draft, baseUrl })}
       />
       {warn ? (
-        <p role="status" className="text-ui text-attn">
+        <p role="status" className="text-ui text-muted">
           {t("settingsProviders.url.clearText")}
         </p>
       ) : null}
@@ -113,7 +115,9 @@ export function AuthFields(props: FieldsProps) {
   };
   return (
     <section aria-label={t("settingsProviders.section.auth")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsProviders.section.auth")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.section.auth")}
+      </Heading>
       <Segmented label={t("settingsProviders.auth.label")} value={kind} options={options} onChange={choose} />
       {draft.auth.kind === "stored" ? (
         <p className="text-ui text-muted">{t("settingsProviders.auth.stored.note")}</p>
@@ -122,7 +126,7 @@ export function AuthFields(props: FieldsProps) {
         <p className="text-ui text-muted">{t("settingsProviders.auth.none.note")}</p>
       ) : null}
       {props.keyHeld && (props.editing ? kind === "env" || kind === "none" : true) ? (
-        <p role="status" className="text-ui text-attn">
+        <p role="status" className="text-ui text-muted">
           {t(
             props.editing
               ? "settingsProviders.auth.keyHeld.override"

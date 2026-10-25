@@ -207,7 +207,7 @@ describe("what the panel shows (M11R125)", () => {
     };
     const page = await panel();
     await settle();
-    expect(page.container.querySelector('[role="alert"]')).not.toBeNull();
+    expect(page.container.querySelector('[data-slot="inline-error"][role="status"]')).not.toBeNull();
     bed.handlers["agents.status"] = () => status();
     await click(button(page.container, "Try again"));
     await settle();

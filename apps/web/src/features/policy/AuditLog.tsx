@@ -1,4 +1,4 @@
-import { Button, TextField } from "@pap/ui";
+import { Button, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { AuditRow } from "./AuditRow.tsx";
@@ -16,7 +16,7 @@ export function AuditLog() {
   const [tooLong, setTooLong] = useState(false);
   return (
     <section className="flex flex-col gap-s3">
-      <h3 className="text-ui font-semibold text-fg">{t("audit.title")}</h3>
+      <h2 className="text-ui font-semibold text-fg">{t("audit.title")}</h2>
       <p className={NOTE}>{t("audit.intro")}</p>
       <form
         className="flex items-end gap-s2"
@@ -45,9 +45,7 @@ export function AuditLog() {
       </form>
       {log.error ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {log.error}
-          </p>
+          <InlineError announce="background">{log.error}</InlineError>
           <Button variant="secondary" disabled={log.busy} onClick={log.retry}>
             {t("audit.retry")}
           </Button>

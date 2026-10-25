@@ -1,5 +1,5 @@
 import { PROVIDER_FORM_LIMITS } from "@pap/contracts";
-import { Button, Checkbox, TextField } from "@pap/ui";
+import { Button, Checkbox, Heading, InlineError, TextField } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { columns } from "./layout.ts";
 import { type FieldsProps, useProblemText } from "./ProviderFields.tsx";
@@ -61,11 +61,7 @@ function Row({
           onChange={(image) => onChange({ ...model, image })}
         />
       </div>
-      {rowError ? (
-        <p role="alert" className="text-ui text-attn">
-          {rowError}
-        </p>
-      ) : null}
+      {rowError ? <InlineError announce="action">{rowError}</InlineError> : null}
       <div>
         <Button onClick={onRemove}>{t("settingsProviders.models.remove")}</Button>
       </div>
@@ -82,7 +78,9 @@ export function ModelRows(props: FieldsProps) {
   const limit = errorAt("models");
   return (
     <section aria-label={t("settingsProviders.section.models")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsProviders.section.models")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.section.models")}
+      </Heading>
       {draft.models.length === 0 ? (
         <p className="text-ui text-muted">{t("settingsProviders.models.none")}</p>
       ) : (
@@ -101,11 +99,7 @@ export function ModelRows(props: FieldsProps) {
           ))}
         </ul>
       )}
-      {limit ? (
-        <p role="alert" className="text-ui text-attn">
-          {limit}
-        </p>
-      ) : null}
+      {limit ? <InlineError announce="action">{limit}</InlineError> : null}
       {draft.models.length < PROVIDER_FORM_LIMITS.models ? (
         <div>
           <Button onClick={() => set([...draft.models, emptyModel()])}>

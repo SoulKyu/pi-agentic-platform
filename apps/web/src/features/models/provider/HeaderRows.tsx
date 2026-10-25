@@ -1,5 +1,5 @@
 import { credentialName, PROVIDER_FORM_LIMITS } from "@pap/contracts";
-import { Button, Switch, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, Switch, TextField } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { columns } from "./layout.ts";
 import { useProblemText } from "./ProviderFields.tsx";
@@ -81,11 +81,7 @@ function Row({
       {locked ? (
         <p className="text-ui text-muted">{t("settingsProviders.headers.credentialReason")}</p>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       <div>
         <Button onClick={onRemove}>{t("settingsProviders.headers.remove")}</Button>
       </div>
@@ -101,7 +97,9 @@ export function HeaderRows(props: FieldsProps) {
   const set = (headers: readonly HeaderDraft[]) => onChange({ ...draft, headers });
   return (
     <section aria-label={t("settingsProviders.section.headers")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsProviders.section.headers")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsProviders.section.headers")}
+      </Heading>
       {draft.headers.length === 0 ? (
         <p className="text-ui text-muted">{t("settingsProviders.headers.none")}</p>
       ) : (

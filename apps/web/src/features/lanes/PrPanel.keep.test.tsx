@@ -111,7 +111,9 @@ describe("pull request panel survives being closed", () => {
     const { box } = await show();
     await toggle(box);
     expect(text(box)).toContain("Empty: the lane's description is used");
-    expect(translate("fr", "laneCommit.pr.bodyHint")).toBe("Vide : la description de la lane est utilisée");
+    expect(translate("fr", "laneCommit.pr.bodyHint")).toBe(
+      "Vide\u202f: la description de la lane est utilisée",
+    );
   });
 });
 

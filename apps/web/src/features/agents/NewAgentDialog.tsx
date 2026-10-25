@@ -1,5 +1,6 @@
 import "./register-agent-catalog.ts";
 import type { AgentView, ToolPreset } from "@pap/contracts";
+import { InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -43,9 +44,9 @@ export function NewAgentDialog({ presetField, onClose, onCreated }: Props) {
       ) : (
         <>
           {late ? (
-            <p role="status" className="p-s3 text-ui text-attn">
-              {t("agentForm.dialog.late")}
-            </p>
+            <div className="p-s3">
+              <InlineError announce="background">{t("agentForm.dialog.late")}</InlineError>
+            </div>
           ) : null}
           <AgentForm
             agent={null}

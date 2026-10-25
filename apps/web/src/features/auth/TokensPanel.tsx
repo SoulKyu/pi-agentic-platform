@@ -1,5 +1,5 @@
 import type { TokenView } from "@pap/contracts";
-import { Button, Chip, Collapsible } from "@pap/ui";
+import { Button, Chip, Collapsible, EmptyState, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -110,30 +110,24 @@ export function TokensPanel({ onSignedOut }: { onSignedOut(): void }) {
   const tokens = list.value?.tokens ?? null;
   return (
     <section id="tokens" className="flex w-full flex-col gap-s2">
-      <h3 className="text-ui font-semibold text-fg">{t("access.tokens.title")}</h3>
+      <h2 className="text-ui font-semibold text-fg">{t("access.tokens.title")}</h2>
       <p className={META}>{t("access.tokens.hint")}</p>
       <TokenCreate onCreated={list.reload} onSignedOut={onSignedOut} />
       {list.error ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {list.error}
-          </p>
+          <InlineError announce="background">{list.error}</InlineError>
           <Button variant="secondary" onClick={list.reload}>
             {t("access.retry")}
           </Button>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       {tokens === null ? (
         list.error ? null : (
           <p className={META}>{t("access.tokens.loading")}</p>
         )
       ) : tokens.length === 0 ? (
-        <p className={META}>{t("access.tokens.empty")}</p>
+        <EmptyState level={3} title={t("access.tokens.emptyTitle")} purpose={t("access.tokens.empty")} />
       ) : (
         <ul className="flex flex-col">
           {tokens.map((token) => (

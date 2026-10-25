@@ -116,7 +116,7 @@ describe("Recent work (§3.4)", () => {
     expect(() => button(container, "Show more")).toThrow();
   });
 
-  it("filters by Sessions, Lanes and Tasks, the pressed chip said", async () => {
+  it("filters by Sessions, Lanes and Tasks, the selected one said", async () => {
     listed(shellSession({ id: "s1", projectId: "p1", cwd: "/w/api", updatedAt: 3 }));
     useLaneStore
       .getState()
@@ -126,12 +126,16 @@ describe("Recent work (§3.4)", () => {
     const kinds = () =>
       [...document.querySelectorAll("[data-recent-row]")].map((row) => row.getAttribute("data-recent-row"));
     expect(kinds()).toEqual(["session", "lane", "task"]);
-    await click(button(container, "Lanes"));
+    const radio = (name: string) =>
+      [...container.querySelectorAll<HTMLElement>('[role="radio"]')].find(
+        (node) => node.textContent === name,
+      ) as HTMLElement;
+    await click(radio("Lanes"));
     expect(kinds()).toEqual(["lane"]);
-    expect(button(container, "Lanes").getAttribute("aria-pressed")).toBe("true");
-    await click(button(container, "Tasks"));
+    expect(radio("Lanes").getAttribute("aria-checked")).toBe("true");
+    await click(radio("Tasks"));
     expect(kinds()).toEqual(["task"]);
-    await click(button(container, "Sessions"));
+    await click(radio("Sessions"));
     expect(kinds()).toEqual(["session"]);
   });
 
@@ -185,7 +189,7 @@ describe("Recent work (§3.4)", () => {
   it("says the shell stream broke, with Retry", async () => {
     useShellStore.getState().fail("capacity");
     const container = await show();
-    expect([...container.querySelectorAll('[role="alert"]')]).toHaveLength(1);
+    expect([...container.querySelectorAll('[data-slot="inline-error"][role="status"]')]).toHaveLength(1);
     expect(button(container, "Retry")).toBeDefined();
   });
 

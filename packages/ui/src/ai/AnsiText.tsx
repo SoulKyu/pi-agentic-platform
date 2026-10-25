@@ -1,7 +1,7 @@
 import { cn } from "../cn.ts";
 import { parseAnsi, type AnsiTone } from "./ansi.ts";
 
-// `text-muted` stands for `--text-dim` (dim).
+// The dim tone reads as `text-muted`: the dim token is kept for idle avatars and disabled controls.
 const TONE_CLASS: Record<AnsiTone, string> = {
   dim: "text-muted",
   error: "text-err",

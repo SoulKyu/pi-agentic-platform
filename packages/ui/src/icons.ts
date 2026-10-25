@@ -34,4 +34,12 @@ export {
   Upload as IconImport,
   User as IconAccount,
   X as IconClose,
+  X as IconFailed,
+  Layers as IconOpenItems,
+  Play as IconManual,
+  Rss as IconFeed,
+  Star as IconStar,
+  Timer as IconSchedule,
+  Webhook as IconWebhook,
+  CircleSlash as IconCancelled,
 } from "lucide-react";

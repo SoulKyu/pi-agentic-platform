@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { chordFromEvent, type Platform } from "../keys.ts";
@@ -80,9 +80,9 @@ export function ShortcutRecorder({ command, commandTitle, platform, onRecord }: 
         {recording ? t("settings.shortcuts.recording") : t("settings.shortcuts.change")}
       </Button>
       {problem === null ? null : (
-        <p role="alert" data-slot="shortcut-problem" className="basis-full text-ui text-attn">
-          {t(`settings.shortcuts.problem.${problem}`)}
-        </p>
+        <div data-slot="shortcut-problem" className="basis-full">
+          <InlineError announce="action">{t(`settings.shortcuts.problem.${problem}`)}</InlineError>
+        </div>
       )}
     </>
   );

@@ -1,6 +1,6 @@
 # web — agent notes
 
-Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs 0010 to 0012.
+Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs 0010 to 0012, 0086 (the design pass).
 
 ## Shell (`routes/shell/`, `features/workspace/`)
 
@@ -12,7 +12,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 
 ## Appearance (`features/appearance/`)
 
-- Two scopes. Device (`pap.appearance.device.v1`): density, text sizes, motion, chat width, the completion sound; the language is per device too (`pap.locale`). Account (the `settings` module, cached in `pap.appearance.account.v1`): mode, themes, custom themes, fonts, label case, grid, rail position, avatar style, tool detail.
+- Two scopes. Device (`pap.appearance.device.v1`): density (default `mixed`), text sizes, motion, chat width, Line length (`limited` | `full`, default `limited`; it sets `data-prose` on `<html>`, ADR 0086 D3; Settings › Appearance › Reading), the completion sound; the language is per device too (`pap.locale`). Account (the `settings` module, cached in `pap.appearance.account.v1`): mode, themes, custom themes, fonts, label case, grid, rail position, avatar style, tool detail.
 - Fonts (Settings › Appearance › Details). `uiFont` is `manrope`, `system` or `custom:<slug>`; `monoFont` is `jetbrains-mono`, `system` or `custom:<slug>` (`AccountAppearanceFields`; an unreadable value falls back to the default, field by field). A custom choice is a family the daemon downloaded (`fonts.add`, `docs/agents/daemon.md`). `FontsBlock.tsx` is the "Google Fonts" block (a family name, Add, the installed list with Remove, the note that the browser never contacts Google); `fonts-store.ts` holds the installed list (`null` until `fonts.list` answered). `resolveAppearance` (`model.ts`, `fonts.ts`) turns an installed custom choice into `data-font-ui="custom"` and an inline `--font-ui` (or `--font-code`) naming the family, then the system stack; a removed family, or a list not loaded yet, falls back to the default font and the select reads "Font removed". The controller keeps one same-origin `<link rel="stylesheet" href="/fonts/<slug>/font.css">` per family in use (`font-links.ts`). The list and the links live in a lazy chunk (`font-support.ts`) that the controller loads the first time a custom font is chosen, so the initial bundle only carries the resolution (about 0.9 KB gzip). The boot script never replays a custom font (the first paint uses the default); the list is read once the socket is open, and only when a custom font is chosen (`syncAccountAppearance`).
 - Account documents sync with compare-and-set (`lib/account-setting.ts`): writes are held until the first load settles, send `baseRevision`, and on `conflict` merge field by field and retry once (R105). A timeout is never re-sent.
 - Completion sound (M13R21): off by default, a device-local switch in Settings › Appearance › Reading (`completionSound`). `useAnnouncer` (`features/sessions/announce.ts`) is the one place a screen sees its session go running to idle; it calls `playCompletion` (`completion-sound.ts`, exported by the appearance barrel): one 880 Hz tone of 120 ms through a lazily built `AudioContext`, only while `document.hidden` or the window is unfocused. Browsers keep the context suspended until a gesture: turning the switch on builds and resumes it (`unlockCompletionSound`), and with the setting on the announcer also listens for `pointerdown`, `pointerup`, `click` and `keydown` until the context runs (`unlockOnFirstInteraction`; the reload case, and iOS WebKit unlocks on `click`, `pointerup` and `keydown` only). `playCompletion` returns false, and schedules nothing, while the context is not running. A second call within 120 ms (two panes on one session) is skipped. A cold session and a subagent's end play nothing. No audio asset; the tone is best effort if the browser refuses audio.
@@ -54,7 +54,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 ## Bundle
 
 - `@pap/ui` declares `"sideEffects": ["*.css"]` and `@pap/contracts` `"sideEffects": false`. Without it, barrel re-exports pin every re-exported module (and its dependencies) into the initial graph even when unused. Import lazy-only features from their own file, not from a feature `index.ts`.
-- The ceiling is `initialBundleGzipKb` in `budgets.json` (250 KB gzip, JS and CSS); `pnpm budgets` prints the measured size and the lazy chunks. Lazy loading stays the rule for the editor, terminal, diff and highlighting, and `build-output.int.test.ts` catches a lazy-only module that lands in the initial closure.
+- The ceiling is `initialBundleGzipKb` in `budgets.json` (250 KB gzip, JS and CSS); `pnpm budgets` prints the measured size and the lazy chunks. After the design pass the initial bundle is 247.4 KB (it was 244.9 KB before; the stop line of the lot was 248.5 KB). Lazy loading stays the rule for the editor, terminal, diff and highlighting, and `build-output.int.test.ts` catches a lazy-only module that lands in the initial closure.
 - Biggest initial item after the entry: `settings-*` (zod and the contracts settings schemas). Not reduced (`zod/mini` and a lazy `MobileShell` were left out).
 
 ## Sidebar, projects and search (M4)
@@ -375,3 +375,53 @@ Code: `apps/web/src/features/users/` (`UsersSettings`, `UserRow`, `InviteDialog`
 - **Budget copy.** A member's Settings › Automation shows "Capped at {cap} USD by the owner." from `dailyBudgetCapUsd`; `budget_cap` shows "Your daily budget is capped at {cap} USD by the owner of this pap." beside the field and a generic sentence without the number elsewhere (R3).
 - **Not done.** `whenText` and `formatUsd` have five copies in `features/` (move to `lib/format` later). The lane terminal's "new here" is not role-gated (lanes are denied to members anyway). The initial bundle is near its budget (244.8 of 250 KB gzip at lane B's last commit).
 
+
+## The design pass (ADR 0086, decisions 131 and 132)
+
+### Glossary
+
+Each shared word is defined once. DESIGN.md §11 links here.
+
+- **Pane** (French *volet*): one area of the workspace holding the tabs of one lane or screen. Minimum width 320 px.
+- **Split** (French *scinder*): divide the workspace into two panes. The verb stays "split" in English and « scinder » in French; never "diviser".
+- **Lane**: a git worktree with its own sessions, branch and review (`lanes.md`). Stays English in French.
+- **Fan-out**: one prompt run in several lanes at once, compared afterwards (`CompareColumn`). Stays English in French.
+- **Box**: the microVM that holds a project's or an agent's files and shell (`agents-vm.md`). Stays English in French.
+
+### Settings
+
+- Three groups, in this order: **You** (appearance, shortcuts, language, notifications, account), **Work** (agents, approvals, automation, GitHub), **This pap** (models, MCP, skills, users, health). A member sees only the sections M14 leaves them; the groups with nothing left disappear.
+- Every column section has one width, `max-w-settings` (48rem), given by the section body. A section never caps its own width. Appearance, Models and MCP split into two columns and cap their forms at the same width. `routes/settings/settings-width.test.ts` guards it.
+- Section titles are `Heading variant="section"` (Manrope 16/700), group titles `variant="group"` (13/600), card and field labels stay HUD mono capitals (`variant="card"`).
+- An owner's link to Models, MCP, Skills or Users opens that section (main 13141c65). The shell test bed (`testing/shell-bed.tsx`) puts the default member role above `AppShell`, the way `main.tsx` puts no provider there, so a test that reads the role before `AppShell` sets it sees what production sees.
+
+### Reading: Line length
+
+- Device setting, `limited` (default) or `full`. `limited` caps agent prose at 72ch (`max-w-measure`); `full` removes the cap. Code blocks, tables and tool output are never capped. The setting is the `data-prose` attribute on `<html>` and is replayed by the boot script. `features/appearance/ReadingSection.test.tsx` covers it; J16 measures the 72ch on both engines.
+
+### InlineError, Heading and the guards
+
+- `InlineError` (`@pap/ui`): one line, `IconWarning`, `text-err` (`tone="attn"` for pink). `announce="action"` renders `role="alert"` (the owner just pressed something), `"background"` renders `role="status"`. A failure is never plain text in `text-err` outside it.
+- `Heading` (`@pap/ui`): the one heading primitive, with `variant` `section`, `group` or `card`.
+- `copyText` in `@pap/ui` is the one copy path: it copies the same way over HTTP and HTTPS (clipboard API, then a selection fallback). Every copy button uses it, and every code block of the chat carries an always-visible copy button.
+- Each rule is a test that scans sources or catalogs, so a new violation fails `pnpm test:unit`:
+
+| Rule | Test file |
+|---|---|
+| no heading carries the mono label (`label-hud`, `text-label`); no Settings panel stacks with `gap-s6` | `apps/web/src/heading-style.test.ts`, `apps/web/src/routes/settings/headings.test.tsx` |
+| the dim tone colours only idle avatars and disabled controls | `apps/web/src/dim-tone.test.ts`, `packages/ui/src/dim-tone.test.ts` |
+| alerts and pink failures go through `InlineError`, except the files named in `alert-allowlist.ts` | `apps/web/src/inline-error.test.ts` |
+| catalogs: sentence case (no all-capitals value), U+202F before `? ! : ; »` and after `«` in French, a backtick only in a `CODE_COPY_KEYS` value | `apps/web/src/i18n/catalog-guards.test.ts`, `apps/web/src/code-copy.test.tsx`, `apps/web/src/label-case.test.ts` |
+| glyphs (`✓ ✗ ● ▸ ★` and the rest) are icons, a `×` only as a count | `apps/web/src/glyph-icons.test.ts` |
+| the Settings column width | `apps/web/src/routes/settings/settings-width.test.ts` |
+| a Segmented names its choice (a visible label, or the files listed as screen-reader-only) | `apps/web/src/segmented-labels.test.ts` |
+
+### Known limits of the pass
+
+- The guards scan by regular expression: a multi-line `className` in a template literal, a single-line ellipsis check, a pink child of an allowlisted file, and hand-copied `h2`-`h4` outside Settings (GalleryItem, CompareColumn, AgentColumn, ProjectColumn, InboxPanel, SecretsList, policy files) are not all caught.
+- Allowlisted files pass whole: a new alert in `SessionScreen`, `TerminalPane` or the review diff is not flagged. Several states are still over red (changedElsewhere, the egress full note, NewAgentDialog late).
+- Keyboard and focus: when "Show all" removes its own button the focus is lost; `main#pane-host` may show a default outline after the skip-link jump; a tab wider than the strip may hide its start.
+- Reading: the 11 px HUD label is tight in Badge (16 px), Avatar, the Wordmark tagline and tight chips (checked by the screenshot pass; its values are in `docs/research/design-impeccable-after.md`). Health severity labels read as abbreviations to a screen reader (Err, Att, Mut).
+- Edit tool card: `read` and `write` drop `offset` and `limit`; an `edits: []` call shows `+0 −0` and an empty box; the diff does not refresh when its props change.
+- Composer: "Send again" after `worker_failed` also shows after a failed Stop, Clear or paste.
+- The lazy `Reasoning` still takes a `streaming` prop it does not read.

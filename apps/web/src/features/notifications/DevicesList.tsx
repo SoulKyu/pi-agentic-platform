@@ -36,12 +36,7 @@ export function DevicesList({
   }, [asking]);
   if (rows.length === 0) return <p className="text-ui text-muted">{t("notifications.devices.empty")}</p>;
   return (
-    <ul
-      ref={list}
-      data-devices=""
-      data-layout={phone ? "stacked" : "wide"}
-      className="flex max-w-xl flex-col gap-s2"
-    >
+    <ul ref={list} data-devices="" data-layout={phone ? "stacked" : "wide"} className="flex flex-col gap-s2">
       {rows.map((row) => {
         const name = row.label === "" ? t("notifications.devices.unnamed") : row.label;
         return (

@@ -3,6 +3,8 @@ import { Button, Chip, IconButton, IconMore, Tooltip, useIsPhone } from "@pap/ui
 import { Menu } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
+import { CheckCount } from "./CheckCount.tsx";
+import { PrError } from "./PrError.tsx";
 import type { HeaderModel, PrBadge } from "./lane-header.vm.ts";
 
 export interface HeaderActions {
@@ -44,16 +46,11 @@ function Pr({ pr, onRetry, compact }: { readonly pr: PrBadge; onRetry(): void; r
       )}
       {compact
         ? null
-        : pr.checks.map((check) => (
-            <span key={check.kind} className={check.kind === "failed" ? "text-err" : undefined}>
-              {`${check.symbol} ${check.count}`}
-              <span className="sr-only">{` ${t(`lanes.pr.checks.${check.kind}`)}`}</span>
-            </span>
-          ))}
+        : pr.checks.map((check) => <CheckCount key={check.kind} kind={check.kind} count={check.count} />)}
       {pr.conflicts && !compact ? <span className="text-attn">{t("lanes.pr.conflicts")}</span> : null}
       {pr.error !== null && !compact ? (
         <>
-          <span className="text-attn">{t(pr.error)}</span>
+          <PrError message={pr.error} />
           <Button variant="ghost" size="sm" onClick={onRetry}>
             {t("lanes.pr.retry")}
           </Button>

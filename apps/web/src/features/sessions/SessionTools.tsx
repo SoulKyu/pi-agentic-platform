@@ -1,5 +1,5 @@
 import type { SessionLoadout, ToolPreset } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -97,11 +97,7 @@ export function SessionTools({ sessionId, loadout, running }: SessionToolsProps)
           </div>
         </div>
       ) : null}
-      {change.error ? (
-        <p role="alert" className="text-ui text-attn">
-          {change.error}
-        </p>
-      ) : null}
+      {change.error ? <InlineError announce="action">{change.error}</InlineError> : null}
     </div>
   );
 }

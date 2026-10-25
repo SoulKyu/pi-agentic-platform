@@ -59,6 +59,22 @@ describe("NotificationsPanel: status and device", () => {
     expect(button(page.container, "Enable on this device").disabled).toBe(true);
   });
 
+  it("plain HTTP: the HTTPS line is not pink, the person cannot act on it here", async () => {
+    s.cfg = config({
+      status: "off",
+      reason: "insecure_http",
+      readiness: { status: "insecure_http", hint: "Open pap over HTTPS." },
+      subscribed: 0,
+    });
+    s.devices = [];
+    const { page } = await open({ env: fakePushEnv({ support: () => "insecure" }).env });
+    const line = [...page.container.querySelectorAll('[role="status"]')].find((one) =>
+      one.textContent?.includes("need HTTPS"),
+    );
+    expect(line).toBeDefined();
+    expect(line?.className).not.toContain("text-attn");
+  });
+
   it("shows a flag of the readiness hint in a code element so the font cannot join the dashes (C3)", async () => {
     s.cfg = config({
       status: "off",
@@ -105,11 +121,11 @@ describe("NotificationsPanel: status and device", () => {
     const { page } = await open();
     expect(text(page.container)).toContain("Notifications actives");
     expect(text(page.container)).toContain(
-      "Les notifications ont été réinitialisées : chaque appareil les réactive à sa prochaine ouverture de pap.",
+      "Les notifications ont été réinitialisées\u202f: chaque appareil les réactive à sa prochaine ouverture de pap.",
     );
-    expect(text(page.container)).toContain("Dernier échec d'envoi :");
+    expect(text(page.container)).toContain("Dernier échec d'envoi\u202f:");
     expect(text(page.container)).toContain(
-      "Seul le nom que vous avez donné au déclencheur ou à l'agent s'affiche. Jamais le contenu : ni commande, ni chemin, ni message, ni titre de tâche.",
+      "Seul le nom que vous avez donné au déclencheur ou à l'agent s'affiche. Jamais le contenu\u202f: ni commande, ni chemin, ni message, ni titre de tâche.",
     );
     expect(button(page.container, "Désactiver")).toBeTruthy();
   });
@@ -303,7 +319,7 @@ describe("NotificationsPanel: loading", () => {
       return s.cfg;
     };
     const { page } = await open();
-    expect(page.container.querySelector('[role="alert"]')?.textContent).toContain(
+    expect(page.container.querySelector('[role="status"]')?.textContent).toContain(
       "The notification settings could not be loaded.",
     );
     fail = false;

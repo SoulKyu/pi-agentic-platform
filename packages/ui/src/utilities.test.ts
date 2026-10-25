@@ -19,3 +19,22 @@ describe("utilities.css: Select", () => {
     );
   });
 });
+
+describe("utilities.css: label-hud", () => {
+  it("label-hud is 11 px, weight 600, 0.08em, on the label-transform variable", () => {
+    expect(css).toMatch(
+      /@utility label-hud \{\s*font-family: var\(--font-code\);\s*font-size: 0\.6875rem;\s*font-weight: 600;\s*letter-spacing: 0\.08em;\s*text-transform: var\(--label-transform\);\s*\}/,
+    );
+  });
+});
+
+describe("utilities.css: browser surfaces", () => {
+  it("selection, caret and scrollbars read tokens", () => {
+    expect(css).toMatch(
+      /::selection \{\s*background-color: color-mix\(in srgb, var\(--agent\) 30%, transparent\);\s*\}/,
+    );
+    expect(css).toMatch(
+      /html \{\s*caret-color: var\(--you\);\s*scrollbar-color: var\(--border-strong\) transparent;\s*\}/,
+    );
+  });
+});

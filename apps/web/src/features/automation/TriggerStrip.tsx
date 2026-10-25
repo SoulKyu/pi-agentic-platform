@@ -1,16 +1,11 @@
 import type { TaskTrigger } from "@pap/contracts";
-import { Button, Chip, Switch } from "@pap/ui";
+import { Button, Chip, Icon, InlineError, Switch } from "@pap/ui";
 import { useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { shown } from "./board.vm.ts";
+import { TRIGGER_ICON } from "../../lib/trigger-icon.ts";
 
-const GLYPH: Record<TaskTrigger["sourceType"], string> = {
-  schedule: "⏱",
-  webhook: "⇢",
-  feed: "◉",
-  manual: "",
-};
 const SOURCE_KEY: Record<TaskTrigger["sourceType"], MessageKey> = {
   schedule: "automation.trigger.source.schedule",
   webhook: "automation.trigger.source.webhook",
@@ -66,8 +61,8 @@ export function TriggerStrip({
           return (
             <li key={trigger.id} className="flex flex-col gap-s1">
               <div className="flex flex-wrap items-center gap-s2">
-                <span aria-hidden className="text-ui text-muted">
-                  {GLYPH[trigger.sourceType]}
+                <span aria-hidden className="text-muted">
+                  <Icon icon={TRIGGER_ICON[trigger.sourceType]} size={14} />
                 </span>
                 <Chip
                   tone={trigger.sourceType === "webhook" ? "ext" : "mut"}
@@ -92,9 +87,7 @@ export function TriggerStrip({
                 onChange={(next) => setEnabled(trigger, next)}
               />
               {failed === trigger.id ? (
-                <p role="alert" className="text-ui text-err">
-                  {t("automation.trigger.toggleFailed", { name })}
-                </p>
+                <InlineError announce="action">{t("automation.trigger.toggleFailed", { name })}</InlineError>
               ) : null}
             </li>
           );

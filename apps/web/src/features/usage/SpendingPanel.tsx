@@ -1,5 +1,5 @@
 import type { UsageRange, UsageSummary } from "@pap/contracts";
-import { Meter, Segmented } from "@pap/ui";
+import { Heading, InlineError, Meter, Segmented } from "@pap/ui";
 import type { ReactNode } from "react";
 import { type MessageKey, useLocale, useT } from "../../i18n/index.ts";
 import {
@@ -42,7 +42,7 @@ export function SpendingPanel({
   const fraction = spend === null ? null : meterFraction(spend.todayUsd, spend.budgetUsd);
   const spent = formatUsd(spend?.todayUsd ?? 0, locale);
   return (
-    <div data-spending className="flex max-w-3xl flex-col gap-s3">
+    <div data-spending className="flex flex-col gap-s3">
       <div className="flex flex-col gap-s1">
         {spend === null ? null : fraction === null || spend.budgetUsd === null ? (
           <p className="text-ui text-fg">
@@ -63,7 +63,7 @@ export function SpendingPanel({
             })}
           />
         )}
-        <p className="text-ui text-muted">{t("settingsAutomation.meter.note")}</p>
+        <p className="text-ui text-pretty text-muted">{t("settingsAutomation.meter.note")}</p>
       </div>
       <Segmented
         label={t("settingsAutomation.spending.range")}
@@ -72,9 +72,7 @@ export function SpendingPanel({
         onChange={onRange}
       />
       {failed ? (
-        <p role="alert" className="text-ui text-err">
-          {t("settingsAutomation.spending.failed")}
-        </p>
+        <InlineError announce="background">{t("settingsAutomation.spending.failed")}</InlineError>
       ) : null}
       {summary === null ? null : (
         <>
@@ -91,7 +89,9 @@ export function SpendingPanel({
             </span>
             <span className="text-ui text-muted">{t("settingsAutomation.total.note")}</span>
           </div>
-          <h3 className="label-hud text-muted">{t("settingsAutomation.models.title")}</h3>
+          <Heading level={3} variant="group">
+            {t("settingsAutomation.models.title")}
+          </Heading>
           {summary.byModel.length === 0 ? (
             <p className="text-ui text-muted">{t("settingsAutomation.models.empty")}</p>
           ) : (
@@ -128,7 +128,9 @@ export function SpendingPanel({
               </tbody>
             </table>
           )}
-          <h3 className="label-hud text-muted">{t("settingsAutomation.origin.title")}</h3>
+          <Heading level={3} variant="group">
+            {t("settingsAutomation.origin.title")}
+          </Heading>
           <table data-table="origins" className="w-full text-ui text-fg">
             <tbody>
               {orderedOrigins(summary.byOrigin).map((row) => {
@@ -148,7 +150,7 @@ export function SpendingPanel({
           </table>
         </>
       )}
-      <p className="text-ui text-muted">
+      <p className="text-ui text-pretty text-muted">
         {t("settingsAutomation.spending.quotas")} {quotasLink}
       </p>
     </div>

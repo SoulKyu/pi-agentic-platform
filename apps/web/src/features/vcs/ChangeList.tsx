@@ -18,7 +18,7 @@ export function ChangeList({ files, selected, onSelect }: ChangeListProps) {
         <section key={group.id} aria-labelledby={`changes-group-${group.id}`}>
           <h3
             id={`changes-group-${group.id}`}
-            className="flex items-center gap-s1 px-s3 py-s1 label-hud text-muted"
+            className="flex items-center gap-s1 px-s3 py-s1 text-ui font-semibold text-fg"
           >
             {t(groupKey(group.id))}
             <span className="tabular-nums">{group.files.length}</span>

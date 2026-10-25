@@ -18,7 +18,9 @@ test("J07: without a VM stack, the New agent dialog explains why and nothing is 
     .getByRole("button", { name: t("shell.rail.newAgent"), exact: true })
     .click();
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText(t("agentsPhone.noVmPurpose"), { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByText(t("agentsPhone.noVmPurpose").replaceAll("`", ""), { exact: true }),
+  ).toBeVisible();
   await expect(dialog.getByLabel(t("agentForm.name"), { exact: true })).toHaveCount(0);
   const { agents } = await pap.rpc<{ agents: { name: string }[] }>("agents.list");
   expect(agents.filter((agent) => agent.name === "Scout")).toEqual([]);

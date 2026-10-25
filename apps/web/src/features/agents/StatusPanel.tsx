@@ -1,9 +1,10 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary } from "@pap/contracts";
-import { Button, Chip, formatCost, Meter, usePendingAction } from "@pap/ui";
+import { Button, Chip, formatCost, Heading, Icon, InlineError, Meter, usePendingAction } from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
+import { TRIGGER_ICON } from "../../lib/trigger-icon.ts";
 import {
   ago,
   budgetVm,
@@ -71,17 +72,13 @@ export function StatusPanel(props: StatusPanelProps) {
       ) : null}
       {load.kind === "failed" ? (
         <div className="flex flex-col items-start gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {t("agentStatus.failed")}
-          </p>
+          <InlineError announce="background">{t("agentStatus.failed")}</InlineError>
           <Button onClick={retry}>{t("agentStatus.retry")}</Button>
         </div>
       ) : null}
       {load.kind === "ready" && load.refreshFailed ? (
         <div className="flex flex-wrap items-center gap-s2">
-          <p role="alert" className="text-ui text-attn">
-            {t("agentStatus.refreshFailed")}
-          </p>
+          <InlineError announce="background">{t("agentStatus.refreshFailed")}</InlineError>
           <Button size="sm" onClick={retry}>
             {t("agentStatus.retry")}
           </Button>
@@ -187,7 +184,9 @@ function Block({
   return (
     <div className="flex flex-col gap-s2">
       <div className="flex items-baseline justify-between gap-s2">
-        <h3 className="label-hud text-muted">{title}</h3>
+        <Heading level={3} variant="card">
+          {title}
+        </Heading>
         {extra}
       </div>
       {children}
@@ -289,8 +288,8 @@ function TriggerRow({ row, onEdit }: { readonly row: TriggerRowVm; onEdit(trigge
   return (
     <li className="flex flex-col gap-s1">
       <div className="flex items-center gap-s2">
-        <span aria-hidden className="text-ui text-muted">
-          {row.glyph}
+        <span aria-hidden className="text-muted">
+          {row.source === null ? "?" : <Icon icon={TRIGGER_ICON[row.source]} size={14} />}
         </span>
         <span className="min-w-0 flex-1 truncate text-ui text-fg">{row.name}</span>
         {row.enabled ? null : <Chip tone="mut" label={t("agentStatus.triggers.off")} />}
@@ -314,11 +313,10 @@ function TriggerRow({ row, onEdit }: { readonly row: TriggerRowVm; onEdit(trigge
           {t("agentStatus.triggers.edit")}
         </Button>
       </div>
-      {note === null ? null : (
-        <p
-          role={note.tone === "err" ? "alert" : "status"}
-          className={`text-label ${note.tone === "err" ? "text-err" : note.tone === "ok" ? "text-ok" : "text-muted"}`}
-        >
+      {note === null ? null : note.tone === "err" ? (
+        <InlineError announce="action">{note.text}</InlineError>
+      ) : (
+        <p role="status" className={`text-label ${note.tone === "ok" ? "text-ok" : "text-muted"}`}>
           {note.text}
         </p>
       )}

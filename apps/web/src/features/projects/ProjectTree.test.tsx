@@ -253,7 +253,9 @@ describe("the Archived shelf", () => {
     await load([], { archived: 1 });
     const box = await show();
     await openShelf(box);
-    expect(box.textContent).toContain("The server is at capacity. Try again later.");
+    expect(box.textContent).toContain(
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
+    );
     await click(button(box, "Retry"));
     await settle();
     expect(bed.called("sessions.listArchived")).toHaveLength(2);
@@ -350,7 +352,9 @@ describe("the tree when the stream fails", () => {
     await act(async () => useShellStore.getState().fail("capacity"));
     const box = await show();
     expect(box.textContent).toContain("The session list could not be loaded.");
-    expect(box.textContent).toContain("The server is at capacity. Try again later.");
+    expect(box.textContent).toContain(
+      "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
+    );
     expect(box.querySelector('[data-slot="spinner"]')).toBeNull();
     await click(button(box, "Retry"));
     await settle();

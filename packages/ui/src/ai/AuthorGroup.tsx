@@ -21,7 +21,7 @@ export function AuthorGroup({
     <section data-slot="author-group" data-author={author} aria-label={name} className="flex gap-s2">
       {avatar ? <div className="shrink-0 pt-0.5">{avatar}</div> : null}
       <div className="flex min-w-0 flex-1 flex-col gap-s1">
-        <header className="flex items-baseline gap-s2">
+        <header className={cn("flex items-baseline gap-s2", author === "you" && "justify-end")}>
           <span className={cn("label-hud", NAME_TONES[author])}>{name}</span>
           {meta ? <span className="font-mono text-label tabular-nums text-muted">{meta}</span> : null}
         </header>

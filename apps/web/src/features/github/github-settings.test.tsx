@@ -40,19 +40,19 @@ beforeEach(() => {
 
 describe("Settings › GitHub", () => {
   it.each([
-    ["absent", { state: "absent", app: null, login: null }, ["CREATE THE GITHUB APP"], "No GitHub App yet."],
-    ["created", { state: "created", login: null }, ["AUTHORIZE", "DELETE THE APP"], "pap-host-ab12 exists"],
-    ["connected", { state: "connected" }, ["DISCONNECT", "DELETE THE APP"], "Connected as octo."],
+    ["absent", { state: "absent", app: null, login: null }, ["Create the GitHub App"], "No GitHub App yet."],
+    ["created", { state: "created", login: null }, ["Authorize", "Delete the app"], "pap-host-ab12 exists"],
+    ["connected", { state: "connected" }, ["Disconnect", "Delete the app"], "Connected as octo."],
     [
       "permission missing",
       { state: "connected", permissionMissing: true },
-      ["OPEN GITHUB", "RECONNECT", "DISCONNECT", "DELETE THE APP"],
+      ["Open GitHub", "Reconnect", "Disconnect", "Delete the app"],
       "Set “SSH signing keys: Read and write” in the App's permissions on GitHub",
     ],
     [
       "reconnect",
       { state: "reconnect" },
-      ["RECONNECT", "DELETE THE APP"],
+      ["Reconnect", "Delete the app"],
       "GitHub needs you to sign in again: your authorization expired.",
     ],
   ] as const)("each state shows its copy and actions: %s", async (_name, patch, buttons, words) => {
@@ -81,7 +81,7 @@ describe("Settings › GitHub", () => {
     setLocale("fr");
     const container = await show(githubStatus({ state: "absent", app: null, login: null }));
     expect(text(container)).toContain("Aucune GitHub App pour l'instant.");
-    expect(hasButton(container, "CRÉER LA GITHUB APP")).toBe(true);
+    expect(hasButton(container, "Créer la GitHub App")).toBe(true);
   });
 
   it("Create goes to the daemon's page, in this tab", async () => {
@@ -91,7 +91,7 @@ describe("Settings › GitHub", () => {
       state: "a".repeat(32),
     });
     const container = await show(githubStatus({ state: "absent", app: null, login: null }));
-    await click(button(container, "CREATE THE GITHUB APP"));
+    await click(button(container, "Create the GitHub App"));
     await settle();
     expect(go).toHaveBeenCalledExactlyOnceWith(
       `${window.location.origin}/github/app/new?state=` + "a".repeat(32),
@@ -107,7 +107,7 @@ describe("Settings › GitHub", () => {
   ])("Create refuses to navigate to %s and says so", async (postUrl) => {
     bed.handlers["github.startCreate"] = () => ({ postUrl, manifest: "{}", state: "a".repeat(32) });
     const container = await show(githubStatus({ state: "absent", app: null, login: null }));
-    await click(button(container, "CREATE THE GITHUB APP"));
+    await click(button(container, "Create the GitHub App"));
     await settle();
     expect(go).not.toHaveBeenCalled();
     expect(text(container)).toContain("GitHub is not set up for pap");
@@ -122,7 +122,7 @@ describe("Settings › GitHub", () => {
   ])("Authorize refuses to navigate to %s", async (url) => {
     bed.handlers["github.authorizeUrl"] = () => ({ url });
     const container = await show(githubStatus({ state: "created", login: null }));
-    await click(button(container, "AUTHORIZE"));
+    await click(button(container, "Authorize"));
     await settle();
     expect(go).not.toHaveBeenCalled();
     expect(text(container)).toContain("GitHub is not set up for pap");
@@ -131,7 +131,7 @@ describe("Settings › GitHub", () => {
   it("OPEN GITHUB goes to the App's permissions page, under /settings/apps", async () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     const container = await show(githubStatus({ permissionMissing: true }));
-    await click(button(container, "OPEN GITHUB"));
+    await click(button(container, "Open GitHub"));
     expect(open).toHaveBeenCalledExactlyOnceWith(
       "https://github.com/settings/apps/pap-host-ab12/permissions",
       "_blank",
@@ -143,7 +143,7 @@ describe("Settings › GitHub", () => {
   it("Authorize goes to github.com", async () => {
     bed.handlers["github.authorizeUrl"] = () => ({ url: "https://github.com/login/oauth/authorize?x=1" });
     const container = await show(githubStatus({ state: "created", login: null }));
-    await click(button(container, "AUTHORIZE"));
+    await click(button(container, "Authorize"));
     await settle();
     expect(go).toHaveBeenCalledExactlyOnceWith("https://github.com/login/oauth/authorize?x=1");
   });
@@ -160,13 +160,13 @@ describe("Settings › GitHub", () => {
         },
       }),
     );
-    expect(hasButton(container, "OPEN GITHUB")).toBe(false);
+    expect(hasButton(container, "Open GitHub")).toBe(false);
     expect(text(container)).toContain("GitHub is not set up for pap");
   });
 
   it("Disconnect calls github.disconnect and reads the status again", async () => {
     const container = await show(githubStatus());
-    await click(button(container, "DISCONNECT"));
+    await click(button(container, "Disconnect"));
     await settle();
     expect(bed.called("github.disconnect")).toHaveLength(1);
     expect(bed.called("github.status")).toHaveLength(2);
@@ -174,14 +174,14 @@ describe("Settings › GitHub", () => {
 
   it("delete asks the step-up, and Cancel does not delete", async () => {
     const container = await show(githubStatus());
-    await click(button(container, "DELETE THE APP"));
+    await click(button(container, "Delete the app"));
     const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
     expect(text(dialog)).toContain("pap forgets the App and every GitHub token it holds.");
     await click(button(dialog, "Cancel"));
     expect(stepUp).not.toHaveBeenCalled();
-    await click(button(container, "DELETE THE APP"));
+    await click(button(container, "Delete the app"));
     const again = document.querySelector('[role="dialog"]') as HTMLElement;
-    const danger = button(again, "DELETE THE APP");
+    const danger = button(again, "Delete the app");
     expect(danger.className).toContain("border-err");
     await click(danger);
     await settle();
@@ -193,8 +193,8 @@ describe("Settings › GitHub", () => {
   it("a cancelled password prompt deletes nothing", async () => {
     stepUp.mockResolvedValueOnce(null);
     const container = await show(githubStatus());
-    await click(button(container, "DELETE THE APP"));
-    await click(button(document.querySelector('[role="dialog"]') as HTMLElement, "DELETE THE APP"));
+    await click(button(container, "Delete the app"));
+    await click(button(document.querySelector('[role="dialog"]') as HTMLElement, "Delete the app"));
     await settle();
     expect(bed.called("github.forget")).toEqual([]);
   });

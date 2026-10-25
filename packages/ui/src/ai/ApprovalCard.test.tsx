@@ -182,7 +182,7 @@ describe("ApprovalCard", () => {
     const html = renderToStaticMarkup(
       <ApprovalCard title="Approval" category="exec" detail="x" labels={LABELS} onChoose={() => {}} />,
     );
-    expect(html).toMatch(/<h3[^>]*class="[^"]*label-hud[^"]*text-attn-title/);
+    expect(html).toMatch(/<h2[^>]*class="[^"]*label-hud[^"]*text-attn-title/);
     expect(html).toContain(">Approval<");
     expect(html).not.toContain("APPROVAL");
   });

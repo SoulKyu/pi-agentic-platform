@@ -1,5 +1,5 @@
 import type { UserView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useT } from "../../i18n/index.ts";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
@@ -43,11 +43,7 @@ export function DeleteUserDialog({ user, stepUp, onClose, onDeleted }: Props) {
       }
     >
       <div className="flex flex-col gap-s2 p-s3">
-        {action.problem === null ? null : (
-          <p role="status" className="text-ui text-err">
-            {t(action.problem)}
-          </p>
-        )}
+        {action.problem === null ? null : <InlineError announce="action">{t(action.problem)}</InlineError>}
       </div>
     </Dialog>
   );

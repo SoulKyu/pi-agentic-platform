@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { QuarantineResult } from "@pap/contracts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, Heading, InlineError, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
@@ -106,11 +106,7 @@ export function QuarantineDialog({ agent, onClose }: QuarantineDialogProps) {
             </ul>
           </>
         )}
-        {problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(problem)}
-          </p>
-        ) : null}
+        {problem !== null ? <InlineError announce="action">{t(problem)}</InlineError> : null}
       </div>
     </Dialog>
   );
@@ -122,7 +118,9 @@ function Outcome({ result }: { readonly result: QuarantineResult }) {
     <>
       {result.secrets.length === 0 ? null : (
         <div className="flex flex-col gap-s2">
-          <h3 className="label-hud text-muted">{t("agentSafety.q.secrets")}</h3>
+          <Heading level={3} variant="card">
+            {t("agentSafety.q.secrets")}
+          </Heading>
           <p className="text-ui text-attn">{t("agentSafety.q.secrets.note")}</p>
           {result.secrets.map((one) => (
             <SecretReveal key={one.triggerId} name={one.name} secret={one.secret} />
@@ -138,9 +136,7 @@ function Outcome({ result }: { readonly result: QuarantineResult }) {
       <p className="text-ui text-muted">{t("agentSafety.q.tasks", { n: result.tasksCancelled })}</p>
       {result.errors.length === 0 ? null : (
         <div className="flex flex-col gap-s1">
-          <p role="alert" className="text-ui text-attn">
-            {t("agentSafety.q.errors")}
-          </p>
+          <InlineError announce="action">{t("agentSafety.q.errors")}</InlineError>
           <ul className="list-disc pl-s4 text-ui text-fg">
             {result.errors.map((one, index) => (
               <li key={`${index}:${one.step}`}>

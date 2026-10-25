@@ -1,5 +1,5 @@
 import "./register-compare-catalog.ts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, InlineError } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import type { ColumnModel } from "./compare.vm.ts";
 import { TaintedConfirm } from "./TaintedConfirm.tsx";
@@ -84,9 +84,9 @@ export function CompareColumn({ model, onView, onPick }: Props) {
         </div>
       ) : null}
       {tests.problem !== null ? (
-        <p role="alert" className="border-t border-border p-s2 text-ui text-attn">
-          {t(tests.problem)}
-        </p>
+        <div className="border-t border-border p-s2">
+          <InlineError announce="action">{t(tests.problem)}</InlineError>
+        </div>
       ) : null}
       <footer className="flex flex-wrap items-center gap-s2 border-t border-border p-s2">
         <Button size="sm" data-view onClick={onView}>

@@ -33,12 +33,7 @@ export function AutomationSection({ modelsLink }: { readonly modelsLink: (label:
 
   return (
     <div data-automation-section className="flex flex-col gap-s5">
-      <section className="flex flex-col gap-s3" aria-labelledby="settings-automation-automation">
-        <h2 id="settings-automation-automation" className="text-h2 text-fg">
-          {t("settingsAutomation.automation.title")}
-        </h2>
-        <AutomationForm serverZone={summary?.timeZone ?? null} />
-      </section>
+      <AutomationForm serverZone={summary?.timeZone ?? null} />
       <section className="flex flex-col gap-s3" aria-labelledby="settings-automation-spending">
         <h2 id="settings-automation-spending" className="text-h2 text-fg">
           {t("settingsAutomation.spending.title")}

@@ -1,6 +1,15 @@
 import "./register-agent-catalog.ts";
 import { AgentView, APPROVAL_MODES, type ToolPreset } from "@pap/contracts";
-import { Button, Collapsible, Segmented, Select, Switch, TextField, usePendingAction } from "@pap/ui";
+import {
+  Button,
+  Collapsible,
+  InlineError,
+  Segmented,
+  Select,
+  Switch,
+  TextField,
+  usePendingAction,
+} from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
 import type { PickerModel } from "../models/picker/index.ts";
@@ -229,11 +238,7 @@ export function AgentForm({ agent, presetField, start, onSaved, onCancel, onRelo
           {t("agentForm.stepUp", { name: typedName })}
         </p>
       ) : null}
-      {problem !== null ? (
-        <p role="alert" className="text-ui text-attn">
-          {t(problem)}
-        </p>
-      ) : null}
+      {problem !== null ? <InlineError announce="action">{t(problem)}</InlineError> : null}
       {problem === "agentForm.error.conflict" && agent !== null && onReload !== undefined ? (
         <div>
           <Button pendingSince={reloading.since} onClick={reload}>

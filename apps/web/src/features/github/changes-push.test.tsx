@@ -31,9 +31,9 @@ const bar = async (root = ROOT) => {
 const dialog = () => document.querySelector('[role="dialog"]') as HTMLElement;
 
 async function openPr(title = "Add notes") {
-  await click(button(document.body, "OPEN A PULL REQUEST"));
+  await click(button(document.body, "Open a pull request"));
   await typeInto(field(dialog(), "Title"), title);
-  await click(button(dialog(), "OPEN A PULL REQUEST"));
+  await click(button(dialog(), "Open a pull request"));
   await settle();
 }
 
@@ -54,11 +54,11 @@ describe("the Changes panel's push bar", () => {
   it("commits and pushes with the message, once it is written", async () => {
     bed.handlers["projects.commitPush"] = () => ({ sha: "abc1234", branch: "pap/notes" });
     const container = await bar();
-    await click(button(container, "COMMIT AND PUSH"));
+    await click(button(container, "Commit and push"));
     expect(text(container)).toContain("Write a commit message.");
     expect(bed.called("projects.commitPush")).toEqual([]);
     await typeInto(field(container, "Commit message"), "  Add notes  ");
-    await click(button(container, "COMMIT AND PUSH"));
+    await click(button(container, "Commit and push"));
     await settle();
     expect(bed.called("projects.commitPush")[0]?.params).toEqual({ projectId: "b1", message: "Add notes" });
     expect(text(container)).toContain("Pushed pap/notes.");
@@ -68,7 +68,7 @@ describe("the Changes panel's push bar", () => {
     bed.handlers["projects.commitPush"] = () => ({ sha: null, branch: "main" });
     const container = await bar();
     await typeInto(field(container, "Commit message"), "x");
-    await click(button(container, "COMMIT AND PUSH"));
+    await click(button(container, "Commit and push"));
     await settle();
     expect(text(container)).toContain("Nothing new to commit on main.");
   });
@@ -79,9 +79,9 @@ describe("the Changes panel's push bar", () => {
     };
     const container = await bar();
     await typeInto(field(container, "Commit message"), "x");
-    await click(button(container, "COMMIT AND PUSH"));
+    await click(button(container, "Commit and push"));
     await settle();
-    expect(container.querySelector('[role="status"]')?.textContent).toContain("stopped");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("stopped");
   });
 
   it("a pull request that GitHub created says its number and links to it", async () => {
@@ -138,16 +138,16 @@ describe("the Changes panel's push bar", () => {
 
   it("asks for a title before any call", async () => {
     await bar();
-    await click(button(document.body, "OPEN A PULL REQUEST"));
-    await click(button(dialog(), "OPEN A PULL REQUEST"));
+    await click(button(document.body, "Open a pull request"));
+    await click(button(dialog(), "Open a pull request"));
     expect(text(dialog())).toContain("Write a title for the pull request.");
     expect(bed.called("projects.prCreate")).toEqual([]);
   });
 
   it("shows nothing for a host folder or an unlinked project", async () => {
-    expect(hasButton(await bar("/w/host"), "COMMIT AND PUSH")).toBe(false);
+    expect(hasButton(await bar("/w/host"), "Commit and push")).toBe(false);
     expect(bed.called("projects.github")).toEqual([]);
     bed.handlers["projects.github"] = () => ({ github: githubView({ link: null }) });
-    expect(hasButton(await bar(), "COMMIT AND PUSH")).toBe(false);
+    expect(hasButton(await bar(), "Commit and push")).toBe(false);
   });
 });

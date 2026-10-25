@@ -1,5 +1,5 @@
 import type { ShellSession } from "@pap/contracts";
-import { cn, FOCUS_RING, IconButton, IconChevronDown, IconChevronRight } from "@pap/ui";
+import { cn, FOCUS_RING, Icon, IconButton, IconChevronDown, IconChevronRight, IconDot } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -43,7 +43,7 @@ export function LaneRow({ row, subagents, now, onPick }: LaneRowProps) {
           activeProps={{ className: "border-agent bg-surface-2" }}
           inactiveProps={{ className: "border-transparent" }}
           className={cn(
-            "flex min-w-0 flex-1 flex-col gap-s1 rounded-sm border-l-2 px-s2 py-s1 text-ui pointer-coarse:min-h-11",
+            "flex min-w-0 flex-1 flex-col gap-s1 border-l-2 px-s2 py-s1 text-ui pointer-coarse:min-h-11",
             FOCUS_RING,
           )}
         >
@@ -68,7 +68,10 @@ export function LaneRow({ row, subagents, now, onPick }: LaneRowProps) {
             ) : null}
             {facts?.dirty ? (
               <span>
-                <span aria-hidden>●{facts.dirty}</span>
+                <span aria-hidden className="inline-flex items-center gap-s1">
+                  <Icon icon={IconDot} size={14} filled />
+                  {facts.dirty}
+                </span>
                 <span className="sr-only">{t("sidebar.lane.dirty", { count: facts.dirty })}</span>
               </span>
             ) : null}

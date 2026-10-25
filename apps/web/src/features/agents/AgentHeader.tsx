@@ -1,6 +1,15 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary, AgentView } from "@pap/contracts";
-import { Button, Chip, formatCost, IconButton, IconMore, Segmented, type AvatarStyle } from "@pap/ui";
+import {
+  Button,
+  Chip,
+  formatCost,
+  IconButton,
+  IconMore,
+  InlineError,
+  Segmented,
+  type AvatarStyle,
+} from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -153,11 +162,7 @@ export function AgentHeader(props: AgentHeaderProps) {
           />
         </div>
       </header>
-      {props.problem === null ? null : (
-        <p role="alert" className="text-ui text-attn">
-          {props.problem}
-        </p>
-      )}
+      {props.problem === null ? null : <InlineError announce="action">{props.problem}</InlineError>}
       {props.confirm}
     </div>
   );

@@ -136,7 +136,7 @@ export const commandsFr: { readonly [K in keyof typeof commandsEn]: string } = {
   "commands.tab.next": "Onglet suivant",
   "commands.tab.prev": "Onglet précédent",
   "commands.tab.close": "Fermer l'onglet",
-  "commands.pane.split": "Diviser le volet",
+  "commands.pane.split": "Scinder le volet",
   "commands.pane.close": "Fermer le volet",
   "commands.agent.nextUnread": "Agent suivant avec activité non lue",
   "commands.agent.prevUnread": "Agent précédent avec activité non lue",

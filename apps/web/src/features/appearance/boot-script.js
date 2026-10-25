@@ -5,6 +5,8 @@
 // binding), no imports; any failure leaves the defaults of tokens.css.
 (function () {
   try {
+    // The default density, so a first visit paints what the settings later confirm (no 14 to 15 px jump).
+    document.documentElement.setAttribute("data-density", "mixed");
     var raw = window.localStorage.getItem("pap.appearance.boot");
     if (!raw) return;
     var cache = JSON.parse(raw);
@@ -19,6 +21,7 @@
       "rail",
       "motion",
       "chat-width",
+      "prose",
       "tool-detail",
       "avatar",
     ];

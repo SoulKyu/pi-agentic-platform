@@ -1,5 +1,5 @@
 import { USERS_LIMITS } from "@pap/contracts";
-import { Button, copyText, TextField } from "@pap/ui";
+import { Button, InlineError, TextField, copyText } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useId, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -102,11 +102,7 @@ export function InviteDialog({ stepUp, onClose }: Props) {
             )}
           </>
         )}
-        {action.problem === null ? null : (
-          <p role="status" className="text-ui text-err">
-            {t(action.problem)}
-          </p>
-        )}
+        {action.problem === null ? null : <InlineError announce="action">{t(action.problem)}</InlineError>}
       </div>
     </Dialog>
   );

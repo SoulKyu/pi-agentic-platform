@@ -1,6 +1,6 @@
 import "./register-lanes-catalog.ts";
 import type { LaneView } from "@pap/contracts";
-import { Button, EmptyState, IconButton, IconSplit, Segmented, useIsPhone } from "@pap/ui";
+import { Button, EmptyState, IconButton, IconSplit, Segmented, useIsPhone, InlineError } from "@pap/ui";
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { laneSessions } from "../../lib/lane-sessions.ts";
@@ -151,6 +151,7 @@ export function LaneBody({ lane, panes }: { readonly lane: LaneView; readonly pa
         <div className="border-b border-border px-s3">
           <Segmented<PhonePane>
             label={t("lanes.pane.phone")}
+            labelHidden
             value={phonePane}
             options={options}
             onChange={setPhonePane}
@@ -168,6 +169,7 @@ export function LaneBody({ lane, panes }: { readonly lane: LaneView; readonly pa
         <div className="flex items-center justify-between gap-s2 border-b border-border px-s3">
           <Segmented
             label={t("lanes.pane.right")}
+            labelHidden
             value={layout.right}
             options={[
               { value: "review", label: t("lanes.pane.review") },
@@ -226,15 +228,9 @@ export function LaneBody({ lane, panes }: { readonly lane: LaneView; readonly pa
         {setup.tainted ? (
           <TaintedConfirm busy={setup.busy} onConfirm={() => setup.run(true)} onCancel={setup.cancel} />
         ) : null}
-        {setup.problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(setup.problem)}
-          </p>
-        ) : null}
+        {setup.problem !== null ? <InlineError announce="action">{t(setup.problem)}</InlineError> : null}
         {newSession.problem !== null ? (
-          <p role="alert" className="text-ui text-attn">
-            {t(newSession.problem)}
-          </p>
+          <InlineError announce="action">{t(newSession.problem)}</InlineError>
         ) : null}
       </div>
       <div className="flex min-h-0 flex-1 flex-col">{body}</div>

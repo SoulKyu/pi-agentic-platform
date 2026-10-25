@@ -1,6 +1,6 @@
 import "../../i18n/register-github.ts";
 import { GITHUB_WEB_ORIGIN, type GithubStatusView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { useRole } from "../../lib/role-context.ts";
@@ -51,11 +51,7 @@ export function GithubSettings({ stepUp, go }: Props) {
       </p>
     );
   if (state.kind === "failed")
-    return (
-      <p role="status" className="text-ui text-err">
-        {t("github.settings.failed")}
-      </p>
-    );
+    return <InlineError announce="background">{t("github.settings.failed")}</InlineError>;
 
   const status: GithubStatusView = state.status;
   // The App's settings (its permissions page) are under /settings/apps/<slug>, not at the public /apps/<slug> page.
@@ -113,7 +109,7 @@ export function GithubSettings({ stepUp, go }: Props) {
     (status.app !== null && appUrl === null ? errorKey("github_unavailable") : null);
 
   return (
-    <div data-github-settings="" className="flex max-w-prose flex-col gap-s3">
+    <div data-github-settings="" className="flex flex-col gap-s3">
       {status.state === "absent" ? (
         <>
           <p className="text-ui text-muted">{t(member ? "github.memberAbsent" : "github.absent")}</p>
@@ -185,11 +181,7 @@ export function GithubSettings({ stepUp, go }: Props) {
           {t("github.mismatch", { url: callbackUrl() })}
         </p>
       ) : null}
-      {problem === null ? null : (
-        <p role="status" className="text-ui text-err">
-          {t(problem)}
-        </p>
-      )}
+      {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
       {deleting ? (
         <DeleteAppDialog
           stepUp={stepUp}

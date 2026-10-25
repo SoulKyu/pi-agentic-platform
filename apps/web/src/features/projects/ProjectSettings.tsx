@@ -1,5 +1,5 @@
 import "../../i18n/register-boxes.ts";
-import { Button, Chip, toast, usePendingAction } from "@pap/ui";
+import { Button, Chip, Heading, toast, usePendingAction, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
@@ -21,7 +21,9 @@ import { draftOf, type SettingsDraft, toSetBox } from "./project-settings.vm.ts"
 function Section({ title, children }: { readonly title: string; readonly children: ReactNode }) {
   return (
     <section className="flex min-w-0 flex-col gap-s2">
-      <h3 className="label-hud text-muted">{title}</h3>
+      <Heading level={3} variant="group">
+        {title}
+      </Heading>
       {children}
     </section>
   );
@@ -128,9 +130,7 @@ export function ProjectSettings({ projectId, onClose }: Props) {
           </p>
         ) : null}
         {state.kind === "failed" ? (
-          <p role="status" className="text-ui text-err">
-            {t("boxes.settings.failed")}
-          </p>
+          <InlineError announce="background">{t("boxes.settings.failed")}</InlineError>
         ) : null}
         {box !== null && draft !== null ? (
           <>
@@ -151,9 +151,7 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                 )}
               </div>
               {restart.problem === null ? null : (
-                <p role="status" className="text-ui text-err">
-                  {restart.problem}
-                </p>
+                <InlineError announce="action">{restart.problem}</InlineError>
               )}
             </Section>
             <div className="flex flex-col gap-s2">
@@ -196,19 +194,13 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                 </Button>
               </div>
               {rebuild.problem === null ? null : (
-                <p role="status" className="text-ui text-err">
-                  {rebuild.problem}
-                </p>
+                <InlineError announce="action">{rebuild.problem}</InlineError>
               )}
             </Section>
             <Section title={t("github.link.section")}>
               <ProjectGithubSettings projectId={projectId} />
             </Section>
-            {problem === null ? null : (
-              <p role="status" className="text-ui text-err">
-                {problem}
-              </p>
-            )}
+            {problem === null ? null : <InlineError announce="action">{problem}</InlineError>}
             <div>
               <Button variant="danger" onClick={() => setDeleting(true)}>
                 {t("boxes.delete")}

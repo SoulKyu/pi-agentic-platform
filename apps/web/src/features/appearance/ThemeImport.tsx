@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { useRef } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -43,9 +43,9 @@ export function ImportErrors({ errors }: { readonly errors: readonly ThemeFileEr
   const t = useT();
   if (errors.length === 0) return null;
   return (
-    <div data-slot="theme-import-errors" role="alert" className="flex flex-col gap-s1 text-ui text-attn">
-      <p>{t("settings.theme.importErrors")}</p>
-      <ul className="list-disc pl-s4">
+    <div data-slot="theme-import-errors" className="flex flex-col gap-s1">
+      <InlineError announce="action">{t("settings.theme.importErrors")}</InlineError>
+      <ul className="list-disc pl-s4 text-ui text-err">
         {errors.map((error, index) => (
           <li key={index}>
             {error.kind === "invalid"

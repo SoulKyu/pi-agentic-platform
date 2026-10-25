@@ -1,6 +1,6 @@
 import type { ReviewComment, ReviewDoc, ReviewScope } from "@pap/contracts";
 import type { ReviewFile } from "./review-types.ts";
-import { Banner, Button, EmptyState, Icon, IconBack, Spinner, useIsPhone } from "@pap/ui";
+import { Banner, Button, EmptyState, Icon, IconBack, Spinner, useIsPhone, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -204,9 +204,9 @@ export function ReviewPane({
         }}
       />
       {problem === null ? null : (
-        <p role="alert" className="px-s3 py-s1 text-ui text-attn">
-          {problem}
-        </p>
+        <div className="px-s3 py-s1">
+          <InlineError announce="action">{problem}</InlineError>
+        </div>
       )}
       {body}
       <SendBar

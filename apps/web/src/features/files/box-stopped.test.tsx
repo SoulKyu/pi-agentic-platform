@@ -46,7 +46,7 @@ describe("Files in a stopped box", () => {
     const c = page.container;
     expect(text(c)).toContain("The project's box is stopped. Start it to see its files.");
     expect(c.querySelector('[role="tree"]')).toBeNull();
-    await click(button(c, "START"));
+    await click(button(c, "Start"));
     expect(bed.called("projects.startBox")[0]?.params).toEqual({ projectId: "b1" });
 
     running = true;

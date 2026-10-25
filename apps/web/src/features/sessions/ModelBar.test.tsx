@@ -252,9 +252,9 @@ describe("ModelBar model menu", () => {
     const container = await show();
     await click(button(container, "anthropic · claude-sonnet-4"));
     await act(async () => {
-      await vi.waitFor(() => expect(alerts(document.body)).toHaveLength(1), { timeout: 10_000 });
+      await vi.waitFor(() => expect(text(document.body)).toContain("at capacity"), { timeout: 10_000 });
     });
-    expect(alerts(document.body)).toEqual(["The server is at capacity. Try again later."]);
+    expect(text(document.body)).toContain("every worker slot is in use");
     bed.handlers["sessions.models"] = () => available();
     await click(button(document.body, "Try again"));
     await settle();
@@ -394,6 +394,6 @@ describe("ModelBar strings", () => {
     setLocale("fr");
     const container = await show();
     expect(hasButton(container, "thinking: high")).toBe(false);
-    expect(hasButton(container, "réflexion : élevée")).toBe(true);
+    expect(hasButton(container, "réflexion\u202f: élevée")).toBe(true);
   });
 });

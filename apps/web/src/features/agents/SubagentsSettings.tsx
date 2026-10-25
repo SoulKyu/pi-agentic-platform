@@ -1,5 +1,5 @@
 import "../../i18n/register-subagents.ts";
-import { Segmented, Switch } from "@pap/ui";
+import { Heading, InlineError, Segmented, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { cutUnits, stripHidden } from "../../lib/untrusted-text.ts";
 import { useSubagentProfiles } from "./use-subagent-profiles.ts";
@@ -19,14 +19,12 @@ export function SubagentsSettings() {
   const options = LIMITS.map((value) => ({ value, label: value }));
   return (
     <section aria-labelledby="subagents-settings-title" className="flex flex-col gap-s3">
-      <h2 id="subagents-settings-title" className="label-hud text-muted">
+      <Heading level={2} variant="group" id="subagents-settings-title">
         {t("subagents.settings.title")}
-      </h2>
+      </Heading>
       <p className="text-ui text-muted">{t("subagents.settings.intro")}</p>
       {setting.failed ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("subagents.settings.loadFailed")}
-        </p>
+        <InlineError announce="background">{t("subagents.settings.loadFailed")}</InlineError>
       ) : setting.value === null ? (
         <p role="status" className="text-ui text-muted">
           {t("subagents.settings.loading")}
@@ -51,12 +49,10 @@ export function SubagentsSettings() {
           </div>
         </>
       )}
-      {setting.notice ? (
-        <p role="alert" className="text-ui text-attn">
-          {setting.notice}
-        </p>
-      ) : null}
-      <h3 className="label-hud text-muted">{t("subagents.profiles.title")}</h3>
+      {setting.notice ? <InlineError announce="action">{setting.notice}</InlineError> : null}
+      <Heading level={3} variant="group">
+        {t("subagents.profiles.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("subagents.profiles.hint")}</p>
       {profiles.kind === "loading" ? (
         <p role="status" className="text-ui text-muted">
@@ -65,9 +61,7 @@ export function SubagentsSettings() {
       ) : profiles.kind === "needSession" ? (
         <p className="text-ui text-muted">{t("subagents.profiles.needSession")}</p>
       ) : profiles.kind === "failed" ? (
-        <p role="alert" className="text-ui text-attn">
-          {t("subagents.profiles.failed")}
-        </p>
+        <InlineError announce="background">{t("subagents.profiles.failed")}</InlineError>
       ) : profiles.profiles.length === 0 ? (
         <p className="text-ui text-muted">{t("subagents.profiles.empty")}</p>
       ) : (

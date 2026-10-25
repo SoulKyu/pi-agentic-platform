@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { StatusPanel } from "./StatusPanel.tsx";
@@ -78,9 +78,7 @@ export function OpenStatus({
   if (state.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">
-        <p role="alert" className="text-ui text-attn">
-          {t(errorKey(state.code))}
-        </p>
+        <InlineError announce="background">{t(errorKey(state.code))}</InlineError>
         <div className="flex flex-wrap gap-s2">
           {state.code === "sandbox_unavailable" ? settings : null}
           <Button variant="primary" onClick={onRetry}>

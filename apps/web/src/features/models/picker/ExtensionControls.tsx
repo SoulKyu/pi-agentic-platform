@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import "../../../i18n/register-model-picker.ts";
 import { plural, useLocale, useT } from "../../../i18n/index.ts";
@@ -77,11 +77,7 @@ export function ExtensionControls({ read, view }: Props) {
           </Link>
         </p>
       ) : null}
-      {failure === null ? null : (
-        <p role="alert" className="text-ui text-attn">
-          {failure}
-        </p>
-      )}
+      {failure === null ? null : <InlineError announce="action">{failure}</InlineError>}
       {running || (read.status === "failed" && read.stale) ? null : (
         <>
           <Button variant="secondary" onClick={start}>

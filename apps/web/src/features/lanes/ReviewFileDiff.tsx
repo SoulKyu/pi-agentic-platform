@@ -1,6 +1,6 @@
 import { LANE_LIMITS, type ReviewDoc, type ReviewList } from "@pap/contracts";
 import type { ReviewFile } from "./review-types.ts";
-import { Banner, Button, formatDiffCounts, Spinner } from "@pap/ui";
+import { Banner, Button, formatDiffCounts, Spinner, InlineError } from "@pap/ui";
 import { languageFor, ReviewDiffView, type DiffComment } from "@pap/ui/code";
 import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -192,9 +192,9 @@ export function ReviewFileDiff({ worktree, list, file, doc, update, onOpenFile }
         )}
       </div>
       {full ? (
-        <p role="status" className="px-s3 py-s1 text-ui text-attn">
-          {t("lanes.review.comment.limit")}
-        </p>
+        <div className="px-s3 py-s1">
+          <InlineError announce="action">{t("lanes.review.comment.limit")}</InlineError>
+        </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-auto">{body}</div>
       <CommentList

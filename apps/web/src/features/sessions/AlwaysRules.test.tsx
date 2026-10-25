@@ -3,7 +3,7 @@
 import "./register-session-catalog.ts";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { alerts, button, click, settle, text } from "../../testing/dom.ts";
+import { alerts, button, click, settle, statuses, text } from "../../testing/dom.ts";
 import { pickItem, preloadMenu } from "../../testing/menu.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 
@@ -152,7 +152,9 @@ describe("always rules", () => {
       throw new RpcError("internal");
     };
     const container = await show();
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toContain(
+      "pap hit an unexpected error. The action may not have completed: check its result, then try again. If it repeats, run pap doctor.",
+    );
   });
 
   it("renders a label as text, clipped for display", async () => {

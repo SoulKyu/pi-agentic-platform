@@ -11,22 +11,25 @@ describe("Reasoning", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("is open while streaming and closes 1 s after the stream ends", async () => {
+  it("streaming does not open the block, a click does, and the stream's end does not close it", async () => {
     const page = await mount(
       <Reasoning streaming label="Thinking…">
         step one
       </Reasoning>,
     );
+    expect(isOpen(page.container)).toBe(false);
+    await click(page.container.querySelector("button") as HTMLElement);
     expect(isOpen(page.container)).toBe(true);
     await page.rerender(
       <Reasoning streaming={false} label="Thought for 14s">
         step one
       </Reasoning>,
     );
-    expect(isOpen(page.container)).toBe(true);
     await act(async () => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(5000);
     });
+    expect(isOpen(page.container)).toBe(true);
+    await click(page.container.querySelector("button") as HTMLElement);
     expect(isOpen(page.container)).toBe(false);
     await page.unmount();
   });

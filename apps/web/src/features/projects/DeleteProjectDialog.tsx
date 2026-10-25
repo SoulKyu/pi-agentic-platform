@@ -1,5 +1,5 @@
 import "../../i18n/register-boxes.ts";
-import { Button, usePendingAction } from "@pap/ui";
+import { Button, usePendingAction, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
@@ -70,11 +70,7 @@ export function DeleteProjectDialog({
       }
     >
       <div className="flex flex-col gap-s2 p-s3">
-        {problem === null ? null : (
-          <p role="status" className="text-ui text-err">
-            {t(problem)}
-          </p>
-        )}
+        {problem === null ? null : <InlineError announce="action">{t(problem)}</InlineError>}
       </div>
     </Dialog>
   );

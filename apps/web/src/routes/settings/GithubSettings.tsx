@@ -37,7 +37,7 @@ export function GithubSettings() {
             </div>
           ) : (
             <p role="status" className="text-ui text-muted">
-              {t("settings.models.loading")}
+              {t("settings.github.loading")}
             </p>
           )
         }

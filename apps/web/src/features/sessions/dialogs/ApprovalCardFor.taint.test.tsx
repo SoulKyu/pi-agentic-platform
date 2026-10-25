@@ -103,7 +103,9 @@ describe("the card names what tainted the session", () => {
         taintCauses: [cause("web_search", 14, 2, false), cause("todo", 14, 5, true), cause("a", 14, 6, true)],
       }),
     );
-    expect(line(page)).toBe("Cette session a lu du contenu externe : todo (14:05), a (14:06) et 1 autre");
+    expect(line(page)).toBe(
+      "Cette session a lu du contenu externe\u202f: todo (14:05), a (14:06) et 1 autre",
+    );
   });
 
   it("says nothing when the card is not tainted or the worker named no cause", async () => {
@@ -122,7 +124,7 @@ describe("the card names what tainted the session", () => {
     await mounted?.unmount();
     setLocale("fr");
     const fr = await show(dialog({ taintCauses: [cause("todo", 14, 5, true, 2)], older: 1 }));
-    expect(line(fr)).toBe("Cette session a lu du contenu externe : todo (14:05, 2 fois) et 1 autre");
+    expect(line(fr)).toBe("Cette session a lu du contenu externe\u202f: todo (14:05, 2 fois) et 1 autre");
   });
 
   it("never offers Mark as local when the worker dropped a cause, even if every one listed is markable", async () => {

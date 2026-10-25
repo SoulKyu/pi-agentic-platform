@@ -4,11 +4,14 @@ import {
   Banner,
   Button,
   IconButton,
+  Icon,
   IconClose,
+  IconWarning,
   RunStatusChip,
   type RunStatus,
   type ToolDetail,
   useIsPhone,
+  InlineError,
 } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -29,6 +32,7 @@ import { ChildApprovals } from "./ChildApprovals.tsx";
 import { CrashBanner } from "./CrashBanner.tsx";
 import { KnowledgeChip } from "../knowledge/KnowledgeChip.tsx";
 import { LimitChip } from "./LimitChip.tsx";
+import { SessionMissing } from "./SessionMissing.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
@@ -73,12 +77,20 @@ export function SessionScreen({
   const dismissedNotices = useDismissedNotices((state) => state.keys);
   const dismissNotice = useDismissedNotices((state) => state.dismiss);
   const [error, setError] = useState<string | null>(null);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  // The id that was refused as not found: another session id is a fresh start.
+  const [missingId, setMissingId] = useState<string | null>(null);
+  const missing = missingId === sessionId;
   const [dismissed, setDismissed] = useState<number | null>(null);
   // One feed per session id: the events build the view in the store, not in this component.
-  useEffect(
-    () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code)), toastLiveInfo),
-    [runtime, sessionId],
-  );
+  useEffect(() => {
+    return feedSession(
+      runtime.subscriptions,
+      sessionId,
+      (code) => (code === "not_found" ? setMissingId(sessionId) : setFeedError(codeText(code))),
+      toastLiveInfo,
+    );
+  }, [runtime, sessionId]);
 
   // A dialog closed while others were hidden: one fresh snapshot lets the hidden ones reach this client (M4R111).
   useEffect(() => {
@@ -124,6 +136,7 @@ export function SessionScreen({
     </>
   );
 
+  if (missing) return <SessionMissing />;
   return (
     <section
       ref={screenRef}
@@ -132,18 +145,16 @@ export function SessionScreen({
     >
       {header}
       <header className="flex flex-wrap items-center gap-s2">
-        <div className="flex min-w-0 flex-1 items-baseline gap-s3">
-          {view.name ? (
-            <h1 data-session-name className="min-w-0 truncate text-ui font-semibold text-fg">
-              {view.name}
-            </h1>
-          ) : null}
-          {title ? (
-            <span data-session-title className="min-w-0 truncate font-mono text-ui text-muted">
-              {title}
-            </span>
-          ) : null}
-        </div>
+        {view.name ? (
+          <h1 data-session-name className="min-w-0 truncate text-h2 text-fg">
+            {view.name}
+          </h1>
+        ) : null}
+        {title ? (
+          <span data-session-title className="min-w-0 truncate font-mono text-ui text-muted">
+            {title}
+          </span>
+        ) : null}
         {/* An agent's thread has its own header: the agent's lifecycle speaks there, not the session's word. */}
         {header === undefined ? (
           <RunStatusChip
@@ -159,6 +170,7 @@ export function SessionScreen({
         {projectId === null ? null : (
           <KnowledgeChip projectId={projectId} sessionId={sessionId} status={view.status} cwd={view.cwd} />
         )}
+        <span aria-hidden data-header-spacer className="flex-1" />
         <SessionPolicy
           key={`policy:${sessionId}`}
           sessionId={sessionId}
@@ -173,11 +185,7 @@ export function SessionScreen({
           blocked={structural.active}
         />
       </header>
-      {view.unreadable ? (
-        <p role="alert" className="border-l-2 border-err px-s3 py-s2 text-ui text-err">
-          {t("sessions.unreadable")}
-        </p>
-      ) : null}
+      {view.unreadable ? <InlineError announce="background">{t("sessions.unreadable")}</InlineError> : null}
       {view.crash && view.status === "cold" ? <CrashBanner sessionId={sessionId} crash={view.crash} /> : null}
       {view.outsideWrite && dismissed !== view.generation ? (
         <Banner
@@ -219,9 +227,14 @@ export function SessionScreen({
           <p
             key={`${index}:${notice.text}`}
             data-notice
-            role={notice.level === "error" ? "alert" : undefined}
+            role={notice.level === "error" ? "status" : undefined}
             className={`flex items-start gap-s2 text-ui ${notice.level === "error" ? "text-err" : "text-muted"}`}
           >
+            {notice.level === "error" ? (
+              <span className="shrink-0 pt-s1">
+                <Icon icon={IconWarning} size={14} />
+              </span>
+            ) : null}
             <span className="min-w-0 flex-1">
               {notice.source === "extension" ? (
                 <>
@@ -240,11 +253,8 @@ export function SessionScreen({
           </p>
         ),
       )}
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {feedError ? <InlineError announce="background">{feedError}</InlineError> : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
       <Widgets widgets={view.widgets} placement="aboveEditor" />
       {beforeComposer}
       <SubagentBar sessionId={sessionId} subagents={view.children} />

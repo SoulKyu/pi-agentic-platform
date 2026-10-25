@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, Heading } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { defaultScope, escapeHidden, type InstallScope, type ProjectRef } from "./skills.vm.ts";
@@ -30,7 +30,9 @@ export function ScopePicker({
       aria-label={t("settingsSkills.scope.label")}
       className="flex flex-col items-start gap-s1"
     >
-      <h4 className="label-hud text-muted">{t("settingsSkills.scope.label")}</h4>
+      <Heading level={4} variant="group">
+        {t("settingsSkills.scope.label")}
+      </Heading>
       <div className="flex gap-s2">
         <Button
           variant={scope === "project" ? "primary" : "secondary"}

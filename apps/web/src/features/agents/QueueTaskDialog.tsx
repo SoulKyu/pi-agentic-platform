@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { AGENT_EVENT_LIMITS } from "@pap/contracts";
-import { Button, TextField, toast, usePendingAction } from "@pap/ui";
+import { Button, InlineError, TextField, toast, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -63,7 +63,7 @@ export function QueueTaskDialog({
         }}
       >
         {paused ? (
-          <p role="status" className="text-ui text-attn">
+          <p role="status" className="text-ui text-muted">
             {t("agentCompose.queue.paused", { name: agentName })}
           </p>
         ) : null}
@@ -77,11 +77,7 @@ export function QueueTaskDialog({
             ? { hint: t("agentCompose.queue.counter", { n: grouped(prompt.length), max: grouped(MAX) }) }
             : {})}
         />
-        {problem === null ? null : (
-          <p role="alert" className="text-ui text-attn">
-            {problem}
-          </p>
-        )}
+        {problem === null ? null : <InlineError announce="action">{problem}</InlineError>}
         <div className="flex flex-wrap gap-s2">
           <Button type="submit" variant="primary" pendingSince={queue.since} disabled={prompt.trim() === ""}>
             {t("agentCompose.queue.submit")}

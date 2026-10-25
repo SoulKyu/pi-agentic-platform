@@ -36,14 +36,14 @@ describe("KnowledgeRow", () => {
     expect(text(page.container)).toContain(
       "Agents in this project keep their knowledge as markdown files in knowledge/.",
     );
-    expect(button(page.container, "ENABLE OKF")).toBeTruthy();
+    expect(button(page.container, "Enable OKF")).toBeTruthy();
     expect(page.container.querySelector("code")?.textContent).toBe("knowledge/");
   });
 
   it("enables once, bumps the store and shows the present line with the count", async () => {
     const page = await mount(<KnowledgeRow projectId="p1" />);
     await settle();
-    await click(button(page.container, "ENABLE OKF"));
+    await click(button(page.container, "Enable OKF"));
     await settle();
     expect(bed.called("projects.enableKnowledge")).toHaveLength(1);
     expect(bed.called("projects.enableKnowledge")[0]?.params).toEqual({ projectId: "p1" });
@@ -57,13 +57,13 @@ describe("KnowledgeRow", () => {
     };
     const page = await mount(<KnowledgeRow projectId="p1" />);
     await settle();
-    await click(button(page.container, "ENABLE OKF"));
+    await click(button(page.container, "Enable OKF"));
     await settle();
     expect(alerts(page.container)).toHaveLength(1);
     expect(alerts(page.container)[0]).toBe(
       'OKF was not enabled: knowledge/ is a link or a file, or its index.md has no okf_version. Nothing was written. Rename it, or add okf_version: "0.2" to its index.md, then try again.',
     );
-    expect(button(page.container, "ENABLE OKF")).toBeTruthy();
+    expect(button(page.container, "Enable OKF")).toBeTruthy();
     expect(useKnowledgeStore.getState().versions["p1"]).toBeUndefined();
   });
 
@@ -73,7 +73,7 @@ describe("KnowledgeRow", () => {
     };
     const page = await mount(<KnowledgeRow projectId="p1" />);
     await settle();
-    await click(button(page.container, "ENABLE OKF"));
+    await click(button(page.container, "Enable OKF"));
     await settle();
     expect(alerts(page.container)[0]).toBe(
       "OKF was not enabled: the folder cannot be written or no longer exists. Nothing was written. Check that it exists and that pap may write in it, then try again.",
@@ -81,7 +81,7 @@ describe("KnowledgeRow", () => {
     setLocale("fr");
     const fr = await mount(<KnowledgeRow projectId="p1" />);
     await settle();
-    await click(button(fr.container, "ACTIVER OKF"));
+    await click(button(fr.container, "Activer OKF"));
     await settle();
     expect(alerts(fr.container)[0]).toContain("Rien n'a été écrit.");
   });
@@ -91,7 +91,7 @@ describe("KnowledgeRow", () => {
     const page = await mount(<KnowledgeRow projectId="p1" />);
     await settle();
     expect(text(page.container)).toContain("In this lane's worktree");
-    await click(button(page.container, "ENABLE OKF"));
+    await click(button(page.container, "Enable OKF"));
     await settle();
     expect(bed.called("projects.knowledge")[0]?.params).toEqual({ projectId: "p1", sessionId: "lane1" });
     expect(bed.called("projects.enableKnowledge")[0]?.params).toEqual({

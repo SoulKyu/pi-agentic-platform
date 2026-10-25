@@ -81,7 +81,9 @@ describe("fork from here", () => {
     const container = await screen.show(withRows);
     await click(button(container, "Fork from here"));
     await settle();
-    expect(alerts(container)).toEqual(["The request is invalid."]);
+    expect(alerts(container)).toEqual([
+      "pap refused this request: a value is missing or out of range. Nothing was changed. Check the fields and try again.",
+    ]);
     expect(current.navigate).not.toHaveBeenCalled();
     expect(localStorage.length).toBe(0);
   });

@@ -1,5 +1,5 @@
 import { TriggerView } from "@pap/contracts";
-import { Spinner } from "@pap/ui";
+import { InlineError, Spinner } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -48,14 +48,14 @@ function SavedTrigger({ triggerId, onOpenSession }: Pick<TriggerEditorProps, "tr
   if (loaded.kind === "loading") return <Spinner label={t("automation.editor.loading")} />;
   if (loaded.kind === "failed")
     return (
-      <p role="alert" className="p-s3 text-ui text-err">
-        {t("automation.editor.loadFailed")}
-      </p>
+      <div className="p-s3">
+        <InlineError announce="background">{t("automation.editor.loadFailed")}</InlineError>
+      </div>
     );
   const draft = draftOf(loaded.view, emptyDraft(loaded.view.cwd, browserZone()));
   if (draft === null)
     return (
-      <p role="alert" className="p-s3 text-ui text-err">
+      <p role="status" className="p-s3 text-ui text-muted">
         {t("automation.editor.unreadable")}
       </p>
     );

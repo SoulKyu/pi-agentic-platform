@@ -36,7 +36,7 @@ export function SessionRow({ session, now, subagents, onPick }: SessionRowProps)
           activeProps={{ className: CURRENT_CLASSES }}
           inactiveProps={{ className: IDLE_CLASSES }}
           className={cn(
-            "flex min-w-0 flex-1 items-center justify-between gap-s2 rounded-sm border-l-2 px-s2 py-s1 text-ui pointer-coarse:min-h-11",
+            "flex min-w-0 flex-1 items-center justify-between gap-s2 border-l-2 px-s2 py-s1 text-ui pointer-coarse:min-h-11",
             FOCUS_RING,
           )}
         >

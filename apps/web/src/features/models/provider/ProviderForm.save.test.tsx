@@ -108,6 +108,20 @@ describe("save.conflict-reloads", () => {
     return { bed, reads, saves };
   };
 
+  it("a failed provider save is an alert", async () => {
+    const bed = formBed();
+    bed.handlers["models.provider.save"] = () => {
+      throw new RpcError("helper_failed");
+    };
+    const { page } = await showForm({ id: "mine" });
+    await settle();
+    await click(button(page.container, "Save"));
+    await settle();
+    expect(
+      page.container.querySelectorAll('[data-slot="inline-error"][role="alert"]').length,
+    ).toBeGreaterThan(0);
+  });
+
   it("reloads with provider.get, keeps the draft, says so, and the next save carries the new revision", async () => {
     const { bed, saves } = conflictBed();
     const { page, spies } = await showForm({ id: "mine" });

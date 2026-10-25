@@ -60,6 +60,7 @@ export function ProjectSwitcher() {
           variant="secondary"
           size="sm"
           data-project-chip
+          truncate
           aria-label={t("shell.project.label", { name })}
           onClick={ask}
         >

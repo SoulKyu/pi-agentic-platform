@@ -47,7 +47,9 @@ describe("ProjectHome under All projects (§3.5, PH13)", () => {
     });
     const { page, actions } = await showHome();
     expect(page.container.querySelector("h1")?.textContent).toBe("All projects");
-    expect(composer().getAttribute("placeholder")).toBe("What do you want to do? Launch asks which project.");
+    expect(composer().getAttribute("placeholder")).toBe(
+      "Fix the flaky login test, then open a PR. Launch asks which project.",
+    );
     await click(chip("Lane"));
     await typeInto(composer(), "Fix");
     await click(button(page.container, "Launch a lane"));

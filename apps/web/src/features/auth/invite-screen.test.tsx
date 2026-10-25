@@ -144,7 +144,9 @@ describe("InviteScreen", () => {
     expect(button(container, "Retry").disabled).toBe(false);
     await click(button(container, "Retry"));
     await tick();
-    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(alerts(container)).toEqual([
+      "pap is unreachable: this page cannot reach the daemon. Your drafts stay on this device. Check that pap is running, then retry.",
+    ]);
     await click(button(container, "Retry"));
     await tick();
     expect(text(container)).toContain("ana invites you.");

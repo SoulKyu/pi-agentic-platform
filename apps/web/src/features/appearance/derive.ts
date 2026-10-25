@@ -13,9 +13,11 @@ export function deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, str
   ) as CustomTheme["roles"];
   const night = theme.base === "night";
   const tone = (role: string) => ensureContrast(role, r.bg, AA, r.text);
-  // ADR 0012 / WCAG 1.4.11: 3:1 against both grounds a control or a focus ring sits on.
-  const nonText = (color: string) =>
-    ensureContrast(ensureContrast(color, r.bg, NON_TEXT, r.text), r.surface, NON_TEXT, r.text);
+  const surface2 = mix(r.surface, r.text, 0.08);
+  // ADR 0012 / WCAG 1.4.11: 3:1 against the grounds a control or a focus ring sits on.
+  const reach = (color: string, target: number, grounds: readonly string[]) =>
+    grounds.reduce((moved, ground) => ensureContrast(moved, ground, target, r.text), color);
+  const nonText = (color: string) => reach(color, NON_TEXT, [r.bg, r.surface]);
   const darkInk = night ? r.bg : r.text;
   const ink = (fill: string) =>
     contrastRatio("#ffffff", fill) >= contrastRatio(darkInk, fill) ? "#ffffff" : darkInk;
@@ -23,11 +25,11 @@ export function deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, str
     bg: r.bg,
     "bg-side": mix(r.bg, r.surface, 0.35),
     surface: r.surface,
-    "surface-2": mix(r.surface, r.text, 0.08),
+    "surface-2": surface2,
     border: mix(r.bg, r.text, 0.13),
     "border-strong": mix(r.bg, r.text, 0.22),
     text: r.text,
-    "text-muted": ensureContrast(mix(r.text, r.bg, 0.38), r.bg, AA, r.text),
+    "text-muted": reach(mix(r.text, r.bg, 0.38), AA, [r.bg, r.surface]),
     "text-dim": mix(r.text, r.bg, 0.58),
     grid: `${r.text}${night ? "06" : "0a"}`,
     agent: tone(r.agent),
@@ -40,7 +42,7 @@ export function deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, str
     "you-line": `${r.you}66`,
     "you-text": ensureContrast(mix(r.you, r.text, 0.55), r.bg, AA, r.text),
     "control-border": nonText(mix(r.bg, r.text, 0.38)),
-    "focus-ring": nonText(r.you),
+    "focus-ring": reach(r.you, NON_TEXT, [r.bg, r.surface, surface2]),
     "attn-title": ensureContrast(r.attn, mix(r.surface, r.attn, 26 / 255), AA, r.text),
     attn: tone(r.attn),
     "attn-fill": r.attn,

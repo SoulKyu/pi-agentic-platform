@@ -1,5 +1,5 @@
 import type { PricingEntry, ProviderView } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, TextField } from "@pap/ui";
 import { useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -65,7 +65,9 @@ export function PricingLookup({
 
   return (
     <section aria-label={t("settingsModels.pricing.title")} className="flex flex-col gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsModels.pricing.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsModels.pricing.title")}
+      </Heading>
       <TextField
         label={t("settingsModels.test.model")}
         value={modelId}
@@ -104,12 +106,13 @@ export function PricingLookup({
         </ul>
       ) : null}
       {notice ? (
-        <p
-          role={notice.tone === "error" ? "alert" : "status"}
-          className={notice.tone === "error" ? "text-ui text-attn" : "text-ui text-muted"}
-        >
-          {notice.text}
-        </p>
+        notice.tone === "error" ? (
+          <InlineError announce="action">{notice.text}</InlineError>
+        ) : (
+          <p role="status" className="text-ui text-muted">
+            {notice.text}
+          </p>
+        )
       ) : null}
     </section>
   );

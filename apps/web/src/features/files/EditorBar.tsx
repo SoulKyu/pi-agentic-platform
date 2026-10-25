@@ -1,4 +1,4 @@
-import { Banner, Button } from "@pap/ui";
+import { Banner, Button, InlineError } from "@pap/ui";
 import type { FileMeta } from "@pap/contracts";
 import { useT } from "../../i18n/index.ts";
 import type { Save } from "./use-save.ts";
@@ -96,11 +96,7 @@ export function EditorBar({ save, dirty, protection }: EditorBarProps) {
       />
     );
   } else if (state.kind in ALERTS) {
-    notice = (
-      <p role="alert" className="text-ui text-attn">
-        {t(ALERTS[state.kind as keyof typeof ALERTS])}
-      </p>
-    );
+    notice = <InlineError announce="action">{t(ALERTS[state.kind as keyof typeof ALERTS])}</InlineError>;
   }
   const asking = state.kind === "ask";
   return (

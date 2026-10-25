@@ -115,9 +115,9 @@ describe("pull request badge", () => {
   it("lists the checks that have a count, and the conflicts", () => {
     expect(badge({ checks: { total: 6, passed: 4, failed: 1, pending: 1 }, conflicts: true })).toMatchObject({
       checks: [
-        { symbol: "✓", count: 4, kind: "passed" },
-        { symbol: "✗", count: 1, kind: "failed" },
-        { symbol: "…", count: 1, kind: "pending" },
+        { count: 4, kind: "passed" },
+        { count: 1, kind: "failed" },
+        { count: 1, kind: "pending" },
       ],
       conflicts: true,
     });

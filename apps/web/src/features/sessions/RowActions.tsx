@@ -1,5 +1,5 @@
 import type { ForkPoint } from "@pap/contracts";
-import { IconSplit, IconUndo, MessageAction, MessageActions } from "@pap/ui";
+import { IconSplit, IconUndo, MessageAction, MessageActions, InlineError } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -92,11 +92,7 @@ export function RowButtons({ entryId, actions }: { entryId: string; actions: Row
           }
         />
       </MessageActions>
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineError announce="action">{error}</InlineError> : null}
     </>
   );
 }

@@ -1,7 +1,7 @@
 import "../../i18n/register-home.ts";
 import "../../i18n/register-boxes.ts";
 import type { HomeLayout, ProjectSummary } from "@pap/contracts";
-import { Badge, Button, Icon, IconSettings, Kbd } from "@pap/ui";
+import { Badge, Button, Heading, Icon, IconSettings, InlineError, Kbd } from "@pap/ui";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
@@ -17,9 +17,9 @@ function Group({ title, children }: { readonly title: string; readonly children:
   const id = useId();
   return (
     <section aria-labelledby={id} className="flex flex-col gap-s1">
-      <h2 id={id} className="label-hud text-muted">
+      <Heading level={2} variant="group" id={id}>
         {title}
-      </h2>
+      </Heading>
       <div className="flex flex-wrap items-start gap-s2">{children}</div>
     </section>
   );
@@ -59,9 +59,7 @@ function Action(props: {
         </span>
       )}
       {props.notice === undefined || props.notice === null ? null : (
-        <span role="status" className="text-ui text-attn">
-          {props.notice}
-        </span>
+        <InlineError announce="action">{props.notice}</InlineError>
       )}
     </span>
   );

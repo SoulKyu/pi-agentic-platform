@@ -25,8 +25,8 @@ describe("model markdown is untrusted text (checklist: no HTML or markdown injec
     const out = html("before\n\n<img src=x onerror=alert(1)>\n\nafter");
     expect(out).not.toContain("<img");
     expect(out).toContain("&lt;img src=x onerror=alert(1)&gt;");
-    expect(out).toContain("<p>before</p>");
-    expect(out).toContain("<p>after</p>");
+    expect(out).toMatch(/<p[^>]*>before<\/p>/);
+    expect(out).toMatch(/<p[^>]*>after<\/p>/);
   });
 
   it("leaves HTML inside code spans and fences as the code it is", () => {
@@ -98,5 +98,43 @@ describe("safeHref", () => {
     ["", null],
   ])("%j → %j", (raw, expected) => {
     expect(safeHref(raw)).toBe(expected);
+  });
+});
+
+describe("agent prose keeps a readable measure", () => {
+  const classOf = (out: string, tag: string) =>
+    new RegExp(`<${tag}[^>]*class="([^"]*)"`).exec(out)?.[1] ?? "";
+  const measured = (cls: string) => cls.split(" ").includes("max-w-measure");
+  const labels = { copy: "Copy code", copied: "Copied" };
+
+  it("paragraphs, lists and quotes carry the prose measure; code blocks and tables do not", () => {
+    const out = renderToStaticMarkup(
+      <MarkdownBody
+        copyLabels={labels}
+        text={
+          "# Title\n\nA paragraph.\n\n- one\n\n1. two\n\n> quoted\n\n```ts\nconst x = 1;\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |"
+        }
+      />,
+    );
+    for (const tag of ["p", "ul", "ol", "blockquote"]) expect(measured(classOf(out, tag))).toBe(true);
+    expect(out).toContain("Copy code");
+    for (const tag of ["pre", "table", "div"]) {
+      for (const match of out.matchAll(new RegExp(`<${tag}[^>]*class="([^"]*)"`, "g"))) {
+        expect(measured(match[1] ?? "")).toBe(false);
+      }
+    }
+    const heading = /<p class="([^"]*)">Title<\/p>/.exec(out)?.[1] ?? "";
+    expect(measured(heading)).toBe(true);
+  });
+
+  it("paragraphs and list items wrap pretty", () => {
+    const out = html("A paragraph.\n\n- one");
+    expect(classOf(out, "p").split(" ")).toContain("text-pretty");
+    expect(classOf(out, "li").split(" ")).toContain("text-pretty");
+  });
+
+  it("plain text keeps the measure", () => {
+    const out = html("x".repeat(MAX_MARKDOWN_CHARS + 1));
+    expect(/data-markdown-plain="" class="[^"]*max-w-measure/.test(out)).toBe(true);
   });
 });

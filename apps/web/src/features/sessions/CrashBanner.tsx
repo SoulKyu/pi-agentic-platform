@@ -1,4 +1,4 @@
-import { Banner, Button } from "@pap/ui";
+import { Banner, Button, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
@@ -41,12 +41,12 @@ export function CrashBanner({
       <p data-crash-cause>{codedServerText(crash, locale)}</p>
       <p>{t("session.crash.intact")}</p>
       {error ? (
-        <p data-crash-error className="text-attn">
-          {error}
-        </p>
+        <div data-crash-error>
+          <InlineError announce="action">{error}</InlineError>
+        </div>
       ) : null}
       <details data-crash-details className="mt-s1">
-        <summary className="cursor-pointer label-hud">{t("session.crash.details")}</summary>
+        <summary className="cursor-pointer label-hud focus-ring">{t("session.crash.details")}</summary>
         <ul className="mt-s1 flex flex-col gap-s1 font-mono text-code">
           {crash.code ? <li>{t("session.crash.code", { code: crash.code })}</li> : null}
           {params.map(([name, value]) => (

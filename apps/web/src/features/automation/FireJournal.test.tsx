@@ -114,7 +114,9 @@ describe("FireJournal", () => {
     bed.handlers["automation.journal"] = () => ({ entries: [], hasMore: false });
     const empty = await show();
     await settle();
-    expect(text(empty.container)).toContain("No fires yet");
+    expect(text(empty.container)).toContain(
+      "No fires yet. Each fire or skip of this trigger is logged here.",
+    );
     await empty.unmount();
     bed.handlers["automation.journal"] = () => {
       throw new RpcError("not_found");

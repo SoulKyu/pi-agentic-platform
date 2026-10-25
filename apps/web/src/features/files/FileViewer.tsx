@@ -1,4 +1,4 @@
-import { Banner, Button, Icon, IconExport, Markdown, Segmented, Spinner } from "@pap/ui";
+import { Banner, Button, Icon, IconExport, Markdown, Segmented, Spinner, InlineError } from "@pap/ui";
 import { CodeEditor, languageFor } from "@pap/ui/code";
 import { useState } from "react";
 import { useT, type Translate } from "../../i18n/index.ts";
@@ -106,6 +106,7 @@ export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewer
             {kind === "markdown" ? (
               <Segmented<"preview" | "source">
                 label={t("files.viewer.mode")}
+                labelHidden
                 value={mode}
                 options={[
                   { value: "preview", label: t("files.viewer.preview") },
@@ -160,7 +161,9 @@ export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewer
                 {t("files.viewer.more")}
               </Button>
             ) : null}
-            {file.moreFailed ? <p role="alert">{t("files.viewer.moreFailed")}</p> : null}
+            {file.moreFailed ? (
+              <InlineError announce="action">{t("files.viewer.moreFailed")}</InlineError>
+            ) : null}
           </div>
         ) : null}
       </>

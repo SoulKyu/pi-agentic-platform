@@ -1,5 +1,5 @@
 import type { ProviderView } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, Heading, InlineError } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { readExtensions, useExtensionRead } from "../extension-read.ts";
 import { codeText } from "../failure.ts";
@@ -29,7 +29,9 @@ export function ExtensionProviders({
   const busy = state.status === "reading" || (state.status === "ready" && state.refreshing);
   return (
     <section data-extensions className="flex flex-col items-start gap-s2">
-      <h3 className="label-hud text-muted">{t("settingsAvailability.extensions.title")}</h3>
+      <Heading level={3} variant="group">
+        {t("settingsAvailability.extensions.title")}
+      </Heading>
       <p className="text-ui text-muted">{t("settingsAvailability.extensions.note")}</p>
       <Button disabled={busy} onClick={readExtensions}>
         {state.status === "idle"
@@ -42,9 +44,9 @@ export function ExtensionProviders({
         </p>
       ) : null}
       {state.status === "failed" ? (
-        <p role="alert" className="text-ui text-attn">
+        <InlineError announce="background">
           {state.stale ? t("settingsAvailability.reload") : codeText(state.code)}
-        </p>
+        </InlineError>
       ) : null}
       {state.status === "ready" && state.refreshing ? (
         <p role="status" className="text-ui text-muted">
@@ -54,14 +56,12 @@ export function ExtensionProviders({
       {state.status === "ready" ? (
         <>
           {state.refreshFailed === null ? null : (
-            <p role="alert" className="text-ui text-attn">
+            <InlineError announce="action">
               {t("settingsAvailability.extensions.refreshFailed", { reason: codeText(state.refreshFailed) })}
-            </p>
+            </InlineError>
           )}
           {state.answer.failed ? (
-            <p role="alert" className="text-ui text-attn">
-              {t("settingsAvailability.extensions.failed")}
-            </p>
+            <InlineError announce="action">{t("settingsAvailability.extensions.failed")}</InlineError>
           ) : null}
           {state.answer.truncated ? (
             <p className="text-ui text-muted">{t("settingsAvailability.extensions.truncated")}</p>

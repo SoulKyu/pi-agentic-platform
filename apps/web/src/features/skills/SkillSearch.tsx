@@ -1,5 +1,5 @@
 import type { SkillsSearchResult } from "@pap/contracts";
-import { Button, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -96,11 +96,7 @@ export function SkillSearch({
         <Button disabled={query.trim() === "" || searching} onClick={search}>
           {t("settingsSkills.search.submit")}
         </Button>
-        {problem === null ? null : (
-          <p role="alert" className="text-ui text-attn">
-            {problem}
-          </p>
-        )}
+        {problem === null ? null : <InlineError announce="action">{problem}</InlineError>}
         {results === null ? null : results.length === 0 ? (
           <p className="text-ui text-muted">{t("settingsSkills.search.none")}</p>
         ) : (
@@ -112,7 +108,9 @@ export function SkillSearch({
         )}
       </section>
       <section data-skill-install className="flex flex-col items-start gap-s2">
-        <h4 className="label-hud text-muted">{t("settingsSkills.install.title")}</h4>
+        <Heading level={4} variant="group">
+          {t("settingsSkills.install.title")}
+        </Heading>
         <ScopePicker scope={scope} project={project} needsTrust={needsTrust} onChange={setScope} />
         <TextField
           label={t("settingsSkills.install.source")}

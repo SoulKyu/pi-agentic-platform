@@ -51,6 +51,23 @@ describe("boot script (runs before the first paint)", () => {
     expect([root.dataset.theme, root.style.getPropertyValue("--bg")]).toEqual(["night", "#0e1626"]);
   });
 
+  it("paints the default density on a first visit, with nothing stored", () => {
+    run();
+    expect(DEFAULT_DEVICE.density).toBe("mixed");
+    expect(root.dataset.density).toBe("mixed");
+  });
+
+  it("replays data-prose before paint", () => {
+    localStorage.setItem(
+      BOOT_KEY,
+      JSON.stringify({
+        ...toBootCache(DEFAULT_ACCOUNT, { ...DEFAULT_DEVICE, proseMeasure: "full" }),
+      }),
+    );
+    run();
+    expect(root.dataset.prose).toBe("full");
+  });
+
   it("carries exactly the variable names the app writes", () => {
     const listed = /var allowed =\s*"([^"]+)"/.exec(source)?.[1]?.split(" ") ?? [];
     expect(listed.map((name) => `--${name}`).sort()).toEqual([...BOOT_VAR_NAMES].sort());
@@ -120,7 +137,7 @@ describe("boot script (runs before the first paint)", () => {
     );
     run();
     expect(root.getAttribute("data-onclick")).toBeNull();
-    expect(root.dataset.density).toBeUndefined();
+    expect(root.dataset.density).toBe(DEFAULT_DEVICE.density);
     expect(root.dataset.theme).toBeUndefined();
     expect(root.getAttribute("style") ?? "").toBe("");
     const getItem = Storage.prototype.getItem;

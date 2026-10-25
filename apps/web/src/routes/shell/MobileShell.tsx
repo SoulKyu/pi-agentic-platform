@@ -1,4 +1,4 @@
-import { IconButton, IconLists, IconPlus, IconSearch, Mark } from "@pap/ui";
+import { IconButton, IconOpenItems, IconPlus, IconSearch, Mark } from "@pap/ui";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
@@ -113,7 +113,7 @@ export function MobileShell() {
           <Mark size={20} />
         </Link>
         <ProjectSwitcher />
-        <span className="min-w-0 flex-1 truncate text-ui font-semibold">{title}</span>
+        <span className="min-w-0 flex-1 truncate text-ui font-semibold max-xs:hidden">{title}</span>
         <IconButton
           icon={IconPlus}
           label={t("shell.tab.home")}
@@ -127,7 +127,7 @@ export function MobileShell() {
           label={t("shell.top.palette")}
           onClick={() => void runCommand("palette.toggle")}
         />
-        <IconButton icon={IconLists} label={t("shell.mobile.tabs")} onClick={() => setTabsOpen(true)} />
+        <IconButton icon={IconOpenItems} label={t("shell.mobile.tabs")} onClick={() => setTabsOpen(true)} />
       </header>
       <ConnectionBanner />
       {/* The one main landmark: the screens inside it are sections. */}

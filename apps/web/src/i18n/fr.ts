@@ -48,28 +48,36 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "connection.retryIn": "Nouvelle tentative dans {seconds} s",
   "connection.retry": "Réessayer",
   "connection.reconnecting": "Reconnexion…",
-  "error.bad_request": "La requête est invalide.",
+  "error.bad_request":
+    "pap a refusé cette demande : une valeur manque ou sort des limites. Rien n'a été modifié. Vérifiez les champs et réessayez.",
   "error.unauthenticated": "Connectez-vous d'abord.",
   "error.forbidden": "Vous n'avez pas la permission pour cette action.",
-  "error.not_found": "Introuvable.",
-  "error.conflict": "Cet élément existe déjà ou a changé entre-temps.",
+  "error.not_found":
+    "Cet élément n'existe plus : il a été supprimé, ou le lien est faux. Rien d'autre n'a été modifié. Choisissez-le à nouveau dans sa liste.",
+  "error.conflict":
+    "Cet élément a changé entre-temps, ou il existe déjà. Votre version n'a pas été enregistrée. Rechargez, puis refaites votre modification.",
   "error.rate_limited": "Trop de tentatives. Réessayez plus tard.",
   "error.payload_too_large": "Le message est trop volumineux.",
-  "error.capacity": "Le serveur est à pleine capacité. Réessayez plus tard.",
+  "error.capacity":
+    "pap est à pleine capacité : tous les emplacements de worker sont pris. Rien n'a été lancé. Réessayez quand une session se termine, ou arrêtez-en une.",
   "error.capacityWorkers": "{used} / {max} workers actifs.",
-  "error.worker_failed": "Le processus de la session a échoué.",
+  "error.worker_failed":
+    "Le processus de la session s'est arrêté. La transcription est intacte. Renvoyez votre message pour le relancer.",
   "error.timeout":
     "La session n'a pas répondu à temps. L'action a peut-être abouti : vérifiez avant de réessayer.",
   "error.prompt_rejected":
     "La session n'a pas pu lancer cette demande. Vérifiez le modèle et le fournisseur.",
   "error.invalid_cwd": "Le dossier de travail doit être le chemin absolu d'un dossier existant.",
   "error.step_up_required": "Confirmez votre mot de passe pour continuer.",
-  "error.read_only": "La base a été écrite par une version plus récente de pap et reste en lecture seule.",
+  "error.read_only":
+    "Un pap plus récent a écrit cette base de données : celui-ci l'a ouverte en lecture seule. Rien n'a été modifié. Mettez pap à jour pour l'utiliser à nouveau.",
   "error.unknown_method": "Cette version de la page ne correspond pas au serveur. Rechargez-la.",
-  "error.internal": "Une erreur s'est produite.",
+  "error.internal":
+    "pap a rencontré une erreur inattendue. L'action n'a peut-être pas abouti : vérifiez son résultat, puis réessayez. Si elle se répète, lancez pap doctor.",
   "error.connection_lost":
     "La connexion a été coupée avant la réponse. L'action a peut-être abouti : vérifiez avant de réessayer.",
-  "error.offline": "pap est injoignable pour le moment.",
+  "error.offline":
+    "pap est injoignable : cette page n'atteint pas le daemon. Vos brouillons restent sur cet appareil. Vérifiez que pap tourne, puis réessayez.",
   "error.passkey_cancelled": "La demande de clé d'accès a été annulée.",
   "error.passkey_failed":
     "La clé d'accès n'a pas pu être utilisée. Réessayez, ou utilisez votre mot de passe.",

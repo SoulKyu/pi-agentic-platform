@@ -89,7 +89,7 @@ describe("the phone's Agents tab (M11R109, board 12)", () => {
     await click(button(nav(page.container), "Agents"));
     await settle();
     expect(page.container.textContent).toContain(
-      "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.",
+      "Agents run in microVMs: this machine needs KVM and sudo pap vm setup. See pap doctor.",
     );
     expect(page.container.textContent).not.toContain("Create your first agent");
     expect([...page.container.querySelectorAll("main button")].map((one) => one.textContent)).not.toContain(

@@ -67,7 +67,7 @@ describe("new agent dialog", () => {
   it("shows the microVM EmptyState instead of the form when the VM stack is unusable", async () => {
     const { bed } = await open(false);
     expect(text(document.body)).toContain(
-      "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.",
+      "Agents run in microVMs: this machine needs KVM and sudo pap vm setup. See pap doctor.",
     );
     expect(document.querySelector("[data-agent-form]")).toBeNull();
     expect(bed.called("agents.create")).toEqual([]);

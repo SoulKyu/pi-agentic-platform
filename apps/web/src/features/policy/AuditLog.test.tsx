@@ -7,6 +7,7 @@ import { registerCatalog } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import {
   alerts,
+  statuses,
   button,
   click,
   field,
@@ -185,7 +186,7 @@ describe("audit log errors and states", () => {
     page = await mount(<AuditLog />);
     await settle();
     const container = page.container;
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toHaveLength(1);
     expect(text(container)).not.toContain("Loading");
     bed.handlers["audit.list"] = () => answer([row(1)]);
     await click(button(container, "Try again"));
@@ -201,7 +202,7 @@ describe("audit log errors and states", () => {
     };
     await click(button(container, "Load older"));
     await settle();
-    expect(alerts(container)).toHaveLength(1);
+    expect(statuses(container)).toHaveLength(1);
     expect(ids(container)).toEqual(["9"]);
     bed.handlers["audit.list"] = () => answer([row(8)]);
     await click(button(container, "Try again"));

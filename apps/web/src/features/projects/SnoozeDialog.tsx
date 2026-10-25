@@ -1,6 +1,6 @@
 import "../../i18n/register-sidebar.ts";
 import { SNOOZE_MAX_MS, SNOOZE_MIN_MS } from "@pap/contracts";
-import { Button } from "@pap/ui";
+import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useId, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -80,11 +80,7 @@ export default function SnoozeDialog({ onClose, onSubmit }: SnoozeDialogProps) {
             }
           }}
         />
-        {error ? (
-          <p role="alert" className="text-ui text-attn">
-            {error}
-          </p>
-        ) : null}
+        {error ? <InlineError announce="action">{error}</InlineError> : null}
       </div>
     </Dialog>
   );

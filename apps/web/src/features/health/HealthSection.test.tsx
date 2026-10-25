@@ -69,7 +69,7 @@ describe("HealthSection", () => {
     expect(row.textContent).toContain(
       new Intl.DateTimeFormat("en", { timeStyle: "medium", hourCycle: "h23" }).format(ts),
     );
-    expect(row.querySelector('[data-slot="chip"]')?.textContent).toBe("ERR");
+    expect(row.querySelector('[data-slot="chip"]')?.textContent).toBe("Err");
     expect(row.querySelector('[data-slot="chip"]')?.getAttribute("data-tone")).toBe("err");
     expect(row.textContent).toContain("Feed");
     expect(row.textContent).toContain("not_a_feed");
@@ -143,14 +143,14 @@ describe("HealthSection", () => {
     await settle();
     expect(rows(page.container)).toHaveLength(1);
     await click(button(page.container, "All"));
-    await click(button(page.container, "MUT"));
+    await click(button(page.container, "Mut"));
     await settle();
     const mut = page.container.querySelector(
       'button[aria-pressed="false"] [data-slot="chip"][data-tone="mut"]',
     );
     expect(mut).not.toBeNull();
     expect(rows(page.container)).toHaveLength(1);
-    await click(button(page.container, "MUT"));
+    await click(button(page.container, "Mut"));
     const field = page.container.querySelector("input") as HTMLInputElement;
     await typeInto(field, "k8s");
     await settle();

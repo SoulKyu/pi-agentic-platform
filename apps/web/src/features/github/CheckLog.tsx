@@ -1,5 +1,5 @@
 import "../../i18n/register-github.ts";
-import { Fence } from "@pap/ui";
+import { Fence, InlineError } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -37,12 +37,7 @@ export function CheckLog({ projectId, checkId }: { readonly projectId: string; r
         {t("github.log.loading")}
       </p>
     );
-  if (state.kind === "failed")
-    return (
-      <p role="status" className="text-ui text-err">
-        {t(state.key)}
-      </p>
-    );
+  if (state.kind === "failed") return <InlineError announce="background">{t(state.key)}</InlineError>;
   return (
     <div className="flex flex-col gap-s1">
       <Fence label={t("github.fence.log")}>{state.text === "" ? t("github.log.empty") : state.text}</Fence>

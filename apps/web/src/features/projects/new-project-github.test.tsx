@@ -45,7 +45,7 @@ describe("New project from GitHub", () => {
     await pickGithub();
     expect(text(document.body)).toContain("owner/name, or pick one of yours.");
     expect(text(document.body)).toContain("octo/notes");
-    expect(text(document.body)).toContain("PRIVATE");
+    expect(text(document.body)).toContain("Private");
     expect(bed.called("projects.create")).toEqual([]);
   });
 
@@ -54,7 +54,7 @@ describe("New project from GitHub", () => {
     await pickGithub();
     await click(button(document.body, "octo/notes"));
     expect(field(document.body, "Repository").value).toBe("octo/notes");
-    await click(button(document.body, "CLONE"));
+    await click(button(document.body, "Clone"));
     await settle();
     expect(bed.called("projects.createFromGithub")[0]?.params).toEqual({
       repository: "octo/notes",
@@ -64,7 +64,7 @@ describe("New project from GitHub", () => {
     expect(useShellStore.getState().view.projects.has("p9")).toBe(true);
 
     await typeInto(field(document.body, "Repository"), "upstream/lib");
-    await click(button(document.body, "FORK"));
+    await click(button(document.body, "Fork"));
     await settle();
     expect(bed.called("projects.createFromGithub")[1]?.params).toEqual({
       repository: "upstream/lib",
@@ -76,7 +76,7 @@ describe("New project from GitHub", () => {
     await open();
     await pickGithub();
     await typeInto(field(document.body, "Repository"), "../etc");
-    await click(button(document.body, "CLONE"));
+    await click(button(document.body, "Clone"));
     expect(alerts(document.body)).toContain("Write the repository as owner/name.");
     expect(bed.called("projects.createFromGithub")).toEqual([]);
   });
@@ -99,7 +99,7 @@ describe("New project from GitHub", () => {
     await click(tab as HTMLButtonElement);
     await settle();
     expect(text(document.body)).toContain("propriétaire/nom, ou choisissez un des vôtres.");
-    expect(button(document.body, "CLONER")).toBeDefined();
-    expect(button(document.body, "FORKER")).toBeDefined();
+    expect(button(document.body, "Cloner")).toBeDefined();
+    expect(button(document.body, "Forker")).toBeDefined();
   });
 });
