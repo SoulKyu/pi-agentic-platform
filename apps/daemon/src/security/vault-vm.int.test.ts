@@ -55,16 +55,20 @@ const newAgent = async (name: string): Promise<string> =>
     })
   ).id;
 
+/** Each thread's subscription: one client follows every thread here, and seq restarts per subscription. */
+const subs = new Map<string, string>();
 async function openThread(agentId: string, steps: object[]): Promise<{ sessionId: string; mark: number }> {
   writeScript(t, { steps });
   const { sessionId } = await call<{ sessionId: string }>("agents.openThread", { agentId });
-  await call("subscribe.session", { sessionId });
-  return { sessionId, mark: markOf(owner.client) };
+  const { sub } = await call<{ sub: string }>("subscribe.session", { sessionId });
+  subs.set(sessionId, sub);
+  return { sessionId, mark: markOf(owner.client, sub) };
 }
 const prompt = async (sessionId: string, text = "go"): Promise<void> => {
-  const mark = markOf(owner.client);
+  const sub = subs.get(sessionId);
+  const mark = markOf(owner.client, sub);
   await call("sessions.prompt", { sessionId, text });
-  await waitIdle(owner.client, mark);
+  await waitIdle(owner.client, mark, sub);
 };
 /** What the model's typed text looked like on the stream, pieces joined. */
 const streamed = (): string =>
@@ -125,7 +129,7 @@ describe("the vault in a VM session (ADR 0081)", () => {
     const second = await pending();
     await tracked("secrets.answerRequest", { requestId: second, value: SAVED, mode: "vault" });
     await vi.waitFor(() => expect(streamed()).toContain("got "), { timeout: 60_000 });
-    await waitIdle(owner.client, mark);
+    await waitIdle(owner.client, mark, subs.get(sessionId));
     expect(streamed()).toContain("got [SECRET:LEAK_ONCE] and [SECRET:LEAK_SAVED]");
     const names = await call<{ entries: Array<{ name: string }> }>("secrets.list", { agentId: cleo });
     expect(names.entries.map((entry) => entry.name)).toEqual(["LEAK_SAVED"]);

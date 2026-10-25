@@ -36,14 +36,19 @@ export function rowsOf(frame: ResponseFrame): AuditView[] {
 
 /**
  * The newest stream position the client has seen: a mark taken before a prompt, for `waitIdle` and the waits below.
- * Seq spaces are per channel, so this assumes one subscription per client (the suite subscribes to one session).
+ * Seq spaces are per channel, so without `sub` this assumes one subscription per client; a client subscribed to several
+ * sessions passes the `sub` that `subscribe.session` answered, here and to `waitIdle`.
  */
-export const markOf = (client: TestClient): number => client.events.at(-1)?.seq ?? -1;
+export const markOf = (client: TestClient, sub?: string): number =>
+  client.events.findLast((f) => sub === undefined || f.sub === sub)?.seq ?? -1;
 
 /** Waits for the run that started after `after` to end: a `running` status, then the `idle` that follows it. */
-export async function waitIdle(client: TestClient, after: number): Promise<void> {
-  const running = await client.waitForEvent((f) => streamOf(f).status === "running" && f.seq > after);
-  await client.waitForEvent((f) => streamOf(f).status === "idle" && f.seq > running.seq);
+export async function waitIdle(client: TestClient, after: number, sub?: string): Promise<void> {
+  const mine = (f: EventFrame): boolean => sub === undefined || f.sub === sub;
+  const running = await client.waitForEvent(
+    (f) => mine(f) && streamOf(f).status === "running" && f.seq > after,
+  );
+  await client.waitForEvent((f) => mine(f) && streamOf(f).status === "idle" && f.seq > running.seq);
 }
 
 /** An idle that ends a run: the status before it was `running` (a worker starting up also reports `idle`). */
