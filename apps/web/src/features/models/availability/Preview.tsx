@@ -1,4 +1,6 @@
-import { Button, Heading, InlineError } from "@pap/ui";
+import { Button, Heading, InlineError, LoadingLine } from "@pap/ui";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../../i18n/index.ts";
 import type { AvailableState } from "../picker/use-available-models.ts";
@@ -15,6 +17,7 @@ const NAMES_SHOWN = 20;
  */
 export function Preview({ available }: { readonly available: AvailableState }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const locale = useLocale();
   const [all, setAll] = useState(false);
   const groups = previewGroups(available);
@@ -25,9 +28,7 @@ export function Preview({ available }: { readonly available: AvailableState }) {
         {t("settingsAvailability.preview.title")}
       </Heading>
       {available.status === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("settingsAvailability.preview.loading")}
-        </p>
+        <LoadingLine label={t("settingsAvailability.preview.loading")} cause={cause} />
       ) : null}
       {available.status === "failed" ? (
         <div className="flex flex-col items-start gap-s2">

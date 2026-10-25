@@ -1,6 +1,7 @@
-import { IconButton, IconOpenItems, IconPlus, IconSearch, Mark } from "@pap/ui";
+import { IconButton, IconOpenItems, IconPlus, IconSearch, LoadingLine, Mark } from "@pap/ui";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { ShellActivity } from "./ShellActivity.tsx";
 import { runCommand } from "../../features/commands/index.ts";
 import {
   activeTab,
@@ -114,6 +115,7 @@ export function MobileShell() {
         </Link>
         <ProjectSwitcher />
         <span className="min-w-0 flex-1 truncate text-ui font-semibold max-xs:hidden">{title}</span>
+        <ShellActivity />
         <IconButton
           icon={IconPlus}
           label={t("shell.tab.home")}
@@ -136,7 +138,7 @@ export function MobileShell() {
           <LazyPanel
             text={lazyText}
             load={loadAgents}
-            fallback={<p className="p-s4 text-ui text-muted">{t("app.loading")}</p>}
+            fallback={<LoadingLine label={t("app.loading")} deferred={false} />}
             open={section === "agents"}
             props={{}}
             onFailed={() => setSection("work")}

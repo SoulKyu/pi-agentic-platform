@@ -227,6 +227,19 @@ Code: `apps/daemon/src/modules/users/`, `apps/daemon/src/modules/agent-vm/{claud
 - **Delete.** Box projects go to the project trash and agents to the agent trash; box disks and agent homes wait for the 7-day sweep of vmd, so the trash keeps data. GitHub signing keys are released first. A key whose removal GitHub refuses is logged (`user_delete_github_keys_left`) and the delete goes on.
 - **Memory cap.** One global cap for every box, first come (`PAP_AGENTS_MEMORY_MAX_MB`); there is no per-user VM quota.
 
+## Launch progress (ADR 0087)
+
+- **Registry.** Every start reports its steps to the launch registry (`kernel/launches.ts` port, `modules/agent-vm/launches.ts`): `checks`, `image`, `disk`, `vm`, `guest`, and `worker` when a session or task waits. One live launch per box; a second opener joins it and the last handle's outcome ends it. A step only moves forward. A launch past the sum of the step limits (30 s, 30 min, 10 min, 60 s, 60 s, 30 s) ends `timeout`; shutdown ends live ones. The box reads `starting` while it is live.
+- **Stream and methods.** The `launches` stream (`subscribe.launches`) sends a `snapshot` of the caller's live launches on connect, then `launch` (at most 1 per second per launch, plus each step change), `end` (`{ id, done: true, ok, code? }`) and `helpers` (`{ active, max, waiting }`, at most 1 per second, only on change, no ids). A member gets only their boxes. `launches.log` returns the redacted build tail (`launch-log.ts`; empty when no image builds: there is no guest boot log yet). `launches.stop` (`launch-stop.ts`) ends a launch with `stopped` and stops the VM through the runtime; it is accepted only when the record is `stoppable` (the daemon computes it at each publish: `vm`, `guest`, or `worker` when this launch started the VM, and no other VM live in the box), else `not_found`. `stopped` is no error and a stopped task is cancelled, not retried.
+- **`launch_steps`.** `box_key`, `step`, `ms`, `at`, the last 20 per box and step (migration `agent-vm/202610251200_launch_steps.sql`). The median of at least 3 samples is the "usual" time; a skipped image is not a sample.
+- **`image.progress`.** New pap-vmd op (`apps/vmd/src/ops-image.ts`): while a build runs pap-vmd keeps the last 200 lines per tag (512 characters each) and answers `{ building, lines, last }`, with `tail` when asked. During an image step the daemon polls it every 2 s (`kata-build.ts`, 5 s deadline); a `VmdError` means no sign of life, not a failure. Lines pass the redactor first. An old pap-vmd answers `bad_request` and the panel shows no line.
+- **The ask.** The image step is observed for the base, profile and agent builds (`kata-images.ts` `ensureBase`, `kata-build.ts` `watch`). The panel asks, in pink, as a polite status block: for an image when the last build line (or the step start) is older than 120 s, and at 75 % of any step's limit with "has been running for"; never while the launch waits in the build queue. Show the log only on the image step; Stop only when the record is `stoppable`. pap never relaunches by itself.
+- **After `pap update`, run `sudo pap vm setup`:** `image.progress` is new pap-vmd protocol.
+- **Activity indicator.** Counts and lists live launches and lane setups; not waiting tasks or clones (no global feed).
+- **Memory cap.** `PAP_AGENTS_MEMORY_MAX_MB` refuses a start in `startVm` (`runtime-start.ts`): the launch ends `capacity` (the error carries the MB used and the cap). Only a trigger task retries, and it waits as `box_memory` (`used`/`max` in MB, shown in GB); an interactive launch just fails.
+- **Rebuild.** `BoxControl.rebuild` opens a build launch (`for: "rebuild"`, the image step alone); it does not make the box `starting`.
+- Code: `apps/web/src/features/launch/`; web notes in `web.md`.
+
 ## Known limits
 
 - **The boundary is KVM's.** A guest kernel or Cloud Hypervisor escape is the residual. x86_64 only.

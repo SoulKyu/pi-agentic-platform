@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import { type AgentSummary, type ToolPreset } from "@pap/contracts";
-import { Banner, Button, InlineError, toast } from "@pap/ui";
+import { Banner, Button, InlineError, toast, LoadingLine } from "@pap/ui";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { AgentForm } from "./AgentForm.tsx";
@@ -60,9 +60,7 @@ export function AgentSettingsView({ agentId, summary, presetField, onBack, focus
         </div>
       )}
       {load.kind === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("settings.agents.detail.loading", { name: summary?.name ?? "" })}
-        </p>
+        <LoadingLine label={t("settings.agents.detail.loading", { name: summary?.name ?? "" })} />
       ) : load.kind === "gone" ? (
         <p role="status" className="text-ui text-muted">
           {t("settings.agents.detail.gone")}

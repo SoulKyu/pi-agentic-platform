@@ -1,5 +1,7 @@
 import type { ProviderView } from "@pap/contracts";
-import { Button, Heading, InlineError } from "@pap/ui";
+import { Button, Heading, InlineError, LoadingLine } from "@pap/ui";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { useT } from "../../../i18n/index.ts";
 import { readExtensions, useExtensionRead } from "../extension-read.ts";
 import { codeText } from "../failure.ts";
@@ -24,6 +26,7 @@ export function ExtensionProviders({
   readonly selection: ExtensionSelection;
 }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const state = useExtensionRead();
   const rows = state.status === "ready" ? extensionRows(state.answer, providers) : [];
   const busy = state.status === "reading" || (state.status === "ready" && state.refreshing);
@@ -39,9 +42,7 @@ export function ExtensionProviders({
           : t("settingsAvailability.extensions.again")}
       </Button>
       {state.status === "reading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("settingsAvailability.extensions.reading")}
-        </p>
+        <LoadingLine label={t("settingsAvailability.extensions.reading")} cause={cause} />
       ) : null}
       {state.status === "failed" ? (
         <InlineError announce="background">
@@ -49,9 +50,7 @@ export function ExtensionProviders({
         </InlineError>
       ) : null}
       {state.status === "ready" && state.refreshing ? (
-        <p role="status" className="text-ui text-muted">
-          {t("settingsAvailability.extensions.reading")}
-        </p>
+        <LoadingLine label={t("settingsAvailability.extensions.reading")} cause={cause} />
       ) : null}
       {state.status === "ready" ? (
         <>

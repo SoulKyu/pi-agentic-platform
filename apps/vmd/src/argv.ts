@@ -168,5 +168,7 @@ export function buildArgv(request: ImageBuildRequest, contextDir: string, docker
     "--output",
     `type=image,name=${imageRef(request.tag)},unpack=true`,
     ...(request.layer === "base" ? ["--no-cache"] : []),
+    // Plain lines even without a terminal, so the tail has something to read (launch progress).
+    "--progress=plain",
   ];
 }

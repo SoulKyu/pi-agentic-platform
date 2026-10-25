@@ -14,8 +14,10 @@ import { createAgentTasks } from "./agent-tasks.ts";
 import { createAgentBudget } from "./agent-budget.ts";
 import { type BootReport, recoverTasks } from "./boot.ts";
 import { createAutomationEvents } from "./events.ts";
+import type { ImageWait } from "./image-wait.ts";
 import { createFire } from "./fire.ts";
 import { createGates } from "./gates.ts";
+import { createPutOffs, waitingOf } from "./put-off.ts";
 import { createRunLimits } from "./limits.ts";
 import { createAgentStart, createAgentTaskLink } from "./runner-agent.ts";
 import { createThreadStart } from "./runner-thread.ts";
@@ -83,6 +85,8 @@ export interface EngineDeps {
   readonly holdCancel?: boolean;
   /** The agents' ports, bound late (M11); one is made when the caller has none. */
   readonly agents?: AgentBinding;
+  /** Does the task's box build its image now (launch progress)? Absent: no task waits for a build. */
+  readonly imageBuild?: ImageWait;
   /** The health events (Task 3): the runner's failures; one is made when the caller has none. */
   readonly health?: HealthEvents;
 }
@@ -99,7 +103,13 @@ export function createTaskEngine(deps: EngineDeps) {
   const starting = new Map<string, string>();
   const agents = deps.agents ?? createAgentBinding();
   const health = deps.health ?? createHealthEvents(logger);
+  const putOff = createPutOffs((id) => {
+    // A task that waits for something new (or no longer) is told to the board, state unchanged.
+    const row = store.get(id);
+    if (row?.state === "queued") runner.announce(id, row.state);
+  });
   const views = createTaskViews({
+    waiting: (taskId) => waitingOf(putOff.get(taskId)),
     sessions: deps.sessions,
     runs: deps.runs,
     policy: deps.policy,
@@ -131,7 +141,6 @@ export function createTaskEngine(deps: EngineDeps) {
       return agent !== undefined && agent !== null && (agent.paused || agent.quarantinedAt !== null);
     },
   });
-  const putOff = new Map<string, number>();
   const launch = createLaunch({
     db,
     clock,
@@ -196,6 +205,7 @@ export function createTaskEngine(deps: EngineDeps) {
     fire,
     admission,
     putOff,
+    ...(deps.imageBuild ? { imageBuild: deps.imageBuild } : {}),
     starting,
     triggers: deps.triggers,
     marks: deps.triggerMarks,

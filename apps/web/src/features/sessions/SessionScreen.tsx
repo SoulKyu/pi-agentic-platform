@@ -17,13 +17,15 @@ import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
-import { getRuntime } from "../../runtime/index.ts";
+import { getRuntime, RpcError } from "../../runtime/index.ts";
 import "../../i18n/register-sidebar.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts";
-import { useBoxPhase } from "../../stores/box-phase.ts";
+import { useBoxPhase, useBoxProjectId } from "../../stores/box-phase.ts";
+import { LaunchStrip } from "../launch/LaunchStrip.tsx";
+import { LaunchPanel } from "../launch/LaunchPanel.tsx";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
@@ -74,6 +76,7 @@ export function SessionScreen({
   const projectId = useShellStore((state) => state.view.sessions.get(sessionId)?.projectId ?? null);
   // A box repo's own `.pi/` resources do not load in B1, and the host cannot trust a folder it does not hold.
   const inBox = useBoxPhase(view.cwd) !== null;
+  const boxProjectId = useBoxProjectId(view.cwd);
   const dismissedNotices = useDismissedNotices((state) => state.keys);
   const dismissNotice = useDismissedNotices((state) => state.dismiss);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +108,9 @@ export function SessionScreen({
     setError(null);
     runtime.rpc
       .call("sessions.prompt", { sessionId, text: command }, { commandId: runtime.rpc.newCommandId() })
-      .catch((failure: unknown) => setError(failureText(failure)))
+      .catch((failure: unknown) =>
+        setError(failure instanceof RpcError && failure.code === "stopped" ? null : failureText(failure)),
+      )
       .finally(() => {
         commandInFlight.current = false;
       });
@@ -166,6 +171,11 @@ export function SessionScreen({
             )}
           />
         ) : null}
+        <LaunchStrip
+          box={
+            view.status === "starting" && boxProjectId !== null ? { kind: "project", id: boxProjectId } : null
+          }
+        />
         <LimitChip sessionId={sessionId} />
         {projectId === null ? null : (
           <KnowledgeChip projectId={projectId} sessionId={sessionId} status={view.status} cwd={view.cwd} />
@@ -220,6 +230,12 @@ export function SessionScreen({
           onEdit: editHere,
           announce: announcer.say,
         }}
+      />
+      {/* A reopened session waits for its box: the steps of that launch, above the composer. */}
+      <LaunchPanel
+        box={
+          view.status === "starting" && boxProjectId !== null ? { kind: "project", id: boxProjectId } : null
+        }
       />
       {phone ? null : approvals}
       {view.notices.map((notice, index) =>

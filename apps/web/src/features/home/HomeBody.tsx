@@ -14,17 +14,23 @@ export interface HomeBodyProps {
   readonly layout: HomeLayout;
   readonly actions: HomeActions;
   readonly shortcuts: HomeShortcuts;
+  /** The Launch of this screen is running: the box line's step panel is open without a click. */
+  readonly asked?: boolean;
 }
 
 /**
  * Under the composer (§3.2–§3.4): the action row, the status line and Recent work, each hidden from Settings ›
  * Appearance › Home (§6). One lazy chunk with the home's catalog, so the initial bundle carries the composer only (§8).
  */
-export default function HomeBody({ project, layout, actions, shortcuts }: HomeBodyProps) {
+export default function HomeBody({ project, layout, actions, shortcuts, asked = false }: HomeBodyProps) {
   return (
     <div data-home-body="" className="flex flex-col gap-s5">
       {project?.kind === "box" ? (
-        <BoxFact project={project} onSettings={(id) => useProjectSettingsRequest.getState().ask(id)} />
+        <BoxFact
+          project={project}
+          opened={asked}
+          onSettings={(id) => useProjectSettingsRequest.getState().ask(id)}
+        />
       ) : null}
       {project?.kind === "box" ? (
         <GithubHomeEntry

@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { VaultName, type SecretEntry } from "@pap/contracts";
-import { Button, InlineError, TextField, usePendingAction } from "@pap/ui";
+import { Button, InlineError, TextField, usePendingAction, LoadingLine } from "@pap/ui";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -123,9 +123,7 @@ export function SecretsList({ agentId }: { readonly agentId: string }) {
         <p>{t("agentSafety.secrets.notAgainst.backup")}</p>
       </div>
       {load.kind === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("agentSafety.secrets.loading")}
-        </p>
+        <LoadingLine label={t("agentSafety.secrets.loading")} />
       ) : load.kind === "failed" ? (
         <InlineError announce="background">{t("agentSafety.secrets.failed")}</InlineError>
       ) : !load.readable ? (

@@ -1,5 +1,5 @@
 import type { TokenView } from "@pap/contracts";
-import { Button, Chip, Collapsible, EmptyState, InlineError } from "@pap/ui";
+import { Button, Chip, Collapsible, EmptyState, InlineError, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -124,7 +124,7 @@ export function TokensPanel({ onSignedOut }: { onSignedOut(): void }) {
       {error ? <InlineError announce="action">{error}</InlineError> : null}
       {tokens === null ? (
         list.error ? null : (
-          <p className={META}>{t("access.tokens.loading")}</p>
+          <LoadingLine label={t("access.tokens.loading")} />
         )
       ) : tokens.length === 0 ? (
         <EmptyState level={3} title={t("access.tokens.emptyTitle")} purpose={t("access.tokens.empty")} />

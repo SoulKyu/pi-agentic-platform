@@ -1,7 +1,9 @@
 import type { ModelsOverview } from "@pap/contracts";
-import { Button, Chip, InlineError } from "@pap/ui";
+import { Button, Chip, InlineError, LoadingLine } from "@pap/ui";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
 import { piSummary } from "./setup-stepper.vm.ts";
@@ -26,6 +28,7 @@ export function PiStep({
   onSignedOut(): void;
 }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const { stepUp, prompt } = useFirstRunStepUp(onSignedOut);
   const [overview, setOverview] = useState<ModelsOverview | null>(null);
   const [failed, setFailed] = useState(false);
@@ -62,9 +65,7 @@ export function PiStep({
           </Button>
         </div>
       ) : summary === null ? (
-        <p role="status" className="text-ui text-muted">
-          {t("firstRun.pi.loading")}
-        </p>
+        <LoadingLine label={t("firstRun.pi.loading")} cause={cause} />
       ) : ready && !changing ? (
         <div className="flex flex-col items-start gap-s2">
           <Chip tone="ok" label={t("firstRun.pi.ready")} />

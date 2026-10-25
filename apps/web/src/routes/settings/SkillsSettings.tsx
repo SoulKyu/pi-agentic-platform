@@ -1,10 +1,13 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import type { ProjectRef } from "../../features/skills/skills.vm.ts";
 import { useWorkspaceStore } from "../../features/workspace/index.ts";
 import "../../i18n/register-boxes.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
+import { useWaitStart, WaitSinceProvider } from "../../lib/wait-since.tsx";
 import { useEffectiveProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
@@ -35,40 +38,47 @@ function useCameFromProject(): ProjectRef | null {
 /** Settings › Skills in a chunk of its own. The password prompt comes from the shell through its step-up context (MC49). */
 export function SkillsSettings() {
   const t = useT();
+  const cause = usePiCauseText(t);
   const failureText = useLazyFailureText();
   const project = useCameFromProject();
   const inBox = useEffectiveProject()?.kind === "box";
   const { Lazy, attempt, retry } = useRetryableLazy(loadSkills);
+  const wait = useWaitStart(attempt);
   const [failed, setFailed] = useState(false);
   return (
     <>
-      <LazyBoundary
-        resetKey={attempt}
-        onError={(error) => {
-          setFailed(true);
-          notifyLazyFailure(error, failureText);
-        }}
-        fallback={
-          failed ? (
-            <div>
-              <Button
-                onClick={() => {
-                  setFailed(false);
-                  retry();
-                }}
-              >
-                {t("settings.skills.retry")}
-              </Button>
-            </div>
-          ) : (
-            <p role="status" className="text-ui text-muted">
-              {t("settings.skills.loading")}
-            </p>
-          )
-        }
-      >
-        <Lazy project={project} />
-      </LazyBoundary>
+      <WaitSinceProvider value={wait}>
+        <LazyBoundary
+          resetKey={attempt}
+          onError={(error) => {
+            setFailed(true);
+            notifyLazyFailure(error, failureText);
+          }}
+          fallback={
+            failed ? (
+              <div>
+                <Button
+                  onClick={() => {
+                    setFailed(false);
+                    retry();
+                  }}
+                >
+                  {t("settings.skills.retry")}
+                </Button>
+              </div>
+            ) : (
+              <LoadingLine
+                label={t("settings.skills.loading")}
+                since={wait.since}
+                deferred={false}
+                cause={cause}
+              />
+            )
+          }
+        >
+          <Lazy project={project} />
+        </LazyBoundary>
+      </WaitSinceProvider>
       {inBox ? (
         <p role="note" className="text-ui text-muted">
           {t("boxes.off")}

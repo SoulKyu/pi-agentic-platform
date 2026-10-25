@@ -1,8 +1,10 @@
 import type { VcsFile } from "@pap/contracts";
-import { Banner, Button, Spinner } from "@pap/ui";
+import { Banner, Button, LoadingLine } from "@pap/ui";
 import { DiffView, languageFor } from "@pap/ui/code";
 import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { useBoxCauseText } from "../../stores/loading-cause.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { absolutePath, countsOf, rowPath } from "./changes.vm.ts";
 import { useFileDiff, type DiffTarget } from "./use-file-diff.ts";
@@ -26,6 +28,7 @@ const signatureOf = (file: VcsFile): string =>
 /** One changed file against the last commit: the merge view, or the reason there is none (binary, too large, folder). */
 export function FileDiff({ root, file, onOpenFile }: FileDiffProps) {
   const t = useT();
+  const cause = useBoxCauseText(t, root);
   const [attempt, setAttempt] = useState(0);
   const skip = file.folder || file.binary;
   const target: DiffTarget | null = skip
@@ -80,8 +83,8 @@ export function FileDiff({ root, file, onOpenFile }: FileDiffProps) {
     );
   } else {
     body = (
-      <div className="flex items-center gap-s2 p-s3 text-ui text-muted">
-        <Spinner label={t("changes.diff.loading")} />
+      <div className="p-s3">
+        <LoadingLine label={t("changes.diff.loading")} cause={cause} />
       </div>
     );
   }

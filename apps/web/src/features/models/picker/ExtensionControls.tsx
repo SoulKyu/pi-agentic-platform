@@ -1,7 +1,9 @@
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import "../../../i18n/register-model-picker.ts";
 import { plural, useLocale, useT } from "../../../i18n/index.ts";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { busy, readExtensions, type ExtensionRead } from "../extension-read.ts";
 import { codeText } from "../failure.ts";
 import type { ExtensionView } from "./extension-models.vm.ts";
@@ -20,6 +22,7 @@ interface Props {
 export function ExtensionControls({ read, view }: Props) {
   const t = useT();
   const locale = useLocale();
+  const cause = usePiCauseText(t);
   const focusSearch = useFocusSearch();
   const start = () => {
     readExtensions();
@@ -35,7 +38,6 @@ export function ExtensionControls({ read, view }: Props) {
   const running = busy(read);
   const lines: string[] = [];
   // A read again started elsewhere (a Settings write) is a read too: busy line, no button that would do nothing (M8).
-  if (running) lines.push(t("modelPicker.extensions.reading"));
   if (view && !view.failed) {
     if (view.total === 0) lines.push(t("modelPicker.extensions.empty"));
     if (view.models.length > 0)
@@ -61,6 +63,7 @@ export function ExtensionControls({ read, view }: Props) {
         : t("modelPicker.extensions.again");
   return (
     <div data-extension-controls className="flex flex-col items-start gap-s1 px-s2">
+      {running ? <LoadingLine label={t("modelPicker.extensions.reading")} cause={cause} /> : null}
       <div role="status" className="flex flex-col gap-s1 text-ui text-muted">
         {lines.map((line) => (
           <p key={line}>{line}</p>

@@ -1,7 +1,17 @@
 // @vitest-environment happy-dom
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { button, click, field, mount, press, text, typeInto } from "../../../testing/dom.ts";
+import {
+  button,
+  click,
+  field,
+  mount,
+  press,
+  text,
+  typeInto,
+  useLoadingClock,
+  pastLoadingDelay,
+} from "../../../testing/dom.ts";
 import ModelList, { type ModelListProps } from "./ModelList.tsx";
 import { modelKey, toPickerModel, type PickerModel } from "./model-picker.vm.ts";
 import type { AvailableState } from "./use-available-models.ts";
@@ -212,8 +222,10 @@ describe("ModelList touch and scroll", () => {
 
 describe("ModelList states", () => {
   it("loading is announced", async () => {
+    useLoadingClock();
     await show({ state: { status: "loading" } });
-    expect(document.querySelector('[role="status"]')?.textContent).toBe("Loading models…");
+    await pastLoadingDelay();
+    expect(document.querySelector('[role="status"]')?.textContent).toContain("Loading models…");
     expect(options()).toHaveLength(0);
   });
 

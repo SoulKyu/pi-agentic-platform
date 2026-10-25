@@ -62,6 +62,7 @@ export const en = {
     "pap is at capacity: every worker slot is in use. Nothing was started. Try again when a session finishes, or stop one.",
   "error.capacityWorkers": "{used} / {max} workers running.",
   "error.worker_failed": "The session process stopped. The transcript is intact. Send again to restart it.",
+  "error.stopped": "Stopped.",
   "error.timeout":
     "The session did not answer in time. The action may still have gone through: check before trying again.",
   "error.prompt_rejected": "The session could not start this prompt. Check the model and provider settings.",

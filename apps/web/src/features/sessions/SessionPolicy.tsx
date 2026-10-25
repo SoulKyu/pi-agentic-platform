@@ -1,5 +1,6 @@
 import { APPROVAL_MODES, type ApprovalMode, type SessionPolicyView } from "@pap/contracts";
-import { Button, Chip, Heading, InlineError } from "@pap/ui";
+import { Button, Chip, Heading, InlineError, LoadingLine } from "@pap/ui";
+import { useWaitStart } from "../../lib/wait-since.tsx";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useId, useRef, useState } from "react";
@@ -70,6 +71,7 @@ export function SessionPolicy({
   const root = useRef<HTMLDivElement | null>(null);
   const [asking, setAsking] = useState<Asking>(null);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const rulesWait = useWaitStart(Number(rulesOpen));
   const [outcome, setOutcome] = useState<string | null>(null);
   const setMode = useAction();
   const clearTaint = useAction();
@@ -254,9 +256,9 @@ export function SessionPolicy({
             </Button>
           </div>
           {cwd === "" ? (
-            <p className="text-ui text-muted">{t("rules.loading")}</p>
+            <LoadingLine label={t("rules.loading")} since={rulesWait.since} deferred={false} />
           ) : (
-            <AlwaysRules cwd={cwd} />
+            <AlwaysRules cwd={cwd} since={rulesWait.since} />
           )}
         </section>
       ) : null}

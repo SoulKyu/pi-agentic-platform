@@ -1,6 +1,6 @@
 import "./register-lane-new-catalog.ts";
 import type { ModelPick, ProjectSummary, ResultOf } from "@pap/contracts";
-import { Button, Select, TextField, useIsPhone, InlineError } from "@pap/ui";
+import { Button, LoadingLine, Select, TextField, useIsPhone, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
@@ -198,7 +198,7 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
         ) : null}
         {preview === null ? (
           error === null ? (
-            <p className="text-ui text-muted">{t("laneNew.loading")}</p>
+            <LoadingLine label={t("laneNew.loading")} />
           ) : (
             <InlineError announce="background">{t(error)}</InlineError>
           )

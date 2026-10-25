@@ -1,5 +1,5 @@
 import "./register-lanes-catalog.ts";
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -69,11 +69,7 @@ export function ScriptLogDialog({ laneId, onClose }: { readonly laneId: string; 
           <p className="text-ui text-muted">{t("lanes.log.empty")}</p>
         ) : null}
         {log?.capped === true ? <p className="text-ui text-muted">{t("lanes.log.capped")}</p> : null}
-        {loading ? (
-          <p role="status" className="text-ui text-muted">
-            {t("lanes.log.loading")}
-          </p>
-        ) : null}
+        {loading ? <LoadingLine label={t("lanes.log.loading")} /> : null}
         {failed ? (
           <div className="flex flex-col items-start gap-s2">
             <InlineError announce="background">{t("lanes.log.failed")}</InlineError>

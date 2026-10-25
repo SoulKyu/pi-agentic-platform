@@ -40,12 +40,17 @@ import {
   vaultRootOf,
 } from "./modules/secrets/index.ts";
 import { SUBAGENTS_MIGRATIONS } from "./modules/subagents/index.ts";
+import { AGENT_VM_MIGRATIONS } from "./modules/agent-vm/index.ts";
 
 /** A composition without the file store (tests): no imported prompts. */
 const NO_AGENT_FILES = { list: () => [], readOne: async () => null };
 
 /** The migration sources of M11's new modules. The session kinds migration is the sessions module's own. */
-export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [AGENTS_MIGRATIONS, SUBAGENTS_MIGRATIONS];
+export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [
+  AGENTS_MIGRATIONS,
+  SUBAGENTS_MIGRATIONS,
+  AGENT_VM_MIGRATIONS,
+];
 
 export type { M11, M11Core, M11Modules } from "./compose-m11-types.ts";
 

@@ -217,9 +217,29 @@ describe("composePi", () => {
     expect(child.sent[0]).toMatchObject({ type: "helper_run", agentDir: "/pi/agent", papHome: "/pap-home" });
     state.children.push(new FakeChild());
     pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
-    expect(() => pi.helpers.run("ping", {}, { deadlineMs: 1000 })).toThrow(
-      expect.objectContaining({ code: "capacity" }),
-    );
+    pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    expect(pi.helpers.status()).toEqual({ active: 2, max: 2, waiting: 1 });
+  });
+
+  it("tells the owners that watch launches the helper counts, once a second, with no ids", async () => {
+    const clock = createFakeClock();
+    const sent: Array<[string, string, unknown]> = [];
+    const base = deps();
+    const pi = composePi({
+      ...base,
+      clock,
+      hub: {
+        ...base.hub,
+        publish: (stream: string, key: string, event: unknown) => void sent.push([stream, key, event]),
+      },
+    } as unknown as ComposePiDeps);
+    pi.bindHelperOwners(() => ["u1", "u2"]);
+    state.children.push(new FakeChild());
+    pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    expect(sent).toEqual([
+      ["launches", "u1", { kind: "helpers", helpers: { active: 1, max: 2, waiting: 0 } }],
+      ["launches", "u2", { kind: "helpers", helpers: { active: 1, max: 2, waiting: 0 } }],
+    ]);
   });
 
   it("follows the worker entry's extension in development, and enables the test ops only with a test script", () => {

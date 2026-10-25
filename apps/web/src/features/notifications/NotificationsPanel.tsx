@@ -1,6 +1,7 @@
 import "../../i18n/register-notifications.ts";
 import "../../i18n/register-push.ts";
 import { Button, InlineError, usePendingAction } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
 import { useMemo, useState, type ReactNode } from "react";
 import { getLocale, useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError, windowTimers } from "../../runtime/index.ts";
@@ -41,12 +42,7 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
   const [notice, setNotice] = useState<Notice>(null);
   const [testNotice, setTestNotice] = useState<Notice>(null);
 
-  if (loaded.kind === "loading")
-    return (
-      <p role="status" className="text-ui text-muted">
-        {t("notifications.loading")}
-      </p>
-    );
+  if (loaded.kind === "loading") return <WaitLine label={t("notifications.loading")} />;
   if (loaded.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">

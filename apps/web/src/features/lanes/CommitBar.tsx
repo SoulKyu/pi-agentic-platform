@@ -1,6 +1,6 @@
 import "./register-lane-commit-catalog.ts";
 import type { LaneView } from "@pap/contracts";
-import { Button, TextField, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine, TextField } from "@pap/ui";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
@@ -96,10 +96,10 @@ function Bar({ lane, worktree }: { readonly lane: LaneView; readonly worktree: s
           >
             {plural(locale, "laneCommit.files", count, { n: bar.ticked })}
           </Button>
+        ) : bar.watchFailed ? (
+          <span className="text-ui text-muted">{t("laneCommit.files.failed")}</span>
         ) : (
-          <span className="text-ui text-muted">
-            {t(bar.watchFailed ? "laneCommit.files.failed" : "laneCommit.files.loading")}
-          </span>
+          <LoadingLine label={t("laneCommit.files.loading")} />
         )}
         <span className="ml-auto flex flex-wrap items-center gap-s2">
           <Button

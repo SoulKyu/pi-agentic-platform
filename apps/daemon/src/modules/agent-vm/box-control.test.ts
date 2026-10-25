@@ -5,7 +5,13 @@ import { type BoxPhase, DEFAULT_AGENT_RESOURCES, PapError } from "@pap/contracts
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { BoxOps, ProjectBoxRow } from "../../kernel/boxes.ts";
 import { silentLogger } from "../../kernel/logger.ts";
-import { type BoxControlDeps, createBoxControl, createBoxOps, type ProjectImages } from "./index.ts";
+import {
+  type BoxControlDeps,
+  createBoxControl,
+  createBoxOps,
+  createLaunchRegistry,
+  type ProjectImages,
+} from "./index.ts";
 import { CRASH_LIMIT } from "./lifecycle.ts";
 import { projectLayoutOf } from "./project-layout.ts";
 import {
@@ -46,11 +52,13 @@ function make(client: FakeVmd = fake) {
   const images = {
     tagOf: vi.fn(async () => IMAGE),
     setWanted: (_id: string, packages: readonly string[]) => void wanted.push(packages),
-    rebuild: vi.fn<(id: string, running: boolean) => Promise<void>>(async () => {}),
+    rebuild: vi.fn<(id: string, running: boolean, observe?: unknown) => Promise<void>>(async () => {}),
     packages: () => ({ built: [], wanted: null }),
     forget: vi.fn(),
   } satisfies ProjectImages;
+  const launches = createLaunchRegistry({ clock: b.clock, logger: silentLogger });
   const control = createBoxControl({
+    launches,
     runtime: b.runtime,
     ops,
     source: () => ({ box: () => row, ownerBoxes: () => [], byPath: () => null, addHost: () => {} }),
@@ -62,7 +70,7 @@ function make(client: FakeVmd = fake) {
     gate: (box) => gate(box),
   });
   control.onPhase((_id, phase) => void phases.push(phase));
-  return { control, images, ops };
+  return { control, images, ops, launches };
 }
 
 beforeEach(async () => {
@@ -121,7 +129,7 @@ describe("start", () => {
       resources: ROW.resources,
     });
     expect(b.guestAt(0).spawned).toEqual([]);
-    expect(images.tagOf).toHaveBeenCalledWith(PROJECT_ID);
+    expect(images.tagOf).toHaveBeenCalledWith(PROJECT_ID, expect.anything());
     expect(wanted).toEqual([["jq"]]);
   });
 
@@ -250,6 +258,27 @@ describe("idle stop", () => {
   });
 });
 
+describe("a launch the control did not ask for", () => {
+  it("a session launch marks its box starting from the checks step", () => {
+    const { control, launches } = make();
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+    const handle = launches.open({ box: BOX, owner: "owner", for: "session-1" });
+    handle.step("checks", "running");
+    expect(control.phase(PROJECT_ID)).toBe("starting");
+    expect(phases).toEqual(["starting"]);
+    handle.end(true);
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+    expect(phases).toEqual(["starting", "stopped"]);
+  });
+
+  it("a launch of another box changes nothing", () => {
+    const { control, launches } = make();
+    launches.open({ box: { kind: "agent", id: "agent-aaaaaa" }, owner: "owner", for: "thread" });
+    expect(control.phase(PROJECT_ID)).toBe("stopped");
+    expect(phases).toEqual([]);
+  });
+});
+
 describe("onPhase", () => {
   it("reports each phase once", async () => {
     const { control } = make();
@@ -285,7 +314,7 @@ describe("rootOf and packages", () => {
     const { control, images } = make();
     expect(control.rootOf(PROJECT_ID)).toBe(projectLayoutOf("process", root, PROJECT_ID).project);
     await control.rebuild(PROJECT_ID);
-    expect(images.rebuild).toHaveBeenCalledWith(PROJECT_ID, false);
+    expect(images.rebuild).toHaveBeenCalledWith(PROJECT_ID, false, expect.anything());
     expect(control.packages(PROJECT_ID)).toEqual({ built: [], wanted: null });
   });
 });

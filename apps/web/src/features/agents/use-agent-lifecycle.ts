@@ -1,5 +1,6 @@
 import type { AgentSummary } from "@pap/contracts";
 import { useVmStatus } from "../../lib/use-vm-status.ts";
+import { useIsLaunching } from "../../stores/launch-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { agentLifecycle, type Lifecycle } from "./agent-lifecycle.ts";
 
@@ -12,6 +13,10 @@ export function useAgentLifecycle(agent: AgentSummary, sessionId: string | null)
     sessionId === null ? null : (state.views[sessionId]?.status ?? null),
   );
   const { status } = useVmStatus();
-  const phase = status?.agents.find((entry) => entry.id === agent.id)?.phase ?? null;
+  // A live launch is the VM waking up, said at once; the one-shot status only fills in what no launch says.
+  const launching = useIsLaunching({ kind: "agent", id: agent.id });
+  const phase = launching
+    ? "starting"
+    : (status?.agents.find((entry) => entry.id === agent.id)?.phase ?? null);
   return agentLifecycle(agent, session, phase);
 }

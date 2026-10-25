@@ -1,6 +1,9 @@
 import "./register-mcp-catalog.ts";
 import type { McpServerView, McpTestResult } from "@pap/contracts";
 import { Button, InlineError, useIsPhone } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -38,6 +41,7 @@ export function McpSection(props: { readonly stepUp: StepUpRunner; readonly cwd:
 
 function McpPanel({ stepUp, cwd }: { readonly stepUp: StepUpRunner; readonly cwd: string | undefined }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const phone = useIsPhone();
   const list = useMcpOverview(cwd);
   const overview = list.value;
@@ -72,9 +76,7 @@ function McpPanel({ stepUp, cwd }: { readonly stepUp: StepUpRunner; readonly cwd
             <Button onClick={list.reload}>{t("settingsMcp.retry")}</Button>
           </>
         ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settingsMcp.loading")}
-          </p>
+          <WaitLine label={t("settingsMcp.loading")} cause={cause} />
         )}
       </div>
     );

@@ -59,6 +59,8 @@ const OPENERS: {
   agents: (rpc, _key, after) => rpc.call("subscribe.agents", after ? { after } : {}),
   // The daemon-wide ops stream, like `shell`: the key is a local name (spec §4).
   ops: (rpc, _key, after) => rpc.call("subscribe.ops", after ? { after } : {}),
+  // The caller's own live launches and the Pi helper counts, like `shell`: the key is a local name.
+  launches: (rpc, _key, after) => rpc.call("subscribe.launches", after ? { after } : {}),
 };
 
 interface Listener {

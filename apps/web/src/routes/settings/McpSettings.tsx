@@ -1,8 +1,11 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import "../../i18n/register-boxes.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
+import { useWaitStart, WaitSinceProvider } from "../../lib/wait-since.tsx";
 import { useEffectiveProject } from "../../stores/current-project.ts";
 import { useSettingsStepUp } from "./use-settings-step-up.ts";
 
@@ -16,6 +19,7 @@ const loadMcp = () =>
  */
 export function McpSettings() {
   const t = useT();
+  const cause = usePiCauseText(t);
   const failureText = useLazyFailureText();
   const { stepUp, prompt } = useSettingsStepUp();
   const project = useEffectiveProject();
@@ -23,37 +27,43 @@ export function McpSettings() {
   const inBox = project?.kind === "box";
   const cwd = inBox ? undefined : project?.root;
   const { Lazy, attempt, retry } = useRetryableLazy(loadMcp);
+  const wait = useWaitStart(attempt);
   const [failed, setFailed] = useState(false);
 
   return (
     <>
-      <LazyBoundary
-        resetKey={attempt}
-        onError={(error) => {
-          setFailed(true);
-          notifyLazyFailure(error, failureText);
-        }}
-        fallback={
-          failed ? (
-            <div>
-              <Button
-                onClick={() => {
-                  setFailed(false);
-                  retry();
-                }}
-              >
-                {t("settings.mcp.retry")}
-              </Button>
-            </div>
-          ) : (
-            <p role="status" className="text-ui text-muted">
-              {t("settings.mcp.loading")}
-            </p>
-          )
-        }
-      >
-        <Lazy stepUp={stepUp} cwd={cwd} />
-      </LazyBoundary>
+      <WaitSinceProvider value={wait}>
+        <LazyBoundary
+          resetKey={attempt}
+          onError={(error) => {
+            setFailed(true);
+            notifyLazyFailure(error, failureText);
+          }}
+          fallback={
+            failed ? (
+              <div>
+                <Button
+                  onClick={() => {
+                    setFailed(false);
+                    retry();
+                  }}
+                >
+                  {t("settings.mcp.retry")}
+                </Button>
+              </div>
+            ) : (
+              <LoadingLine
+                label={t("settings.mcp.loading")}
+                since={wait.since}
+                deferred={false}
+                cause={cause}
+              />
+            )
+          }
+        >
+          <Lazy stepUp={stepUp} cwd={cwd} />
+        </LazyBoundary>
+      </WaitSinceProvider>
       {inBox ? (
         <p role="note" className="text-ui text-muted">
           {t("boxes.off")}

@@ -6,6 +6,7 @@ import { type BoxWiringDeps, composeBoxWiring, projectNoticeOf } from "./compose
 import { composeBoxes } from "./compose-boxes.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
+import { createLaunchRegistry } from "./modules/agent-vm/index.ts";
 import { createFakeProjectBoxSource } from "./kernel/testing/fake-boxes.ts";
 import type { SessionRow } from "./modules/sessions/index.ts";
 import { captureLogger } from "./testing/capture-logger.ts";
@@ -31,15 +32,17 @@ function build(logger = silentLogger) {
     reopen: () => {},
     link: () => undefined,
   };
+  const clock = createFakeClock();
   const deps = {
     vm: {
       runtime,
+      launches: createLaunchRegistry({ clock, logger }),
       boxes,
       boxStack: { backend: "process", client: null, gate: async () => {} },
       resourceHost: () => ({ memoryCapMb: 8192, cores: 4 }),
     },
     projects: { boxSource, port: { list: () => [{ name: "Api" }] }, bindBoxes },
-    clock: createFakeClock(),
+    clock,
     logger,
     home: HOME,
     requireStepUp: () => {},

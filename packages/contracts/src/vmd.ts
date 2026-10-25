@@ -79,6 +79,8 @@ export const VmdRequest = z.discriminatedUnion("op", [
       (build) => build.layer !== "profile" || build.aptPackages.length === 0,
       "the profile layer has no apt packages",
     ),
+  /** Read-only: the last line BuildKit printed for `tag` and when. No caller names a path or a command. */
+  z.object({ op: z.literal("image.progress"), tag: Tag, tail: z.literal(true).optional() }).strict(),
   z.object({ op: z.literal("image.list") }).strict(),
   z.object({ op: z.literal("image.prune"), keep: z.array(Tag).max(256) }).strict(),
   z.object({ op: z.literal("version") }).strict(),
@@ -98,6 +100,20 @@ export const VmdHealth = z
     stateFreeMb: z.number().int().min(0),
   })
   .strict();
+/** `image.progress`'s result: `lines` counts the tail kept, `last` is null before the first line (or when nothing builds). */
+export const VmdImageProgress = z
+  .object({
+    building: z.boolean(),
+    lines: z.number().int().min(0).max(200),
+    last: z
+      .object({ line: z.string().max(512), at: z.number().int().nonnegative() })
+      .strict()
+      .nullable(),
+    /** Only when the request asked for it (`launches.log`): the kept lines, oldest first, cut to fit one frame. */
+    tail: z.array(z.string().max(512)).max(200).optional(),
+  })
+  .strict();
+export type VmdImageProgress = z.infer<typeof VmdImageProgress>;
 export const VmdResponse = z.discriminatedUnion("ok", [
   z.object({ ok: z.literal(true), result: z.unknown() }).strict(),
   z

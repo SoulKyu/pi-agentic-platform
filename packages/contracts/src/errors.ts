@@ -8,6 +8,7 @@ export const ERROR_CODES = [
   "payload_too_large",
   "capacity",
   "worker_failed",
+  "stopped",
   "timeout",
   "prompt_rejected",
   "invalid_cwd",
@@ -28,6 +29,7 @@ export const ERROR_CODES = [
   "automation_paused",
   "budget_reached",
   "disk_low",
+  "pi_busy",
   "sandbox_unavailable",
   "agent_paused",
   "vm_bundle_stale",
@@ -52,6 +54,7 @@ export const AGENT_GATE_ERRORS = [
   "agent_paused",
   "vm_bundle_stale",
   "invalid_cwd",
+  "stopped",
 ] as const satisfies readonly ErrorCode[];
 
 export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
@@ -64,6 +67,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   payload_too_large: "The request is too large.",
   capacity: "The server is at capacity. Try again later.",
   worker_failed: "The session process failed.",
+  stopped: "The launch was stopped.",
   timeout: "The session process did not answer in time.",
   prompt_rejected: "The session could not start this prompt. Check the model and provider settings.",
   invalid_cwd: "The working directory must be an absolute path to an existing folder.",
@@ -86,6 +90,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   automation_paused: "Automation is paused. Resume it on the Tasks board or in Settings › Automation.",
   budget_reached:
     "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
+  pi_busy: "Pi is busy: too many reads are waiting. Nothing was read. Try again in a moment.",
   disk_low:
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
   sandbox_unavailable: "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`.",
@@ -114,15 +119,24 @@ export interface WorkerCounts {
   readonly max: number;
 }
 
+/** The box memory in use against its cap, in MB: the numbers behind a `capacity` refusal of a VM start. */
+export interface MemoryCounts {
+  readonly used: number;
+  readonly max: number;
+}
+
 export class PapError extends Error {
   readonly code: ErrorCode;
   /** Additive detail for a `capacity` refusal; absent when the daemon did not count (a closing server). */
   readonly workers?: WorkerCounts;
+  /** Additive detail for a `capacity` refusal of the boxes' memory cap (a VM start); never on the wire. */
+  readonly memory?: MemoryCounts;
 
-  constructor(code: ErrorCode, detail?: { readonly workers?: WorkerCounts }) {
+  constructor(code: ErrorCode, detail?: { readonly workers?: WorkerCounts; readonly memory?: MemoryCounts }) {
     super(ERROR_MESSAGES[code]);
     this.name = "PapError";
     this.code = code;
     if (detail?.workers) this.workers = detail.workers;
+    if (detail?.memory) this.memory = detail.memory;
   }
 }

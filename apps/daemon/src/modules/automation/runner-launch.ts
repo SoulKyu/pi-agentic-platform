@@ -5,6 +5,7 @@ import type { Settlement } from "../../kernel/outbox/index.ts";
 import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import type { RunLimits } from "./limits.ts";
+import type { PutOff } from "./put-off.ts";
 import type { Move, TaskRow, TaskStore } from "./tasks.ts";
 
 type Settle = (row: TaskRow, from: readonly TaskState[], to: TaskState, change?: Move) => boolean;
@@ -16,7 +17,7 @@ export interface LaunchDeps {
   readonly marks: { started(ownerId: string, triggerId: string, at: number): void };
   /** The tasks being started and the ones put off: a task that is running now is neither. */
   readonly starting: Map<string, string>;
-  readonly putOff: Map<string, number>;
+  readonly putOff: Map<string, PutOff>;
   readonly announce: (id: string, previous: TaskState) => void;
   readonly limits: Pick<RunLimits, "started">;
   readonly runs: Pick<RunsPort, "expectOrigin" | "clearExpected">;
@@ -74,7 +75,8 @@ export function createLaunch(deps: LaunchDeps) {
       });
     } catch (error) {
       deps.runs.clearExpected(sessionId);
-      deps.settle(started, ["running"], "failed", { reason: reasonOf(error) });
+      const reason = reasonOf(error);
+      deps.settle(started, ["running"], reason === "stopped" ? "cancelled" : "failed", { reason });
       return done;
     }
     if (disposition !== "started") {

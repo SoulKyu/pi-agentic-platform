@@ -26,7 +26,11 @@ export interface ExecResult {
 /** Runs one program (`argv[0]`) with fixed arguments, never through a shell; resolves with the exit code, never rejects. */
 export type Exec = (
   argv: readonly string[],
-  options?: { readonly timeoutMs?: number },
+  options?: {
+    readonly timeoutMs?: number;
+    /** Told each output line as the program prints it (blank lines dropped); the result still holds the whole output. */
+    readonly onLine?: (line: string, stream: "stdout" | "stderr") => void;
+  },
 ) => Promise<ExecResult>;
 
 /** AVM-P11: T16a's network port. `allocate` picks the VM's address and MAC (R22); `attach` and `detach` fill and empty the guard set. */
@@ -110,6 +114,8 @@ export function createOps(deps: OpsDeps): Ops {
       }
       case "image.build":
         return image.build(request);
+      case "image.progress":
+        return Promise.resolve(image.progress(request));
       case "image.list":
         return image.list();
       case "image.prune":

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, type MockInstance, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../clock.ts";
 import { type LogFields, type Logger, silentLogger } from "../../logger.ts";
 import { killAllWorkerGroups } from "../../supervisor/process-group.ts";
-import { createHelperPool, type HelperPool } from "../pool.ts";
+import { createHelperPool, type CountedHelperPool, type HelperPoolOptions } from "../pool.ts";
 
 /** What a test file's `vi.mock("node:child_process")` factory reads: the children `fork` hands out, in order. */
 export interface ForkState {
@@ -52,10 +52,10 @@ export interface StartOptions {
 export function useHelperBed(state: ForkState) {
   const bed = {
     clock: undefined as unknown as FakeClock,
-    pool: undefined as unknown as HelperPool,
+    pool: undefined as unknown as CountedHelperPool,
     kill: undefined as unknown as MockInstance<typeof process.kill>,
     logs: [] as Array<{ level: string; msg: string; fields: LogFields | undefined }>,
-    makePool(max = 4): HelperPool {
+    makePool(max = 4, onChange?: HelperPoolOptions["onChange"]): CountedHelperPool {
       const logger: Logger = {
         ...silentLogger,
         warn: (msg, fields) => void bed.logs.push({ level: "warn", msg, fields }),
@@ -69,6 +69,7 @@ export function useHelperBed(state: ForkState) {
         papHome: "/pap",
         extraEnv: {},
         max,
+        ...(onChange ? { onChange } : {}),
         clock: bed.clock,
         logger,
       });

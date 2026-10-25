@@ -1,5 +1,5 @@
 import { TriggerView } from "@pap/contracts";
-import { InlineError, Spinner } from "@pap/ui";
+import { InlineError, LoadingLine } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -45,7 +45,7 @@ function SavedTrigger({ triggerId, onOpenSession }: Pick<TriggerEditorProps, "tr
     };
   }, [triggerId]);
 
-  if (loaded.kind === "loading") return <Spinner label={t("automation.editor.loading")} />;
+  if (loaded.kind === "loading") return <LoadingLine label={t("automation.editor.loading")} />;
   if (loaded.kind === "failed")
     return (
       <div className="p-s3">

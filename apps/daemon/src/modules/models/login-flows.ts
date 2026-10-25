@@ -142,7 +142,7 @@ export function createLoginFlows(deps: LoginFlowsDeps) {
   }
 
   return {
-    /** Throws `capacity` (2 live flows for the owner, or a full pool) or `conflict` (a live flow for the provider). */
+    /** Throws `capacity` (2 live flows for the owner) or `pi_busy` (a full pool: a sign-in never queues) or `conflict` (a live flow for the provider). */
     start(ownerId: string, provider: string, method: LoginMethod): string {
       const live = [...flows.values()].filter((flow) => !flow.ended);
       if (live.filter((flow) => flow.ownerId === ownerId).length >= LOGIN_LIMITS.perOwner)
@@ -161,7 +161,7 @@ export function createLoginFlows(deps: LoginFlowsDeps) {
         signedIn: false,
         idle: null,
       };
-      // The pool refuses with `capacity` before anything exists; nothing between the checks above and the entry below awaits.
+      // The pool refuses with `pi_busy` before anything exists; nothing between the checks above and the entry below awaits.
       const handle = deps.helpers.run(
         "auth.login",
         { provider, method },

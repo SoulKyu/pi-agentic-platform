@@ -31,8 +31,8 @@ import type { Wire } from "./vm-worker.ts";
 export interface Gateway {
   /** Listens on `host:port` (the bridge address under Kata, 127.0.0.1:0 under the process backend). */
   listen(host: string, port: number): Promise<{ port: number }>;
-  /** Resolves when the guest of this launch has said hello; rejects `timeout` after GUEST_BOOT_TIMEOUT_MS (RT-35). */
-  awaitGuest(launchId: string): Promise<GuestLink>;
+  /** Resolves when the guest of this launch has said hello; rejects `timeout` after GUEST_BOOT_TIMEOUT_MS (RT-35), and `worker_failed` at once when `signal` aborts (a stop). */
+  awaitGuest(launchId: string, signal?: AbortSignal): Promise<GuestLink>;
   close(): Promise<void>;
 }
 
@@ -274,8 +274,8 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
   return {
     accept,
     listen: () => Promise.reject(new Error("the core has no listener")),
-    awaitGuest(launchId) {
-      if (stopped) return Promise.reject(new PapError("worker_failed"));
+    awaitGuest(launchId, signal) {
+      if (stopped || signal?.aborted) return Promise.reject(new PapError("worker_failed"));
       const live = guests.get(launchId);
       if (live) return Promise.resolve(live.link);
       // AVM-E10: a launch has one guest in its lifetime; one that left cannot come back, so nobody waits for it.
@@ -285,11 +285,21 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         const mine = waiters.get(launchId) ?? new Set<Waiter>();
         waiters.set(launchId, mine);
         mine.add(waiter);
-        waiter.timer = clock.setTimeout(() => {
+        const forget = (): void => {
           mine.delete(waiter);
           if (mine.size === 0) waiters.delete(launchId);
+        };
+        waiter.timer = clock.setTimeout(() => {
+          forget();
+          signal?.removeEventListener("abort", onAbort);
           reject(new PapError("timeout"));
         }, GUEST_BOOT_TIMEOUT_MS);
+        function onAbort(): void {
+          if (waiter.timer) clock.clearTimeout(waiter.timer);
+          forget();
+          reject(new PapError("worker_failed"));
+        }
+        signal?.addEventListener("abort", onAbort, { once: true });
       });
     },
     close() {

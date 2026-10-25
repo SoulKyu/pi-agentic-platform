@@ -1,6 +1,6 @@
 import "../../i18n/register-sidebar.ts";
 import type { ShellSession } from "@pap/contracts";
-import { Banner, Button, Collapsible, Heading, TextField } from "@pap/ui";
+import { Banner, Button, Collapsible, Heading, LoadingLine, TextField } from "@pap/ui";
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { errorKey, plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -10,7 +10,6 @@ import { useLaneStore } from "../../stores/lane-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { ArchivedLanesEntry, type ArchivedLanesProps } from "./ArchivedLanesEntry.tsx";
 import { ArchivedShelf } from "./ArchivedShelf.tsx";
-import { Loading } from "./Loading.tsx";
 import { useFocusFallback } from "./menu-focus.ts";
 import { LaneRow } from "./LaneRow.tsx";
 import { ProjectHeading } from "./ProjectHeading.tsx";
@@ -174,7 +173,7 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
       <TextField label={t("sidebar.filter")} value={filter} onChange={setFilter} />
       <SavingStatus pending={pending} />
       {banner}
-      {!view.loaded && !broken ? <Loading label={t("sidebar.loading")} /> : null}
+      {!view.loaded && !broken ? <LoadingLine label={t("sidebar.loading")} /> : null}
       {model.pinned.length > 0 ? (
         <section aria-labelledby={`${uid}-pinned`} className="flex flex-col gap-s1">
           <Heading level={3} variant="card" id={`${uid}-pinned`}>

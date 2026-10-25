@@ -1,7 +1,9 @@
 import type { Exec, ExecResult } from "../ops.ts";
 
+/** A handler may print lines while "running" through `options.onLine`, as the streaming exec would. */
 export type ExecHandler = (
   argv: readonly string[],
+  options?: Parameters<Exec>[1],
 ) => Partial<ExecResult> | undefined | Promise<Partial<ExecResult> | undefined>;
 
 export interface FakeExec {
@@ -22,7 +24,7 @@ export function createFakeExec(handler: ExecHandler = () => undefined): FakeExec
     exec: async (argv, options) => {
       calls.push([...argv]);
       timeouts.push(options?.timeoutMs);
-      return { code: 0, stdout: "", stderr: "", ...(await handler(argv)) };
+      return { code: 0, stdout: "", stderr: "", ...(await handler(argv, options)) };
     },
   };
 }

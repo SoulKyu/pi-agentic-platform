@@ -6,11 +6,14 @@ import type { RunStartEvent } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { PAUSED_MS, requesterQuarantined } from "./runner-agent.ts";
 import type { Launch } from "./runner-launch.ts";
+import { capacityWait, type PutOff } from "./put-off.ts";
 import type { Move, TaskRow, TaskStore } from "./tasks.ts";
 import type { AgentBinding, AgentPorts } from "./trigger-agent.ts";
 
 /** A thread that is not idle waits this long, and so does a task behind another of the same agent: not an attempt (M11R71). */
 export const THREAD_BUSY_MS = 10_000;
+/** A thread that is busy (a run, a prompt, another task) is what the task waits for, not a session slot (R16). */
+const BUSY = { reason: "thread_busy" } as const;
 /** No worker was free for the thread's reopen: the same wait as any other task (M10R154). */
 const CAPACITY_MS = 30_000;
 /** Ended thread tasks looked at when the agents are bound: the newest, a bound on the work. */
@@ -77,7 +80,7 @@ export interface ThreadStartDeps {
   readonly sessions: Pick<SessionsAutomationPort, "admits" | "promptPending">;
   /** The tasks being started, by owner, and the ones put off until a time: the runner's own maps. */
   readonly starting: Map<string, string>;
-  readonly putOff: Map<string, number>;
+  readonly putOff: Map<string, PutOff>;
   /** The runner's state change. */
   readonly settle: Settle;
   /** The commit of a start (the runner's, shared). */
@@ -97,14 +100,18 @@ export function createThreadStart(deps: ThreadStartDeps) {
   /** The thread's open run, by session: the task it belongs to (null: the owner's own). A task aborts only its own run. */
   const openRun = new Map<string, string | null>();
 
-  const defer = (row: TaskRow, ms: number): Settlement => {
+  const defer = (
+    row: TaskRow,
+    ms: number,
+    wait: Pick<PutOff, "reason" | "used" | "max"> = { reason: "session_slots" },
+  ): Settlement => {
     const until = clock.now() + ms;
-    deps.putOff.set(row.id, until);
+    deps.putOff.set(row.id, { until, ...wait });
     return { outcome: "defer", until };
   };
 
   function fail(row: TaskRow, reason: string): Settlement {
-    deps.settle(row, ["queued"], "failed", { reason });
+    deps.settle(row, ["queued"], reason === "stopped" ? "cancelled" : "failed", { reason });
     return { outcome: "done" };
   }
 
@@ -142,9 +149,9 @@ export function createThreadStart(deps: ThreadStartDeps) {
       return await ports.threads.open(row.owner_id, row.agent_id as string);
     } catch (error) {
       if (error instanceof PapError && error.code === "capacity")
-        return { settlement: defer(row, CAPACITY_MS) };
+        return { settlement: defer(row, CAPACITY_MS, capacityWait(error)) };
       if (error instanceof PapError && error.code === "session_busy")
-        return { settlement: defer(row, THREAD_BUSY_MS) };
+        return { settlement: defer(row, THREAD_BUSY_MS, BUSY) };
       if (error instanceof PapError && error.code === "agent_paused") {
         deps.settle(row, ["queued"], "cancelled", { reason: "quarantined" });
         return { settlement: { outcome: "done" } };
@@ -198,8 +205,8 @@ export function createThreadStart(deps: ThreadStartDeps) {
       deps.settle(row, ["queued"], "cancelled", { reason: "quarantined" });
       return { outcome: "done" };
     }
-    if (agent.paused) return defer(row, PAUSED_MS);
-    if (otherThreadTask(row)) return defer(row, THREAD_BUSY_MS);
+    if (agent.paused) return defer(row, PAUSED_MS, { reason: "paused" });
+    if (otherThreadTask(row)) return defer(row, THREAD_BUSY_MS, BUSY);
     const opened = await threadOf(ports, row);
     if ("settlement" in opened) return opened.settlement;
     if (signal.aborted) return { outcome: "retry", code: "deadline" };
@@ -212,8 +219,8 @@ export function createThreadStart(deps: ThreadStartDeps) {
       deps.settle(row, ["queued"], "cancelled", { reason: "quarantined" });
       return { outcome: "done" };
     }
-    if (now.paused) return defer(row, PAUSED_MS);
-    if (otherThreadTask(row)) return defer(row, THREAD_BUSY_MS);
+    if (now.paused) return defer(row, PAUSED_MS, { reason: "paused" });
+    if (otherThreadTask(row)) return defer(row, THREAD_BUSY_MS, BUSY);
     const thread = ports.sessions.threadState(row.owner_id, sessionId);
     if (
       thread === null ||
@@ -223,7 +230,7 @@ export function createThreadStart(deps: ThreadStartDeps) {
       thread.needsInput ||
       deps.sessions.promptPending(row.owner_id, sessionId)
     )
-      return defer(row, THREAD_BUSY_MS);
+      return defer(row, THREAD_BUSY_MS, BUSY);
     if (!deps.sessions.admits(row.owner_id, sessionId)) return defer(row, CAPACITY_MS);
     // Carry 1: checked again right before the mark.
     if (row.tainted === 1 && !mayCarryTaint(row, sessionId)) return failTainted(ports, row);

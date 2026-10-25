@@ -63,6 +63,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.capacityWorkers": "{used} / {max} workers actifs.",
   "error.worker_failed":
     "Le processus de la session s'est arrêté. La transcription est intacte. Renvoyez votre message pour le relancer.",
+  "error.stopped": "Arrêté.",
   "error.timeout":
     "La session n'a pas répondu à temps. L'action a peut-être abouti : vérifiez avant de réessayer.",
   "error.prompt_rejected":

@@ -55,8 +55,12 @@ export async function runLaunch(
       : t("home.launch.noLaneHost");
   }
   // A timeout is never re-sent (R105): the failure says the session may exist.
-  return startSession(project.root, text, preset).then((sessionId) => {
-    actions.open({ kind: "session", id: sessionId });
-    return null;
-  }, failureText);
+  return startSession(project.root, text, preset).then(
+    (sessionId) => {
+      actions.open({ kind: "session", id: sessionId });
+      return null;
+    },
+    (failure: unknown) =>
+      failure instanceof RpcError && failure.code === "stopped" ? null : failureText(failure),
+  );
 }

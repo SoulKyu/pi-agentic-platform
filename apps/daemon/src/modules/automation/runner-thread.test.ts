@@ -206,6 +206,17 @@ describe("only an idle thread is prompted", () => {
     },
   );
 
+  it("a task held by a busy thread waits for the thread, not for a session slot (R16)", async () => {
+    setup();
+    threadTask();
+    fakes.threads.set(THREAD, { running: true, needsInput: false, starting: false, archived: false });
+    await start();
+    expect(bed.engine.views(bed.engine.store.get(TASK) as never).waiting).toMatchObject({
+      reason: "thread_busy",
+      nextTryAt: bed.clock.now() + 10_000,
+    });
+  });
+
   it("defers 10 s while a prompt is pending in the thread", async () => {
     setup();
     threadTask();

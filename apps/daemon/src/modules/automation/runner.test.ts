@@ -18,6 +18,56 @@ const row = (id: string) =>
   bed.db.get<Record<string, string | number | null>>("SELECT * FROM tasks WHERE id = $id", { id });
 
 describe("the task.start handler", () => {
+  it("a task still waiting for the same reason is not announced again on the next tick", async () => {
+    bed = createRunnerBed();
+    const trigger = bed.trigger();
+    const [a, , c] = [1, 2, 3].map(
+      () => bed.engine.fire(trigger.id, trigger.revision, fireInput()).taskId,
+    ) as [string, string, string];
+    await start();
+    await start();
+    const heard: Array<{ state: string; waiting: unknown }> = [];
+    bed.engine.events.on((event) => {
+      if (event.kind === "task" && event.task.id === c)
+        heard.push({ state: event.task.state, waiting: event.task.waiting });
+    });
+    await start();
+    await bed.clock.advance(10_000);
+    await start();
+    expect(heard).toHaveLength(1);
+    expect(heard[0]?.waiting).toMatchObject({ reason: "session_slots", used: 2, max: 2 });
+
+    bed.runs.endRun({ sessionId: "s1", status: "completed", taskId: a });
+    await start();
+    expect(heard.slice(1).map((event) => event.waiting ?? null)).toContain(null);
+    expect(heard.at(-1)).toMatchObject({ state: "running", waiting: null });
+  });
+
+  it("a task deferred for slots carries session_slots with used and max and its next try", async () => {
+    bed = createRunnerBed();
+    const trigger = bed.trigger();
+    const [a, b, c] = [1, 2, 3].map(
+      () => bed.engine.fire(trigger.id, trigger.revision, fireInput()).taskId,
+    ) as [string, string, string];
+    await start();
+    await start();
+    const view = (id: string) => bed.engine.views(bed.engine.store.get(id) as never);
+    expect([a, b].map((id) => view(id).state)).toEqual(["running", "running"]);
+
+    expect(await start()).toEqual({ outcome: "defer", until: bed.clock.now() + 10_000 });
+    expect(view(c).waiting).toEqual({
+      reason: "session_slots",
+      used: 2,
+      max: 2,
+      nextTryAt: bed.clock.now() + 10_000,
+    });
+
+    // A slot frees: the held task starts at once, nothing was spent and nothing is left to wait for.
+    bed.runs.endRun({ sessionId: "s1", status: "completed", taskId: a });
+    expect(await start()).toEqual({ outcome: "done" });
+    expect(view(c)).toMatchObject({ state: "running", waiting: null });
+  });
+
   it("creates the session with the stored policy, records the origin, then prompts: running with the session id", async () => {
     bed = createRunnerBed();
     const { taskId, trigger } = queue();
@@ -76,12 +126,50 @@ describe("the task.start handler", () => {
     expect(bed.engine.starting()).toEqual([]);
   });
 
+  it("a task held by the box memory cap waits for box memory", async () => {
+    bed = createRunnerBed();
+    const { taskId } = queue();
+    bed.sessions.createTaskSession.mockRejectedValueOnce(
+      new PapError("capacity", { memory: { used: 3584, max: 4096 } }),
+    );
+    await start();
+    expect(bed.engine.views(bed.engine.store.get(taskId) as never).waiting).toEqual({
+      reason: "box_memory",
+      used: 3584,
+      max: 4096,
+      nextTryAt: bed.clock.now() + 30_000,
+    });
+  });
+
+  it("a task held by the worker slots says session_slots with the counts", async () => {
+    bed = createRunnerBed();
+    const { taskId } = queue();
+    bed.sessions.createTaskSession.mockRejectedValueOnce(
+      new PapError("capacity", { workers: { used: 4, max: 4 } }),
+    );
+    await start();
+    expect(bed.engine.views(bed.engine.store.get(taskId) as never).waiting).toMatchObject({
+      reason: "session_slots",
+      used: 4,
+      max: 4,
+    });
+  });
+
   it.each(["invalid_cwd", "disk_low", "worker_failed"] as const)("fails the task with %s", async (code) => {
     bed = createRunnerBed();
     const { taskId } = queue();
     bed.sessions.createTaskSession.mockRejectedValueOnce(new PapError(code));
     expect(await start()).toEqual({ outcome: "done" });
     expect(row(taskId)).toMatchObject({ state: "failed", reason: code, ended_at: bed.clock.now() });
+    expect(bed.sessions.prompt).not.toHaveBeenCalled();
+  });
+
+  it("a session start the person stopped ends the task cancelled, not failed, and is not tried again", async () => {
+    bed = createRunnerBed();
+    const { taskId } = queue();
+    bed.sessions.createTaskSession.mockRejectedValueOnce(new PapError("stopped"));
+    expect(await start()).toEqual({ outcome: "done" });
+    expect(row(taskId)).toMatchObject({ state: "cancelled", reason: "stopped" });
     expect(bed.sessions.prompt).not.toHaveBeenCalled();
   });
 

@@ -227,3 +227,66 @@ describe("image.list and image.prune", () => {
     expect(fx.exec.calls.some((argv) => argv.includes("rmi"))).toBe(false);
   });
 });
+
+describe("image.progress", () => {
+  const progress = (tagOf: string, extra: Record<string, unknown> = {}) =>
+    fx.ops.handle({ op: "image.progress", tag: tagOf, ...extra });
+  const DONE = { building: false, lines: 0, last: null };
+
+  it("returns the build's last line and drops the tail when the build ends", async () => {
+    put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
+    const request = build("profile");
+    let during: unknown;
+    let during2: unknown;
+    use(async (argv, options) => {
+      if (!isBuild(argv)) return undefined;
+      options?.onLine?.("#1 [internal] load build definition", "stderr");
+      options?.onLine?.(`#2 ${"x".repeat(600)}`, "stderr");
+      during = await progress(request.tag);
+      during2 = await progress(request.tag, { tail: true });
+      return undefined;
+    });
+    put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
+    await fx.ops.handle(request);
+    expect(during).toMatchObject({ building: true, lines: 2, last: { line: `#2 ${"x".repeat(509)}` } });
+    expect((during as { tail?: unknown }).tail).toBeUndefined();
+    expect((during2 as { tail: string[] }).tail).toHaveLength(2);
+    expect(fx.exec.calls.filter(isBuild)[0]).toContain("--progress=plain");
+    await expect(progress(request.tag)).resolves.toEqual(DONE);
+  });
+
+  it("keeps the last 200 lines, and a tag nobody builds is not building", async () => {
+    const request = build("profile");
+    let during: { lines: number; tail: string[] } | undefined;
+    use(async (argv, options) => {
+      if (!isBuild(argv)) return undefined;
+      for (let n = 0; n < 250; n += 1) options?.onLine?.(`line ${n}`, "stderr");
+      during = (await progress(request.tag, { tail: true })) as never;
+      return undefined;
+    });
+    put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
+    await fx.ops.handle(request);
+    expect(during?.lines).toBe(200);
+    expect(during?.tail[0]).toBe("line 50");
+    expect(during?.tail.at(-1)).toBe("line 249");
+    await expect(progress(tag("agent", "9"))).resolves.toEqual(DONE);
+  });
+
+  it("a joined build shares its tail", async () => {
+    const request = build("profile");
+    let first: unknown;
+    let second: Promise<unknown> | undefined;
+    use(async (argv, options) => {
+      if (!isBuild(argv)) return undefined;
+      second = fx.ops.handle(request);
+      options?.onLine?.("#3 shared line", "stderr");
+      first = await progress(request.tag);
+      return undefined;
+    });
+    put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
+    await fx.ops.handle(request);
+    await second;
+    expect(first).toMatchObject({ building: true, last: { line: "#3 shared line" } });
+    expect(fx.exec.calls.filter(isBuild)).toHaveLength(1);
+  });
+});

@@ -6,6 +6,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
+import type { LaunchRegistry } from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { Outbox } from "../../kernel/outbox/index.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
@@ -18,6 +19,7 @@ import type { SessionsAutomationPort } from "../sessions/index.ts";
 import type { BootReport } from "./boot.ts";
 import { createBackoff } from "./backoff.ts";
 import { createTaskEngine, type Engine } from "./engine.ts";
+import { createImageWait, taskBoxOf } from "./image-wait.ts";
 import type { AutomationEvents } from "./events.ts";
 import { lookup } from "node:dns";
 import type { Span } from "../../kernel/observability/tracer.ts";
@@ -164,6 +166,8 @@ export interface AutomationModule {
   readonly agentTasks: Engine["agentTasks"];
   /** The agents' registry, sessions and cards (M11): bound once by `composeM11`, before the server listens. */
   bindAgents(ports: AgentPorts): void;
+  /** The launch registry, bound once the VM stack exists: a task whose box builds its image waits for it. */
+  bindLaunches(launches: Pick<LaunchRegistry, "activeFor">): void;
   /** The tasks' part of the boot (M10R42); `composeAutomation` calls it once, before the server listens. */
   recover(): BootReport;
   /** `POST /hooks/<id>` (Task 7a): outside the Origin check and the cookie, before the static fallback. */
@@ -178,7 +182,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
   const logger = deps.logger.child({ module: "automation" });
   const triggerStore = createTriggerStore(deps.db);
   // The engine needs the triggers and the triggers tell the engine's stream: bound late.
-  const late: { engine?: Engine; scheduler?: Scheduler } = {};
+  const late: { engine?: Engine; scheduler?: Scheduler; launches?: Pick<LaunchRegistry, "activeFor"> } = {};
   const backoff = createBackoff(deps.clock);
   const rate = createHookRate(deps.clock);
   const agents = createAgentBinding();
@@ -206,6 +210,10 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
   });
   const built = createTaskEngine({
     agents,
+    imageBuild: createImageWait({
+      launches: () => late.launches,
+      boxOf: (row) => taskBoxOf(deps.boxes?.(), row),
+    }),
     db: deps.db,
     clock: deps.clock,
     logger,
@@ -338,6 +346,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     projectPort: createAutomationProjectPort(deps, logger, triggerStore, built.runner, triggerChanged),
     ownerCascade: createAutomationOwnerCascade(deps, logger, triggerStore, built.runner, triggerChanged),
     bindAgents: built.bindAgents,
+    bindLaunches: (launches) => void (late.launches = launches),
     agentTasks: built.agentTasks,
     rpc: automationRpc(triggers, taskActions(built.runner, built.stream, releaseTools), {
       manual: createManual({

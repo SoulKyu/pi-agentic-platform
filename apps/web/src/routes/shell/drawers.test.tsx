@@ -235,13 +235,12 @@ describe("tree drawer, first load", () => {
     try {
       await ctrlB();
       expect(dialog()?.querySelector("h2")?.textContent).toBe("Sessions");
-      const spinner = () =>
-        dialog()?.querySelector('[role="status"][aria-label]')?.getAttribute("aria-label");
+      const spinner = () => dialog()?.querySelector('[data-slot="loading-line"]')?.textContent;
       expect(spinner()).toBeUndefined();
-      await act(async () => vi.advanceTimersByTimeAsync(199));
+      await act(async () => vi.advanceTimersByTimeAsync(99));
       expect(spinner()).toBeUndefined();
       await act(async () => vi.advanceTimersByTimeAsync(1));
-      expect(spinner()).toBe("Loading sessions…");
+      expect(spinner()).toContain("Loading sessions…");
     } finally {
       vi.useRealTimers();
     }

@@ -1,5 +1,5 @@
 import "../../i18n/register-github.ts";
-import { Fence, InlineError } from "@pap/ui";
+import { Fence, InlineError, LoadingLine } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -31,12 +31,7 @@ export function CheckLog({ projectId, checkId }: { readonly projectId: string; r
     };
   }, [projectId, checkId]);
 
-  if (state.kind === "loading")
-    return (
-      <p role="status" className="text-ui text-muted">
-        {t("github.log.loading")}
-      </p>
-    );
+  if (state.kind === "loading") return <LoadingLine label={t("github.log.loading")} />;
   if (state.kind === "failed") return <InlineError announce="background">{t(state.key)}</InlineError>;
   return (
     <div className="flex flex-col gap-s1">

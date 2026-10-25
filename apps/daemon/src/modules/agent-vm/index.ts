@@ -1,3 +1,13 @@
+import { fileURLToPath } from "node:url";
+import type { MigrationSource } from "../../kernel/db/migrate.ts";
+
+export const AGENT_VM_MIGRATIONS: MigrationSource = {
+  module: "agent-vm",
+  dir: fileURLToPath(new URL("./migrations/", import.meta.url)),
+};
+export { createLaunchRegistry } from "./launches.ts";
+export { createLaunchLog, type LaunchLog } from "./launch-log.ts";
+export { createLaunchStop, type LaunchStop } from "./launch-stop.ts";
 export { createGateway, type Gateway } from "./gateway.ts";
 export { layoutOf, layoutOfSpec } from "./layouts.ts";
 export { projectLayoutOf } from "./project-layout.ts";

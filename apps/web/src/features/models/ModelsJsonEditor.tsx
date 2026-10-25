@@ -1,5 +1,7 @@
 import type { ConfigGetResult, ProviderView } from "@pap/contracts";
-import { Button, Heading, InlineError, TextField } from "@pap/ui";
+import { Button, Heading, InlineError, LoadingLine, TextField } from "@pap/ui";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -35,6 +37,7 @@ function Editor({
   onDirty(dirty: boolean): void;
 }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const [phase, setPhase] = useState<Phase>("loading");
   const [loadIssues, setLoadIssues] = useState<readonly string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -150,12 +153,7 @@ function Editor({
       .finally(() => setBusy(false));
   };
 
-  if (phase === "loading")
-    return (
-      <p role="status" className="text-ui text-muted">
-        {t("settingsModels.json.loading")}
-      </p>
-    );
+  if (phase === "loading") return <LoadingLine label={t("settingsModels.json.loading")} cause={cause} />;
   if (phase === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">

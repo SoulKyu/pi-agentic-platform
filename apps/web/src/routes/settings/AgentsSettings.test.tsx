@@ -6,7 +6,19 @@ import { setLocale } from "../../i18n/index.ts";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useAgentsStore } from "../../stores/agents-store.ts";
-import { alerts, button, click, field, hasButton, mount, settle, text, typeInto } from "../../testing/dom.ts";
+import {
+  alerts,
+  button,
+  click,
+  field,
+  hasButton,
+  mount,
+  settle,
+  text,
+  typeInto,
+  useLoadingClock,
+  pastLoadingDelay,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { AgentsSettings } from "./AgentsSettings.tsx";
 
@@ -75,7 +87,9 @@ beforeEach(() => {
 
 describe("Settings › Agents: the list", () => {
   it("says it is loading until the stream's first snapshot", async () => {
+    useLoadingClock();
     await open(null);
+    await pastLoadingDelay();
     expect(body()).toContain("Loading agents…");
     expect(body()).not.toContain("No agent yet.");
     snapshot([]);

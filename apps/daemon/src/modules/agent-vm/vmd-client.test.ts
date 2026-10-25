@@ -5,7 +5,13 @@ import { join } from "node:path";
 import { VMD_MAX_FRAME_BYTES, type VmdRequest } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
-import { BUILD_DEADLINE_MS, createVmdClient, DEFAULT_DEADLINE_MS, VmdError } from "./vmd-client.ts";
+import {
+  BUILD_DEADLINE_MS,
+  createVmdClient,
+  DEFAULT_DEADLINE_MS,
+  PROGRESS_DEADLINE_MS,
+  VmdError,
+} from "./vmd-client.ts";
 
 // Mutants (RT-43 style, run for real in the T15a report): "answer bound dropped" (the 70 KiB case resolves), "single line
 // check dropped" (a second line is read as the answer), "deadline per op dropped" (the build case rejects at 60 s),
@@ -137,6 +143,21 @@ describe("vmd client", () => {
     await clock.advance(BUILD_DEADLINE_MS);
     await expect(building).resolves.toBe("timeout");
     expect(clock.pending()).toBe(0);
+  });
+
+  it("gives up on image.progress after 5 s", async () => {
+    answer = () => {};
+    const progress: VmdRequest = { op: "image.progress", tag: `pap-agent-agent-${"b".repeat(64)}` };
+    const outcome = client()
+      .request(progress)
+      .then(
+        () => "ok",
+        (error: VmdError) => error.code,
+      );
+    await expect.poll(() => received.length).toBe(1);
+    await clock.advance(PROGRESS_DEADLINE_MS);
+    await expect(outcome).resolves.toBe("timeout");
+    expect(PROGRESS_DEADLINE_MS).toBe(5_000);
   });
 
   it("waits for a build as long as pap-vmd does (its 30 minutes and a minute more, AVM-E47)", () => {

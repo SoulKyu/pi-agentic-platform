@@ -38,7 +38,7 @@ describe("starting a flow", () => {
   it("lets the pool's own refusal through and registers nothing", () => {
     const { flows, setPoolFull } = bed(createLoginFlows);
     setPoolFull(true);
-    expect(() => flows.start("u1", "a", "oauth")).toThrow(expect.objectContaining({ code: "capacity" }));
+    expect(() => flows.start("u1", "a", "oauth")).toThrow(expect.objectContaining({ code: "pi_busy" }));
     setPoolFull(false);
     expect(flows.start("u1", "a", "oauth")).toMatch(/^flow/);
   });

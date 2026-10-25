@@ -103,7 +103,7 @@ describe("the recheck before a box starts", () => {
     const resolve = vi.fn(async () => `pap-agent-agent-${"2".repeat(64)}`);
     const boxes = composeBoxes(HOME, silentLogger, { resolve, forget: () => {} });
     expect(await boxes.launchDeps.projectImageTagOf(ID)).toMatch(/^pap-agent-agent-2{64}$/);
-    expect(resolve).toHaveBeenCalledWith(ID, [], "thread");
+    expect(resolve).toHaveBeenCalledWith(ID, [], "thread", undefined);
     expect(boxes.layoutOfSpec({ box: { kind: "project", id: ID }, taskKey: null }).root).toBe(`/boxes/${ID}`);
   });
 });

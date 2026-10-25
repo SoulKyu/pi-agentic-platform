@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/rpc.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
-import { button, click, mount, settle, text } from "../../testing/dom.ts";
+import { button, click, mount, settle, text, useLoadingClock, pastLoadingDelay } from "../../testing/dom.ts";
 import { vcsFile, vcsStatus } from "../../testing/m8-fixtures.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { ChangesPane } from "./ChangesPane.tsx";
@@ -67,8 +67,10 @@ const withFiles = (files: VcsFile[], patch: Partial<VcsStatus> = {}) =>
 
 describe("ChangesPane states", () => {
   it("waits for the first snapshot", async () => {
+    useLoadingClock();
     const c = await show();
-    expect(c.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe("Loading the changes…");
+    await pastLoadingDelay();
+    expect(c.querySelector('[role="status"]')?.textContent).toContain("Loading the changes…");
   });
 
   it("says a folder is not a repository, for a null snapshot and for repo false", async () => {

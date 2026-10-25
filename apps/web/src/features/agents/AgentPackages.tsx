@@ -1,8 +1,10 @@
 import "./register-agent-catalog.ts";
 import { AGENT_VM_LIMITS, SystemPackage } from "@pap/contracts";
-import { Button, Checkbox, Chip, IconButton, IconClose, InlineError, TextField } from "@pap/ui";
+import { Button, Checkbox, Chip, IconButton, IconClose, InlineError, LoadingLine, TextField } from "@pap/ui";
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { Draft } from "./agent-form.vm.ts";
 
@@ -71,6 +73,7 @@ function usePiSources(): PiSources {
  */
 export function AgentPackages({ systemPackages, packages, set }: Props) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const pi = usePiSources();
   const known = pi.state === "ready" ? pi.packages : [];
   const [typed, setTyped] = useState("");
@@ -145,7 +148,7 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
           disabled={pi.state !== "ready"}
           onChange={(all) => set({ packages: all ? null : known.map((one) => one.id) })}
         />
-        {pi.state === "loading" ? <p className="text-ui text-muted">{t("agentVm.pi.loading")}</p> : null}
+        {pi.state === "loading" ? <LoadingLine label={t("agentVm.pi.loading")} cause={cause} /> : null}
         {pi.state === "failed" ? (
           <div className="flex items-center gap-s2">
             <InlineError announce="background">{t("agentVm.pi.failed")}</InlineError>

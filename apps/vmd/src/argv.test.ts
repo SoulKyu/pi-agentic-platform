@@ -246,6 +246,7 @@ describe("buildctl command lines (RT-19)", () => {
     "--output",
     `type=image,name=pap.local/pap-agent-${layer}-${"1".repeat(64)}:1,unpack=true`,
     ...extra,
+    "--progress=plain",
   ];
 
   it("a base build has --no-cache and the others do not", () => {

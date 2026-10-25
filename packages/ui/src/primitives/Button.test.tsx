@@ -88,4 +88,42 @@ describe("Button pending feedback (DESIGN.md §7.3)", () => {
     expect(button.textContent).toBe("Preparing worktree…");
     await page.unmount();
   });
+
+  it("stage shows with the spinner from the start of the wait", async () => {
+    now = 10;
+    const page = await mount(
+      <Button pendingSince={10} stage="Building the image…">
+        Rebuild
+      </Button>,
+    );
+    const button = page.container.querySelector("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe("Building the image…");
+    expect(page.container.querySelector('[data-slot="spinner"]')).not.toBeNull();
+    await page.unmount();
+  });
+
+  it("the stage label is said once in a polite region when the step changes", async () => {
+    now = 10;
+    const page = await mount(
+      <Button pendingSince={10} stage="Building the image…">
+        Rebuild
+      </Button>,
+    );
+    const region = () => page.container.querySelector('[role="status"]');
+    expect(region()?.textContent).toBe("Building the image…");
+    expect(region()?.className).toContain("sr-only");
+    expect(region()?.getAttribute("aria-live")).toBe("polite");
+    expect(region()?.closest("button")).toBeNull();
+    await page.rerender(
+      <Button pendingSince={10} stage="Preparing the disk…">
+        Rebuild
+      </Button>,
+    );
+    expect(page.container.querySelectorAll('[role="status"]').length).toBe(1);
+    expect(region()?.textContent).toBe("Preparing the disk…");
+    await page.rerender(<Button>Rebuild</Button>);
+    expect(page.container.querySelector('[role="status"]')).toBeNull();
+    await page.unmount();
+  });
 });

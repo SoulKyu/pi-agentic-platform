@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import { t, useLazyFailureText } from "../../i18n/index.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
@@ -31,7 +31,9 @@ export function LazyInvite(props: { token: string | null; signedInAs: string | n
             </Button>
           </main>
         ) : (
-          <main className="p-s5 text-muted">{t("app.loading")}</main>
+          <main className="p-s5">
+            <LoadingLine label={t("app.loading")} deferred={false} />
+          </main>
         )
       }
     >

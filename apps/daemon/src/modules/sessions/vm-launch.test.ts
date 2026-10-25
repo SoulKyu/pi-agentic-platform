@@ -1,148 +1,27 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentInput, type InitRecord, PapError, PolicyRules, type VmLayout } from "@pap/contracts";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { silentLogger } from "../../kernel/logger.ts";
-import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
-import { layoutOf, type VmSpec } from "../agent-vm/index.ts";
-import type { AgentLaunch } from "./agent-gate.ts";
-import { createAgentRules } from "./agent-rules.ts";
-import type { SessionRow } from "./store.ts";
+import { AgentInput, PapError, PolicyRules, type VmLayout } from "@pap/contracts";
+import { describe, expect, it, vi } from "vitest";
+import { layoutOf } from "../agent-vm/index.ts";
 import { codeOf } from "./testing/helpers.ts";
-import { createVmLaunch, VM_BWRAP, VM_ROOT_VIEW, vmBranchOf, type VmLaunch } from "./vm-launch.ts";
-
-const ID = "atlas-1a2b";
-const TASK = "0f6c0f2e-1111-4222-8333-444455556666";
-const KEY = "a".repeat(32);
-const SLOT = "b".repeat(32);
-const IMAGE = `pap-agent-agent-${"c".repeat(64)}`;
-let home: string;
-beforeEach(() => {
-  home = mkdtempSync(join(tmpdir(), "pap-vm-launch-"));
-  mkdirSync(join(home, "agents", ID), { recursive: true });
-});
-afterEach(() => rmSync(home, { recursive: true, force: true }));
-
-const row = (extra: Partial<SessionRow> = {}): SessionRow =>
-  ({
-    id: "s1",
-    ownerId: "u1",
-    agentId: ID,
-    agentRole: "thread",
-    cwd: home,
-    piPath: null,
-    ...extra,
-  }) as SessionRow;
-/** The id the agent form sent (AVM-E33) and the source the helper resolves it to: the runtime must get the source. */
-const PICK_ID = "c".repeat(32);
-const PICK_SOURCE = "npm:left-pad@1.0.0";
-const input = AgentInput.parse({
-  name: "Atlas",
-  resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
-  packages: [PICK_ID],
-});
-const launch = (extra: Partial<AgentLaunch> = {}): AgentLaunch => ({
-  agent: { id: ID, name: "Atlas", role: "r" },
-  role: "thread",
+import {
+  hostInit,
+  homeDir,
+  ID,
+  IMAGE,
   input,
-  vm: true,
-  ...extra,
-});
-const vmLayout = (r: SessionRow): VmLayout =>
-  layoutOf("process", home, {
-    agentId: ID,
-    taskKey: r.agentRole === "task" ? r.id.replaceAll("-", "") : null,
-  });
-/** The rules a daemon composes for the row, with the VM layout wired (or not). */
-function rulesFor(r: SessionRow, wired: boolean) {
-  const compose = createAgentRules({
-    papHome: home,
-    profileOf: () => ({ input, name: "Atlas", quarantined: false }),
-    hostGrants: () => [],
-    logger: silentLogger,
-    ...(wired ? { vmLayoutOf: vmLayout } : {}),
-  });
-  return PolicyRules.parse({
-    profile: "agent-thread",
-    approvalMode: "supervised",
-    ...compose(r, { allowHosts: null, denylist: [] }),
-  });
-}
-const hostInit = (r: SessionRow, wired = true): InitRecord => ({
-  type: "init",
-  cwd: join(home, "agents", ID),
-  agentDir: join(home, "pi"),
-  papHome: home,
-  umask: 0o022,
-  papSessionId: r.id,
-  policy: rulesFor(r, wired),
-  agent: { id: ID, name: "Atlas", role: "r" },
-  vault: { TOKEN: "s3cret" },
-});
+  KEY,
+  launch,
+  PICK_SOURCE,
+  row,
+  setup,
+  SLOT,
+  TASK,
+  useVmLaunchHome,
+  vmLayout,
+} from "./vm-launch-fixtures.ts";
+import { VM_BWRAP, VM_ROOT_VIEW, vmBranchOf, type VmLaunch } from "./vm-launch.ts";
 
-function setup(
-  layoutForRuntime?: (r: SessionRow) => VmLayout,
-  copyProviderScript?: (layout: VmLayout) => string,
-  imageTagOf: (agentId: string, input: AgentLaunch["input"]) => string | Promise<string> = () => IMAGE,
-  recheck?: () => void,
-  sources?: (ids: readonly string[] | null) => Promise<string[] | null>,
-) {
-  const worker = createFakeWorker({});
-  const specs: VmSpec[] = [];
-  const inputs: unknown[] = [];
-  const packages: unknown[] = [];
-  const spawn = vi.fn(async (spec: VmSpec, workerInput: unknown, picks: unknown) => {
-    specs.push(spec);
-    inputs.push(workerInput);
-    packages.push(picks);
-    const r = currentRow;
-    return {
-      handle: Object.assign(worker, { slot: SLOT, piFile: () => null }),
-      layout: (layoutForRuntime ?? vmLayout)(r),
-      relayKey: KEY,
-      slot: SLOT,
-    };
-  });
-  let currentRow = row();
-  const inputFor = vi.fn((r: SessionRow) => ({
-    sessionFile: null,
-    sessionsDir: "/ignored",
-    mirrorFor: () => "refused" as const,
-    unsent: () => false,
-    sent: () => {},
-    marker: r.id,
-  }));
-  const vmLaunch = createVmLaunch({
-    runtime: { spawn } as never,
-    papHome: home,
-    layoutOf: (r) => (r.agentId === undefined ? null : vmLayout(r)),
-    joinLaunch: () => {},
-    imageTagOf,
-    ...(recheck ? { recheck } : {}),
-    mirrors: { inputFor },
-    logger: silentLogger,
-    // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
-    toImageEntries: (_agentId, _image, sources) =>
-      sources === null
-        ? null
-        : sources.map((source) => (source === PICK_SOURCE ? `${PICK_SOURCE}#written` : source)),
-    packageSources:
-      sources ??
-      (async (ids) => (ids === null ? null : ids.map((id) => (id === PICK_ID ? PICK_SOURCE : id)))),
-    ...(copyProviderScript ? { copyProviderScript } : {}),
-  });
-  return {
-    vmLaunch,
-    worker,
-    spawn,
-    specs,
-    inputs,
-    packages,
-    inputFor,
-    use: (r: SessionRow) => (currentRow = r),
-  };
-}
+useVmLaunchHome();
 
 describe("VM_BWRAP and VM_ROOT_VIEW", () => {
   it("are the image's bwrap and AVM-P3's read-only root", () => {
@@ -342,7 +221,7 @@ describe("createVmLaunch (T8a)", () => {
   });
   // Mutant: the stop on a failed translation removed. Killed here: the runtime's layout differs from the rules' root.
   it("stops the spawned worker when the translation after the spawn refuses", async () => {
-    const bed = setup(() => layoutOf("process", home, { agentId: "other-9z9z", taskKey: null }));
+    const bed = setup(() => layoutOf("process", homeDir(), { agentId: "other-9z9z", taskKey: null }));
     const r = bed.use(row());
     const started = await bed.vmLaunch.spawn(r, launch(), hostInit(r));
     const stop = vi.spyOn(bed.worker, "stop");
@@ -361,7 +240,7 @@ describe("createVmLaunch (T8a)", () => {
   });
   it("names the session file of a row whose Pi file is its mirror, none for a new session", async () => {
     const bed = setup();
-    const mirror = join(home, "agents", ".mirrors", ID, "s.jsonl");
+    const mirror = join(homeDir(), "agents", ".mirrors", ID, "s.jsonl");
     const r = bed.use(row({ piPath: mirror }));
     const started = await bed.vmLaunch.spawn(r, launch(), { ...hostInit(r), sessionFile: mirror });
     const out = started.bind(() => ({ init: { ...hostInit(r), sessionFile: mirror } }));

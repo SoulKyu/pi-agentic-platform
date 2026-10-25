@@ -1,8 +1,9 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
+import { useWaitStart, WaitSinceProvider } from "../../lib/wait-since.tsx";
 
 // One function for the life of the page: `useRetryableLazy` shares the lazy component by it.
 const loadNotifications = () =>
@@ -15,44 +16,45 @@ export function NotificationsSettings() {
   const t = useT();
   const failureText = useLazyFailureText();
   const { Lazy, attempt, retry } = useRetryableLazy(loadNotifications);
+  const wait = useWaitStart(attempt);
   const [failed, setFailed] = useState(false);
   return (
-    <LazyBoundary
-      resetKey={attempt}
-      onError={(error) => {
-        setFailed(true);
-        notifyLazyFailure(error, failureText);
-      }}
-      fallback={
-        failed ? (
-          <div>
-            <Button
-              onClick={() => {
-                setFailed(false);
-                retry();
-              }}
+    <WaitSinceProvider value={wait}>
+      <LazyBoundary
+        resetKey={attempt}
+        onError={(error) => {
+          setFailed(true);
+          notifyLazyFailure(error, failureText);
+        }}
+        fallback={
+          failed ? (
+            <div>
+              <Button
+                onClick={() => {
+                  setFailed(false);
+                  retry();
+                }}
+              >
+                {t("settings.notifications.retry")}
+              </Button>
+            </div>
+          ) : (
+            <LoadingLine label={t("settings.notifications.loading")} since={wait.since} deferred={false} />
+          )
+        }
+      >
+        <Lazy
+          automationLink={(label: string) => (
+            <Link
+              to="/settings/$section"
+              params={{ section: "automation" }}
+              className="text-fg underline focus-ring"
             >
-              {t("settings.notifications.retry")}
-            </Button>
-          </div>
-        ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settings.notifications.loading")}
-          </p>
-        )
-      }
-    >
-      <Lazy
-        automationLink={(label: string) => (
-          <Link
-            to="/settings/$section"
-            params={{ section: "automation" }}
-            className="text-fg underline focus-ring"
-          >
-            {label}
-          </Link>
-        )}
-      />
-    </LazyBoundary>
+              {label}
+            </Link>
+          )}
+        />
+      </LazyBoundary>
+    </WaitSinceProvider>
   );
 }

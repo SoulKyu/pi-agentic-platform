@@ -1,4 +1,11 @@
 import { type BoxRef, boxKey, type InitRecord, PapError, TaskKey, type VmLayout } from "@pap/contracts";
+import {
+  type ImageObserver,
+  imageStep,
+  type LaunchHandle,
+  type LaunchRegistry,
+  launchCodeOf,
+} from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import {
@@ -30,6 +37,11 @@ export interface MirrorInputs {
 export interface VmStarted {
   readonly handle: WorkerHandle;
   /**
+   * The launch this spawn reported to, still open: whoever receives it ends it, once the worker is ready or the start failed
+   * (launch progress). Absent when nothing follows launches.
+   */
+  readonly launch?: LaunchHandle;
+  /**
    * Runs `compose` (the host record, read now: nothing awaits between this and the session's start) and returns what it
    * answered with its `init` made the VM's. Stops the worker when either throws. Call it once.
    */
@@ -41,11 +53,19 @@ export interface VmLaunch {
    * Starts the agent's VM (or the project's box) if needed and a worker in it. The VM's `init` is checked first (host rules or paths refuse the
    * launch with nothing spawned); it is sent by the session's own start, never the host's.
    */
-  spawn(row: SessionRow, launch: AgentLaunch | ProjectLaunch, init: InitRecord): Promise<VmStarted>;
+  spawn(
+    row: SessionRow,
+    launch: AgentLaunch | ProjectLaunch,
+    init: InitRecord,
+    /** The launch the caller opened (the gate marked `checks` on it); absent: this spawn opens its own. */
+    opened?: LaunchHandle,
+  ): Promise<VmStarted>;
 }
 
 export interface VmLaunchDeps {
   readonly runtime: Pick<AgentRuntime, "spawn">;
+  /** Absent (tests, a host without launches): no launch is opened. */
+  readonly launches?: Pick<LaunchRegistry, "open">;
   readonly papHome: string;
   /** The shared VM predicate: the row's layout, null for a host row. */
   layoutOf(row: SessionRow): VmLayout | null;
@@ -59,6 +79,7 @@ export interface VmLaunchDeps {
     agentId: string,
     input: AgentLaunch["input"],
     kind: "thread" | "isolated",
+    observe?: ImageObserver,
   ): string | Promise<string>;
   /**
    * Called after the image wait (a first build takes minutes) and the package helper, just before the VM starts: throws when the agent was quarantined
@@ -70,7 +91,7 @@ export interface VmLaunchDeps {
    * The image a project's box starts with (the project's own, task A6); absent: a project row is refused. May build, so it may
    * take minutes.
    */
-  projectImageTagOf?(projectId: string): string | Promise<string>;
+  projectImageTagOf?(projectId: string, observe?: ImageObserver): string | Promise<string>;
   /** Like `recheck`, for a box: throws when the project was deleted or began to be deleted meanwhile. */
   recheckProject?(ownerId: string, projectId: string): void;
   readonly logger: Pick<Logger, "warn">;
@@ -107,7 +128,7 @@ interface BoxPlan {
   readonly mirrorRow: SessionRow & { readonly projectId?: string };
   readonly resources: VmSpec["resources"];
   readonly claudeEnv: Readonly<Record<string, string>> | undefined;
-  image(): string | Promise<string>;
+  image(observe?: ImageObserver): string | Promise<string>;
   packages(image: string): Promise<string[] | null>;
   recheck(): void;
 }
@@ -122,9 +143,9 @@ function planOf(deps: VmLaunchDeps, row: SessionRow, launch: AgentLaunch | Proje
       mirrorRow: { ...row, projectId },
       resources: launch.resources,
       claudeEnv: launch.claudeEnv,
-      image() {
+      image(observe) {
         if (deps.projectImageTagOf === undefined) throw new PapError("sandbox_unavailable");
-        return deps.projectImageTagOf(projectId);
+        return deps.projectImageTagOf(projectId, observe);
       },
       // A box's packages are its image's (task A6): the guest keeps every package the image holds.
       packages: async () => null,
@@ -139,7 +160,7 @@ function planOf(deps: VmLaunchDeps, row: SessionRow, launch: AgentLaunch | Proje
     mirrorRow: row,
     resources: launch.input.resources,
     claudeEnv: launch.claudeEnv,
-    image: () => deps.imageTagOf(agentId, launch.input, who.kind),
+    image: (observe) => deps.imageTagOf(agentId, launch.input, who.kind, observe),
     packages: async (image) =>
       deps.toImageEntries(agentId, image, await deps.packageSources(launch.input.packages)),
     recheck: () => deps.recheck?.(row.ownerId, agentId),
@@ -147,54 +168,76 @@ function planOf(deps: VmLaunchDeps, row: SessionRow, launch: AgentLaunch | Proje
 }
 
 export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
+  async function spawnIn(
+    row: SessionRow,
+    plan: BoxPlan,
+    layout: VmLayout,
+    file: string | null,
+    steps: LaunchHandle | undefined,
+  ): Promise<VmStarted> {
+    const fixed = { bwrap: VM_BWRAP, rootView: VM_ROOT_VIEW };
+    const image = await imageStep(steps, (observe) => Promise.resolve(plan.image(observe)));
+    const spec: VmSpec = {
+      ...plan.who,
+      image,
+      resources: plan.resources,
+      ...(steps ? { launch: steps } : {}),
+    };
+    const worker = {
+      ...deps.mirrors.inputFor(plan.mirrorRow, plan.resources),
+      sessionsDir: layout.sessions,
+      ...(plan.claudeEnv ? { env: plan.claudeEnv } : {}),
+    };
+    const packages = await plan.packages(image);
+    plan.recheck();
+    const started = await deps.runtime.spawn(spec, worker, packages);
+    const { handle } = started;
+    deps.joinLaunch(
+      started.launchId,
+      row.id,
+      plan.who.box.kind === "project" ? { ownerId: row.ownerId } : undefined,
+    );
+    return {
+      handle,
+      ...(steps ? { launch: steps } : {}),
+      bind(compose) {
+        try {
+          const composed = compose();
+          const vm = { layout: started.layout, ...fixed, relayKey: started.relayKey, slot: started.slot };
+          const init = vmInitOf(composed.init, vm, file);
+          if (deps.copyProviderScript) init.testProviderScript = deps.copyProviderScript(started.layout);
+          return { ...composed, init };
+        } catch (error) {
+          void handle.stop();
+          throw error;
+        }
+      },
+    };
+  }
+
   return {
-    async spawn(row, launch, init) {
+    async spawn(row, launch, init, opened) {
       if (launch.vm !== true) throw new PapError("internal");
       const plan = planOf(deps, row, launch);
       const layout = deps.layoutOf(row);
       if (layout === null) throw new PapError("internal");
       const file = mirrorFileOf(deps.papHome, plan.mirrorRow);
       const fixed = { bwrap: VM_BWRAP, rootView: VM_ROOT_VIEW };
-      // Fail closed before anything starts: host rules, a host path or no sandbox in the init refuse the launch here.
       try {
         vmInitOf(init, { layout, ...fixed, relayKey: CHECK_RELAY_KEY, slot: CHECK_SLOT }, file);
       } catch (error) {
         deps.logger.warn("agent_vm_init_refused", { box: boxKey(plan.who.box) });
+        opened?.end(false, launchCodeOf(error));
         throw error;
       }
-      const image = await plan.image();
-      const spec: VmSpec = { ...plan.who, image, resources: plan.resources };
-      const worker = {
-        ...deps.mirrors.inputFor(plan.mirrorRow, plan.resources),
-        sessionsDir: layout.sessions,
-        ...(plan.claudeEnv ? { env: plan.claudeEnv } : {}),
-      };
-      const packages = await plan.packages(image);
-      // Just before the runtime starts. `runtime.spawn` can still await (the boot, or the teardown of this key's previous VM) before
-      // it has an entry a quarantine could stop: that residual leaves a VM up until its idle stop (resources only), and is accepted.
-      plan.recheck();
-      const started = await deps.runtime.spawn(spec, worker, packages);
-      const { handle } = started;
-      deps.joinLaunch(
-        started.launchId,
-        row.id,
-        plan.who.box.kind === "project" ? { ownerId: row.ownerId } : undefined,
-      );
-      return {
-        handle,
-        bind(compose) {
-          try {
-            const composed = compose();
-            const vm = { layout: started.layout, ...fixed, relayKey: started.relayKey, slot: started.slot };
-            const init = vmInitOf(composed.init, vm, file);
-            if (deps.copyProviderScript) init.testProviderScript = deps.copyProviderScript(started.layout);
-            return { ...composed, init };
-          } catch (error) {
-            void handle.stop();
-            throw error;
-          }
-        },
-      };
+      // Every path out ends the handle but the one that returns it: the receiver ends it (the worker's ready wait is its own).
+      const steps = opened ?? deps.launches?.open({ box: plan.who.box, owner: row.ownerId, for: row.id });
+      try {
+        return await spawnIn(row, plan, layout, file, steps);
+      } catch (error) {
+        steps?.end(false, launchCodeOf(error));
+        throw error;
+      }
     },
   };
 }

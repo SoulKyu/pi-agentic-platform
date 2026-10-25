@@ -160,6 +160,18 @@ export default defineConfig(
               ],
               allow: [["web-feature", { domain: "boxes" }]],
             },
+            // Launch progress (A7): the project page, the box line, project settings, the session screen, the agent thread and the task card render the step panel and strip (`features/launch`).
+            {
+              from: [
+                ["web-feature", { domain: "home" }],
+                ["web-feature", { domain: "boxes" }],
+                ["web-feature", { domain: "projects" }],
+                ["web-feature", { domain: "sessions" }],
+                ["web-feature", { domain: "agents" }],
+                ["web-feature", { domain: "automation" }],
+              ],
+              allow: [["web-feature", { domain: "launch" }]],
+            },
             // Boxes lot B2: the project page, Changes and the New project and project settings dialogs render the GitHub pieces (`features/github`).
             {
               from: [

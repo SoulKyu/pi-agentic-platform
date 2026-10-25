@@ -16,6 +16,8 @@ import {
   settle,
   text,
   typeInto,
+  useLoadingClock,
+  pastLoadingDelay,
 } from "../../../testing/dom.ts";
 import { forgetExtensions, refreshExtensions } from "../extension-read.ts";
 import {
@@ -62,6 +64,7 @@ describe("the picker's extension models", () => {
   });
 
   it("ext.lists: a click reads them, shows the busy state, then a group marked as an extension's", async () => {
+    useLoadingClock();
     let finish: (value: ExtensionProviders) => void = () => {};
     daemon().handlers["models.extensions"] = () =>
       new Promise<ExtensionProviders>((resolve) => (finish = resolve));
@@ -73,7 +76,8 @@ describe("the picker's extension models", () => {
     await click(show);
     await settle();
     expect(extensionCalls()).toBe(1);
-    expect(text(document.querySelector('[role="status"]') as HTMLElement)).toContain(
+    await pastLoadingDelay();
+    expect(text(document.querySelector('[data-slot="loading-line"]') as HTMLElement)).toContain(
       "Reading the extensions",
     );
     expect(hasButton(document.body, SHOW)).toBe(false);
@@ -98,6 +102,7 @@ describe("the picker's extension models", () => {
   });
 
   it("m8.read-again-elsewhere: while Settings reads them again the picker shows the busy line and no button", async () => {
+    useLoadingClock();
     const { page } = await field();
     await openPicker(page);
     await showExtensions();
@@ -105,7 +110,8 @@ describe("the picker's extension models", () => {
     daemon().handlers["models.extensions"] = () => new Promise((resolve) => (finish = resolve));
     refreshExtensions();
     await settle();
-    expect(text(document.querySelector('[role="status"]') as HTMLElement)).toContain(
+    await pastLoadingDelay();
+    expect(text(document.querySelector('[data-slot="loading-line"]') as HTMLElement)).toContain(
       "Reading the extensions",
     );
     expect(hasButton(document.body, "Read again")).toBe(false);

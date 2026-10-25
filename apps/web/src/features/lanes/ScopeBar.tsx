@@ -1,5 +1,5 @@
 import type { LaneTurn } from "./review-types.ts";
-import { Button, cn, FOCUS_RING, Icon, IconChevronDown, IconRefresh } from "@pap/ui";
+import { Button, cn, FOCUS_RING, Icon, IconChevronDown, IconRefresh, LoadingLine } from "@pap/ui";
 import { Menu } from "@pap/ui/overlays";
 import { useT } from "../../i18n/index.ts";
 import "./register-review-catalog.ts";
@@ -30,9 +30,10 @@ export function ScopeBar({ scope, turns, hasSession, onScope, onRefresh }: Scope
       ? turns.value.find((turn) => turn.userEntryId === scope.userEntryId)
       : undefined;
   let note: string | null = null;
+  let loading = false;
   if (scope.kind === "turn") {
     if (!hasSession) note = t("lanes.review.turn.noSession");
-    else if (turns.phase === "loading") note = t("lanes.review.turn.loading");
+    else if (turns.phase === "loading") loading = true;
     else if (turns.phase === "error") note = t("lanes.review.turn.failed");
     else if (turns.value.length === 0) note = t("lanes.review.turn.none");
   }
@@ -83,6 +84,7 @@ export function ScopeBar({ scope, turns, hasSession, onScope, onRefresh }: Scope
           }))}
         />
       ) : null}
+      {loading ? <LoadingLine label={t("lanes.review.turn.loading")} /> : null}
       {note === null ? null : <span className="text-ui text-muted">{note}</span>}
       <span className="ms-auto">
         <Button variant="ghost" size="sm" onClick={onRefresh}>

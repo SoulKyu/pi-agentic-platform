@@ -19,6 +19,10 @@ import {
   createAgentFilesService,
   createClaudeTokenService,
   createClaudeTokens,
+  createLaunchLog,
+  createLaunchStop,
+  type LaunchLog,
+  type LaunchStop,
   mountAgentFilesRoute,
   secretsDirOf,
   startFilesTrashSweep,
@@ -31,6 +35,9 @@ export type AgentsVmRpc = Pick<
   | "agents.vmStatus"
   | "agents.files.list"
   | "agents.files.remove"
+  | "subscribe.launches"
+  | "launches.log"
+  | "launches.stop"
 >;
 
 /**
@@ -51,6 +58,10 @@ export function composeAgentsVmRpc(
     readonly claudeToken: ClaudeTokens;
     readonly agentFiles: AgentFiles;
     readonly agentFilesLink: NonNullable<AgentLinks["files"]>;
+    /** "Show the log": the VM composition binds its source once the projects are known. */
+    readonly launchLog: LaunchLog;
+    /** "Stop" on a launch's ask: the VM composition binds the registry and the runtime's stop. */
+    readonly launchStop: LaunchStop;
   };
   readonly rpc: AgentsVmRpc;
   /** Stops the daily sweep of the files trash. */
@@ -75,6 +86,8 @@ export function composeAgentsVmRpc(
     owns: (ownerId, agentId) => ownerOf(agentId) === ownerId,
     audit,
   });
+  const launchLog = createLaunchLog();
+  const launchStop = createLaunchStop();
   const stopSweep = startFilesTrashSweep({ files: agentFiles, clock, logger: agentLogger });
   let vmView: ((ownerId: string) => Promise<VmStatusView>) | undefined;
   return {
@@ -83,13 +96,18 @@ export function composeAgentsVmRpc(
     shared: {
       claudeToken,
       agentFiles,
+      launchLog,
+      launchStop,
       agentFilesLink: {
         paths: (_ownerId, agentId) => agentFiles.list(agentId).map((file) => file.path),
         dispose: (agentId, stamp) => agentFiles.dispose(agentId, stamp),
       },
     },
     bindStatus: (view) => void (vmView = view),
-    bindAgents: (agents) => void (ownerOf = (agentId) => agents.ownerOf(agentId)),
+    bindAgents(agents) {
+      ownerOf = (agentId) => agents.ownerOf(agentId);
+      launchLog.bindAgentOwner(ownerOf);
+    },
     mount: (app, authenticate) =>
       mountAgentFilesRoute(app, {
         caller: httpCaller(authenticate, NO_CLIENT_PATHS),
@@ -99,6 +117,11 @@ export function composeAgentsVmRpc(
     rpc: {
       "agents.vmStatus": async (_params, ctx) =>
         vmView ? vmView(ctx.caller.userId) : Promise.reject(new PapError("internal")),
+      "subscribe.launches": async (params, ctx) => ({
+        sub: ctx.openSubscription("launches", ctx.caller.userId, params.after),
+      }),
+      "launches.log": (params, ctx) => launchLog.read(ctx.caller, params.box),
+      "launches.stop": (params, ctx) => launchStop.stop(ctx.caller, params.id),
       ...agentFilesRpc(filesService),
       ...agentsVmTokenRpc(
         createClaudeTokenService(claudeToken, (caller) => requireStepUp(caller, clock.now()), audit),

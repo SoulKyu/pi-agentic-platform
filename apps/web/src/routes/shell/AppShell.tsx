@@ -10,6 +10,8 @@ import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/works
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedAgents, useAgentsStore } from "../../stores/agents-store.ts";
+import { feedLaunches } from "../../stores/launch-feed.ts";
+import { useLaunchStore } from "../../stores/launch-store.ts";
 import { feedLanes } from "../../stores/lane-feed.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
@@ -88,14 +90,17 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
     const stopLanes = feedLanes(getRuntime().subscriptions, () => reportClientIssue("lane_feed_failed"));
     const stopInbox = feedInbox(getRuntime().subscriptions, () => reportClientIssue("inbox_feed_failed"));
     const stopAgents = feedAgents(getRuntime().subscriptions, () => reportClientIssue("agents_feed_failed"));
+    const stopLaunches = feedLaunches(getRuntime().subscriptions);
     return () => {
       stop();
+      stopLaunches();
       stopLanes();
       stopInbox();
       stopAgents();
       useLaneStore.getState().reset();
       useInboxStore.getState().reset();
       useAgentsStore.getState().reset();
+      useLaunchStore.getState().reset();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
       // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset

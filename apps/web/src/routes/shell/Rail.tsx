@@ -1,5 +1,6 @@
 import { IconAccount, IconButton, IconSettings, IconTasks, Mark } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { ShellActivity } from "./ShellActivity.tsx";
 import { runCommand } from "../../features/commands/index.ts";
 import { pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -31,6 +32,7 @@ export function Rail({ username, onSignedOut }: RailProps) {
         <Mark />
       </Link>
       <AgentRail />
+      <ShellActivity />
       <div className="flex-1" />
       <IconButton
         icon={IconTasks}

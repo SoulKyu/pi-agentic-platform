@@ -1,4 +1,4 @@
-import { Button, InlineError, TextField } from "@pap/ui";
+import { Button, InlineError, LoadingLine, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { AuditRow } from "./AuditRow.tsx";
@@ -51,7 +51,7 @@ export function AuditLog() {
           </Button>
         </div>
       ) : null}
-      {!log.loaded && !log.error ? <p className={NOTE}>{t("audit.loading")}</p> : null}
+      {!log.loaded && !log.error ? <LoadingLine label={t("audit.loading")} /> : null}
       {log.loaded && log.entries.length === 0 ? (
         <p className={NOTE}>{t(log.filter === "" ? "audit.empty" : "audit.emptyFiltered")}</p>
       ) : null}

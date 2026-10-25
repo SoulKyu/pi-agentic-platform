@@ -9,6 +9,8 @@ import { itemFromPath, pathOfItem } from "../../features/workspace/index.ts";
 import "../../features/agents/register-vm-catalog.ts";
 import { useT } from "../../i18n/index.ts";
 import { useVmStatus } from "../../lib/use-vm-status.ts";
+import { LaunchSegments } from "../../features/launch/LaunchSegments.tsx";
+import { useIsLaunching } from "../../stores/launch-store.ts";
 import { useAgents } from "../../stores/agents-store.ts";
 import { go } from "./tab-actions.ts";
 
@@ -26,6 +28,8 @@ function AgentButton({
   const navigate = useNavigate();
   const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
   const railRight = useAppearanceStore((state) => state.account.railPosition === "right");
+  // The live launch store, not the one-shot VM status: the avatar is busy while the agent's VM starts.
+  const waking = useIsLaunching({ kind: "agent", id: agent.id });
   const name = greyed ? `${railName(agent, t)}. ${t("agentVm.unusable")}` : railName(agent, t);
   return (
     <Tooltip label={name} side={railRight ? "left" : "right"}>
@@ -34,6 +38,7 @@ function AgentButton({
         aria-label={name}
         aria-current={current ? "page" : undefined}
         aria-disabled={greyed ? true : undefined}
+        aria-busy={waking ? true : undefined}
         onClick={() => go(navigate, pathOfItem(agentTarget(agent)))}
         className={cn(
           "rounded-md border p-s1",
@@ -43,6 +48,7 @@ function AgentButton({
         )}
       >
         <AgentAvatar agent={agent} avatarStyle={avatarStyle} />
+        {waking ? <LaunchSegments box={{ kind: "agent", id: agent.id }} /> : null}
       </button>
     </Tooltip>
   );

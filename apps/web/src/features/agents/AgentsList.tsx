@@ -1,5 +1,5 @@
 import "./register-agent-catalog.ts";
-import { Avatar, Button, Heading, InlineError, type AvatarStyle } from "@pap/ui";
+import { Avatar, Button, Heading, InlineError, type AvatarStyle, LoadingLine } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import type { AgentsView } from "../../stores/agents-reducer.ts";
 import { agentLifecycle } from "./agent-lifecycle.ts";
@@ -29,9 +29,7 @@ export function AgentsList({ view, avatarStyle, onOpen, onNew }: Props) {
       {view.failed !== null ? (
         <InlineError announce="background">{t("settings.agents.feedFailed")}</InlineError>
       ) : !view.loaded ? (
-        <p role="status" className="text-ui text-muted">
-          {t("settings.agents.loading")}
-        </p>
+        <LoadingLine label={t("settings.agents.loading")} />
       ) : view.agents.length === 0 ? (
         <p className="text-ui text-muted">{t("settings.agents.empty")}</p>
       ) : (

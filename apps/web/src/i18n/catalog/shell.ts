@@ -132,6 +132,7 @@ export const shellEn = {
     "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
   "error.disk_low":
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
+  "error.pi_busy": "Pi is busy: too many reads are waiting. Nothing was read. Try again in a moment.",
   "error.sandbox_unavailable": "Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`.",
   "error.agent_paused": "This agent is paused. Resume it from its header.",
   "error.vm_bundle_stale":
@@ -290,6 +291,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Le budget d'automatisation du jour est dépensé. Augmentez-le dans Réglages › Automatisation, ou attendez demain.",
   "error.disk_low":
     "Le disque est presque plein : pap garde de la place libre pour sa base de données. Libérez de l'espace, puis réessayez.",
+  "error.pi_busy": "Pi est occupé : trop de lectures attendent. Rien n'a été lu. Réessayez dans un instant.",
   "error.sandbox_unavailable":
     "Les agents tournent dans des microVM : cette machine a besoin de KVM et de `sudo pap vm setup`.",
   "error.agent_paused": "Cet agent est en pause. Reprenez-le depuis son en-tête.",

@@ -6,15 +6,17 @@ import {
   Icon,
   IconBack,
   IconRefresh,
-  Spinner,
+  LoadingLine,
   useIsPhone,
   InlineError,
 } from "@pap/ui";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import "../../i18n/register-changes.ts";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { useOnBoxRunning } from "../../stores/box-phase.ts";
+import { useBoxCauseText } from "../../stores/loading-cause.ts";
 import { feedVcs } from "../../stores/vcs-feed.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { BoxStopped } from "../boxes/BoxStopped.tsx";
@@ -42,6 +44,7 @@ const ERROR_KEYS = {
 /** The git changes of one folder (M8R79): a header, the changed files in groups, and the diff of the selected one. */
 export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
   const t = useT();
+  const cause = useBoxCauseText(t, root);
   const phone = useIsPhone();
   const known = useVcsStore((state) => state.view.statuses.has(root));
   const status: VcsStatus | null = useVcsStore((state) => state.view.statuses.get(root) ?? null);
@@ -98,8 +101,8 @@ export function ChangesPane({ root, onOpenFile, now }: ChangesPaneProps) {
     );
   } else if (!known) {
     body = (
-      <div className="flex items-center gap-s2 p-s3 text-ui text-muted">
-        <Spinner label={t("changes.state.loading")} />
+      <div className="p-s3">
+        <LoadingLine label={t("changes.state.loading")} cause={cause} />
       </div>
     );
   } else if (status === null || !status.repo) {

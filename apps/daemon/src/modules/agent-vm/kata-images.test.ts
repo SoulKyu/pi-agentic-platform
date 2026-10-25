@@ -317,3 +317,83 @@ describe("the base tag", () => {
     expect(bases[1]?.tag).not.toBe(first);
   });
 });
+
+describe("resolve: reports to the launch it serves", () => {
+  const observer = (seen: string[]) => ({
+    skipped: () => void seen.push("skipped"),
+    waiting: (position: number | null) => void seen.push(`wait:${position}`),
+    building: (tag: string) => void seen.push(`building:${tag}`),
+  });
+
+  it("resolve reports image_build waiting while another build holds the queue", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => void (release = resolve));
+    let first = true;
+    fake.handle("image.build", async (request) => {
+      if (request.op !== "image.build") return {};
+      if (request.layer === "agent" && first) {
+        first = false;
+        await held;
+      }
+      fake.images.add(request.tag);
+      return { tag: request.tag };
+    });
+    const images = make();
+    const one = images.resolve("a-0001", ["git"], "thread");
+    await vi.waitFor(() => expect(builds().some((b) => b.layer === "agent")).toBe(true));
+    const seen: string[] = [];
+    const two = images.resolve("b-0002", ["curl"], "thread", observer(seen));
+    await vi.waitFor(() => expect(seen).toEqual(["wait:1"]));
+    release();
+    await Promise.all([one, two]);
+    const tag = await two;
+    expect(seen).toEqual(["wait:1", "wait:null", `building:${tag}`]);
+  });
+
+  it("reports skipped for an image that is built, and for a thread VM that already runs", async () => {
+    const images = make();
+    const tag = await images.resolve("a-0001", ["git"], "thread");
+    const built: string[] = [];
+    await images.resolve("a-0001", ["git"], "thread", observer(built));
+    expect(built).toEqual(["skipped"]);
+    images.started("a-0001", tag);
+    const running: string[] = [];
+    await images.resolve("a-0001", ["git"], "thread", observer(running));
+    expect(running).toEqual(["skipped"]);
+  });
+
+  it("reports nothing skipped when it builds", async () => {
+    const seen: string[] = [];
+    const tag = await make().resolve("a-0001", ["git"], "thread", observer(seen));
+    expect(seen).toEqual([`building:${tag}`]);
+  });
+
+  it("a base build line reaches the image step", async () => {
+    let release: () => void = () => {};
+    const held = new Promise<void>((resolve) => void (release = resolve));
+    fake.handle("image.build", async (request) => {
+      if (request.op !== "image.build") return {};
+      if (request.layer === "base") await held;
+      fake.images.add(request.tag);
+      return { tag: request.tag };
+    });
+    fake.handle("image.progress", (request) => ({
+      building: true,
+      lines: 1,
+      last:
+        request.op === "image.progress" && request.tag.startsWith("pap-agent-base-")
+          ? { line: "#4 RUN apt-get upgrade", at: clock.now() }
+          : null,
+    }));
+    const lines: string[] = [];
+    const resolving = make().resolve("a-0001", [], "thread", {
+      ...observer([]),
+      line: (line: string) => void lines.push(line),
+    });
+    await vi.waitFor(() => expect(builds().some((b) => b.layer === "base")).toBe(true));
+    await clock.advance(2000);
+    expect(lines).toEqual(["#4 RUN apt-get upgrade"]);
+    release();
+    await resolving;
+  });
+});

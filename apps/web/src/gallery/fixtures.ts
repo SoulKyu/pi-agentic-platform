@@ -29,6 +29,7 @@ export const SEGMENT_OPTIONS = [
 export const SAMPLE = {
   button: "Continue",
   disabled: "Unavailable",
+  loading: "Loading…",
   field: "Working directory",
   fieldValue: "/srv/project",
   fieldHint: "Absolute path of an existing folder.",

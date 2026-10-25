@@ -2,10 +2,7 @@ import {
   GetStateData,
   type InitRecord,
   PapError,
-  type PiEvent,
   POLICY_EXTENSION_PATH,
-  type ReadyRecord,
-  SERVER_CODES,
   type ServerText,
   type SessionStatus,
   type SessionStreamEvent,
@@ -13,7 +10,6 @@ import {
 } from "@pap/contracts";
 import { describeExit } from "../../kernel/supervisor/exit.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
-import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import { createCoalescer } from "./coalescer.ts";
 import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
@@ -21,6 +17,8 @@ import type { IdleState } from "./idle-release.ts";
 import { createLiveCommands } from "./live-commands.ts";
 import { createLiveIdle } from "./live-idle.ts";
 import { markUnsent } from "./live-marks.ts";
+import { createMeasuredPublish } from "./live-measured.ts";
+import { knownId, waitReady } from "./live-ready.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createLoadoutView } from "./loadout-view.ts";
@@ -29,19 +27,14 @@ import { createNoticeRing } from "./notices.ts";
 import { createPartialReply } from "./partial.ts";
 import { clearWorkerQueue, createQueueGuard } from "./queue-guard.ts";
 import { clipMessage, clipPiEvent } from "./wire-clip.ts";
-import { clip, outputTailOf } from "./worker-text.ts";
+import { outputTailOf } from "./worker-text.ts";
 
 const GET_STATE_TIMEOUT_MS = 2000;
-/** Fork to `ready` takes about 0.7 s (S1): a worker that has not said so after this is stuck, not slow. */
-export const READY_TIMEOUT_MS = 30_000;
-/** The socket allows 1 MiB per frame; an event is sent whole or not at all. */
-const MAX_EVENT_BYTES = 1_000_000;
 /** The user and the log hear of a thing the daemon keeps doing (cancelling a dialog, dropping an event) this often. */
 const SAY_EVERY_MS = 10_000;
-const knownId = (id: unknown): string | null =>
-  typeof id === "string" && id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
 
 export type { LiveSession, LiveSessionDeps } from "./live-types.ts";
+export { READY_TIMEOUT_MS } from "./live-ready.ts";
 
 export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveSession {
   const { handle, logger, onCardShown } = deps;
@@ -103,26 +96,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     return parsed.data;
   };
 
-  // An event is sent whole or not at all, and every kind of event is measured: a `text_end` carries the whole text of
-  // a block and a `toolcall_end` the whole call, so a delta is the only small one and it costs nothing to look.
-  /** The stream's own frame for a Pi event, whole or not at all; false when it was too large and left out. */
-  function publishMeasured(event: PiEvent): boolean {
-    if (Buffer.byteLength(JSON.stringify(event)) > MAX_EVENT_BYTES) {
-      const said = limiter.check("event_too_large");
-      if (said.allowed) {
-        logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
-        emit({
-          kind: "notice",
-          level: "warning",
-          text: "A message was too large to stream.",
-          code: SERVER_CODES.messageTooLarge,
-        });
-      }
-      return false;
-    }
-    deps.publish({ kind: "pi", event });
-    return true;
-  }
+  const publishMeasured = createMeasuredPublish({ publish: deps.publish, emit, limiter, logger });
 
   const loadout = createLoadoutView({ logger, limiter, publish });
   const queue = createQueueGuard();
@@ -168,31 +142,20 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     state,
   });
 
-  const ready = new Promise<ReadyRecord>((resolve, reject) => {
-    const timer = deps.clock.setTimeout(() => {
-      off();
-      logger.warn("worker_not_ready", { output: outputTailOf(handle) });
-      void handle.stop();
-      reject(new PapError("worker_failed"));
-    }, READY_TIMEOUT_MS);
-    const off = handle.onRecord((record) => {
-      if (record.type !== "ready") return;
-      off();
-      deps.clock.clearTimeout(timer);
+  // Whoever starts a session awaits this; one that is torn down meanwhile must not leave an unhandled rejection.
+  const ready = waitReady({
+    clock: deps.clock,
+    logger,
+    handle,
+    onReady: (record) => {
       reportedFile = record.sessionFile;
       piSessionId = record.sessionId;
       leafId = knownId(record.leafId);
       setName(nameOf(record.sessionName), false);
       setStatus("idle");
       idle.touch();
-      resolve(record);
-    });
-    void handle.exited.then(() => {
-      deps.clock.clearTimeout(timer);
-      reject(new PapError("worker_failed"));
-    });
+    },
   });
-  // Whoever starts a session awaits this; one that is torn down meanwhile must not leave an unhandled rejection.
   ready.catch(() => undefined);
 
   // The worker sends an entry Pi appended as the slim record `toWireEvent` defines. It becomes an `entry` event (the

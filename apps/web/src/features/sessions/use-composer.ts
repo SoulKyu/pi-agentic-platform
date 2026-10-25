@@ -73,7 +73,8 @@ export function useComposer(
   // Why the last action did nothing, or what it could not do; shown politely (a live region), never as an alert.
   const [note, setNote] = useState<"pending" | "compacting" | "sending" | "truncated" | "files" | null>(null);
   // One prompt RPC at a time: the write-ahead entry always belongs to the send in flight.
-  const [sending, setSending] = useState(false);
+  const [sendingSince, setSendingSince] = useState<number | null>(null);
+  const sending = sendingSince !== null;
   const sendingRef = useRef(false);
   const resendingRef = useRef(false);
   const mounted = useRef(true);
@@ -161,12 +162,12 @@ export function useComposer(
     const signOuts = signOutCount();
     sendingRef.current = true;
     savePending(storage, sessionId, { params, commandId });
-    setSending(true);
+    setSendingSince(performance.now());
     try {
       await runtime.rpc.call("sessions.prompt", params, { commandId });
     } catch (failure) {
       sendingRef.current = false;
-      if (mounted.current) setSending(false);
+      if (mounted.current) setSendingSince(null);
       if (signOuts !== signOutCount()) return;
       if (outcomeUnknown(failure)) {
         savePending(storage, sessionId, { params, commandId });
@@ -189,17 +190,19 @@ export function useComposer(
         if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
         commit(mergeRestored(params.text, textRef.current));
         setError(
-          expired
-            ? t("sessions.files.expired")
-            : withImage && failureCode(failure) === "prompt_rejected"
-              ? t("sessions.files.imageRejected")
-              : failureText(failure),
+          failureCode(failure) === "stopped"
+            ? null
+            : expired
+              ? t("sessions.files.expired")
+              : withImage && failureCode(failure) === "prompt_rejected"
+                ? t("sessions.files.imageRejected")
+                : failureText(failure),
         );
       }
       return;
     }
     sendingRef.current = false;
-    if (mounted.current) setSending(false);
+    if (mounted.current) setSendingSince(null);
     setRefusedAsBusy(false);
     remember(null);
     if (params.attachments?.length) attached?.drop(params.attachments);
@@ -275,6 +278,7 @@ export function useComposer(
     resending,
     compacting,
     sending,
+    sendingSince,
     running: view.status === "running",
     canStop: view.status === "running" || compacting || refusedAsBusy || outside.structuralBusy,
     changeText: commit,

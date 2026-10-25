@@ -1,5 +1,5 @@
 import type { DeviceView } from "@pap/contracts";
-import { Button, Chip, InlineError } from "@pap/ui";
+import { Button, Chip, InlineError, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import { useLocale, useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -138,7 +138,7 @@ export function DevicesList({ signOutHere }: { signOutHere(): void }) {
       ) : null}
       {devices === null ? (
         list.error ? null : (
-          <p className={META}>{t("access.devices.loading")}</p>
+          <LoadingLine label={t("access.devices.loading")} />
         )
       ) : (
         <ul className="flex flex-col">

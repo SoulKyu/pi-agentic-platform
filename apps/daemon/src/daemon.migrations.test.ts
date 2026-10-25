@@ -61,6 +61,7 @@ describe("M10's migrations over a home M9 left (the preview's state.db)", () => 
       "auth/202610241300_user_roles.sql",
       "auth/202610241310_invitations.sql",
       "users/202610241320_provider_sharing.sql",
+      "agent-vm/202610251200_launch_steps.sql",
     ]);
     expect(m10.db.all("SELECT path, state FROM worktrees")).toEqual([{ path: "/pap/wt/a", state: "ready" }]);
     const tables = m10.db

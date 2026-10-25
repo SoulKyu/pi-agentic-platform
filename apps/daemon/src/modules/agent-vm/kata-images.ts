@@ -3,8 +3,10 @@ import { dirname, join } from "node:path";
 import { AGENT_VM_PROTOCOL, PapError, type VmdRequest } from "@pap/contracts";
 import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
+import type { ImageObserver } from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { keepSet, MAX_KEEP } from "./image-prune.ts";
+import { scrubKnownSecrets } from "../audit/index.ts";
+import { createKataBuild } from "./kata-build.ts";
 import { agentLayerTag, treeDigest } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
@@ -42,6 +44,8 @@ export interface KataImagesDeps {
   /** The owner's secrets, collected at each build (T15b); a plain list names no auth.json-only provider. A rejection refuses the build. */
   readonly secrets: () => KnownSecrets | OwnerSecrets | Promise<KnownSecrets | OwnerSecrets>;
   readonly entries: Pick<ImageEntries, "record" | "forget" | "held">;
+  /** Masks a build line before the launch shows it (the owners' values, then the well-known formats); default: the well-known formats only. */
+  readonly redact?: (line: string) => Promise<string>;
   /** Runs one profile preparation; the default is a worker thread (I4), tests run it in process. */
   readonly profileRunner?: ProfileRunner;
   /** Posts once into the agent's thread (a late binding: the sessions come after this). */
@@ -54,7 +58,15 @@ export interface KataImages {
    * new one builds, an agent with none waits for it. The agent's package picks follow the image it gets (AVM-E44). A `thread`
    * spawn into a thread VM that already runs answers that VM's tag at once, with no preparation and no new pairs (M4).
    */
-  resolve(agentId: string, systemPackages: readonly string[], kind: "thread" | "isolated"): Promise<string>;
+  resolve(
+    agentId: string,
+    systemPackages: readonly string[],
+    kind: "thread" | "isolated",
+    /** The launch this serves: told when nothing is built, when the build queues, and which tag builds. */
+    observe?: ImageObserver,
+    /** The box whose "Show the log" reads this build, when it is not `agentId` (a project's rebuild builds under its own key). */
+    logBox?: string,
+  ): Promise<string>;
   /** The agent's thread VM runs on `tag`. */
   started(agentId: string, tag: string, protocol?: number): void;
   stopped(agentId: string): void;
@@ -71,6 +83,8 @@ export interface KataImages {
    * a missing base on its own) tries again. The profile and agent images wait behind pap-vmd's build queue.
    */
   upgradeBaseIfDue(): Promise<void>;
+  /** The lines BuildKit printed for the image the box's launch is building now, redacted; empty when none builds. */
+  buildLog(boxId: string): Promise<string[]>;
 }
 
 type Build = Extract<VmdRequest, { op: "image.build" }>;
@@ -159,10 +173,31 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     }
   }
 
-  async function ensureBase(baseTag: string): Promise<void> {
+  const { prune, buildLayers, tailOf, watch } = createKataBuild({
+    client,
+    clock,
+    logger,
+    redact: deps.redact ?? ((line) => Promise.resolve(scrubKnownSecrets(line).text)),
+    buildOnce,
+    profileTag: () => prepared?.tag ?? null,
+    runningTags: () => [...running.values()].map((one) => one.tag),
+    held: () => deps.entries.held(),
+    latest,
+  });
+
+  /** `view`: the launch that waits for the base, whose image step shows the build's last line (R14). */
+  async function ensureBase(
+    baseTag: string,
+    view?: { readonly observe: ImageObserver | undefined; readonly boxId: string },
+  ): Promise<void> {
     if ((await listed()).has(baseTag)) return;
     baseFlight ??= buildBase(baseTag, policy.claimBaseUpgrade()).finally(() => void (baseFlight = null));
-    await baseFlight;
+    const stop = view ? watch(view, [baseTag]) : undefined;
+    try {
+      await baseFlight;
+    } finally {
+      stop?.();
+    }
   }
 
   /** Under `exclusive`: the profile as the allowlist cuts it now (the tree on disk is always the last one made here). */
@@ -226,59 +261,6 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     return exclusive(async () => usable(false) ?? (await prepare(baseTag, agentId)));
   }
 
-  /** Final review I2, under `exclusive`: removes the images nothing needs. A failure is logged, never thrown into a launch. */
-  async function prune(baseTag: string, built: readonly string[]): Promise<void> {
-    const keep = keepSet({
-      base: baseTag,
-      profile: prepared?.tag ?? null,
-      built,
-      latest,
-      running: [...running.values()].map((one) => one.tag),
-      held: deps.entries.held(),
-    });
-    if (keep.length > MAX_KEEP) {
-      logger.warn("agent_image_prune_skipped", { count: keep.length });
-      return;
-    }
-    try {
-      const answer = (await client.request({ op: "image.prune", keep })) as { removed?: unknown } | null;
-      const removed = Array.isArray(answer?.removed) ? answer.removed.length : 0;
-      logger.info("agent_image_pruned", { removed, kept: keep.length });
-    } catch (error) {
-      logger.warn("agent_image_prune_failed", { err: error });
-    }
-  }
-
-  /** Under `exclusive`, with the tree of `profile` on disk: the layers of `wanted` that pap-vmd does not hold yet. */
-  async function buildLayers(
-    profile: Prepared,
-    baseTag: string,
-    wanted: string,
-    systemPackages: readonly string[],
-    built: ReadonlySet<string>,
-  ): Promise<void> {
-    const builds = [profile.tag, wanted].some((tag) => !built.has(tag));
-    if (!built.has(profile.tag))
-      await buildOnce({
-        op: "image.build",
-        layer: "profile",
-        tag: profile.tag,
-        from: baseTag,
-        aptPackages: [],
-        upgrade: false,
-      });
-    if (wanted !== profile.tag && !built.has(wanted))
-      await buildOnce({
-        op: "image.build",
-        layer: "agent",
-        tag: wanted,
-        from: profile.tag,
-        aptPackages: [...new Set(systemPackages)].sort(),
-        upgrade: false,
-      });
-    if (builds) await prune(baseTag, [profile.tag, wanted]);
-  }
-
   /** The agent keeps running on its image: the build goes on behind, and a failure is only logged. */
   function buildBehind(
     agentId: string,
@@ -299,6 +281,8 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     agentId: string,
     sys: readonly string[],
     baseTag: string,
+    observe?: ImageObserver,
+    logBox: string = agentId,
   ): Promise<string | null> {
     const profile = await profileNow(baseTag, agentId);
     const wanted = agentLayerTag(profile.tag, sys);
@@ -318,13 +302,20 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     if (decision.action === "build-then-use" && decision.use !== null) {
       if (decision.notice !== null) deps.notice(agentId, decision.notice);
       buildBehind(agentId, profile, baseTag, wanted, sys);
+      observe?.skipped(); // the launch runs on the image that is there
       return decision.use;
     }
     const tag = decision.action === "use" ? decision.tag : decision.build;
-    if (!built.has(tag)) {
+    if (built.has(tag)) observe?.skipped();
+    else {
+      // `busy` builds hold the queue: this one is that many places back.
+      const queued = busy > 0;
+      if (queued) observe?.waiting(busy);
       const done = await exclusive(async () => {
+        if (queued) observe?.waiting(null);
         if (prepared?.tag !== profile.tag) return false;
-        await buildLayers(profile, baseTag, wanted, sys, await listed());
+        observe?.building(wanted);
+        await buildLayers(profile, baseTag, wanted, sys, await listed(), { observe, boxId: logBox });
         return true;
       });
       if (!done) return null;
@@ -335,14 +326,17 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   }
 
   return {
-    async resolve(agentId, systemPackages, kind) {
+    async resolve(agentId, systemPackages, kind, observe, logBox = agentId) {
       const live = kind === "thread" ? running.get(agentId) : undefined;
-      if (live !== undefined) return live.tag;
+      if (live !== undefined) {
+        observe?.skipped();
+        return live.tag;
+      }
       try {
         const baseTag = baseTagNow();
-        await ensureBase(baseTag);
+        await ensureBase(baseTag, { observe, boxId: logBox });
         for (let attempt = 0; attempt < RESOLVE_TRIES; attempt += 1) {
-          const tag = await resolveOnce(agentId, systemPackages, baseTag);
+          const tag = await resolveOnce(agentId, systemPackages, baseTag, observe, logBox);
           if (tag !== null) return tag;
         }
         throw new PapError("conflict");
@@ -360,6 +354,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     },
     installedDigest: (fresh) => baseTagNow(fresh).slice(BASE_TAG_PREFIX.length),
     digestOf: bundleDigest,
+    buildLog: tailOf,
     async upgradeBaseIfDue() {
       try {
         const baseTag = baseTagNow();

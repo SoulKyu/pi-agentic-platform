@@ -148,3 +148,24 @@ describe("stopAll attempts every VM", () => {
     });
   });
 });
+
+describe("launch steps when a stop comes mid-launch", () => {
+  it("leaves guest running for the opener to fail with the stop's code", async () => {
+    const hello = deferred<ReturnType<typeof fakeGuest>["link"]>();
+    b.gateway.awaitGuest.mockImplementationOnce(() => hello.promise);
+    const seen: string[] = [];
+    const launch = {
+      id: "l",
+      wait: () => {},
+      end: () => {},
+      stopped: () => false,
+      step: (s: string, st: string) => void seen.push(`${s}:${st}`),
+    };
+    const spawning = b.runtime.start({ ...specOf("a1"), launch }).catch((error: unknown) => error);
+    await settle();
+    await b.runtime.stop(agentBox("a1"));
+    hello.resolve(fakeGuest(b.order).link);
+    expect(await spawning).toMatchObject({ code: "worker_failed" });
+    expect(seen.at(-1)).toBe("guest:done");
+  });
+});

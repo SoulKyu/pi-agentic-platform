@@ -1,6 +1,9 @@
 import "./register-skills-catalog.ts";
 import type { PluginView, SkillView } from "@pap/contracts";
 import { Button, Heading, InlineError } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -38,6 +41,7 @@ export function SkillsSection({ project }: { readonly project: ProjectRef | null
 
 function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const stepUp = useStepUpRunner();
   const lazyText = useLazyFailureText();
   const cwd = project?.root;
@@ -190,9 +194,7 @@ function SkillsPanel({ project }: { readonly project: ProjectRef | null }) {
             <Button onClick={data.reload}>{t("settingsSkills.retry")}</Button>
           </>
         ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settingsSkills.loading")}
-          </p>
+          <WaitLine label={t("settingsSkills.loading")} cause={cause} />
         )}
       </div>
     );

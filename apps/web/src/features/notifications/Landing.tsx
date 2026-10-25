@@ -1,5 +1,5 @@
 import { PushTarget } from "@pap/contracts";
-import { Button, EmptyState } from "@pap/ui";
+import { Button, EmptyState, LoadingLine } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import "../../i18n/register-landing.ts";
@@ -151,8 +151,8 @@ export default function Landing({
       </Notice>
     );
   return (
-    <section data-landing-skeleton role="status" className="w-full p-s4">
-      <span className="sr-only">{t("landing.loading")}</span>
+    <section data-landing-skeleton className="flex w-full flex-col gap-s2 p-s4">
+      <LoadingLine label={t("landing.loading")} deferred={false} />
       <div aria-hidden className="h-control w-full rounded-md bg-surface-2" />
     </section>
   );

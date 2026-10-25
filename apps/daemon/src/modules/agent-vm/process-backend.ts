@@ -103,7 +103,8 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
   }
 
   return {
-    start(spec, launch) {
+    start(spec, launch, steps) {
+      steps?.step("vm", "running");
       const { root, home, guestLayout } = prepare(spec);
       const run = join(root, "run");
       mkdirSync(run, { recursive: true, mode: 0o700 });
@@ -149,6 +150,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
         });
       });
       running.set(key, { box: spec.box, taskKey: spec.taskKey, child, gone });
+      steps?.step("vm", "done");
       return Promise.resolve({ address: "127.0.0.1" });
     },
     stop,

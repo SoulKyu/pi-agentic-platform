@@ -3,7 +3,19 @@ import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { button, click, field, hasButton, mount, press, settle, text, typeInto } from "../../testing/dom.ts";
+import {
+  button,
+  click,
+  field,
+  hasButton,
+  mount,
+  press,
+  settle,
+  text,
+  typeInto,
+  useLoadingClock,
+  pastLoadingDelay,
+} from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { AgentPackages } from "./AgentPackages.tsx";
 
@@ -199,7 +211,9 @@ describe("Pi packages", () => {
   });
 
   it("keeps All locked and says nothing about an empty profile while the read is pending", async () => {
+    useLoadingClock();
     await open([], [], () => new Promise(() => {}));
+    await pastLoadingDelay();
     expect(body()).toContain("Reading your Pi packages…");
     expect(body()).not.toContain("Your Pi profile has no package.");
     expect((tick("All") as HTMLButtonElement).disabled).toBe(true);

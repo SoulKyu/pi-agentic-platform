@@ -2,6 +2,7 @@ import type { BoxRef, Caller } from "@pap/contracts";
 import type { IsMember } from "./kernel/box-path.ts";
 import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
+import type { LaunchHandle, LaunchRegistry } from "./kernel/launches.ts";
 import type { Logger } from "./kernel/logger.ts";
 import { type ClientPathGate, createClientPathGate } from "./kernel/ws/client-path-gate.ts";
 import type { Boxes, BoxesLate } from "./compose-boxes.ts";
@@ -24,7 +25,7 @@ export interface BoxStack {
   /** pap-vmd; null under the process backend, which has no disk of its own to trash. */
   readonly client: VmdClient | null;
   /** The checks a launch makes before it starts a VM (the stack usable, the relay ready, the bundle not stale). */
-  gate(box: BoxRef): Promise<void>;
+  gate(box: BoxRef, launch?: Pick<LaunchHandle, "wait">): Promise<void>;
 }
 
 /** The notices the image policy writes for an agent, in the words of a box (the owner reads them in the project's sessions). */
@@ -47,6 +48,7 @@ export const projectNoticeOf = (text: string): string => PROJECT_NOTICES.get(tex
 export interface BoxWiringDeps {
   readonly vm: {
     readonly runtime: AgentRuntime;
+    readonly launches: LaunchRegistry;
     readonly boxes: Boxes;
     readonly boxStack: BoxStack;
     resourceHost(): { memoryCapMb: number; cores: number };
@@ -80,7 +82,8 @@ export interface BoxWiring {
    */
   bind(modules: {
     readonly sessions: Pick<SessionsModule, "projectCleanup" | "mirror">;
-    readonly automation: Pick<AutomationModule, "projectPort">;
+    readonly automation: Pick<AutomationModule, "projectPort"> &
+      Partial<Pick<AutomationModule, "bindLaunches">>;
     readonly inbox: Pick<Inbox, "agentItems">;
   }): BoxesLate;
 }
@@ -101,6 +104,7 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
   const ops = createBoxOps(vm.runtime, deps.clock);
   const terminals = createBoxTerminals(vm.runtime);
   const control = createBoxControl({
+    launches: vm.launches,
     runtime: vm.runtime,
     ops,
     source: () => source,
@@ -145,6 +149,7 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
     },
     bind({ sessions, automation, inbox }) {
       cleanup = sessions;
+      automation.bindLaunches?.(vm.launches);
       projects.bindBoxes({
         control,
         ops,

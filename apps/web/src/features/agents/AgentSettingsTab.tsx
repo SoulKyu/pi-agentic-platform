@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary, ToolPreset } from "@pap/contracts";
-import { Button, InlineError, usePendingAction } from "@pap/ui";
+import { Button, InlineError, usePendingAction, LoadingLine } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { type MessageKey, useT } from "../../i18n/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
@@ -53,9 +53,7 @@ export function AgentSettingsTab(props: AgentSettingsTabProps) {
             ) : permissions.kind === "failed" ? (
               <InlineError announce="background">{t("agentSafety.perm.failed")}</InlineError>
             ) : (
-              <p role="status" className="text-ui text-muted">
-                {t("agentSafety.perm.loading")}
-              </p>
+              <LoadingLine label={t("agentSafety.perm.loading")} />
             )}
             <SecretsList agentId={agent.id} />
             <section data-agent-actions="" className="flex flex-col gap-s3">

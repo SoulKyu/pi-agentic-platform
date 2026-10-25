@@ -1,6 +1,6 @@
 import { act, createElement, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach } from "vitest";
+import { afterEach, vi } from "vitest";
 import { RoleContext } from "../lib/role-context.ts";
 
 export { flush } from "../runtime/testing.ts";
@@ -63,10 +63,26 @@ export async function mount(element: ReactElement): Promise<Mounted> {
   };
 }
 
+afterEach(() => {
+  if (vi.isFakeTimers()) vi.useRealTimers();
+});
+
+/** A `LoadingLine` shows after 100 ms of its own clock: the test fakes the timers and `performance.now` it reads, then moves them with `pastLoadingDelay`. Real timers come back after the test. */
+export function useLoadingClock(): void {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+}
+
+export async function pastLoadingDelay(ms = 150): Promise<void> {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(ms);
+  });
+}
+
 /** Lets the promises a handler started settle, then React's updates from them. */
 export async function settle(): Promise<void> {
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    if (vi.isFakeTimers()) await vi.advanceTimersByTimeAsync(0);
+    else await new Promise((resolve) => setTimeout(resolve, 0));
   });
 }
 

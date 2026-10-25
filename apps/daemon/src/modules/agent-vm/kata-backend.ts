@@ -48,7 +48,7 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
   }
 
   /** `disk.create` the first time, `disk.grow` when the profile asks for more; a grow under a running VM waits for the next start. */
-  async function ensureDisk(spec: VmSpec): Promise<void> {
+  async function ensureDisk(spec: VmSpec): Promise<"done" | "skipped"> {
     const { box } = spec;
     const diskKey = boxKey(box);
     const wanted = spec.resources.diskMb;
@@ -57,34 +57,40 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
       try {
         await client.request({ op: "disk.create", box, taskKey: null, diskMb: wanted });
         disks.set(diskKey, wanted);
-        return;
+        return "done";
       } catch (error) {
         // The disk exists (an earlier run, or a restart of this daemon): its size is read through the grow below.
         if (!(error instanceof VmdError && error.code === "conflict")) throw error;
       }
-    } else if (known >= wanted) return;
+    } else if (known >= wanted) return "skipped";
     try {
       await client.request({ op: "disk.grow", box, taskKey: null, diskMb: wanted });
     } catch (error) {
       if (error instanceof VmdError && error.code === "conflict") {
         // Only a growth that was asked for: after a restart the size is not known, and nothing says it changed.
         if (known !== undefined && box.kind === "agent") deps.notice(box.id, GROW_NOTICE);
-        return;
+        return "done";
       }
       // pap-vmd never shrinks a file: the disk is larger than the profile says, which is fine.
       if (!(error instanceof VmdError && error.code === "bad_request")) throw error;
       logger.info("agent_disk_larger_than_profile", { box: diskKey });
     }
     disks.set(diskKey, wanted);
+    return "done";
   }
 
   return {
-    start(spec, launch) {
+    start(spec, launch, steps) {
       const key = keyOf(spec.box, spec.taskKey);
       return inOrder(key, async () => {
         current.set(key, launch.launchId);
         try {
-          if (spec.kind === "thread") await ensureDisk(spec);
+          if (spec.kind === "thread") {
+            steps?.step("disk", "running");
+            const disk = await ensureDisk(spec);
+            steps?.step("disk", disk);
+          } else steps?.step("disk", "skipped");
+          steps?.step("vm", "running");
           const started = VmStartResult.safeParse(
             await client.request({
               op: "vm.start",
@@ -98,6 +104,7 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
             }),
           );
           if (!started.success) throw new VmdError("protocol");
+          steps?.step("vm", "done");
           if (spec.kind === "thread") deps.images.started(spec.box.id, spec.image);
           return { address: started.data.address };
         } catch (error) {

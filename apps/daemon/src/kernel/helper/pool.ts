@@ -21,8 +21,18 @@ import {
 export const STDIO_DRAIN_MS = 500;
 /** What a failed run logs of the helper's output: the end of it, clipped to 2 KB. */
 const LOG_TAIL_CHARS = 2048;
+/** Reads that may wait for a free slot; the next one is refused `pi_busy`. */
+export const HELPER_QUEUE_MAX = 16;
+/** How long a read waits for a slot before it is refused `pi_busy`; its own deadline starts when it runs. */
+export const HELPER_QUEUE_WAIT_MS = 30_000;
 /** Ops whose output the helper masks line by line before it reaches stderr; any other op's tail stays out of the log. */
 const DEFAULT_TAIL_OPS: ReadonlySet<string> = new Set(["skills.install"]);
+
+export interface HelperPoolStatus {
+  readonly active: number;
+  readonly max: number;
+  readonly waiting: number;
+}
 
 export interface HelperPoolOptions {
   readonly entry: string;
@@ -34,6 +44,8 @@ export interface HelperPoolOptions {
   /** Added after the strip (tests set `PAP_TEST_PROVIDER` here). */
   readonly extraEnv?: Readonly<Record<string, string>>;
   readonly max: number;
+  /** Told after every change of the counts (a run starts, ends, queues, leaves the queue). No ids. */
+  readonly onChange?: (status: HelperPoolStatus) => void;
   /** Ops whose output tail a failure may log (default: `skills.install` only; tests name their own op). */
   readonly tailOps?: ReadonlySet<string>;
   readonly clock: Clock;
@@ -58,11 +70,28 @@ export interface HelperHandle {
   cancel(): void;
 }
 
+export interface CountedHelperPool extends HelperPool {
+  status(): HelperPoolStatus;
+}
+
 export interface HelperPool {
-  /** Throws `PapError("capacity")` at once when the pool is full: it never queues. */
+  /**
+   * Starts at once while there is room. When the pool is full the call waits in a FIFO of at most 16 for at most 30 s (its
+   * deadline starts when it runs): the handle is then deferred (`answer` is false, `cancel` leaves the queue). A call with
+   * `onPrompt` (a sign-in flow) never waits, and a full queue or a timed-out wait is `PapError("pi_busy")`.
+   */
   run(op: string, params: unknown, options: HelperRunOptions): HelperHandle;
   active(): number;
   stopAll(): Promise<void>;
+}
+
+interface Queued {
+  readonly op: string;
+  readonly params: unknown;
+  readonly runOptions: HelperRunOptions;
+  readonly reject: (error: PapError) => void;
+  readonly resolve: (inner: HelperHandle) => void;
+  timer?: TimerHandle;
 }
 
 interface Live {
@@ -75,11 +104,20 @@ const failedRun = (error: PapError): HelperHandle => {
   return { done, answer: () => false, cancel: () => {} };
 };
 
-export function createHelperPool(options: HelperPoolOptions): HelperPool {
+export function createHelperPool(options: HelperPoolOptions): CountedHelperPool {
   const tailOps = options.tailOps ?? DEFAULT_TAIL_OPS;
   const { clock, logger } = options;
   const live = new Set<Live>();
+  const queue: Queued[] = [];
   let closed = false;
+  const status = (): HelperPoolStatus => ({ active: live.size, max: options.max, waiting: queue.length });
+  const changed = (): void => {
+    try {
+      options.onChange?.(status());
+    } catch (error) {
+      logger.warn("helper_listener_failed", { err: error });
+    }
+  };
 
   function start(op: string, params: unknown, runOptions: HelperRunOptions): HelperHandle {
     const runRecord = buildRunRecord({
@@ -191,11 +229,14 @@ export function createHelperPool(options: HelperPoolOptions): HelperPool {
       if (timers.drain) clock.clearTimeout(timers.drain);
       if (pid !== undefined) releaseGroup(pid);
       live.delete(entry);
+      pump();
+      changed();
       if (!settled) fail("helper_failed", "exit", { exit });
       resolveExited(exit);
     }
     const entry: Live = { kill };
     live.add(entry);
+    changed();
 
     child.on("error", (error) => {
       logger.warn("helper_error", { op, pid, err: error });
@@ -267,15 +308,85 @@ export function createHelperPool(options: HelperPoolOptions): HelperPool {
     };
   }
 
+  function pump(): void {
+    while (!closed && live.size < options.max) {
+      const next = queue.shift();
+      if (!next) return;
+      if (next.timer) clock.clearTimeout(next.timer);
+      try {
+        next.resolve(start(next.op, next.params, next.runOptions));
+      } catch (error) {
+        next.reject(error instanceof PapError ? error : new PapError("helper_failed"));
+      }
+    }
+  }
+
+  function enqueue(op: string, params: unknown, runOptions: HelperRunOptions): HelperHandle {
+    // Refuse a bad folder or deadline now, as a run that starts at once would, not when it leaves the queue.
+    buildRunRecord({ op, agentDir: options.agentDir, papHome: options.papHome, cwd: runOptions.cwd, params });
+    checkedDeadline(runOptions.deadlineMs);
+    let inner: HelperHandle | undefined;
+    let resolveDone: (value: unknown) => void = () => {};
+    let rejectDone: (error: PapError) => void = () => {};
+    const done = new Promise<unknown>((resolve, reject) => {
+      resolveDone = resolve;
+      rejectDone = reject;
+    });
+    done.catch(() => {});
+    const entry: Queued = {
+      op,
+      params,
+      runOptions,
+      reject: rejectDone,
+      resolve(handle) {
+        inner = handle;
+        handle.done.then(resolveDone, rejectDone);
+      },
+    };
+    entry.timer = clock.setTimeout(() => {
+      leave(entry);
+      rejectDone(new PapError("pi_busy"));
+      changed();
+    }, HELPER_QUEUE_WAIT_MS);
+    queue.push(entry);
+    changed();
+    return {
+      done,
+      answer: (promptId, value) => inner?.answer(promptId, value) ?? false,
+      cancel() {
+        if (inner) return inner.cancel();
+        if (leave(entry)) {
+          rejectDone(new PapError("helper_failed"));
+          changed();
+        }
+      },
+    };
+  }
+  function leave(entry: Queued): boolean {
+    const at = queue.indexOf(entry);
+    if (at < 0) return false;
+    queue.splice(at, 1);
+    if (entry.timer) clock.clearTimeout(entry.timer);
+    return true;
+  }
+
   return {
     run(op, params, runOptions) {
       if (closed) throw new PapError("helper_failed");
-      if (live.size >= options.max) throw new PapError("capacity");
-      return start(op, params, runOptions);
+      if (live.size < options.max) return start(op, params, runOptions);
+      if (runOptions.onPrompt !== undefined || queue.length >= HELPER_QUEUE_MAX)
+        throw new PapError("pi_busy");
+      return enqueue(op, params, runOptions);
     },
     active: () => live.size,
+    status,
     async stopAll() {
       closed = true;
+      for (const waiter of queue.splice(0)) {
+        if (waiter.timer) clock.clearTimeout(waiter.timer);
+        waiter.reject(new PapError("helper_failed"));
+      }
+      changed();
       await Promise.all([...live].map((helper) => helper.kill()));
     },
   };

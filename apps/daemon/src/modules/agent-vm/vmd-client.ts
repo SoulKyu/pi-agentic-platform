@@ -8,6 +8,9 @@ export const DEFAULT_DEADLINE_MS = 60_000;
 /** `image.build` copies trees and runs `apt`: pap-vmd's own build timeout (30 minutes) and a minute more (AVM-E47). */
 export const BUILD_DEADLINE_MS = 31 * 60_000;
 
+/** `image.progress` is a quick look at a tail in memory: a vmd that does not answer in this time has no sign of life to give. */
+export const PROGRESS_DEADLINE_MS = 5_000;
+
 /** What pap-vmd answered (`VmdResponse`), or why no answer came: `timeout`, `protocol` (not one valid frame). */
 export type VmdErrorCode =
   | "bad_request"
@@ -91,7 +94,12 @@ export function createVmdClient(socketPath: string, clock: Clock): VmdClient {
       const line = parsed.success ? JSON.stringify(parsed.data) : "";
       if (!parsed.success || Buffer.byteLength(line) > VMD_MAX_FRAME_BYTES)
         return Promise.reject(new VmdError("bad_request"));
-      const slow = parsed.data.op === "image.build";
+      const deadline =
+        parsed.data.op === "image.build"
+          ? BUILD_DEADLINE_MS
+          : parsed.data.op === "image.progress"
+            ? PROGRESS_DEADLINE_MS
+            : DEFAULT_DEADLINE_MS;
       return new Promise<unknown>((resolve, reject) => {
         const frames: Buffer[] = [];
         let size = 0;
@@ -108,10 +116,7 @@ export function createVmdClient(socketPath: string, clock: Clock): VmdClient {
             reject(error);
           }
         };
-        const timer = clock.setTimeout(
-          () => settle(() => refuse("timeout")),
-          slow ? BUILD_DEADLINE_MS : DEFAULT_DEADLINE_MS,
-        );
+        const timer = clock.setTimeout(() => settle(() => refuse("timeout")), deadline);
         socket.on("connect", () => socket.end(`${line}\n`));
         socket.on("data", (chunk: Buffer) => {
           size += chunk.length;

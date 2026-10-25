@@ -61,6 +61,7 @@ describe("method catalogue", () => {
       "lanes.reviewState.set",
       "lanes.runScript",
       "lanes.suggestCommit",
+      "launches.stop",
       "mcp.add",
       "mcp.remove",
       "mcp.setCodemode",

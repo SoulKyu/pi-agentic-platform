@@ -1,5 +1,8 @@
-import { type BoxRef, boxKey, DEFAULT_AGENT_RESOURCES } from "@pap/contracts";
+import { type BoxRef, boxKey, DEFAULT_AGENT_RESOURCES, PapError } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
+import { silentLogger } from "../../kernel/logger.ts";
+import { createLaunchRegistry } from "./launches.ts";
+import { recordLaunches } from "./testing/launch-recorder.ts";
 import { layoutOf } from "./layouts.ts";
 import {
   agentBox,
@@ -220,5 +223,40 @@ describe("boxes", () => {
     });
     expect(b.starts).toHaveLength(0);
     expect(b.runtime.phase(PROJECT)).toBe("stopped");
+  });
+});
+
+describe("launch steps (launch progress)", () => {
+  it("a failed guest hello ends the launch with timeout and marks guest failed", async () => {
+    const recorder = recordLaunches(createLaunchRegistry({ clock: b.clock, logger: silentLogger }));
+    b.gateway.awaitGuest.mockRejectedValueOnce(new PapError("timeout"));
+    const handle = recorder.registry.open({ box: A1, owner: "o", for: "start" });
+    const spec = { ...specOf("a1"), launch: handle };
+    let code = "none";
+    try {
+      await b.runtime.start(spec);
+    } catch (error) {
+      code = error instanceof PapError ? error.code : "other";
+      handle.end(false, code);
+    }
+    expect(code).toBe("timeout");
+    expect(recorder.log).toEqual([
+      "disk:running",
+      "disk:done",
+      "vm:running",
+      "vm:done",
+      "guest:running",
+      "guest:failed",
+      "end:timeout",
+    ]);
+  });
+
+  it("a spawn into a running VM marks disk, vm and guest skipped", async () => {
+    await b.runtime.start(specOf("a1"));
+    const recorder = recordLaunches(createLaunchRegistry({ clock: b.clock, logger: silentLogger }));
+    const handle = recorder.registry.open({ box: A1, owner: "o", for: "s1" });
+    await b.runtime.spawn({ ...specOf("a1"), launch: handle }, workerInput(), null);
+    handle.end(true);
+    expect(recorder.log).toEqual(["disk:skipped", "vm:skipped", "guest:skipped", "end:ok"]);
   });
 });

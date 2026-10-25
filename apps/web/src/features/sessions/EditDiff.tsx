@@ -1,4 +1,4 @@
-import { DeferredFallback, Spinner } from "@pap/ui";
+import { LoadingLine } from "@pap/ui";
 import { DiffView, languageFor } from "@pap/ui/code";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -58,12 +58,7 @@ export function EditDiff({
     [t],
   );
 
-  if (state.phase === "loading")
-    return (
-      <DeferredFallback>
-        <Spinner label={t("sessions.tool.edit.loading")} />
-      </DeferredFallback>
-    );
+  if (state.phase === "loading") return <LoadingLine label={t("sessions.tool.edit.loading")} />;
   if (!edit) return <>{fallback}</>;
   return (
     <div className="flex flex-col gap-s2">

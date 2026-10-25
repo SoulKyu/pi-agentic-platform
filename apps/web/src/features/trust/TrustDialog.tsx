@@ -1,8 +1,10 @@
 import "./register-dialog-catalog.ts";
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { escapeHidden } from "../../lib/escape-hidden.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
 import { TrustResources } from "./TrustResources.tsx";
@@ -47,6 +49,7 @@ export function TrustDialog({
   onClose(): void;
 }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const stepUp = useStepUpRunner();
   const { status, error, retry } = useTrustStatus(cwd);
   const [busy, setBusy] = useState(false);
@@ -86,9 +89,7 @@ export function TrustDialog({
             <Button onClick={retry}>{t("trust.retry")}</Button>
           </div>
         ) : status === null ? (
-          <p role="status" className="text-ui text-muted">
-            {t("trust.loading")}
-          </p>
+          <LoadingLine label={t("trust.loading")} cause={cause} />
         ) : (
           <>
             <Current status={status} />

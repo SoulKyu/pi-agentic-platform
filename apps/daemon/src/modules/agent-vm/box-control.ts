@@ -1,5 +1,12 @@
 import { type BoxPhase, type BoxRef, PapError } from "@pap/contracts";
 import type { BoxControl, BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
+import {
+  imageStep,
+  type LaunchHandle,
+  type LaunchRegistry,
+  launchCodeOf,
+  stepAround,
+} from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { projectLayoutOf } from "./layouts.ts";
 import type { ProjectImages } from "./project-images.ts";
@@ -12,6 +19,8 @@ export interface BoxControlDeps {
     "start" | "stop" | "resume" | "phase" | "onPhase" | "close" | "reopen"
   >;
   readonly ops: BoxOps;
+  /** A launch of the box that this control did not ask for (a session's) also reads as `starting`, from its first step. */
+  readonly launches: Pick<LaunchRegistry, "activeFor" | "onChange" | "open">;
   /** Late: the projects module is built after the VM stack; until it is bound no project has a box. */
   readonly source: () => ProjectBoxSource | null;
   readonly images: ProjectImages;
@@ -23,9 +32,11 @@ export interface BoxControlDeps {
    * What a launch checks before it starts a VM and a start checks too (pap-vmd and its bridge usable, the relay ready, the bundle
    * not stale): throws `sandbox_unavailable` or `vm_bundle_stale`. Capacity and `agent_paused` are the runtime's.
    */
-  readonly gate: (box: BoxRef) => Promise<void>;
+  readonly gate: (box: BoxRef, launch?: Pick<LaunchHandle, "wait">) => Promise<void>;
 }
 
+/** The `for` of a launch that builds an image and starts nothing (R15). */
+const REBUILD = "rebuild";
 const boxOf = (projectId: string): BoxRef => ({ kind: "project", id: projectId });
 
 /**
@@ -43,7 +54,9 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
   const phaseOf = (projectId: string): BoxPhase => {
     const phase = runtime.phase(boxOf(projectId));
     if (phase === "running" || phase === "starting") return phase;
-    return starting.has(projectId) ? "starting" : "stopped";
+    // A build launch (a Rebuild) is no start: the box is not starting while its image is built in the background (R15).
+    const active = deps.launches.activeFor(boxOf(projectId));
+    return starting.has(projectId) || (active !== null && active.for !== REBUILD) ? "starting" : "stopped";
   };
 
   /** Each change once, whoever causes it (a start here, a session's launch, a crash, the idle stop). */
@@ -61,6 +74,9 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
   }
 
   runtime.onPhase((box) => {
+    if (box.kind === "project") tell(box.id);
+  });
+  deps.launches.onChange((box) => {
     if (box.kind === "project") tell(box.id);
   });
 
@@ -85,13 +101,23 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
       if (row === null || row.deleting) throw new PapError("not_found");
       return row;
     };
-    live();
+    const owner = live().ownerId;
     if (runtime.phase(box) === "running") return;
-    await deps.gate(box);
-    const image = await images.tagOf(projectId);
-    const row = live(); // the project may have been deleted while the image was built
-    await runtime.start({ box, kind: "thread", taskKey: null, image, resources: row.resources });
-    await readWanted(projectId);
+    // Opened after the early return (a running box has no launch), ended on every other way out: done, refused, thrown.
+    const launch = deps.launches.open({ box, owner, for: "start" });
+    let code: string | undefined;
+    try {
+      await stepAround(launch, "checks", () => deps.gate(box, launch));
+      const image = await imageStep(launch, (observe) => images.tagOf(projectId, observe));
+      const row = live(); // the project may have been deleted while the image was built
+      await runtime.start({ box, kind: "thread", taskKey: null, image, resources: row.resources, launch });
+      await readWanted(projectId);
+    } catch (error) {
+      code = launchCodeOf(error);
+      throw error;
+    } finally {
+      launch.end(code === undefined, code);
+    }
   }
 
   /** One queue per box: a start, a restart, a rebuild and a dispose never overlap. */
@@ -149,7 +175,19 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
       inOrder(projectId, async () => {
         const running = runtime.phase(boxOf(projectId)) === "running";
         if (running) await readWanted(projectId); // an edit since the start
-        await images.rebuild(projectId, running);
+        const owner = deps.source()?.box(projectId)?.ownerId;
+        // A build launch: the image step only, so the Rebuild button, the activity list and the log have something to show.
+        const launch =
+          owner === undefined ? null : deps.launches.open({ box: boxOf(projectId), owner, for: REBUILD });
+        let code: string | undefined;
+        try {
+          await imageStep(launch, (observe) => images.rebuild(projectId, running, observe));
+        } catch (error) {
+          code = launchCodeOf(error);
+          throw error;
+        } finally {
+          launch?.end(code === undefined, code);
+        }
       }),
     packages: (projectId) => images.packages(projectId),
     onPhase(listener) {

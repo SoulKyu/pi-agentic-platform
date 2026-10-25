@@ -1,6 +1,6 @@
 import "./register-agent-catalog.ts";
 import type { AgentView, ToolPreset } from "@pap/contracts";
-import { InlineError } from "@pap/ui";
+import { InlineError, LoadingLine } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -38,9 +38,7 @@ export function NewAgentDialog({ presetField, onClose, onCreated }: Props) {
         <NoVmState />
       ) : start === null ? (
         // the form reads its starting values once, so it waits for them
-        <p role="status" className="text-ui text-muted">
-          {t("agentForm.dialog.loading")}
-        </p>
+        <LoadingLine label={t("agentForm.dialog.loading")} />
       ) : (
         <>
           {late ? (

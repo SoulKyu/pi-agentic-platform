@@ -1,4 +1,4 @@
-import { Button, EmptyState } from "@pap/ui";
+import { Button, EmptyState, LoadingLine } from "@pap/ui";
 import { Component, Suspense, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { isStaleChunk } from "../../lib/lazy.tsx";
@@ -18,7 +18,11 @@ function Updated() {
 
 function Loading() {
   const t = useT();
-  return <p className="p-s4 text-ui text-muted">{t("app.loading")}</p>;
+  return (
+    <div className="p-s4">
+      <LoadingLine label={t("app.loading")} />
+    </div>
+  );
 }
 
 interface State {

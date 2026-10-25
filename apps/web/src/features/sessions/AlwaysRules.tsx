@@ -1,4 +1,4 @@
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { coverText } from "../../lib/rule-text.ts";
@@ -62,7 +62,7 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
 }
 
 /** The always-rules of a project (its git root, as the daemon resolves `cwd`), newest first, each revocable. */
-export function AlwaysRules({ cwd }: { cwd: string }) {
+export function AlwaysRules({ cwd, since }: { cwd: string; since?: number }) {
   const t = useT();
   const [rules, setRules] = useState<readonly Rule[] | null>(null);
   const [truncated, setTruncated] = useState(false);
@@ -94,7 +94,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
       {error ? <InlineError announce="background">{error}</InlineError> : null}
       {rules === null ? (
         error ? null : (
-          <p className="text-ui text-muted">{t("rules.loading")}</p>
+          <LoadingLine label={t("rules.loading")} {...(since === undefined ? {} : { since })} />
         )
       ) : rules.length === 0 ? (
         <p className="text-ui text-muted">{t("rules.empty")}</p>

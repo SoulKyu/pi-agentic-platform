@@ -1,11 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { DEFAULT_PROJECT_RESOURCES, PolicyRules } from "@pap/contracts";
+import { DEFAULT_PROJECT_RESOURCES, PapError, PolicyRules } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ProjectBoxRow, ProjectBoxSource } from "../../kernel/boxes.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
-import { projectLayoutOf, type VmSpec } from "../agent-vm/index.ts";
+import { createFakeClock } from "../../kernel/clock.ts";
+import { createLaunchRegistry, projectLayoutOf, type VmSpec } from "../agent-vm/index.ts";
+import { recordLaunches } from "../agent-vm/testing/launch-recorder.ts";
 import type { SessionBoxes } from "./project-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore, type SessionRow } from "./store.ts";
@@ -24,6 +26,9 @@ const probes = { scopeOf: vi.fn((cwd: string) => cwd), knowledgeRootOf: vi.fn(()
 let atInit: { scope: number; knowledge: number } | null;
 let bed: ReturnType<typeof setup>["bed"];
 let boxes: ReturnType<typeof boxesOf>;
+let recorder: ReturnType<typeof recordLaunches>;
+let spawnError: Error | null;
+let silentWorker = false;
 
 /** The sessions' view of the project boxes, as the composition gives it (`compose-boxes.ts` has its own tests): by the source's `byPath`. */
 function boxesOf(papHome: string, source: ProjectBoxSource) {
@@ -48,6 +53,9 @@ function setup(row: Partial<ProjectBoxRow> = {}) {
   probes.scopeOf.mockClear();
   probes.knowledgeRootOf.mockClear();
   atInit = null;
+  spawnError = null;
+  silentWorker = false;
+  recorder = recordLaunches(createLaunchRegistry({ clock: createFakeClock(), logger: silentLogger }));
   const specs: VmSpec[] = [];
   const policy = { ...fakePolicyPort(), scopeOf: probes.scopeOf };
   const projects = { ...fakeProjectsPort(), knowledgeRootOf: probes.knowledgeRootOf };
@@ -70,13 +78,14 @@ function setup(row: Partial<ProjectBoxRow> = {}) {
           knowledge: probes.knowledgeRootOf.mock.calls.length,
         };
         void init;
-        return undefined;
+        return silentWorker ? { kind: "silent" } : undefined;
       },
       vmLaunch: (makeWorker, { papHome }) => {
         boxes = boxesOf(papHome, source);
         return createVmLaunch({
           runtime: {
             async spawn(spec: VmSpec) {
+              if (spawnError) throw spawnError;
               specs.push(spec);
               return {
                 handle: Object.assign(makeWorker(), { slot: "b".repeat(32), piFile: () => null }),
@@ -92,6 +101,7 @@ function setup(row: Partial<ProjectBoxRow> = {}) {
           joinLaunch: () => {},
           toImageEntries: () => null,
           layoutOf: (r) => boxes.vmLayoutOf(r as never),
+          launches: recorder.registry,
           imageTagOf: () => IMAGE,
           projectImageTagOf: () => IMAGE,
           mirrors: {
@@ -221,5 +231,36 @@ describe("a session in a project's box (task A3)", () => {
     bed.service.agent.setAgentPorts({ inLane });
     await bed.service.create(project, OWNER);
     expect(inLane).not.toHaveBeenCalled();
+  });
+});
+
+describe("a session's launch reports its steps (launch progress)", () => {
+  it("marks the image, then the worker once it is ready, and ends ok after the ready wait", async () => {
+    const { project } = setup();
+    await bed.service.create(project, OWNER);
+    expect(recorder.log).toEqual(["image:running", "image:done", "worker:running", "worker:done", "end:ok"]);
+    expect(recorder.opened()).toBe(1);
+  });
+
+  it.each(["capacity", "sandbox_unavailable"] as const)(
+    "a refused launch (%s) ends its handle with that code",
+    async (code) => {
+      const { project } = setup();
+      spawnError = new PapError(code);
+      expect(await codeOf(bed.service.create(project, OWNER))).toBe(code);
+      expect(recorder.log.at(-1)).toBe(`end:${code}`);
+      expect(recorder.log.filter((line) => line.startsWith("end:"))).toHaveLength(1);
+    },
+  );
+
+  it("a stop during the worker step rejects the session create with stopped", async () => {
+    const { project } = setup();
+    silentWorker = true;
+    const created = codeOf(bed.service.create(project, OWNER));
+    await vi.waitFor(() => expect(recorder.log).toContain("worker:running"));
+    const id = recorder.registry.activeFor({ kind: "project", id: PROJECT })?.id as string;
+    recorder.registry.stop(id);
+    bed.spawned[0]?.crash({ code: null, signal: "SIGKILL", cause: "signal" });
+    expect(await created).toBe("stopped");
   });
 });

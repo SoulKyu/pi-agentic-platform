@@ -1,4 +1,4 @@
-import type { TaskView } from "@pap/contracts";
+import type { TaskView, Waiting } from "@pap/contracts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
@@ -25,6 +25,8 @@ export interface TaskViewDeps {
   readonly policy: Pick<PolicyPort, "sessionPolicy">;
   /** A thread task shares its session with the others: its cost is that of its own runs (M11R71). */
   readonly threadCost?: (taskId: string) => number;
+  /** What a queued task waits for now (launch progress); none until the engine says. */
+  readonly waiting?: (taskId: string) => Waiting | null;
 }
 
 /** A stored row as the board shows it: the live parts (a waiting question, the cost, the tool list) are read now. */
@@ -67,6 +69,7 @@ export function createTaskViews(deps: TaskViewDeps) {
       // A reminder's time and note (W1); the note is the agent's own text.
       notBefore: row.origin === "remind" ? row.not_before : null,
       note: row.origin === "remind" ? reminderNote(row.prompt) : null,
+      waiting: row.state === "queued" ? (deps.waiting?.(row.id) ?? null) : null,
     };
   };
 }

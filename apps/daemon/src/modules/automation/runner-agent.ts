@@ -9,6 +9,7 @@ import { DELEGATION_ASK_CHARS, SUMMARY_CHARS } from "../agents/index.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { TaskViews } from "./task-view.ts";
 import type { AgentBinding, AgentPorts } from "./trigger-agent.ts";
+import type { PutOff } from "./put-off.ts";
 import type { Move, TaskPolicySnapshot, TaskRow, TaskStore } from "./tasks.ts";
 
 /** A delegation whose requester is quarantined: it never starts (W5-R64 I4). */
@@ -31,7 +32,7 @@ export interface AgentStartDeps {
   readonly views: TaskViews;
   readonly policy: Pick<PolicyPort, "sessionPolicy">;
   /** The tasks put off until a time: admission skips them meanwhile. */
-  readonly putOff: Map<string, number>;
+  readonly putOff: Map<string, PutOff>;
   /** The thread target's half of the end hook: its card moves to the state the task ended with (M11R71). */
   readonly thread?: { ended(row: TaskRow, state: TaskState): void };
 }
@@ -158,7 +159,7 @@ export function createAgentStart(deps: AgentStartDeps) {
       return { outcome: "done" };
     }
     const until = clock.now() + PAUSED_MS;
-    deps.putOff.set(row.id, until);
+    deps.putOff.set(row.id, { until, reason: "paused" });
     return { outcome: "defer", until };
   }
 

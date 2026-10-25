@@ -1,11 +1,10 @@
 import type { ShellSession } from "@pap/contracts";
-import { Banner, Button, Collapsible } from "@pap/ui";
+import { Banner, Button, Collapsible, LoadingLine } from "@pap/ui";
 import { useId, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/rpc.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
-import { Loading } from "./Loading.tsx";
 import { SessionRow } from "./SessionRow.tsx";
 
 /** The most archived rows the shelf holds: five pages; older ones are reached by search (M4R140). */
@@ -95,7 +94,7 @@ export function ArchivedShelf({ count, chord, now, onPick }: ArchivedShelfProps)
             <SessionRow key={session.id} session={session} now={now} onPick={onPick} />
           ))}
         </ul>
-        {phase === "loading" && rows.length === 0 ? <Loading label={t("sidebar.loading")} /> : null}
+        {phase === "loading" && rows.length === 0 ? <LoadingLine label={t("sidebar.loading")} /> : null}
         {phase === "failed" ? (
           <Banner
             tone="capacity"

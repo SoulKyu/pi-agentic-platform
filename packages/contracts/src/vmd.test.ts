@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { VmdRequest, VmdResponse, VmStartResult } from "./vmd.ts";
+import { VmdImageProgress, VmdRequest, VmdResponse, VmStartResult } from "./vmd.ts";
 
 const hex = (n: number, ch = "a"): string => ch.repeat(n);
 const box = { kind: "agent", id: "helper-1a2b" };
@@ -37,6 +37,7 @@ const valid: Record<string, unknown> = {
     aptPackages: ["jq", "g++"],
     upgrade: true,
   },
+  "image.progress": { op: "image.progress", tag: tag("base") },
   "image.list": { op: "image.list" },
   "image.prune": { op: "image.prune", keep: [tag("base")] },
   version: { op: "version" },
@@ -64,6 +65,26 @@ describe("VmdRequest", () => {
     ];
     for (const patch of bad)
       expect(VmdRequest.safeParse({ ...start, ...patch }).success, JSON.stringify(patch)).toBe(false);
+  });
+
+  it("image.progress takes a tag and nothing else", () => {
+    expect(VmdRequest.safeParse({ op: "image.progress" }).success).toBe(false);
+    expect(VmdRequest.safeParse({ op: "image.progress", tag: "latest" }).success).toBe(false);
+    expect(VmdRequest.safeParse({ op: "image.progress", tag: tag("base"), box }).success).toBe(false);
+    expect(VmdImageProgress.safeParse({ building: true, lines: 3, last: { line: "x", at: 1 } }).success).toBe(
+      true,
+    );
+    expect(VmdImageProgress.safeParse({ building: false, lines: 0, last: null }).success).toBe(true);
+    const bad = [
+      { building: true, lines: 201, last: null },
+      { building: true, lines: -1, last: null },
+      { building: true, lines: 1, last: { line: "x".repeat(513), at: 1 } },
+      { building: true, lines: 1, last: { line: "x", at: -1 } },
+      { building: true, lines: 1 },
+      { building: true, lines: 1, last: null, extra: 1 },
+    ];
+    for (const result of bad)
+      expect(VmdImageProgress.safeParse(result).success, JSON.stringify(result)).toBe(false);
   });
 
   // M5: the root API has no disk populate any more (no caller since AVM-E53). Mutant: the schema line back -> this fails.

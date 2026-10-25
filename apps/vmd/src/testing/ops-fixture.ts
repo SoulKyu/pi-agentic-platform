@@ -120,13 +120,13 @@ export function createFixture(
     ops: undefined as unknown as FixtureOps,
     exec: undefined as unknown as FakeExec,
   };
-  const exec = createFakeExec((argv) => {
+  const exec = createFakeExec((argv, options) => {
     if (argv.at(-1) === "{{.Names}} {{.Status}}")
       return { code: fixture.psCode, stdout: fixture.ps.map((line) => `${line}\n`).join("") };
     if (argv.includes("run")) order.push("run");
     if (argv.includes("rm")) order.push(`rm ${argv.at(-1) ?? ""}`);
     // The ruleset and the bridge are there unless a test says otherwise (vm.start checks both, AVM-E49).
-    return Promise.resolve(handler(argv)).then((answer) => answer ?? healthyHost(argv));
+    return Promise.resolve(handler(argv, options)).then((answer) => answer ?? healthyHost(argv));
   });
   const uid = process.getuid?.() ?? 0;
   const ops = createOps({

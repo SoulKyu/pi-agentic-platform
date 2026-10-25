@@ -1,5 +1,6 @@
 import { type BoxRef, CLAUDE_BRIDGE_PROVIDER, type Caller, PapError, ProjectId } from "@pap/contracts";
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
+import type { CountedHelperPool } from "./kernel/helper/pool.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { ClaudeTokens, MirrorHooks, PolicyView, RelayLink } from "./modules/agent-vm/index.ts";
 import type { AgentsPort } from "./modules/agents/index.ts";
@@ -87,6 +88,9 @@ export interface AgentsVmLate {
     readonly models: Pick<ModelsPort, "available" | "onChanged">;
     /** The agent form's package ids, resolved by the helper (AVM-E33). */
     readonly plugins: PluginPicks;
+    /** The helper pool's counts, for the `launches` snapshot, and the owners its `helpers` events go to. */
+    readonly helpers?: Pick<CountedHelperPool, "status">;
+    readonly bindHelperOwners?: (owners: () => readonly string[]) => void;
   };
   readonly agents: Pick<AgentsPort, "get" | "list" | "ownerOf" | "onChange">;
   /** The owner's egress host list (what an agent without a list of its own gets); absent: none. */

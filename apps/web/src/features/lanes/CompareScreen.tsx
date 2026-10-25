@@ -1,5 +1,5 @@
 import "./register-compare-catalog.ts";
-import { Button, EmptyState, useIsPhone, InlineError } from "@pap/ui";
+import { Button, EmptyState, LoadingLine, useIsPhone, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { getLocale, useT } from "../../i18n/index.ts";
 import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
@@ -46,7 +46,9 @@ export function CompareScreen({ fanoutId, onOpenLane, onRunAgain, now }: Props) 
     return view.loaded ? (
       <EmptyState title={t("compare.gone.title")} purpose={t("compare.gone")} />
     ) : (
-      <p className="p-s4 text-ui text-muted">{t("compare.loading")}</p>
+      <div className="p-s4">
+        <LoadingLine label={t("compare.loading")} />
+      </div>
     );
   }
   const winner = winnerId !== null && live.some((lane) => lane.id === winnerId) ? winnerId : null;

@@ -36,6 +36,8 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   readonly remote?: boolean;
   /** Replaces the label after 3 s ("Preparing worktree…"). */
   readonly stageLabel?: string;
+  /** The real step of a wait the caller follows (a box launch): shown with the spinner from the first moment, and the button is busy. */
+  readonly stage?: string;
   /** The button may shrink and cut a text label with an ellipsis (a name of any length); other children stay whole. */
   readonly truncate?: boolean;
 }
@@ -58,14 +60,17 @@ export function Button({
   pendingSince,
   remote,
   stageLabel,
+  stage,
   truncate,
   disabled,
   children,
   ...rest
 }: ButtonProps) {
   const phase = usePendingFeedback(pendingSince ?? null, { remote: remote ?? true });
-  const busy = phase === "disabled" || phase === "spinner" || phase === "stage";
-  return (
+  const staged = stage !== undefined && stage !== "";
+  const busy = staged || phase === "disabled" || phase === "spinner" || phase === "stage";
+  const label = staged ? stage : stageText(phase, stageLabel, children);
+  const control = (
     <button
       type={type ?? "button"}
       data-slot="button"
@@ -80,11 +85,19 @@ export function Button({
       )}
       {...rest}
     >
-      {phase === "spinner" || phase === "stage" ? <Spinner /> : null}
-      {truncate === true
-        ? truncated(stageText(phase, stageLabel, children))
-        : stageText(phase, stageLabel, children)}
+      {staged || phase === "spinner" || phase === "stage" ? <Spinner /> : null}
+      {truncate === true ? truncated(label) : label}
     </button>
+  );
+  if (!staged) return control;
+  // A live region inside a button is not read: the step is said by a sibling, once per change.
+  return (
+    <>
+      {control}
+      <span role="status" aria-live="polite" className="sr-only">
+        {stage}
+      </span>
+    </>
   );
 }
 

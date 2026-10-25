@@ -1,6 +1,8 @@
 import "../../i18n/register-subagents.ts";
-import { Heading, InlineError, Segmented, Switch } from "@pap/ui";
+import { Heading, InlineError, Segmented, Switch, LoadingLine } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { cutUnits, stripHidden } from "../../lib/untrusted-text.ts";
 import { useSubagentProfiles } from "./use-subagent-profiles.ts";
 import { useSubagentsSetting } from "./use-subagents-setting.ts";
@@ -14,6 +16,7 @@ const LIMITS = ["1", "2", "3", "4"] as const;
  */
 export function SubagentsSettings() {
   const t = useT();
+  const cause = usePiCauseText(t);
   const setting = useSubagentsSetting();
   const profiles = useSubagentProfiles();
   const options = LIMITS.map((value) => ({ value, label: value }));
@@ -26,9 +29,7 @@ export function SubagentsSettings() {
       {setting.failed ? (
         <InlineError announce="background">{t("subagents.settings.loadFailed")}</InlineError>
       ) : setting.value === null ? (
-        <p role="status" className="text-ui text-muted">
-          {t("subagents.settings.loading")}
-        </p>
+        <LoadingLine label={t("subagents.settings.loading")} />
       ) : (
         <>
           <Switch
@@ -55,9 +56,7 @@ export function SubagentsSettings() {
       </Heading>
       <p className="text-ui text-muted">{t("subagents.profiles.hint")}</p>
       {profiles.kind === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("subagents.profiles.loading")}
-        </p>
+        <LoadingLine label={t("subagents.profiles.loading")} cause={cause} />
       ) : profiles.kind === "needSession" ? (
         <p className="text-ui text-muted">{t("subagents.profiles.needSession")}</p>
       ) : profiles.kind === "failed" ? (

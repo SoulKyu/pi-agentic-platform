@@ -1,5 +1,7 @@
 import "../../../i18n/register-settings-providers.ts";
-import { Button, InlineError, useIsPhone } from "@pap/ui";
+import { Button, InlineError, LoadingLine, useIsPhone } from "@pap/ui";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { stripHidden } from "../../../lib/untrusted-text.ts";
@@ -47,6 +49,7 @@ export interface ProviderFormProps {
  */
 export function ProviderForm(props: ProviderFormProps) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const stack = useIsPhone();
   const form = useProviderForm(props);
   const [confirming, setConfirming] = useState(false);
@@ -114,11 +117,7 @@ export function ProviderForm(props: ProviderFormProps) {
       </>
     );
   else if (phase.kind === "loading")
-    body = (
-      <p role="status" className="text-ui text-muted">
-        {t("settingsProviders.loading")}
-      </p>
-    );
+    body = <LoadingLine label={t("settingsProviders.loading")} cause={cause} />;
   else if (phase.kind === "failed")
     body = (
       <div className="flex flex-col items-start gap-s2">

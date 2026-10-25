@@ -1,6 +1,7 @@
 import "../../i18n/register-github.ts";
 import { GITHUB_WEB_ORIGIN, type GithubStatusView } from "@pap/contracts";
 import { Button, InlineError } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
 import { useState, type ReactNode } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { useRole } from "../../lib/role-context.ts";
@@ -44,12 +45,7 @@ export function GithubSettings({ stepUp, go }: Props) {
   const authorize = useGithubAction();
   const disconnect = useGithubAction();
 
-  if (state.kind === "loading")
-    return (
-      <p role="status" className="text-ui text-muted">
-        {t("github.settings.loading")}
-      </p>
-    );
+  if (state.kind === "loading") return <WaitLine label={t("github.settings.loading")} />;
   if (state.kind === "failed")
     return <InlineError announce="background">{t("github.settings.failed")}</InlineError>;
 

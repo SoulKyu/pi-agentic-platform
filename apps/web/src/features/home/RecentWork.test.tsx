@@ -6,7 +6,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
-import { button, click, mount, settle, text } from "../../testing/dom.ts";
+import { button, click, mount, settle, text, useLoadingClock, pastLoadingDelay } from "../../testing/dom.ts";
 import { fakeHomeActions } from "../../testing/home-actions.ts";
 import { tasksSnapshot, taskView } from "../../testing/home-fixtures.ts";
 import { laneSnapshot, laneView } from "../../testing/lane-fixtures.ts";
@@ -180,7 +180,9 @@ describe("Recent work (§3.4)", () => {
   });
 
   it("shows loading until the shell stream has loaded, then says when there is nothing yet", async () => {
+    useLoadingClock();
     await show();
+    await pastLoadingDelay();
     expect(text(document.body)).toContain("Loading");
     await act(async () => listed());
     expect(text(document.body)).toContain("Nothing yet. Launch something above.");

@@ -10,6 +10,7 @@ import {
   TriggerSource,
 } from "./automation.ts";
 import { ToolName } from "./policy.ts";
+import { Waiting } from "./launches.ts";
 import { AgentId } from "./platform.ts";
 
 /** `pwh_` and 32 random bytes in base64url: the prefix lets a secret scanner recognise a leak (M10R18). */
@@ -105,6 +106,8 @@ export const TaskView = z
     notBefore: z.number().int().nullable().optional(),
     /** A reminder's note, clipped to 200 units: agent-written text, shown fenced. Null for any other task. */
     note: z.string().max(200).nullable().optional(),
+    /** What a queued task waits for (launch progress); absent from an older daemon, null when it waits for nothing. */
+    waiting: Waiting.nullable().optional(),
   })
   .strict();
 export type TaskView = z.infer<typeof TaskView>;

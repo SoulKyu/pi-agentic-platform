@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EMPTY_SHELL } from "../../stores/shell-reducer.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
-import { button, click, settle, text } from "../../testing/dom.ts";
+import { button, click, settle, text, useLoadingClock, pastLoadingDelay } from "../../testing/dom.ts";
 import {
   countsOf,
   current,
@@ -63,11 +63,11 @@ function phone(on: boolean) {
 
 describe("TasksBoard", () => {
   it("waits for the first snapshot", async () => {
+    useLoadingClock();
     newBed();
     const page = await showWithStepUp(<TasksBoard {...handlers()} />);
-    expect(page.container.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe(
-      "Loading the tasks…",
-    );
+    await pastLoadingDelay();
+    expect(page.container.querySelector('[role="status"]')?.textContent).toContain("Loading the tasks…");
   });
 
   it("shows the empty state with the purpose and a New trigger action for the only project", async () => {

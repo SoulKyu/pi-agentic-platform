@@ -1,4 +1,4 @@
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { useEffect } from "react";
 import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
@@ -21,7 +21,12 @@ export function RootLayout() {
     if (connection === "signed-out") refresh();
   }, [connection, refresh]);
 
-  if (state.phase === "loading") return <main className="p-s5 text-muted">{t("app.loading")}</main>;
+  if (state.phase === "loading")
+    return (
+      <main className="p-s5">
+        <LoadingLine label={t("app.loading")} />
+      </main>
+    );
   if (state.phase === "error") {
     return (
       <main className="flex flex-col items-start gap-s3 p-s5">

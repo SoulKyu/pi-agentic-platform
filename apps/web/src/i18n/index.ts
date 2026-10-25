@@ -26,6 +26,7 @@ import type { inviteEn } from "./catalog/invite.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { githubEn } from "./catalog/github.ts";
 import type { healthEn } from "./catalog/health.ts";
+import type { launchProgressEn } from "./catalog/launch-progress.ts";
 import type { laneCommitEn } from "./catalog/lane-commit.ts";
 import type { laneCompareEn } from "./catalog/lane-compare.ts";
 import type { laneNewEn } from "./catalog/lane-new.ts";
@@ -131,7 +132,8 @@ export type MessageKey =
   | keyof typeof pushEn
   | keyof typeof notificationsEn
   | keyof typeof landingEn
-  | keyof typeof healthEn;
+  | keyof typeof healthEn
+  | keyof typeof launchProgressEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */
@@ -264,5 +266,5 @@ export const t = (key: MessageKey, vars?: Record<string, string | number>): stri
 
 export function errorKey(code: string): MessageKey {
   const key = `error.${code}`;
-  return Object.hasOwn(en, key) ? (key as MessageKey) : "error.internal";
+  return Object.hasOwn(CATALOGS.en, key) ? (key as MessageKey) : "error.internal";
 }

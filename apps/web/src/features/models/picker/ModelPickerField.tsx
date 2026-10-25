@@ -1,6 +1,9 @@
+import { LoadingLine } from "@pap/ui";
 import { useCallback, useId, useRef, useState } from "react";
 import "../../../i18n/register-model-picker.ts";
 import { useLazyFailureText, useT } from "../../../i18n/index.ts";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { LazyPopover } from "../../../lib/LazyPopover.tsx";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../../lib/lazy.tsx";
 import { shownText, type PickerModel } from "./model-picker.vm.ts";
@@ -51,6 +54,7 @@ export function ModelPickerField({
 }: ModelPickerFieldProps) {
   const disabled = disabledProp ?? false;
   const t = useT();
+  const cause = usePiCauseText(t);
   const lazyText = useLazyFailureText();
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -128,9 +132,9 @@ export function ModelPickerField({
         <LazyBoundary
           resetKey={attempt}
           fallback={
-            <p role="status" className="p-s2 text-ui text-muted">
-              {t("modelPicker.loading")}
-            </p>
+            <div className="p-s2">
+              <LoadingLine label={t("modelPicker.loading")} cause={cause} deferred={false} />
+            </div>
           }
           onError={(error) => {
             failed.current = true;

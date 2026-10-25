@@ -1,7 +1,7 @@
 import { usePendingAction } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
-import { getRuntime } from "../../runtime/index.ts";
+import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { boxFailure } from "./box-errors.ts";
 
 export type BoxLifeMethod = "projects.startBox" | "projects.restartBox" | "projects.rebuild";
@@ -21,7 +21,8 @@ export function useBoxAction(method: BoxLifeMethod, projectId: string) {
       try {
         await rpc.call(method, { projectId }, { commandId: rpc.newCommandId() });
       } catch (failure) {
-        setProblem(t(boxFailure(failure)));
+        // A launch the person stopped is no failure: the button is idle again and nothing is said.
+        if (!(failure instanceof RpcError && failure.code === "stopped")) setProblem(t(boxFailure(failure)));
       }
     });
   return { since: pending.since, problem, run };

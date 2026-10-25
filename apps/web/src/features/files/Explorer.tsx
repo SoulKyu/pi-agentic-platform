@@ -1,9 +1,11 @@
 import { FILE_LIMITS } from "@pap/contracts";
-import { Banner, Button, IconButton, IconRefresh, Spinner, Switch } from "@pap/ui";
+import { Banner, Button, IconButton, IconRefresh, LoadingLine, Switch } from "@pap/ui";
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useOnBoxRunning } from "../../stores/box-phase.ts";
+import { useBoxCauseText } from "../../stores/loading-cause.ts";
 import { BoxStopped } from "../boxes/BoxStopped.tsx";
 import { ExplorerRow } from "./ExplorerRow.tsx";
 import { visibleRows, type TreeRow } from "./files.vm.ts";
@@ -38,6 +40,7 @@ interface ExplorerProps {
 /** The project tree (WAI-ARIA tree pattern): folders list when they open, the selected file carries the selection mark. */
 export function Explorer({ root, selected, onOpen }: ExplorerProps) {
   const t = useT();
+  const cause = useBoxCauseText(t, root);
   const [showIgnored, setShowIgnored] = useState(readShowIgnored);
   const { expanded, folders, toggle, refresh } = useFolders(root, showIgnored);
   // A box that turns running lists its root again (R3).
@@ -142,8 +145,8 @@ export function Explorer({ root, selected, onOpen }: ExplorerProps) {
         className="min-h-0 flex-1 overflow-auto py-s1"
       >
         {rootFolder === undefined ? (
-          <div className="flex items-center gap-s2 px-s3 py-s2 text-ui text-muted">
-            <Spinner label={t("files.explorer.loading")} />
+          <div className="px-s3 py-s2">
+            <LoadingLine label={t("files.explorer.loading")} cause={cause} />
           </div>
         ) : null}
         {rows.map((row) => (

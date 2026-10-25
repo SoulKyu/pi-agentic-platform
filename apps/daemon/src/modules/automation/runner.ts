@@ -18,12 +18,14 @@ import type { Launch } from "./runner-launch.ts";
 import type { ThreadStart } from "./runner-thread.ts";
 import type { TaskViews } from "./task-view.ts";
 import { refuseStoredPrecheck } from "./precheck-refusal.ts";
+import { createRunnerStart } from "./runner-start.ts";
+import type { ImageWait } from "./image-wait.ts";
+import type { PutOff } from "./put-off.ts";
+import { deferNone } from "./slots-wait.ts";
 import { createRetry } from "./retry.ts";
-import { isTerminal, type Move, parsePolicy, type TaskRow, type TaskStore } from "./tasks.ts";
+import { isTerminal, type Move, type TaskRow, type TaskStore } from "./tasks.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
-const SLOTS_FULL_MS = 10_000;
-const CAPACITY_MS = 30_000;
 /** After a run ends its worker may still be winding down: the release is tried again a few times. */
 const RELEASE_RETRY_MS = 2_000;
 const RELEASE_TRIES = 3;
@@ -41,8 +43,10 @@ export interface RunnerDeps {
   /** The daily budget, read again when a queued gated task starts (M10R66). */
   readonly gates: Pick<Gates, "over">;
   readonly admission: { pick(): Admission };
+  /** Does the task's box build its image now? Then the start waits instead of running into its deadline. */
+  readonly imageBuild?: ImageWait;
   /** The tasks put off after a `capacity` answer, until a time. */
-  readonly putOff: Map<string, number>;
+  readonly putOff: Map<string, PutOff>;
   /** The tasks being started, by owner: a slot each, and never picked twice. */
   readonly starting: Map<string, string>;
   readonly triggers: {
@@ -74,11 +78,6 @@ export interface RunnerDeps {
   /** The health events (Task 3): a task failure the owner may page on. */
   readonly health?: Pick<HealthEvents, "emit">;
 }
-
-const done: Settlement = { outcome: "done" };
-
-/** The reason stored for a failure: a code of ours, never text from outside. */
-const reasonOf = (error: unknown): string => (error instanceof PapError ? error.code : "start_failed");
 
 const BUDGET_REASONS = new Set(["budget", "run_budget"]);
 /** The health code of a failure: the reason the row stores, in the closed table's terms. */
@@ -196,76 +195,13 @@ export function createRunner(deps: RunnerDeps) {
     releaseLater(row.owner_id, sessionId, 1);
   }
 
-  async function start(row: TaskRow, signal: AbortSignal): Promise<Settlement> {
-    const policy = parsePolicy(row.policy);
-    if (policy === null) {
-      settle(row, ["queued"], "failed", { reason: "bad_policy" });
-      return done;
-    }
-    try {
-      // An agent's home is inside pap's own folder, which a project task may never use: the agent gate opens it instead.
-      if (row.agent_id === null) deps.triggers.resolveFolder(row.cwd, row.owner_id);
-    } catch (error) {
-      settle(row, ["queued"], "failed", { reason: reasonOf(error) });
-      return done;
-    }
-    // A task admitted before the budget was spent starts after: it fails here, with no session (M10R66).
-    if (row.gated === 1 && deps.gates.over(row.owner_id, row.trigger_id, row.agent_id)) {
-      settle(row, ["queued"], "failed", { reason: "budget" });
-      return done;
-    }
-    // The task of an agent's thread prompts the thread it has: its own gate, card and prompt (M11R71).
-    if (row.target === "thread") return deps.thread.start(row, signal);
-    if (signal.aborted) return { outcome: "retry", code: "deadline" };
-
-    let sessionId: string;
-    try {
-      ({ sessionId } =
-        row.agent_id !== null
-          ? await deps.agents.begin(row, policy)
-          : await deps.sessions.createTaskSession({
-              ownerId: row.owner_id,
-              cwd: row.cwd,
-              policy: {
-                mode: policy.mode,
-                tools: policy.tools,
-                preset: policy.preset,
-                tainted: row.tainted === 1,
-              },
-            }));
-    } catch (error) {
-      if (error instanceof PapError && error.code === "agent_paused")
-        return deps.agents.holdBack(row, settle);
-      if (error instanceof PapError && error.code === "capacity") {
-        deps.putOff.set(row.id, clock.now() + CAPACITY_MS);
-        return { outcome: "defer", until: clock.now() + CAPACITY_MS };
-      }
-      settle(row, ["queued"], "failed", { reason: reasonOf(error) });
-      return done;
-    }
-    if (signal.aborted) {
-      discard(row, sessionId);
-      return { outcome: "retry", code: "deadline" };
-    }
-    // A pause that landed while the session was being made is seen here: the session goes, the task waits (M11R75).
-    if (row.agent_id !== null && deps.agents.pausedNow(row)) {
-      discard(row, sessionId);
-      return deps.agents.holdBack(row, settle);
-    }
-
-    // Cancelled between the admission and the mark: the session nobody wants goes, and the effect is spent.
-    return deps.launch(row, sessionId, { text: row.prompt, cancelled: () => discard(row, sessionId) });
-  }
+  const start = createRunnerStart({ deps, settle, discard });
 
   /** The `task.start` handler: starts the next task the admission picks, or says when to look again (M10R36). */
   async function handleStart(_payload: { taskId: string }, context: EffectContext): Promise<Settlement> {
     const picked = deps.admission.pick();
     if (picked.kind === "none") {
-      if (picked.reason === "empty") return done;
-      return {
-        outcome: "defer",
-        until: clock.now() + (picked.reason === "slots" ? SLOTS_FULL_MS : CAPACITY_MS),
-      };
+      return deferNone({ clock, store, putOff: deps.putOff }, picked);
     }
     starting.set(picked.task.id, picked.task.owner_id);
     try {

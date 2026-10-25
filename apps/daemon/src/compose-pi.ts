@@ -1,7 +1,8 @@
 import { dirname, extname, join } from "node:path";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
-import { createHelperPool, type HelperPool } from "./kernel/helper/pool.ts";
+import { type CountedHelperPool, createHelperPool } from "./kernel/helper/pool.ts";
+import { createHelperFeed } from "./kernel/helper/status-feed.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { createPiWriteQueue } from "./kernel/pi-write-queue.ts";
@@ -45,9 +46,11 @@ export interface ComposedPi {
   /** The agent form's package ids, resolved to the exact sources in the helper (AVM-E33). */
   readonly plugins: PluginPicks;
   /** The pool every Pi module runs its configuration work in (ADR 0023): for the modules composed here and for tests. */
-  readonly helpers: HelperPool;
+  readonly helpers: CountedHelperPool;
   /** The Pi modules answer for the owner's non-archived lane folders as for a project root (final review I1); bound by `lanes.bind`. */
   useLaneRoots(roots: (ownerId: string) => readonly string[]): void;
+  /** Who hears the helper counts: the owners with a live `launches` subscription, asked at each send (late bound, `agentsVm.bindLate`). */
+  bindHelperOwners(owners: () => readonly string[]): void;
   /** The helpers' kill ladders, at most 5 s: the daemon runs it together with `sessions.shutdownAll()`. */
   stopAll(): Promise<void>;
 }
@@ -62,6 +65,20 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
   // Bound by `lanes.bind`, after both exist: until then nothing lane-related is covered, which fails closed.
   let laneRoots: (ownerId: string) => readonly string[] = () => [];
   const projects = withLaneRoots(deps.projects.port, (owner) => laneRoots(owner));
+  let helperOwners: () => readonly string[] = () => [];
+  const feed = createHelperFeed({
+    clock: deps.clock,
+    send(status) {
+      // No ids: the same counts go to every owner who watches launches.
+      for (const owner of helperOwners()) {
+        try {
+          deps.hub.publish("launches", owner, { kind: "helpers", helpers: status });
+        } catch (error) {
+          deps.logger.warn("helper_publish_failed", { err: error });
+        }
+      }
+    },
+  });
   const helpers = createHelperPool({
     entry: join(dirname(config.piHostEntry), "helper", `main${extname(config.piHostEntry)}`),
     execArgv: config.piHostExecArgv,
@@ -71,6 +88,7 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
     // The test operations of the helper exist only with a scripted provider, like the worker's (ADR 0001).
     extraEnv: config.testProviderScript ? { PAP_TEST_PROVIDER: "1" } : {},
     max: config.helpersMax,
+    onChange: feed.push,
     clock: deps.clock,
     logger: deps.logger,
   });
@@ -122,6 +140,10 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
     plugins: createPluginPicks({ helpers, logger: deps.logger }),
     helpers,
     useLaneRoots: (roots) => void (laneRoots = roots),
-    stopAll: () => helpers.stopAll(),
+    bindHelperOwners: (owners) => void (helperOwners = owners),
+    stopAll: async () => {
+      await helpers.stopAll();
+      feed.stop();
+    },
   };
 }

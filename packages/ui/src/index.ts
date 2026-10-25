@@ -84,6 +84,7 @@ export { Badge } from "./primitives/Badge.tsx";
 export { Banner, type BannerProps, type BannerTone } from "./primitives/Banner.tsx";
 export { CodeText } from "./primitives/CodeText.tsx";
 export { DeferredFallback } from "./primitives/DeferredFallback.tsx";
+export { LoadingLine } from "./primitives/LoadingLine.tsx";
 export { Heading, type HeadingProps } from "./primitives/Heading.tsx";
 export { InlineError, type InlineErrorProps } from "./primitives/InlineError.tsx";
 export { Chip, type ChipTone } from "./primitives/Chip.tsx";

@@ -1,4 +1,4 @@
-import { Button, Icon, IconCheck, InlineError, cn } from "@pap/ui";
+import { Button, Icon, IconCheck, InlineError, LoadingLine, cn } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import {
   createContext,
@@ -13,6 +13,8 @@ import {
 } from "react";
 import "../../../i18n/register-model-picker.ts";
 import { useT } from "../../../i18n/index.ts";
+import "../../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { groupAndRank, modelKey, shownText, type PickerGroup, type PickerModel } from "./model-picker.vm.ts";
 import type { AvailableState } from "./use-available-models.ts";
 
@@ -102,6 +104,7 @@ export default function ModelList({
   const savedUnavailable = savedProp ?? null;
   const disabled = disabledProp ?? false;
   const t = useT();
+  const cause = usePiCauseText(t);
   const id = useId();
   const listId = `${id}-list`;
   const inputId = `${id}-search`;
@@ -301,9 +304,9 @@ export default function ModelList({
         onKeyDown={onKeyDown}
       />
       {state.status === "loading" ? (
-        <p role="status" className="px-s2 text-ui text-muted">
-          {t("modelPicker.loading")}
-        </p>
+        <div className="px-s2">
+          <LoadingLine label={t("modelPicker.loading")} cause={cause} />
+        </div>
       ) : null}
       {failed ? (
         <div className="flex flex-col items-start gap-s2 px-s2">

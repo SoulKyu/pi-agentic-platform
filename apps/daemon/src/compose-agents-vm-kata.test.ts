@@ -361,6 +361,7 @@ describe("what the agents module is given (T15)", () => {
     expect(closers.map((closer) => closer.name)).toEqual([
       "agent_vm_proxy",
       "agent_mirrors",
+      "launches",
       "agent_vm",
       "agent_trash_sweep",
       "agent_image_upgrades",

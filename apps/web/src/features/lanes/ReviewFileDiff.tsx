@@ -1,6 +1,6 @@
 import { LANE_LIMITS, type ReviewDoc, type ReviewList } from "@pap/contracts";
 import type { ReviewFile } from "./review-types.ts";
-import { Banner, Button, formatDiffCounts, Spinner, InlineError } from "@pap/ui";
+import { Banner, Button, formatDiffCounts, LoadingLine, InlineError } from "@pap/ui";
 import { languageFor, ReviewDiffView, type DiffComment } from "@pap/ui/code";
 import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -171,8 +171,8 @@ export function ReviewFileDiff({ worktree, list, file, doc, update, onOpenFile }
     );
   } else {
     body = (
-      <div className="flex items-center gap-s2 p-s3 text-ui text-muted">
-        <Spinner label={t("lanes.review.diff.loading")} />
+      <div className="p-s3">
+        <LoadingLine label={t("lanes.review.diff.loading")} />
       </div>
     );
   }

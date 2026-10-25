@@ -1,7 +1,4 @@
 import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
-import { newBoxCwdOf } from "./box-cwd.ts";
-import { resolveSessionCwd } from "./cwd.ts";
-import { createForks } from "./forks.ts";
 import { type AutomationContext, createAttention, createAutomationPort } from "./automation-port.ts";
 import { createSessionsProjectPort } from "./project-port.ts";
 import { createSessionsOwnerCascade } from "./owner-cascade.ts";
@@ -14,6 +11,7 @@ import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
+import { createSessionCreate } from "./service-create.ts";
 import { createPromptFlow } from "./service-prompt.ts";
 import { createFolderRestart } from "./restart-folder.ts";
 import { createAdoption } from "./service-adopt.ts";
@@ -24,9 +22,9 @@ import { createSessionMarks } from "./service-marks.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
-import { filedOf, openWorkerOf } from "./service-helpers.ts";
+import { openWorkerOf } from "./service-helpers.ts";
 import { fitSummaries } from "./shell.ts";
-import { type SessionRow, storedPresetOf } from "./store.ts";
+import type { SessionRow } from "./store.ts";
 import type { SessionsService, SessionsServiceDeps, SessionsServiceWithAutomation } from "./service-types.ts";
 
 // What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
@@ -169,13 +167,19 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   const sendPrompt = createPromptFlow({ deps, ensureLive, organiser, publisher, owned });
-  // A fork would be a second thread, or a plain session in the agent's home (M11R179). A project box's session file is the VM's:
-  // the host's Pi never opens it, so the refusal comes before the writer is loaded.
-  const notInVm = (row: SessionRow): SessionRow => {
-    if (row.agentId !== undefined) throw new PapError("bad_request");
-    if (agent.vmLayoutOf(row) !== null) throw new PapError("sandbox_unavailable");
-    return row;
-  };
+  const creating = createSessionCreate({
+    deps,
+    live,
+    agent,
+    policyLink,
+    adoption,
+    link,
+    publisher,
+    marks,
+    launch,
+    owned,
+    presetOf,
+  });
 
   const openWorker = openWorkerOf(live);
 
@@ -215,21 +219,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     clampPreset: agent.clampPreset,
     providers: deps.providers,
   });
-  const forks = createForks({
-    store: deps.store,
-    clock: deps.clock,
-    logger: deps.logger,
-    agentDir: deps.worker.agentDir,
-    newId: deps.newId,
-    loadWriter: deps.loadWriter,
-    ...(deps.admission ? { admit: deps.admission.fork } : {}),
-    onMade: adoption.fileMade,
-    // A fork or clone never starts looser than its source: mode and taint (owner Q15), and the tool preset (Task 15).
-    onAdopted: (source, id) => {
-      policyLink.inherit(source, id);
-      deps.store.setToolPreset(id, presetOf(source));
-    },
-  });
   const sessionMarks = createSessionMarks({
     store: marks,
     clock: deps.clock,
@@ -243,8 +232,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       child.archived(sessionId);
     },
   });
-
-  const filed = filedOf(link, publisher);
 
   const automationCtx: AutomationContext = {
     deps,
@@ -291,29 +278,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     agent,
     agentSessions,
     child,
+    ...creating,
     modeOf: (ownerId, sessionId) => policyLink.viewOf(owned(sessionId, { userId: ownerId } as Caller)).mode,
-    async create(cwdInput, caller, preset) {
-      const cwd =
-        newBoxCwdOf(deps.boxes?.(), caller.userId, cwdInput, deps.isMember)?.cwd ??
-        resolveSessionCwd(cwdInput, deps.worker.papHome);
-      const now = deps.clock.now();
-      const toolPreset = preset === undefined ? null : storedPresetOf(preset);
-      const row: SessionRow = {
-        id: deps.newId(),
-        piPath: null,
-        piSessionId: null,
-        cwd,
-        ownerId: caller.userId,
-        name: null,
-        createdAt: now,
-        updatedAt: now,
-        ...(toolPreset ? { toolPreset } : {}),
-      };
-      await launch(row, true);
-      publisher.changed(row.id);
-      publisher.projectChanged(caller.userId, marks.row(row.id)?.projectId ?? null);
-      return { sessionId: row.id };
-    },
     listFitted: (caller) => fitSummaries(reads.summaries(caller)),
     list: (caller) => reads.summaries(caller),
     shellSnapshot: (ownerId) => shell.snapshot(ownerId),
@@ -341,14 +307,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     setModel: (input, caller) => modelCommands.setModel(input, caller),
     setThinking: (input, caller) => modelCommands.setThinking(input, caller),
     setTools: (input, caller) => modelCommands.setTools(input, caller),
-    fork: async ({ sessionId, entryId }, caller) => {
-      const row = notInVm(owned(sessionId, caller));
-      return filed(row, await forks.fork(row, entryId));
-    },
-    clone: async ({ sessionId }, caller) => {
-      const row = notInVm(owned(sessionId, caller));
-      return filed(row, await forks.clone(row, live.get(row.id)?.leafId() ?? null));
-    },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
       // A closing worker has an empty queue and drops requests: the live session answers without asking it (M2-RT-39).

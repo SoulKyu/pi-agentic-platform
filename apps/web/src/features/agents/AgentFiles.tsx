@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentFileView } from "@pap/contracts";
-import { Button, EmptyState, Heading, InlineError, TextField, usePendingAction } from "@pap/ui";
+import { Button, EmptyState, Heading, InlineError, TextField, usePendingAction, LoadingLine } from "@pap/ui";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorKey, type MessageKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -107,9 +107,7 @@ export function AgentFiles({ agentId }: { readonly agentId: string }) {
       <h3 className="text-h2 text-fg">{t("agentFiles.title")}</h3>
       <p className="text-ui text-muted">{t("agentFiles.hint")}</p>
       {load.kind === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("agentFiles.loading")}
-        </p>
+        <LoadingLine label={t("agentFiles.loading")} />
       ) : load.kind === "failed" ? (
         <InlineError announce="background">{t("agentFiles.failed")}</InlineError>
       ) : files.length === 0 ? (

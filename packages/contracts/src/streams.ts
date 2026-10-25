@@ -12,6 +12,7 @@ export const STREAMS = [
   "usage",
   "agents",
   "ops",
+  "launches",
 ] as const;
 export type StreamName = (typeof STREAMS)[number];
 

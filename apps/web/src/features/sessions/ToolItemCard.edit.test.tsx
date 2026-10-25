@@ -3,7 +3,7 @@ import "./register-session-catalog.ts";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
-import { mount, settle, text, type Mounted } from "../../testing/dom.ts";
+import { mount, settle, text, type Mounted, useLoadingClock } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 
 import { ToolItemCard } from "./ToolItemCard.tsx";
@@ -73,19 +73,19 @@ describe("ToolItemCard, edit", () => {
   });
 
   it("the diff's loading line waits 100 ms and says loading, not Running", async () => {
-    vi.useFakeTimers();
+    useLoadingClock();
     try {
       bed.handlers["sessions.toolOutput"] = () => new Promise(() => {});
       page = await mount(
         <ToolItemCard item={edit({ argsTruncated: true })} sessionId="sess-1" detail="expanded" />,
       );
       const container = page.container;
-      expect(container.querySelector('[data-slot="spinner"]')).toBeNull();
+      expect(container.querySelector('[data-slot="loading-line"]')).toBeNull();
       await act(async () => {
         vi.advanceTimersByTime(100);
       });
-      const spinner = container.querySelector('[data-slot="spinner"]');
-      expect(spinner?.getAttribute("aria-label")).toBe("Loading the edit…");
+      const line = container.querySelector('[data-slot="loading-line"]');
+      expect(line?.textContent).toContain("Loading the edit…");
     } finally {
       vi.useRealTimers();
     }

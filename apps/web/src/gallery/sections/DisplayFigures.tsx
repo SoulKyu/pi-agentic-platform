@@ -15,6 +15,7 @@ import {
   IconSearch,
   InlineError,
   Kbd,
+  LoadingLine,
   Meter,
   OpenTab,
   ProgressBar,
@@ -77,6 +78,9 @@ export function DisplayFigures() {
       </GalleryItem>
       <GalleryItem name="Spinner">
         <Spinner />
+      </GalleryItem>
+      <GalleryItem name="LoadingLine">
+        <LoadingLine label={SAMPLE.loading} deferred={false} />
       </GalleryItem>
       <GalleryItem name="Icon">
         <Icon icon={IconSearch} size={14} />

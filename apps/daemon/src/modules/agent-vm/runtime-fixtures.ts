@@ -2,6 +2,7 @@ import { type BoxRef, boxKey, DEFAULT_AGENT_RESOURCES, PapError } from "@pap/con
 import { vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import type { LaunchSteps } from "../../kernel/launches.ts";
 import { classifyExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { Gateway } from "./gateway.ts";
 import type { GuestLink } from "./guest-link.ts";
@@ -120,8 +121,12 @@ export function bed(extra: Partial<AgentRuntimeDeps> = {}): Bed {
   const failStart = { error: null as Error | null };
   const listed: Bed["listed"] = [];
   const backend = {
-    start: vi.fn((spec: VmSpec, launch: { launchId: string; token: string }) => {
+    start: vi.fn((spec: VmSpec, launch: { launchId: string; token: string }, steps?: LaunchSteps) => {
       order.push("start");
+      for (const step of ["disk", "vm"] as const) {
+        steps?.step(step, "running");
+        steps?.step(step, "done");
+      }
       starts.push({ spec, launch });
       if (failStart.error) return Promise.reject(failStart.error);
       guests.set(launch.launchId, fakeGuest(order));

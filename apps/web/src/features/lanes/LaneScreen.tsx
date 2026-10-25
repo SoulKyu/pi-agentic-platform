@@ -1,5 +1,5 @@
 import "./register-lanes-catalog.ts";
-import { Button, EmptyState } from "@pap/ui";
+import { Button, EmptyState, LoadingLine } from "@pap/ui";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { retryLanes } from "../../stores/lane-feed.ts";
@@ -41,7 +41,12 @@ export function LaneScreen({ laneId, onOpenArchived, ...panes }: Props) {
       />
     );
   }
-  if (!view.loaded) return <p className="p-s4 text-ui text-muted">{t("shell.lane.loading")}</p>;
+  if (!view.loaded)
+    return (
+      <div className="p-s4">
+        <LoadingLine label={t("shell.lane.loading")} />
+      </div>
+    );
   return (
     <>
       <EmptyState

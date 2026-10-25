@@ -39,6 +39,7 @@ const BOX_LIFE_ERRORS = [
   // A refused start (spec §3): `agent_paused` is a box paused after 3 crashes, `vm_bundle_stale` code older than pap.
   "agent_paused",
   "vm_bundle_stale",
+  "stopped",
 ] as const;
 
 /** Projects that live in a box (decision 124): the box is made, started, tuned, rebuilt and deleted from the project page. */

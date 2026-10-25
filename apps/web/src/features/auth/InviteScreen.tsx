@@ -1,4 +1,4 @@
-import { Button, InlineError, TextField } from "@pap/ui";
+import { Button, InlineError, TextField, LoadingLine } from "@pap/ui";
 import { INVITE_USERNAME } from "@pap/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -111,9 +111,7 @@ export function InviteScreen({
   if (phase.kind === "loading")
     return (
       <AuthFrame title={t("invite.title")}>
-        <p role="status" className="text-ui text-muted">
-          {t("invite.loading")}
-        </p>
+        <LoadingLine label={t("invite.loading")} />
       </AuthFrame>
     );
   if (phase.kind === "retry")

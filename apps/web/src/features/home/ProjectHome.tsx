@@ -9,6 +9,7 @@ import { listedProjects, useCurrentProject, useEffectiveProject } from "../../st
 import { useShellStore } from "../../stores/shell-store.ts";
 import type { HomeActions, HomeShortcuts } from "./home-actions.ts";
 import { type HomeMode, isLaunchKey, readMode, rememberMode } from "./home-mode.ts";
+import { useBoxStage } from "../launch/use-stage.ts";
 import { ModeChips } from "./ModeChips.tsx";
 import type { ModeFacts } from "./ProjectFacts.tsx";
 import { useLaunch } from "./use-launch.ts";
@@ -48,6 +49,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
   const projects = useShellStore((state) => state.view.projects);
   const [facts, setFacts] = useState<ModeFacts | null>(null);
   const reasons = project !== null && facts?.root === project.root ? facts.reasons : NO_REASONS;
+  const stage = useBoxStage(project?.kind === "box" ? { kind: "project", id: project.id } : null);
   const field = useRef<HTMLTextAreaElement>(null);
   const titleId = useId();
   const optionsId = useId();
@@ -55,7 +57,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
   const [chosen, setChosen] = useState<HomeMode>(readMode);
   const [options, setOptions] = useState(false);
   const [picking, setPicking] = useState(false);
-  const { launch, busy, error } = useLaunch(actions, preset, project?.id ?? null);
+  const { launch, busy, since, error } = useLaunch(actions, preset, project?.id ?? null);
   // "New session here" (a project's menu) asks for a session there: Session mode, and the composer takes the focus.
   const startedHere = useCurrentProject((state) => state.startedHere);
   const [seenStart, setSeenStart] = useState(startedHere);
@@ -136,6 +138,8 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
             type="submit"
             variant="primary"
             disabled={busy || offline}
+            pendingSince={since}
+            stage={busy ? stage : undefined}
             aria-label={t(`launch.go.${mode}`)}
           >
             {t("launch.go")}
@@ -194,7 +198,7 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
           notifyLazyFailure(failure, lazyText);
         }}
       >
-        <Body project={project} layout={layout} actions={actions} shortcuts={shortcuts} />
+        <Body project={project} layout={layout} actions={actions} shortcuts={shortcuts} asked={busy} />
       </LazyBoundary>
     </section>
   );

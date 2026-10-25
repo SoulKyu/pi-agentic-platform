@@ -4,6 +4,7 @@ import { availableParallelism } from "node:os";
 import { VERSION } from "./kernel/version.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
+import { type LaunchHandle, type LaunchRegistry, launchCodeOf, stepAround } from "./kernel/launches.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
   type AgentRuntime,
@@ -101,8 +102,9 @@ export interface RelayGate {
   readonly clock: Pick<Clock, "setTimeout" | "clearTimeout">;
 }
 
-async function relayIsReady(gate: RelayGate): Promise<boolean> {
+async function relayIsReady(gate: RelayGate, launch?: Pick<LaunchHandle, "wait">): Promise<boolean> {
   if (gate.ready()) return true;
+  launch?.wait({ reason: "relay" });
   const giveUp = new AbortController();
   let timer: ReturnType<Clock["setTimeout"]> | null = null;
   const timedOut = new Promise<void>(
@@ -113,6 +115,7 @@ async function relayIsReady(gate: RelayGate): Promise<boolean> {
   } finally {
     giveUp.abort();
     if (timer !== null) gate.clock.clearTimeout(timer);
+    launch?.wait(null);
   }
   return gate.ready();
 }
@@ -122,7 +125,8 @@ async function relayIsReady(gate: RelayGate): Promise<boolean> {
  * a relay that has not reported ready (S1, AVM-E49 M9b: one that could not bind the bridge's port never becomes ready, and a VM
  * started meanwhile would talk to whoever does listen there; a launch in the seconds after boot waits for it, bounded by
  * `RELAY_READY_WAIT_MS`); an installed bundle older than the one built with this daemon is `vm_bundle_stale`. `relay` is absent
- * without a relay, `box` null for a launch that is in no box.
+ * without a relay, `box` null for a launch that is in no box. The relay wait is told to `launch` as `waiting: relay`; the `checks`
+ * step is the caller's.
  */
 export const launchGate =
   (
@@ -132,9 +136,10 @@ export const launchGate =
     /** A disabled owner's box never starts (M14 RT-03): a worker restart or a queued start meets this too. */
     disabled?: (box: BoxRef) => boolean,
   ) =>
-  async (box: BoxRef | null): Promise<void> => {
+  async (box: BoxRef | null, launch?: Pick<LaunchHandle, "wait">): Promise<void> => {
     if (box !== null && disabled?.(box) === true) throw new PapError("account_disabled");
-    if (relay !== undefined && !(await relayIsReady(relay))) throw new PapError("sandbox_unavailable");
+    if (relay !== undefined && !(await relayIsReady(relay, launch)))
+      throw new PapError("sandbox_unavailable");
     await status.require();
     if (skew !== undefined && box !== null && (await skew.check(box)) === "stale")
       throw new PapError("vm_bundle_stale");
@@ -147,6 +152,7 @@ export const guardedLaunch = (
   relay?: RelayGate,
   skew?: Pick<BundleSkew, "check">,
   disabled?: (box: BoxRef) => boolean,
+  launches?: Pick<LaunchRegistry, "open">,
 ): VmLaunch => {
   const gate = launchGate(status, relay, skew, disabled);
   return {
@@ -157,10 +163,19 @@ export const guardedLaunch = (
           : row.agentId === undefined
             ? null
             : { kind: "agent", id: row.agentId };
-      await gate(box);
-      // The gate awaits (relay, stack, skew): an account disabled meanwhile is met again right before the spawn.
-      if (box !== null && disabled?.(box) === true) throw new PapError("account_disabled");
-      return launch.spawn(row, agentLaunch, init);
+      // The launch opens here so `checks` is its first step; the one that spawns ends it on a refusal, the session layer when ready.
+      const opened = box === null ? undefined : launches?.open({ box, owner: row.ownerId, for: row.id });
+      try {
+        await stepAround(opened, "checks", () => gate(box, opened));
+        // The gate awaits (relay, stack, skew): an account disabled meanwhile is met again right before the spawn.
+        if (box !== null && disabled?.(box) === true) throw new PapError("account_disabled");
+        return await (opened
+          ? launch.spawn(row, agentLaunch, init, opened)
+          : launch.spawn(row, agentLaunch, init));
+      } catch (error) {
+        opened?.end(false, launchCodeOf(error));
+        throw error;
+      }
     },
   };
 };

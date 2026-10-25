@@ -8,7 +8,7 @@ import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { type Clock, createSystemClock } from "../clock.ts";
 import { type LogFields, type Logger, silentLogger } from "../logger.ts";
-import { createHelperPool, type HelperHandle, type HelperPool, STDIO_DRAIN_MS } from "./pool.ts";
+import { createHelperPool, type HelperHandle, type CountedHelperPool, STDIO_DRAIN_MS } from "./pool.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
 const ENTRY = join(REPO, "packages/pi-host/src/helper/main.ts");
@@ -61,12 +61,12 @@ function heldDeadlineClock(): { clock: Clock; fireDeadline(): void } {
 }
 
 let root: string;
-let pool: HelperPool;
+let pool: CountedHelperPool;
 let deadlines: ReturnType<typeof heldDeadlineClock>;
 let logs: Array<{ msg: string; fields: LogFields | undefined }>;
 const logger: Logger = { ...silentLogger, warn: (msg, fields) => void logs.push({ msg, fields }) };
 
-const makePool = (max = 4): HelperPool =>
+const makePool = (max = 4): CountedHelperPool =>
   createHelperPool({
     entry: ENTRY,
     execArgv: EXEC_ARGV,
@@ -251,14 +251,18 @@ describe("a real helper", () => {
     ]);
   });
 
-  it("refuses a run beyond the cap at once, with real helpers running", async () => {
+  it("queues a run beyond the cap and refuses a sign-in at once, with real helpers running", async () => {
     pool = makePool(2);
     const first = await hang(60_000);
     const second = await hang(60_000);
     expect(pool.active()).toBe(2);
-    expect(() => pool.run("ping", {}, { deadlineMs: 1000 })).toThrow(
-      expect.objectContaining({ code: "capacity" }),
+    expect(() => pool.run("ping", {}, { deadlineMs: 1000, onPrompt: () => {} })).toThrow(
+      expect.objectContaining({ code: "pi_busy" }),
     );
+    const queued = pool.run("ping", {}, { deadlineMs: 1000 });
+    expect(pool.status().waiting).toBe(1);
+    queued.cancel();
+    await expect(queued.done).rejects.toMatchObject({ code: "helper_failed" });
     first.handle.cancel();
     second.handle.cancel();
   });

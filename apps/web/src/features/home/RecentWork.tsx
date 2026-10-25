@@ -1,6 +1,6 @@
 import "../../i18n/register-home.ts";
 import type { ProjectSummary } from "@pap/contracts";
-import { Button, Chip, cn, FOCUS_RING, Heading, Segmented, InlineError } from "@pap/ui";
+import { Button, Chip, cn, FOCUS_RING, Heading, Segmented, InlineError, LoadingLine } from "@pap/ui";
 import { useEffect, useId, useRef, useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { type Translate, useT } from "../../i18n/index.ts";
@@ -115,7 +115,7 @@ export function RecentWork({ project, actions }: Props) {
           </Button>
         </div>
       ) : !loaded ? (
-        <p className="text-ui text-muted">{t("shell.tree.loading")}</p>
+        <LoadingLine label={t("shell.tree.loading")} />
       ) : rows.length === 0 && filter !== "all" ? (
         <div className="flex items-center gap-s2">
           <p className="text-ui text-muted">{t("home.recent.emptyFiltered")}</p>

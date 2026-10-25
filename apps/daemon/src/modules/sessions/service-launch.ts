@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import { hasKnowledge } from "../../kernel/fs/knowledge.ts";
+import { type LaunchHandle, launchCodeOf } from "../../kernel/launches.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { initTools, storeNewSession } from "./automation-port.ts";
 import { storeChildPolicy } from "./child-port.ts";
@@ -115,6 +116,8 @@ export function createLaunch(ctx: LaunchContext) {
           ctx.agent.presetFor(deps.store.toolPreset(row.id) ?? "configured", agentLaunch.input.preset),
         ),
       );
+    // The VM launch the spawn hands over (launch progress): this function ends it, whatever way `start` goes out.
+    const owned: { launch: LaunchHandle | null } = { launch: null };
     try {
       // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox
       // (R38: a VM worker is one).
@@ -122,11 +125,16 @@ export function createLaunch(ctx: LaunchContext) {
         throw new PapError("sandbox_unavailable");
       if (agentLaunch === null && projectLaunch === null && deps.isMember(row.ownerId))
         throw new PapError("forbidden");
-      return await start(row, isNew, agentLaunch, projectLaunch);
+      const session = await start(row, isNew, agentLaunch, projectLaunch, owned);
+      owned.launch?.end(true);
+      return session;
     } catch (error) {
       // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).
       ctx.agent.ended(row.id);
-      throw error;
+      // A person's Stop kills the worker too: the exit it causes is not the start's outcome (R11 a).
+      const outcome = owned.launch?.stopped() ? new PapError("stopped") : error;
+      owned.launch?.end(false, launchCodeOf(outcome));
+      throw outcome;
     }
   }
 
@@ -135,6 +143,7 @@ export function createLaunch(ctx: LaunchContext) {
     isNew: boolean,
     agentLaunch: AgentLaunch | null,
     projectLaunch: ProjectLaunch | null,
+    owned: { launch: LaunchHandle | null },
   ): Promise<LiveSession> {
     if (projectLaunch === null) deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
     // The one VM predicate (`vmLayoutOf(row) !== null`), checked against the gate's answer: a mismatch refuses the launch.
@@ -207,6 +216,7 @@ export function createLaunch(ctx: LaunchContext) {
       } finally {
         ctx.booting.delete(row.id);
       }
+      owned.launch = started.launch ?? null;
       // The gate's facts and the capacity check are older than the boot: read again, and a refusal stops the worker.
       composed = started.bind(() => {
         if (agentLaunch) {
@@ -271,7 +281,9 @@ export function createLaunch(ctx: LaunchContext) {
     starting.add(session);
     ctx.onStarting?.(row.id);
     try {
+      owned.launch?.step("worker", "running");
       await session.ready;
+      owned.launch?.step("worker", "done");
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
       if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
         throw new PapError("worker_failed");

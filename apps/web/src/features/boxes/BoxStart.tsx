@@ -2,6 +2,7 @@ import "../../i18n/register-boxes.ts";
 import type { BoxPhase } from "@pap/contracts";
 import { Button, InlineError, Spinner } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
+import { useBoxStage } from "../launch/use-stage.ts";
 import { useBoxAction } from "./use-box-action.ts";
 import { useStartFeedback } from "./use-stage.ts";
 
@@ -21,6 +22,7 @@ export function BoxStart({ projectId, phase, size, variant }: Props) {
   const t = useT();
   const action = useBoxAction("projects.startBox", projectId);
   // The button speaks for this click's own wait; the status line is for a start the stream reports (one spinner, not two).
+  const stage = useBoxStage({ kind: "project", id: projectId });
   const feedback = useStartFeedback(phase === "starting" && action.since === null);
   return (
     <span className="flex flex-col items-start gap-s1">
@@ -31,6 +33,7 @@ export function BoxStart({ projectId, phase, size, variant }: Props) {
         disabled={phase !== "stopped" || action.since !== null}
         pendingSince={action.since}
         stageLabel={t("boxes.stage")}
+        stage={stage}
         onClick={action.run}
       >
         {t("boxes.start")}

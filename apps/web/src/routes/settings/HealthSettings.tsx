@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
@@ -35,9 +35,7 @@ export function HealthSettings() {
             </Button>
           </div>
         ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settings.health.loading")}
-          </p>
+          <LoadingLine label={t("settings.health.loading")} deferred={false} />
         )
       }
     >

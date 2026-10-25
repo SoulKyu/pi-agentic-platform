@@ -1,4 +1,5 @@
 import { Button, InlineError } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
@@ -19,12 +20,7 @@ export function UsersSettings({ stepUp }: Props) {
   const { state, reload, retry } = useUsers();
   const [inviting, setInviting] = useState(false);
 
-  if (state.kind === "loading")
-    return (
-      <p role="status" className="text-ui text-muted">
-        {t("users.loading")}
-      </p>
-    );
+  if (state.kind === "loading") return <WaitLine label={t("users.loading")} />;
   if (state.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">

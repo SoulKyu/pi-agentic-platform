@@ -1,6 +1,9 @@
 import "./register-catalog.ts";
 import type { ModelsOverview } from "@pap/contracts";
 import { Button, Heading, InlineError, useIsPhone } from "@pap/ui";
+import { WaitLine } from "../../lib/wait-since.tsx";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -50,6 +53,7 @@ function Defaults({ defaults }: { readonly defaults: ModelsOverview["defaults"] 
  */
 export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const phone = useIsPhone();
   const list = useOverview();
   const overview = list.value;
@@ -116,9 +120,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
             <Button onClick={list.reload}>{t("settingsModels.retry")}</Button>
           </>
         ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settingsModels.loading")}
-          </p>
+          <WaitLine label={t("settingsModels.loading")} cause={cause} />
         )}
       </div>
     );

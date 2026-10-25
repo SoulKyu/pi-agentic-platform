@@ -25,7 +25,7 @@ The one rule everyone must know. Hues are never decorative.
 |---|---|---|
 | **Agent** (violet) | what an agent does or says | 2 px rule left of agent messages, agent names, tool labels, running state, selected item rule, agent avatars |
 | **You** (orange) | the human and the primary action | your messages, primary buttons, composer focus, keyboard focus ring |
-| **Attention** (pink) | something waits for you | approvals, input requests, unread badges, Inbox items to handle, failures to act on |
+| **Attention** (pink) | something waits for you | approvals, input requests, unread badges, Inbox items to handle, failures to act on, a launch step with no news (the ask) |
 | **OK** (green) | success | passed checks, done tasks, added diff lines |
 | **Error** (red) | something broke | crash banners, failed runs, removed diff lines |
 | Neutrals | structure | backgrounds, surfaces, borders, muted text |
@@ -197,7 +197,7 @@ Never use gradients, glow, outlines around the legs, rotation, or swapped leg co
 ### 7.2 Motion
 
 - Durations: 0 ms (state swaps), 120 ms (hover, press), 200 ms (drawers, dialogs). Standard ease-out.
-- **Nothing repaints continuously.** The one exception is the thin indeterminate bar on a running tool card, which becomes static under reduced motion.
+- **Nothing repaints continuously.** The one exception is the thin indeterminate bar on a running tool card, which becomes static under reduced motion. The second exception (ADR 0087) is the live counter of a launch's active step: it repaints once a second, with tabular numerals; under reduced motion the ring is static but the number keeps counting.
 - Motion follows the system setting by default, with a "reduced" or "none" override per device.
 
 ### 7.3 Feedback timing (Orca rule)
@@ -207,7 +207,7 @@ Never use gradients, glow, outlines around the legs, rotation, or swapped leg co
 | under 100 ms | nothing (`DeferredFallback` renders its loading line only after 100 ms) |
 | 100 ms to 1 s | control disabled |
 | 1 s to 3 s | spinner |
-| over 3 s | a stage label ("Preparing worktree…") |
+| over 3 s | a stage label, taken from the real step of the launch ("Building the image…", "Starting the VM…"), not a guess |
 
 Remote spinners are deferred by about 200 ms, but the control is disabled immediately. Loading lines end with "…", never "...".
 
@@ -252,7 +252,7 @@ Built on Radix and owned in shadcn style. Each primitive owns its look: callers 
 
 | Component | Variants and rules |
 |---|---|
-| Button | `primary` (you fill), `secondary` (outline), `ghost`, `danger` (error, outline, used only for irreversible actions). Labels in mono uppercase. **Cancel is never `danger`.** `pill` (agent outline) is for suggestions and quick replies; `size="sm"` is 24 px high (still 44 px under a coarse pointer). At most one `primary` per view. |
+| Button | `primary` (you fill), `secondary` (outline), `ghost`, `danger` (error, outline, used only for irreversible actions). Labels in mono uppercase. **Cancel is never `danger`.** `pill` (agent outline) is for suggestions and quick replies; `size="sm"` is 24 px high (still 44 px under a coarse pointer). At most one `primary` per view. `stage` shows the spinner and the running step's words from the first moment (polite status region). |
 | IconButton | square, label and tooltip mandatory |
 | Input, Textarea, Select | 1 px `--control-border`, `--bg` fill, focus ring; an invalid field is red with its reason beneath (`InlineError`) |
 | Segmented | mono uppercase items; the active item gets an agent underline; a visible label by default, `labelHidden` keeps it for screen readers when the text around it names the control |
@@ -272,6 +272,7 @@ Built on Radix and owned in shadcn style. Each primitive owns its look: callers 
 | InlineError | `<p data-slot="inline-error">`: warning icon (14 px, `aria-hidden`) and words, red by default; `tone="attn"` when the person must answer. `announce="action"` is `role="alert"` (result of your last action), `"background"` is `role="status"` |
 | Heading | `level` 2–4, `variant` section (16/700), group (13/600) or card (HUD label, muted or agent) |
 | DeferredFallback | renders nothing for 100 ms, then its children (§7.3) |
+| LoadingLine, StepPanel, Strip | `LoadingLine`: spinner and label after 100 ms, elapsed from 3 s, cause from 10 s. `StepPanel` (lazy): the launch's steps with times, "usually" and a neutral "slower than usual"; the ask is pink, a polite `role="status"` block. `Strip`: five role-coloured segments. Red only when a step failed (ADR 0087) |
 | CodeText | renders backticked runs of a catalog value as code (§11) |
 
 ### 9.2 AI components

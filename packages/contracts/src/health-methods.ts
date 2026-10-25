@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { HealthEvent } from "./health.ts";
 import { Cursor } from "./frames.ts";
+import { launchesMethods } from "./launches-methods.ts";
 
 /** Browser sessions only, the models/MCP precedent: a token must not read the daemon's failure surface (spec §4). */
 export const healthMethods = {
@@ -26,4 +27,6 @@ export const healthMethods = {
     result: z.object({ sub: z.string() }),
     errors: ["capacity"],
   }),
+  // The launch progress streams ride along (methods.ts is at its line cap): the same "what the daemon is doing" surface.
+  ...launchesMethods,
 };

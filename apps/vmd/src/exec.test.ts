@@ -35,4 +35,20 @@ describe("createExec", () => {
       delete process.env.PAP_VMD_TEST_SECRET;
     }
   });
+
+  it("onLine receives each line as the child prints it", async () => {
+    const seen: Array<[string, string]> = [];
+    const result = await exec(
+      [
+        process.execPath,
+        "-e",
+        'process.stdout.write("a\\nb"); process.stderr.write("e1\\ne2\\n"); setTimeout(() => process.stdout.write("c\\n"), 20)',
+      ],
+      { onLine: (line, stream) => void seen.push([stream, line]) },
+    );
+    expect(seen).toContainEqual(["stdout", "a"]);
+    expect(seen).toContainEqual(["stdout", "bc"]);
+    expect(seen.filter(([stream]) => stream === "stderr").map(([, line]) => line)).toEqual(["e1", "e2"]);
+    expect(result).toMatchObject({ code: 0, stdout: "a\nbc\n", stderr: "e1\ne2\n" });
+  });
 });

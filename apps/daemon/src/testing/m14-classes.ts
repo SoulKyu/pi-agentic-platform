@@ -114,6 +114,7 @@ export const NO_FOREIGN_INPUT = {
   "subscribe.inbox": {},
   "subscribe.agents": {},
   "subscribe.ops": {},
+  "subscribe.launches": {},
   "agents.vm.clearClaudeToken": {},
   "auth.devices.revokeOthers": {},
 } as const satisfies Record<string, object>;
@@ -150,6 +151,8 @@ export const PROBES = {
   "sessions.mark": { params: (s) => ({ ...session(s), change: { kind: "archive" } }) },
   "projects.delete": { params: owned },
   "projects.box": { params: owned },
+  "launches.log": { params: (s) => ({ box: { kind: "project", id: s.project.id } }) },
+  "launches.stop": { params: () => ({ id: "00000000-0000-4000-8000-000000000000" }) },
   "projects.setBox": { params: owned },
   "projects.startBox": { params: owned },
   "projects.restartBox": { params: owned },

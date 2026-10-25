@@ -2,7 +2,7 @@
 
 One file per decision, numbered. A decision that deviates from a spec or changes a rule gets an ADR; the first line after the title is `Status:` and starts with `accepted` or `superseded by NNNN`.
 
-Next free number: 0087
+Next free number: 0088
 
 Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
 
@@ -96,3 +96,4 @@ Numbers marked "not used" were skipped and stay empty.
 | 0084 | [GitHub through a pap GitHub App](0084-github-through-a-pap-github-app.md) | accepted, lot B2 | 2026-10-24 |
 | 0085 | [owner and members](0085-owner-and-members.md) | accepted, M14 | 2026-10-24 |
 | 0086 | [Night Control after the impeccable audit](0086-night-control-after-the-impeccable-audit.md) | accepted, design lot | 2026-10-25 |
+| 0087 | [launch progress](0087-launch-progress.md) | accepted, launch-progress lot | 2026-10-25 |

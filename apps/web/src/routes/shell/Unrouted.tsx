@@ -1,3 +1,4 @@
+import { LoadingLine } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { landingSegmentOf } from "../../features/notifications/landing-path.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -21,9 +22,9 @@ export function Unrouted() {
       open
       props={{ id: segment, routes: ROUTES }}
       fallback={
-        <p role="status" data-landing-loading className="w-full p-s4 text-muted">
-          {t("app.loading")}
-        </p>
+        <div data-landing-loading className="w-full p-s4">
+          <LoadingLine label={t("app.loading")} deferred={false} />
+        </div>
       }
       onFailed={() => {}}
     />

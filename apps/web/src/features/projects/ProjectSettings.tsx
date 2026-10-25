@@ -1,5 +1,5 @@
 import "../../i18n/register-boxes.ts";
-import { Button, Chip, Heading, toast, usePendingAction, InlineError } from "@pap/ui";
+import { Button, Chip, Heading, toast, usePendingAction, InlineError, LoadingLine } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
@@ -14,6 +14,9 @@ import { PhaseChip } from "../boxes/PhaseChip.tsx";
 import { ResourceFields } from "../boxes/ResourceFields.tsx";
 import { useBoxAction } from "../boxes/use-box-action.ts";
 import { packagesChanged, useProjectBox } from "../boxes/use-project-box.ts";
+import { LaunchStrip } from "../launch/LaunchStrip.tsx";
+import { LaunchPanel } from "../launch/LaunchPanel.tsx";
+import { useBoxStage } from "../launch/use-stage.ts";
 import { ProjectGithubSettings } from "../github/ProjectGithubSettings.tsx";
 import { DeleteProjectDialog } from "./DeleteProjectDialog.tsx";
 import { draftOf, type SettingsDraft, toSetBox } from "./project-settings.vm.ts";
@@ -66,6 +69,7 @@ export function ProjectSettings({ projectId, onClose }: Props) {
   const { state, replace } = useProjectBox(projectId, phase);
   const restart = useBoxAction("projects.restartBox", projectId);
   const rebuild = useBoxAction("projects.rebuild", projectId);
+  const stage = useBoxStage({ kind: "project", id: projectId });
   const saving = usePendingAction();
   const [edited, setEdited] = useState<SettingsDraft | null>(null);
   const [errors, setErrors] = useState<Readonly<Partial<Record<string, MessageKey>>>>({});
@@ -124,19 +128,16 @@ export function ProjectSettings({ projectId, onClose }: Props) {
       }
     >
       <div data-project-settings="" className="flex flex-col gap-s4 p-s3">
-        {state.kind === "loading" ? (
-          <p role="status" className="text-ui text-muted">
-            {t("boxes.settings.loading")}
-          </p>
-        ) : null}
+        {state.kind === "loading" ? <LoadingLine label={t("boxes.settings.loading")} /> : null}
         {state.kind === "failed" ? (
           <InlineError announce="background">{t("boxes.settings.failed")}</InlineError>
         ) : null}
         {box !== null && draft !== null ? (
           <>
             <Section title={t("boxes.section.box")}>
-              <div className="flex flex-wrap items-center gap-s2">
+              <div data-phase-row="" className="flex flex-wrap items-center gap-s2">
                 <PhaseChip phase={phase} live={false} />
+                <LaunchStrip box={{ kind: "project", id: projectId }} />
                 {phase === "stopped" ? (
                   <BoxStart projectId={projectId} phase={phase} size="sm" />
                 ) : (
@@ -144,12 +145,14 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                     size="sm"
                     disabled={phase !== "running"}
                     pendingSince={restart.since}
+                    stage={restart.since === null ? undefined : stage}
                     onClick={restart.run}
                   >
                     {t("boxes.restart")}
                   </Button>
                 )}
               </div>
+              <LaunchPanel box={{ kind: "project", id: projectId }} />
               {restart.problem === null ? null : (
                 <InlineError announce="action">{restart.problem}</InlineError>
               )}
@@ -189,7 +192,12 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                 </div>
               ) : null}
               <div>
-                <Button size="sm" pendingSince={rebuild.since} onClick={rebuild.run}>
+                <Button
+                  size="sm"
+                  pendingSince={rebuild.since}
+                  stage={rebuild.since === null ? undefined : stage}
+                  onClick={rebuild.run}
+                >
                   {t("boxes.rebuild")}
                 </Button>
               </div>

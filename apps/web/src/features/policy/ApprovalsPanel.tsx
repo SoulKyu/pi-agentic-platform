@@ -1,5 +1,5 @@
 import { MAX_ALLOW_HOSTS, MAX_DENY_PATTERNS } from "@pap/contracts";
-import { Button, InlineError, Switch } from "@pap/ui";
+import { Button, InlineError, LoadingLine, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { BuiltinPreset } from "./BuiltinPreset.tsx";
 import { LocalToolsField } from "./LocalToolsField.tsx";
@@ -26,7 +26,7 @@ export function ApprovalsPanel() {
         </Button>
       </div>
     ) : (
-      <p className={NOTE}>{t("approvals.loading")}</p>
+      <LoadingLine label={t("approvals.loading")} />
     );
   }
   return (

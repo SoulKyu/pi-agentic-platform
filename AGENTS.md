@@ -72,6 +72,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - Roles: one owner (everything) and members (no `system:admin`, `pi:*`, `users:*`, `lanes:*`). The role lives behind the auth port only (`roleOf`, `isMember`): no `Caller.role`, and unknown ids are gated like members. A member reaches no host path (dispatcher walk of `ClientPath` values), has no lanes, and works in boxes. Invitations (`/invite#token=`, one use, 24 h, hashed, at most 50 pending), disable (credentials revoked for good; automation, the VM launch gate and the relay stop) and delete (keeps `runs` and `audit`): `docs/agents/auth.md`, `agents-vm.md` ("Members"), ADR 0085; spec `docs/specs/2026-10-24-m14-multi-user-design.md`.
 - A member's budget line (every API-billed run, interactive included, in the owner's zone), shared providers (API keys shared by default, OAuth never, `claude-bridge` exempt) and the per-user Claude token in `box_policy`: `docs/agents/finops.md`. The line rests on the cost a VM reports, so against a member (root in their box) it is a guard against mistakes, not a hard cap (OQ5).
 - Settings › Users and the invitation page: `docs/agents/web.md`. After the update run `sudo pap vm setup` (the relay changed).
+- Launch progress (ADR 0087): the `launches` stream, `launches.log`, `launches.stop`, step times, the stuck ask, task `waiting`, the Pi read queue (`pi_busy`): `docs/agents/agents-vm.md` ("Launch progress"), `automation.md`, `daemon.md`. pap-vmd gains `image.progress`: run `sudo pap vm setup` after the update.
 
 ## Rules (CI-enforced)
 

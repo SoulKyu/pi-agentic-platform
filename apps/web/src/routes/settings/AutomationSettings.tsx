@@ -1,4 +1,4 @@
-import { Button } from "@pap/ui";
+import { Button, LoadingLine } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -36,9 +36,7 @@ export function AutomationSettings() {
             </Button>
           </div>
         ) : (
-          <p role="status" className="text-ui text-muted">
-            {t("settings.automation.loading")}
-          </p>
+          <LoadingLine label={t("settings.automation.loading")} deferred={false} />
         )
       }
     >

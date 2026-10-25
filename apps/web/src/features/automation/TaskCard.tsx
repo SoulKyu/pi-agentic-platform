@@ -1,4 +1,4 @@
-import type { TaskView } from "@pap/contracts";
+import type { BoxRef, TaskView } from "@pap/contracts";
 import { Button, Chip, cn, Fence, InlineError, RunStatusChip } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
@@ -15,8 +15,18 @@ import {
   taskDuration,
   type TaskAction,
 } from "./board.vm.ts";
+import { LaunchStrip } from "../launch/LaunchStrip.tsx";
+import { WaitingLine } from "../launch/WaitingLine.tsx";
 import { TaskDialogs, type TaskDialogKind } from "./TaskDialogs.tsx";
 import { useTaskActions } from "./use-task-actions.ts";
+
+/** The box a task runs in: its agent's, else its project's (a host project has no launch to show). */
+const boxOfTask = (task: TaskView): BoxRef | null =>
+  task.agentId
+    ? { kind: "agent", id: task.agentId }
+    : task.projectId
+      ? { kind: "project", id: task.projectId }
+      : null;
 
 export interface TaskCardProps {
   readonly task: TaskView;
@@ -78,6 +88,11 @@ export function TaskCard({ task, now, current, onOpenSession, onOpenAgent }: Tas
           <p className="font-mono text-label text-muted tabular-nums">
             {meta.filter((part) => part !== null).join(" · ")}
           </p>
+          {task.waiting ? <WaitingLine waiting={task.waiting} now={now} /> : null}
+          <LaunchStrip
+            box={boxOfTask(task)}
+            only={(launch) => launch.for === task.id || task.state === "queued"}
+          />
           {task.target ? <Chip tone="mut" label={t(`automation.card.target.${task.target}`)} /> : null}
           {requester !== null && requestedBy ? (
             <Button size="sm" variant="ghost" onClick={() => onOpenAgent?.(requestedBy)}>

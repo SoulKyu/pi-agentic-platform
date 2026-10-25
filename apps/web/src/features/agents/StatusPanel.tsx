@@ -1,6 +1,16 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary } from "@pap/contracts";
-import { Button, Chip, formatCost, Heading, Icon, InlineError, Meter, usePendingAction } from "@pap/ui";
+import {
+  Button,
+  Chip,
+  formatCost,
+  Heading,
+  Icon,
+  InlineError,
+  Meter,
+  usePendingAction,
+  LoadingLine,
+} from "@pap/ui";
 import { useState, type ReactNode } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -65,11 +75,7 @@ export function StatusPanel(props: StatusPanelProps) {
         )}
       </header>
       <PanelExtensionOverride agentId={props.agentId} />
-      {load.kind === "loading" ? (
-        <p role="status" className="text-ui text-muted">
-          {t("agentStatus.loading")}
-        </p>
-      ) : null}
+      {load.kind === "loading" ? <LoadingLine label={t("agentStatus.loading")} /> : null}
       {load.kind === "failed" ? (
         <div className="flex flex-col items-start gap-s2">
           <InlineError announce="background">{t("agentStatus.failed")}</InlineError>

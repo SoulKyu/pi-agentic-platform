@@ -1,5 +1,5 @@
 import type { PasskeyView } from "@pap/contracts";
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
 import { useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -154,7 +154,7 @@ export function PasskeysList({
       ) : null}
       {passkeys === null ? (
         list.error ? null : (
-          <p className={META}>{t("access.passkeys.loading")}</p>
+          <LoadingLine label={t("access.passkeys.loading")} />
         )
       ) : passkeys.length === 0 ? (
         <p className={META}>{t("access.passkeys.empty")}</p>

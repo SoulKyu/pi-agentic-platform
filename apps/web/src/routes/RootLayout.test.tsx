@@ -3,7 +3,18 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AuthStatus } from "../features/auth/auth-api.ts";
 import type { Runtime } from "../runtime/index.ts";
-import { button, click, hasButton, mount, settle, statuses, text, type Mounted } from "../testing/dom.ts";
+import {
+  button,
+  click,
+  hasButton,
+  mount,
+  settle,
+  statuses,
+  text,
+  type Mounted,
+  useLoadingClock,
+  pastLoadingDelay,
+} from "../testing/dom.ts";
 import { fakeRuntime } from "../testing/runtime-bed.ts";
 import { RootLayout } from "./RootLayout.tsx";
 
@@ -75,8 +86,10 @@ afterEach(async () => {
 
 describe("RootLayout", () => {
   it("shows the loading line until the server has said who this is", async () => {
+    useLoadingClock();
     api.fetchAuthStatus.mockReturnValue(new Promise(() => {}));
     page = await mount(<RootLayout />);
+    await pastLoadingDelay();
     expect(text(page.container)).toBe("Loading…");
   });
 

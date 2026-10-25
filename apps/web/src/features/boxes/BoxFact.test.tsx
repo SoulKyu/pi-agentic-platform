@@ -38,6 +38,17 @@ describe("the box fact", () => {
     expect(bed.called("projects.startBox")[0]?.params).toEqual({ projectId: "b1" });
   });
 
+  it("a start the person stopped leaves START idle and says nothing", async () => {
+    bed.handlers["projects.startBox"] = () => {
+      throw new RpcError("stopped");
+    };
+    const fact = await show("stopped");
+    await click(button(fact, "Start"));
+    await settle();
+    expect(fact.querySelector('[data-slot="inline-error"]')).toBeNull();
+    expect(button(fact, "Start").disabled).toBe(false);
+  });
+
   it("disables START at once and shows the failed start in words", async () => {
     bed.handlers["projects.startBox"] = () => {
       throw new RpcError("internal");

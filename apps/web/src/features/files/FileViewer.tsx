@@ -1,7 +1,9 @@
-import { Banner, Button, Icon, IconExport, Markdown, Segmented, Spinner, InlineError } from "@pap/ui";
+import { Banner, Button, Icon, IconExport, Markdown, Segmented, LoadingLine, InlineError } from "@pap/ui";
 import { CodeEditor, languageFor } from "@pap/ui/code";
 import { useState } from "react";
 import { useT, type Translate } from "../../i18n/index.ts";
+import "../../i18n/register-launch.ts";
+import { useBoxCauseText } from "../../stores/loading-cause.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { baseName, formatSize, rawUrl, viewKind, VIEW_LIMIT_BYTES } from "./files.vm.ts";
 import { EditorBar } from "./EditorBar.tsx";
@@ -50,6 +52,7 @@ interface FileViewerProps {
 /** One file: code in the editor (editable when the whole file is loaded and may be edited), Markdown as a preview or its source, an image through the sandboxed raw route. */
 export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewerProps) {
   const t = useT();
+  const cause = useBoxCauseText(t, path);
   const file = useOpenFile(path);
   const own = useBuffers();
   const held = buffers ?? own;
@@ -62,8 +65,8 @@ export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewer
   let body;
   if (file.status === "loading") {
     body = (
-      <div className="flex items-center gap-s2 p-s3 text-ui text-muted">
-        <Spinner label={t("files.viewer.loading")} />
+      <div className="p-s3">
+        <LoadingLine label={t("files.viewer.loading")} cause={cause} />
       </div>
     );
   } else if (file.status === "error" || meta === null) {

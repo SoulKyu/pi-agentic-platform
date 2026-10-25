@@ -1,6 +1,6 @@
 import type { ReviewComment, ReviewDoc, ReviewScope } from "@pap/contracts";
 import type { ReviewFile } from "./review-types.ts";
-import { Banner, Button, EmptyState, Icon, IconBack, Spinner, useIsPhone, InlineError } from "@pap/ui";
+import { Banner, Button, EmptyState, Icon, IconBack, LoadingLine, useIsPhone, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -98,8 +98,8 @@ export function ReviewPane({
   let body;
   if (list.phase === "loading") {
     body = (
-      <div className="flex items-center gap-s2 p-s3 text-ui text-muted">
-        <Spinner label={t("lanes.review.loading")} />
+      <div className="p-s3">
+        <LoadingLine label={t("lanes.review.loading")} />
       </div>
     );
   } else if (list.phase === "error") {

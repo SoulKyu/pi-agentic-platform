@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import { type AgentRequestView, type AgentSummary, type ToolPreset } from "@pap/contracts";
-import { Button, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
+import { Button, LoadingLine, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
@@ -72,9 +72,13 @@ export function AgentScreen(props: AgentScreenProps) {
   if (agent === undefined)
     return (
       <section data-agent-pane="" className="flex-1 p-s4">
-        <p role="status" className="text-ui text-muted">
-          {t(view.loaded ? "agentSpace.gone" : "agentSpace.loading")}
-        </p>
+        {view.loaded ? (
+          <p role="status" className="text-ui text-muted">
+            {t("agentSpace.gone")}
+          </p>
+        ) : (
+          <LoadingLine label={t("agentSpace.loading")} />
+        )}
       </section>
     );
   return (
@@ -270,6 +274,7 @@ function AgentSpace({
       <>
         {header}
         <OpenStatus
+          agentId={agentId}
           unusable={unusable ? (agent.quarantined ? "quarantined" : "unreadable") : null}
           state={opened.state}
           onRetry={opened.reopen}

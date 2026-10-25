@@ -1,6 +1,8 @@
 import "../../i18n/register-settings-providers.ts";
 import type { ProviderView } from "@pap/contracts";
-import { Button, InlineError } from "@pap/ui";
+import { Button, InlineError, LoadingLine } from "@pap/ui";
+import "../../i18n/register-launch.ts";
+import { usePiCauseText } from "../../stores/loading-cause.ts";
 import { useMemo, useState } from "react";
 import { DiscardConfirm } from "./DiscardConfirm.tsx";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -79,6 +81,7 @@ export function ProviderFormPanel({
   onSelect(id: string): void;
 }) {
   const t = useT();
+  const cause = usePiCauseText(t);
   const failure = useLazyFailureText();
   const ids = useMemo(
     () => ({
@@ -96,11 +99,7 @@ export function ProviderFormPanel({
         open={host.form !== null}
         text={failure}
         onFailed={close}
-        fallback={
-          <p role="status" className="text-ui text-muted">
-            {t("settingsProviders.loading")}
-          </p>
-        }
+        fallback={<LoadingLine label={t("settingsProviders.loading")} cause={cause} deferred={false} />}
         props={{
           target: host.form ?? {},
           existingIds: ids.existing,

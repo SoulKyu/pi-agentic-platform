@@ -63,6 +63,11 @@ describe("the tasks board contract", () => {
   it("parses a task view and refuses a field it does not know, or a state it does not list", () => {
     expect(TaskView.safeParse(taskView).success).toBe(true);
     expect(TaskView.safeParse({ ...taskView, prompt: "secret" }).success).toBe(false);
+    expect(TaskView.safeParse({ ...taskView, waiting: { reason: "image_build", position: 1 } }).success).toBe(
+      true,
+    );
+    expect(TaskView.safeParse({ ...taskView, waiting: null }).success).toBe(true);
+    expect(TaskView.safeParse({ ...taskView, waiting: { reason: "tired" } }).success).toBe(false);
     expect(TaskView.safeParse({ ...taskView, state: "paused" }).success).toBe(false);
     expect(TaskView.safeParse({ ...taskView, detail: "x".repeat(513) }).success).toBe(false);
   });

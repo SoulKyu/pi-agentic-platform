@@ -223,8 +223,12 @@ export function fakePolicy() {
   };
 }
 
+type ImageWait = NonNullable<Parameters<typeof createTaskEngine>[0]["imageBuild"]>;
+
 /** The runner over a real database and a fake clock; the sessions, the runs and the policy are fakes. */
-export function createRunnerBed(options: { readOnly?: boolean; startAt?: number; realRuns?: boolean } = {}) {
+export function createRunnerBed(
+  options: { readOnly?: boolean; startAt?: number; realRuns?: boolean; imageBuild?: ImageWait } = {},
+) {
   const base = createAutomationBed({ startAt: options.startAt });
   const order: Order = [];
   const sessions = fakeSessions(order);
@@ -258,6 +262,7 @@ export function createRunnerBed(options: { readOnly?: boolean; startAt?: number;
       sessions,
       runs: registry?.port ?? runs.port,
       policy: policy.port,
+      ...(options.imageBuild ? { imageBuild: options.imageBuild } : {}),
       settings: { automation: (ownerId) => settings.owners.get(ownerId) ?? settings.value },
       outbox,
       hub,

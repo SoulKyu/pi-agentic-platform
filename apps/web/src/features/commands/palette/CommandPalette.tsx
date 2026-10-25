@@ -1,5 +1,5 @@
 import type { SearchHit } from "@pap/contracts";
-import { Kbd } from "@pap/ui";
+import { Kbd, LoadingLine } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Command } from "cmdk";
 import { useMemo, useRef, useState } from "react";
@@ -99,12 +99,8 @@ export default function CommandPalette({
   const hits =
     narrowTo === null ? found.hits : found.hits.filter((hit) => hit.session.projectId === narrowTo);
   const announced = resultCountLabel(locale, t, ranked.count + hits.length);
-  const searchLine =
-    found.status === "loading"
-      ? t("search.loading")
-      : found.status === "error"
-        ? t(searchErrorKey(found.code))
-        : null;
+  const searching = found.status === "loading";
+  const searchLine = found.status === "error" ? t(searchErrorKey(found.code)) : null;
   // cmdk does not move its selection onto rows that were disabled and are enabled again: the selection is kept
   // here, and falls back to the first row that can be chosen.
   const [selected, setSelected] = useState("");
@@ -152,7 +148,7 @@ export default function CommandPalette({
             className="w-full border-b border-border bg-transparent px-s3 py-s2 text-ui text-fg outline-none focus:border-agent"
           />
           <Command.List className="max-h-app overflow-y-auto p-s1">
-            {searchLine === null ? (
+            {searchLine === null && !searching ? (
               <Command.Empty className="px-s3 py-s2 text-ui text-muted">
                 {scope !== null
                   ? t(searchText(query) === null ? "search.mode.short" : "search.mode.none")
@@ -172,7 +168,11 @@ export default function CommandPalette({
             ) : null}
             {ranked.groups.filter((entry) => AFTER_HITS.has(entry.group)).map(renderGroup)}
           </Command.List>
-          {searchLine === null ? null : (
+          {searching ? (
+            <div data-search-status="" className="px-s3 py-s2">
+              <LoadingLine label={t("search.loading")} />
+            </div>
+          ) : searchLine === null ? null : (
             <p role="status" data-search-status="" className="px-s3 py-s2 text-ui text-muted">
               {searchLine}
             </p>

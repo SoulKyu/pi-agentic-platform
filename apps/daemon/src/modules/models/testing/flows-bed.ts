@@ -24,7 +24,7 @@ export function bed<Deps, Flows>(create: (deps: Deps) => Flows) {
   let poolFull = false;
   const helpers: Pick<HelperPool, "run"> = {
     run(op, params, options): HelperHandle {
-      if (poolFull) throw new PapError("capacity");
+      if (poolFull) throw new PapError("pi_busy");
       let resolve: (value: unknown) => void = () => {};
       let reject: (error: unknown) => void = () => {};
       const done = new Promise<unknown>((res, rej) => {

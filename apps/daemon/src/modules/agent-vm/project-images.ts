@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { z } from "zod";
+import type { ImageObserver } from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { BUILD_NOTICE } from "./image-policy.ts";
 import type { KataImages } from "./kata-images.ts";
@@ -27,7 +28,7 @@ export interface ProjectImages {
    * The image a project's box starts with: the profile image while the project has no built packages (the profile layer is
    * every box's), else the layer built from them. A start builds a missing image first, so it may take minutes.
    */
-  tagOf(projectId: string): Promise<string>;
+  tagOf(projectId: string, observe?: ImageObserver): Promise<string>;
   /** What `.pi/project.yaml` asks for, as the box's last `project.config` answered; `null` leaves it as it was. */
   setWanted(projectId: string, wanted: readonly string[]): void;
   /**
@@ -35,7 +36,7 @@ export interface ProjectImages {
    * sessions get the notice; the new tag applies at its next start. `built` changes only once the image is ready: a failed
    * build leaves it as it was, is logged, and throws.
    */
-  rebuild(projectId: string, running: boolean): Promise<void>;
+  rebuild(projectId: string, running: boolean, observe?: ImageObserver): Promise<void>;
   packages(projectId: string): {
     readonly built: readonly string[];
     readonly wanted: readonly string[] | null;
@@ -77,20 +78,22 @@ export function createProjectImages(deps: ProjectImagesDeps): ProjectImages {
     }
   };
   return {
-    tagOf: (projectId) => deps.images.resolve(projectId, stateOf(projectId).built, "thread"),
+    tagOf: (projectId, observe) =>
+      deps.images.resolve(projectId, stateOf(projectId).built, "thread", observe),
     setWanted(projectId, wanted) {
       const state = stateOf(projectId);
       if (state.wanted?.join("\n") === wanted.join("\n")) return;
       state.wanted = [...wanted];
       save();
     },
-    async rebuild(projectId, running) {
+    async rebuild(projectId, running, observe) {
       const state = stateOf(projectId);
       const next = state.wanted ?? state.built;
       if (running) deps.notice(projectId, BUILD_NOTICE);
       try {
         // A key that never runs: the policy has no old image to fall back on, so it builds and waits for the tag.
-        await deps.images.resolve(buildKeyOf(projectId), next, "thread");
+        // Built under its own key, read by the project's log: "Show the log" asks for the project, not for `<id>:build`.
+        await deps.images.resolve(buildKeyOf(projectId), next, "thread", observe, projectId);
       } catch (error) {
         deps.logger.warn("project_image_build_failed", { projectId, err: error });
         throw error;

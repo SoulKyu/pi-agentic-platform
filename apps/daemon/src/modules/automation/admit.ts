@@ -1,10 +1,16 @@
 import type { AutomationSettings } from "@pap/contracts";
+import type { PutOff } from "./put-off.ts";
 import type { TaskRow, TaskStore } from "./tasks.ts";
 
 export type Admission =
   | { readonly kind: "task"; readonly task: TaskRow }
   /** `paused` and `slots` hold queued tasks back; `empty` means there is nothing to start. */
-  | { readonly kind: "none"; readonly reason: "empty" | "paused" | "slots" | "capacity" };
+  | {
+      readonly kind: "none";
+      readonly reason: "empty" | "paused" | "slots" | "capacity";
+      /** For `slots`: the owners whose slots are full, with the count in use and the limit. */
+      readonly full?: readonly { readonly ownerId: string; readonly used: number; readonly max: number }[];
+    };
 
 export interface AdmissionDeps {
   readonly store: TaskStore;
@@ -12,7 +18,7 @@ export interface AdmissionDeps {
   /** The tasks whose start is in flight, by owner: each counts as a slot and is never picked again. */
   readonly starting: ReadonlyMap<string, string>;
   /** Tasks put off until a time (no worker was free): not picked again before it, so the others get their turn. */
-  readonly putOff: Map<string, number>;
+  readonly putOff: Map<string, PutOff>;
   now(): number;
 }
 
@@ -25,8 +31,11 @@ export function createAdmission(deps: AdmissionDeps) {
   return {
     pick(): Admission {
       let blocked: "paused" | "slots" | null = null;
+      const full: { ownerId: string; used: number; max: number }[] = [];
       const now = deps.now();
-      for (const [id, until] of deps.putOff) if (until <= now) deps.putOff.delete(id);
+      // A passive entry is kept (and said again) while its owner is full, and dropped when it is not.
+      for (const [id, entry] of deps.putOff)
+        if (entry.until <= now && entry.passive !== true) deps.putOff.delete(id);
       const eligible: string[] = [];
       for (const ownerId of deps.store.queuedOwners()) {
         const settings = deps.settings.automation(ownerId);
@@ -35,18 +44,26 @@ export function createAdmission(deps: AdmissionDeps) {
           continue;
         }
         const starting = [...deps.starting.values()].filter((owner) => owner === ownerId).length;
-        if (deps.store.counts(ownerId).running + starting >= settings.slots) {
+        const used = deps.store.counts(ownerId).running + starting;
+        if (used >= settings.slots) {
           blocked = "slots";
+          full.push({ ownerId, used, max: settings.slots });
           continue;
         }
+        for (const id of deps.store.queuedIds(ownerId, 100))
+          if (deps.putOff.get(id)?.passive) deps.putOff.delete(id);
         eligible.push(ownerId);
       }
-      const excluded = [...deps.starting.keys(), ...deps.putOff.keys()];
+      // A task held for slots (passive) is only said so: the owner's slots hold it back, and a free one starts it at once.
+      const off = [...deps.putOff].filter(([, entry]) => entry.passive !== true);
+      const excluded = [...deps.starting.keys(), ...off.map(([id]) => id)];
       const task = eligible.length > 0 ? deps.store.nextQueued(eligible, excluded, now) : undefined;
       if (task) return { kind: "task", task };
-      if (blocked === null && deps.putOff.size > 0 && eligible.length > 0)
+      if (blocked === null && off.length > 0 && eligible.length > 0)
         return { kind: "none", reason: "capacity" };
-      return { kind: "none", reason: blocked ?? "empty" };
+      return blocked === "slots"
+        ? { kind: "none", reason: "slots", full }
+        : { kind: "none", reason: blocked ?? "empty" };
     },
   };
 }

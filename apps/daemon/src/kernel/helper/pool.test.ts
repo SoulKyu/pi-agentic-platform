@@ -65,12 +65,9 @@ describe("the spawn", () => {
 });
 
 describe("capacity", () => {
-  it("refuses a fifth run at once while four are active, and counts again after one ends", async () => {
+  it("counts four active runs, and counts again after one ends", async () => {
     const running = [start(), start(), start(), start()];
     expect(bed.pool.active()).toBe(4);
-    expect(() => bed.pool.run("ping", {}, { deadlineMs: 1000 })).toThrow(
-      expect.objectContaining({ code: "capacity" }),
-    );
     expect(state.forkArgs).toHaveLength(4);
     running[0]?.child.end();
     await bed.clock.advance(0);
@@ -293,5 +290,101 @@ describe("stopAll", () => {
   it("is idempotent and resolves at once with nothing running", async () => {
     await bed.pool.stopAll();
     await bed.pool.stopAll();
+  });
+});
+
+describe("the queue", () => {
+  const read = (deadlineMs = 60_000) => {
+    const child = new FakeChild();
+    state.children.push(child);
+    return { child, handle: bed.pool.run("ping", {}, { deadlineMs }) };
+  };
+  const ranFirst = async (handle: { done: Promise<unknown> }) => {
+    const settled = handle.done.then(
+      () => "ok",
+      (error: PapError) => error.code,
+    );
+    return settled;
+  };
+
+  it("the fifth read waits, runs in order, and its deadline starts when it leaves the queue", async () => {
+    const running = [start(), start(), start(), start()];
+    const fifth = read(10_000);
+    const sixth = read(10_000);
+    const outcomes = [ranFirst(fifth.handle), ranFirst(sixth.handle)];
+    expect(state.forkArgs).toHaveLength(4);
+    expect(fifth.handle.answer("p", "x")).toBe(false);
+    expect(bed.pool.status()).toEqual({ active: 4, max: 4, waiting: 2 });
+    await bed.clock.advance(9_000);
+    running[0]?.child.end();
+    await bed.clock.advance(0);
+    expect(state.forkArgs).toHaveLength(5);
+    expect(bed.pool.status()).toEqual({ active: 4, max: 4, waiting: 1 });
+    await bed.clock.advance(9_000);
+    expect(fifth.child.sent[0]).toMatchObject({ type: "helper_run" });
+    fifth.child.deliver({ type: "helper_done", ok: true, result: 1 });
+    expect(await outcomes[0]).toBe("ok");
+    fifth.child.end();
+    await bed.clock.advance(0);
+    expect(state.forkArgs).toHaveLength(6);
+    await bed.clock.advance(10_001);
+    expect(await outcomes[1]).toBe("timeout");
+  });
+
+  it("the seventeenth waiting read is refused pi_busy", () => {
+    for (let i = 0; i < 4; i++) start();
+    for (let i = 0; i < 16; i++) bed.pool.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    expect(bed.pool.status().waiting).toBe(16);
+    expect(() => bed.pool.run("ping", {}, { deadlineMs: 1000 })).toThrow(
+      expect.objectContaining({ code: "pi_busy" }),
+    );
+  });
+
+  it("a read that waits 30 s is refused pi_busy", async () => {
+    for (let i = 0; i < 4; i++) start();
+    const waiting = bed.pool.run("ping", {}, { deadlineMs: 1000 });
+    const outcome = ranFirst(waiting);
+    await bed.clock.advance(29_999);
+    expect(bed.pool.status().waiting).toBe(1);
+    await bed.clock.advance(1);
+    expect(await outcome).toBe("pi_busy");
+    expect(bed.pool.status().waiting).toBe(0);
+  });
+
+  it("a sign-in flow is refused pi_busy instead of queued", () => {
+    for (let i = 0; i < 4; i++) start();
+    expect(() => bed.pool.run("auth.login", {}, { deadlineMs: 1000, onPrompt: () => {} })).toThrow(
+      expect.objectContaining({ code: "pi_busy" }),
+    );
+    expect(bed.pool.status().waiting).toBe(0);
+  });
+
+  it("cancel removes a queued read", async () => {
+    const running = [start(), start(), start(), start()];
+    const first = bed.pool.run("ping", {}, { deadlineMs: 1000 });
+    const second = read(1000);
+    const outcome = ranFirst(first);
+    first.cancel();
+    expect(await outcome).toBe("helper_failed");
+    expect(bed.pool.status().waiting).toBe(1);
+    running[0]?.child.end();
+    await bed.clock.advance(0);
+    expect(state.forkArgs).toHaveLength(5);
+    expect(second.child.sent[0]).toMatchObject({ type: "helper_run" });
+  });
+
+  it("stopAll refuses every waiter and onChange reports each count change", async () => {
+    const seen: Array<{ active: number; max: number; waiting: number }> = [];
+    bed.pool = bed.makePool(1, (status) => seen.push(status));
+    const { child } = start();
+    const waiting = bed.pool.run("ping", {}, { deadlineMs: 1000 });
+    const outcome = ranFirst(waiting);
+    const stopped = bed.pool.stopAll();
+    expect(await outcome).toBe("helper_failed");
+    child.end();
+    await bed.clock.advance(0);
+    await stopped;
+    expect(seen).toContainEqual({ active: 1, max: 1, waiting: 1 });
+    expect(seen.at(-1)).toEqual({ active: 0, max: 1, waiting: 0 });
   });
 });

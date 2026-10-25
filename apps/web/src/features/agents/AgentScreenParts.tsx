@@ -1,6 +1,8 @@
 import { Button, InlineError } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { errorKey, useT } from "../../i18n/index.ts";
+import { LaunchPanel } from "../launch/LaunchPanel.tsx";
+import { useIsLaunching } from "../../stores/launch-store.ts";
 import { StatusPanel } from "./StatusPanel.tsx";
 import type { PanelLayout } from "./status.vm.ts";
 import type { useOpenThread } from "./use-agent-space.ts";
@@ -54,11 +56,13 @@ export function PanelSlot({ agentId, layout, open, onClose, onOpenTrigger, ...re
 }
 
 export function OpenStatus({
+  agentId,
   unusable,
   state,
   onRetry,
   onOpenSettings,
 }: {
+  readonly agentId: string;
   readonly unusable: "quarantined" | "unreadable" | null;
   readonly state: ReturnType<typeof useOpenThread>["state"];
   onRetry(): void;
@@ -66,6 +70,7 @@ export function OpenStatus({
 }) {
   const t = useT();
   const settings = <Button onClick={onOpenSettings}>{t("agentSpace.openSettings")}</Button>;
+  const launching = useIsLaunching({ kind: "agent", id: agentId });
   if (unusable !== null)
     return (
       <div className="flex flex-col items-start gap-s2">
@@ -78,7 +83,9 @@ export function OpenStatus({
   if (state.kind === "failed")
     return (
       <div className="flex flex-col items-start gap-s2">
-        <InlineError announce="background">{t(errorKey(state.code))}</InlineError>
+        {state.code === "stopped" ? null : (
+          <InlineError announce="background">{t(errorKey(state.code))}</InlineError>
+        )}
         <div className="flex flex-wrap gap-s2">
           {state.code === "sandbox_unavailable" ? settings : null}
           <Button variant="primary" onClick={onRetry}>
@@ -87,6 +94,8 @@ export function OpenStatus({
         </div>
       </div>
     );
+  // The steps of the agent's VM start say more than "Opening the thread…" while they run.
+  if (launching) return <LaunchPanel box={{ kind: "agent", id: agentId }} />;
   return (
     <p role="status" className="text-ui text-muted">
       {t("agentSpace.opening")}

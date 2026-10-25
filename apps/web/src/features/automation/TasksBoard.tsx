@@ -1,4 +1,4 @@
-import { Spinner, useIsPhone, type AvatarStyle } from "@pap/ui";
+import { LoadingLine, useIsPhone, type AvatarStyle } from "@pap/ui";
 import { useEffect, useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { useAgents } from "../../stores/agents-store.ts";
@@ -52,7 +52,7 @@ export function TasksBoard({
   if (!view.loaded || view.counts === null) {
     return (
       <section data-tasks-pane="" data-tasks-board="" className="flex min-h-0 flex-1 items-start p-s3">
-        <Spinner label={t("automation.board.loading")} />
+        <LoadingLine label={t("automation.board.loading")} />
       </section>
     );
   }

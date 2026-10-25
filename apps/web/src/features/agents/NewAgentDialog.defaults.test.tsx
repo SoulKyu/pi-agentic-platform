@@ -4,7 +4,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { mount, settle, text } from "../../testing/dom.ts";
+import { mount, settle, text, useLoadingClock, pastLoadingDelay } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { NewAgentDialog } from "./NewAgentDialog.tsx";
 
@@ -69,6 +69,7 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
   });
 
   it("says Loading… while the defaults are being read", async () => {
+    useLoadingClock();
     const bed = fakeRuntime();
     current.runtime = bed.runtime;
     bed.handlers["settings.get"] = () => new Promise(() => {});
@@ -80,6 +81,7 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
       </TooltipProvider>,
     );
     await settle();
+    await pastLoadingDelay();
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(text(document.body)).toContain("Loading…");
     expect(networkOn()).toBeNull();

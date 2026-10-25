@@ -2,17 +2,20 @@ import { join } from "node:path";
 import { AGENT_NET, type AgentInput, PapError, VmdHealth } from "@pap/contracts";
 import { nodeBaseImage } from "./cli/vm/assets.ts";
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
+import type { ImageObserver } from "./kernel/launches.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
   type AgentRuntimeBackend,
   createImageEntries,
   createKataBackend,
   createKataImages,
+  createStderrRedactor,
   createVmdClient,
   type ImageEntries,
   type KataImages,
   type KnownSecrets,
   type OwnerSecretsCollector,
+  redactionSource,
   VMD_SOCKET,
   type VmdClient,
 } from "./modules/agent-vm/index.ts";
@@ -50,7 +53,12 @@ export interface KataParts {
   /** Resolves when pap0 is up and pap's firewall table is loaded; rejects when pap-vmd is not there or either never comes. */
   bridgeReady(): Promise<void>;
   /** The image tag an agent's VM starts with, built first when it must be. */
-  imageTagOf(agentId: string, input: AgentInput, kind: "thread" | "isolated"): Promise<string>;
+  imageTagOf(
+    agentId: string,
+    input: AgentInput,
+    kind: "thread" | "isolated",
+    observe?: ImageObserver,
+  ): Promise<string>;
   /** The weekly rebuild of the base: told hourly, builds once a week. Returns the way to stop. */
   startUpgrades(): () => void;
 }
@@ -91,6 +99,8 @@ export function composeKata(
     nodeImage: seams.nodeImage ?? nodeBaseImage(),
     weekFile: join(core.home, "vm", "base-week"),
     secrets: seams.knownSecrets ?? core.ownerSecrets ?? refusedSecrets,
+    // A build line shown in a launch is masked like the relay's stderr: every owner's values, then the known formats.
+    redact: createStderrRedactor({ clock, collect: redactionSource(core.ownerSecrets ?? refusedSecrets) }),
     entries,
     notice,
   });
@@ -125,7 +135,8 @@ export function composeKata(
       });
       return ready;
     },
-    imageTagOf: (agentId, input, kind) => images.resolve(agentId, input.systemPackages, kind),
+    imageTagOf: (agentId, input, kind, observe) =>
+      images.resolve(agentId, input.systemPackages, kind, observe),
     startUpgrades() {
       let timer: TimerHandle | null = null;
       const tick = (): void => {

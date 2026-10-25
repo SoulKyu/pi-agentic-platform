@@ -143,6 +143,7 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 - Pi configuration work (reads and writes under the agent directory, sign-in, catalog refresh, `!cmd` keys, MCP Test, installs) runs in a helper child, never in the daemon: `kernel/helper/pool.ts`, entry `packages/pi-host/src/helper/main.ts` (`@pap/pi-host/helper`), beside the worker entry. A new operation is one `HelperOp` in `helper/ops/` registered in `helper/ops.ts`, called from its module through the pool composed in `compose-pi.ts`.
 - Environment as a worker's (no `PAP_*`, no `NODE_OPTIONS`), its own process group, cwd `os.tmpdir()`, no systemd scope. Limits per run: 256 events, 16 prompts, 1 MiB per record, a caller deadline; the kill ladder is cancel, SIGTERM (2 s), SIGKILL (3 s more). The daemon's `stop()` runs `pi.stopAll()` with `sessions.shutdownAll()`.
 - Test operations (`test.*`) exist only with `PAP_TEST_PROVIDER=1`.
+- Read queue (ADR 0087): `PAP_HELPERS_MAX` runs at once; further calls wait in a FIFO queue of 16 at most, for 30 s at most (the kernel `Clock`). The 17th call, or one that waited 30 s, is `pi_busy` ("Nothing was read"), not `capacity`. A queued call's deadline starts when it leaves the queue; cancelling it removes it, `stopAll` rejects it `helper_failed`. Calls with `onPrompt` (sign-in flows) never queue and are refused `pi_busy` when the pool is full. `kernel/helper/status-feed.ts` publishes `{ active, max, waiting }` on the `launches` stream (1 per second, on change), which feeds the LoadingLine cause.
 
 ## Pi modules (M7)
 

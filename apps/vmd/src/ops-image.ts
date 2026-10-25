@@ -16,8 +16,35 @@ const PAP_IMAGE = /^pap\.local\/(.+):1$/;
 
 type Prune = { keep: string[] };
 
+/** Lines kept per tag, the width of one, and the bytes of a tail answer (one frame is 64 KiB). */
+const TAIL_LINES = 200;
+const LINE_CHARS = 512;
+const TAIL_ANSWER_BYTES = 48 * 1024;
+
+interface Tail {
+  lines: string[];
+  last: { line: string; at: number } | null;
+}
+
 export function createImageOps(deps: OpsDeps) {
   const { exec, state, locks, room, log } = deps;
+  /** What BuildKit printed for each tag building now; a tag leaves when its build ends. */
+  const tails = new Map<string, Tail>();
+
+  function progress(request: { tag: string; tail?: true }): unknown {
+    const tail = tails.get(request.tag);
+    if (tail === undefined) return { building: false, lines: 0, last: null };
+    const answer = { building: true, lines: tail.lines.length, last: tail.last };
+    if (request.tail !== true) return answer;
+    const kept: string[] = [];
+    let bytes = 0;
+    for (const line of [...tail.lines].reverse()) {
+      bytes += Buffer.byteLength(JSON.stringify(line)) + 1;
+      if (bytes > TAIL_ANSWER_BYTES) break;
+      kept.unshift(line);
+    }
+    return { ...answer, tail: kept };
+  }
 
   /** The repository:tag lines of `nerdctl images` that are pap's own image tags. */
   async function papTags(): Promise<string[]> {
@@ -54,16 +81,27 @@ export function createImageOps(deps: OpsDeps) {
     // I2: folders are keyed by tag, so two builds of one layer never share or delete each other's.
     const context = path.join(state.buildDir(request.layer), request.tag);
     const dockerfileDir = path.join(state.dockerfileDir(request.layer), request.tag);
+    const tail: Tail = { lines: [], last: null };
+    tails.set(request.tag, tail);
     try {
       mkdirSync(path.dirname(context), { recursive: true, mode: 0o700 });
       copyContext(request, context);
       // RT-33: the Dockerfile is rendered here, in a folder of its own, never inside the context.
       mkdirSync(dockerfileDir, { recursive: true, mode: 0o700 });
       writeFileSync(path.join(dockerfileDir, "Dockerfile"), renderDockerfile(request), { mode: 0o600 });
-      const result = await exec(buildArgv(request, context, dockerfileDir), { timeoutMs: BUILD_TIMEOUT_MS });
+      const result = await exec(buildArgv(request, context, dockerfileDir), {
+        timeoutMs: BUILD_TIMEOUT_MS,
+        onLine(line) {
+          const clipped = line.slice(0, LINE_CHARS);
+          tail.lines.push(clipped);
+          if (tail.lines.length > TAIL_LINES) tail.lines.shift();
+          tail.last = { line: clipped, at: deps.clock.now() };
+        },
+      });
       if (result.code !== 0) throw new VmdFailure("failed");
       return { tag: request.tag };
     } finally {
+      tails.delete(request.tag);
       rmSync(context, { recursive: true, force: true });
       rmSync(dockerfileDir, { recursive: true, force: true });
     }
@@ -104,5 +142,5 @@ export function createImageOps(deps: OpsDeps) {
     return { version: deps.version, ruleset: facts.ruleset, bridge: facts.bridge, stateFreeMb };
   }
 
-  return { build, list, prune, health };
+  return { build, progress, list, prune, health };
 }

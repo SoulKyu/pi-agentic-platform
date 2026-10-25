@@ -1,4 +1,4 @@
-import { Button, InlineError, TextField } from "@pap/ui";
+import { Button, InlineError, LoadingLine, TextField } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { coverText } from "../../lib/rule-text.ts";
@@ -99,7 +99,7 @@ export function RulesByProject() {
       {revokeError ? <InlineError announce="action">{revokeError}</InlineError> : null}
       {rules === null ? (
         error ? null : (
-          <p className="text-ui text-muted">{t("approvals.rules.loading")}</p>
+          <LoadingLine label={t("approvals.rules.loading")} />
         )
       ) : rules.length === 0 ? (
         <p className="text-ui text-muted">{t("approvals.rules.empty")}</p>

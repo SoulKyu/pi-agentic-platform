@@ -416,6 +416,19 @@ Each shared word is defined once. DESIGN.md §11 links here.
 | the Settings column width | `apps/web/src/routes/settings/settings-width.test.ts` |
 | a Segmented names its choice (a visible label, or the files listed as screen-reader-only) | `apps/web/src/segmented-labels.test.ts` |
 
+### LoadingLine (`packages/ui/src/primitives/LoadingLine.tsx`)
+
+- Every short read shows one `LoadingLine`, never a bare "Loading…" string. Props: `label` (the existing copy), `since` (a `performance.now()` reading; default is its own mount time), `cause` (translated text, optional), `deferred` (default `true`).
+- Timing: nothing under 100 ms (`deferred={false}` skips that delay, for a line already behind a chunk fallback); then the spinner and the label; the elapsed time from 3 s; the cause from 10 s. It reschedules itself to the next boundary, so a fast load renders nothing and no timer runs after unmount.
+- The line is a polite live region (`role="status"`). The elapsed time is `aria-hidden` with tabular numerals, so a screen reader hears the label and the cause but not a counter.
+- One clock per wait: `apps/web/src/lib/wait-since.tsx` carries `since` across the hand-over from a lazy chunk to its first data (`useWaitStart`, `WaitSinceProvider`, `WaitLine`). It covers only that hand-over: a Retry or a remount (`key={cwd}`) starts its own clock. The Settings sections use it, so a chunk fallback and the data line that follows read as one line, not two.
+- Causes live in `apps/web/src/stores/loading-cause.ts` (a hook cannot sit in `i18n/`). Import `i18n/register-launch.ts` in the caller.
+  - `usePiCause` / `usePiCauseText(t)`: for reads that go through Pi. "Pi is reading N things at once" when more than one read is active, "N reads waiting" when the queue is not empty (the queue wins).
+  - `useBoxCauseText(t, path)`: "The box answers slowly", only when `path` is a box path (`useBoxPhase(path)` is non-null). A host path never gets it.
+  - No cause where nothing explains the delay (host git, boot lines, session reads with no path).
+- Guard: `apps/web/src/loading-lines.test.ts` scans non-test sources for a `*.loading`, `*.panelLoading` or `*.reading` key (not `section.reading`) used without `<LoadingLine` or `<WaitLine` on that line or the six after it. `apps/web/src/loading-lines.allow.ts` lists the files still excused, each with a reason. A second test fails when an entry's file is gone or has no stray line left, so delete the entry when you convert the file.
+- Tests: `useLoadingClock` and `pastLoadingDelay` in `apps/web/src/testing/dom.ts`. `useLoadingClock` switches the test to fake timers (restored after each test) and `settle` honours them. `pastLoadingDelay` advances past the 100 ms delay; call it before asserting that a loading line is on screen. A test asserting "no line" for a fast load does not advance.
+
 ### Known limits of the pass
 
 - The guards scan by regular expression: a multi-line `className` in a template literal, a single-line ellipsis check, a pink child of an allowlisted file, and hand-copied `h2`-`h4` outside Settings (GalleryItem, CompareColumn, AgentColumn, ProjectColumn, InboxPanel, SecretsList, policy files) are not all caught.

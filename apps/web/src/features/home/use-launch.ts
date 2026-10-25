@@ -12,7 +12,9 @@ const loadRun = () => import("./run-launch.ts");
 export function useLaunch(actions: HomeActions, preset: ToolPreset, projectId: string | null) {
   const t = useT();
   const lazyText = useLazyFailureText();
-  const [busy, setBusy] = useState(false);
+  const [since, setSince] = useState<number | null>(null);
+  const busy = since !== null;
+  const setBusy = (on: boolean) => setSince(on ? performance.now() : null);
   const [error, setError] = useState<string | null>(null);
   // The line speaks of the last launch: another project in the chip is another start.
   const [seenProject, setSeenProject] = useState(projectId);
@@ -42,5 +44,5 @@ export function useLaunch(actions: HomeActions, preset: ToolPreset, projectId: s
         setError(t("error.internal"));
       });
   };
-  return { launch, busy, error };
+  return { launch, busy, since, error };
 }
