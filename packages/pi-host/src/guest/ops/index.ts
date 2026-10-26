@@ -21,8 +21,13 @@ export type GuestOps = (op: BoxOp) => Promise<OpAnswer>;
  * The guest's operations on its project folder (spec boxes). They run as the guest process: the VM is the boundary. Every path
  * is judged under `project` with no link followed; git always runs with the neutralised command line.
  */
-export function createGuestOps(project: string, now: () => number, github?: GithubDeps): GuestOps {
-  const env: OpEnv = { project, now, ...(github ? { github } : {}) };
+export function createGuestOps(
+  project: string,
+  now: () => number,
+  github?: GithubDeps,
+  hidden?: readonly string[],
+): GuestOps {
+  const env: OpEnv = { project, now, ...(github ? { github } : {}), ...(hidden ? { hidden } : {}) };
   const uploads = createUploads();
   const search = createSearch();
 

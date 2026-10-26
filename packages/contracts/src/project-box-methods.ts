@@ -30,7 +30,7 @@ export const ProjectBoxView = z
 export type ProjectBoxView = z.infer<typeof ProjectBoxView>;
 
 // `capacity`: 2000 projects (or the box's host is full); `bad_request`: a name empty once cleaned, or resources over the host's ceilings.
-const BOX_LIFE_ERRORS = [
+export const BOX_LIFE_ERRORS = [
   "not_found",
   "capacity",
   "sandbox_unavailable",

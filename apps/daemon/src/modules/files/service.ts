@@ -1,5 +1,6 @@
 import type { FileHandle } from "node:fs/promises";
 import { type Caller, FILE_LIMITS, PapError, type ParamsOf, type ResultOf } from "@pap/contracts";
+import { type AgentFilesSource, underAgents } from "../../kernel/agent-path.ts";
 import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { BoundaryConfig, Scope } from "../../kernel/fs/boundary.ts";
@@ -31,6 +32,9 @@ export interface FilesDeps {
   /** Late-bound (the boxes are wired after the files): with none bound, no path is a box path. */
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
+  /** The agents' VMs (an agent's folder is `/agents/<id>`): with none bound, a path under `/agents` is `not_found`. */
+  readonly agentOps?: () => BoxOps | undefined;
+  readonly agents?: () => AgentFilesSource | undefined;
   /** A member reads and writes box paths only (M14); a host path is `forbidden` before any file-system call. */
   readonly isMember: (userId: string) => boolean;
 }
@@ -60,6 +64,8 @@ export function createFilesService(
   const box = createBoxFiles({
     boxes: deps.boxes ?? (() => undefined),
     ops: deps.boxOps ?? (() => undefined),
+    agentOps: deps.agentOps ?? (() => undefined),
+    agents: deps.agents ?? (() => undefined),
     clock: deps.clock,
     logger: deps.logger,
     readOnly: deps.readOnly,
@@ -71,41 +77,44 @@ export function createFilesService(
     config: deps.boundary,
     caller: caller.kind,
   });
+  /** An agent's folder first (`/agents` never reaches the host, R2), then a box project, else null: a host path. */
+  const route = (caller: Caller, path: string) => box.matchAgent(caller, path) ?? box.match(caller, path);
   return {
     index,
     readOnly: deps.readOnly,
     async upload(caller, input) {
       if (deps.readOnly) throw new PapError("read_only");
-      const inBox = box.match(caller, input.path);
+      const inBox = route(caller, input.path);
       if (inBox) return box.upload(inBox, caller, input);
       return uploadFile(env, scopeOf(caller), caller, input, deps.workerUmask);
     },
-    list(caller, params) {
-      const inBox = box.match(caller, params.path);
-      if (inBox) return box.list(inBox, caller, params);
+    async list(caller, params) {
+      const inBox = route(caller, params.path);
+      if (inBox) return await box.list(inBox, caller, params);
       return listFolder(env, scopeOf(caller), params.path, params.showIgnored === true);
     },
-    read(caller, params) {
-      const inBox = box.match(caller, params.path);
-      if (inBox) return box.read(inBox, caller, params);
+    async read(caller, params) {
+      const inBox = route(caller, params.path);
+      if (inBox) return await box.read(inBox, caller, params);
       return readChunk(env, scopeOf(caller), params.path, params.offset);
     },
     async openBoxRaw(caller, path) {
-      const inBox = box.match(caller, path);
+      const inBox = route(caller, path);
       return inBox ? box.openRaw(inBox, caller, path) : null;
     },
-    openRaw(caller, path) {
+    async openRaw(caller, path) {
+      if (underAgents(path)) throw new PapError("not_found");
       if (deps.isMember(caller.userId)) throw new PapError("forbidden");
       return openRaw(env, scopeOf(caller), path);
     },
     async write(caller, params) {
       if (deps.readOnly) throw new PapError("read_only");
-      const inBox = box.match(caller, params.path);
+      const inBox = route(caller, params.path);
       if (inBox) return box.write(inBox, caller, params);
       return writeText(env, scopeOf(caller), caller, params, deps);
     },
     async search(caller, { root, query, limit }) {
-      const inBox = box.match(caller, root);
+      const inBox = route(caller, root);
       if (inBox) return box.search(inBox, caller, { root, query, limit });
       const scope = scopeOf(caller);
       // The root is one of the caller's, spelled exactly, and one the caller may open.

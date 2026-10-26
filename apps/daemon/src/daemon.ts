@@ -65,7 +65,6 @@ export const MIGRATION_SOURCES = [
   PUSH_MIGRATIONS,
   ...USERS_MIGRATION_SOURCES,
 ] as const;
-
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promise<DaemonHandle> {
@@ -123,7 +122,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       closers,
       deps.agentsVm,
     );
-    vmRpc.bindStatus(agentsVm.status.view);
+    vmRpc.bindVm(agentsVm);
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
     const onOriginRefused = createOriginRefusalLog(logger, clock);
@@ -175,6 +174,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       home: config.home,
       isMember: auth.isMember,
+      agents: vmRpc.agentsPort,
       requireStepUp,
     });
     const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];

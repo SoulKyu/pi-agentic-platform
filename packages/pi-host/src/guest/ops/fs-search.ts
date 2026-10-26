@@ -22,11 +22,11 @@ function indexable(path: string): boolean {
   );
 }
 
-function indexOf(listing: Buffer): PathIndex {
+function indexOf(listing: Buffer, hidden: readonly string[]): PathIndex {
   const paths: string[] = [];
   let truncated = false;
   for (const path of listing.toString("utf8").split("\0")) {
-    if (!indexable(path)) continue;
+    if (!indexable(path) || hidden.includes(path.split("/")[0] ?? "")) continue;
     if (paths.length === INDEX_LIMITS.paths) {
       truncated = true;
       break;
@@ -37,11 +37,19 @@ function indexOf(listing: Buffer): PathIndex {
 }
 
 /** Outside a repository: ripgrep lists the files (hidden ones too, `.git` never). */
-const ripgrepFiles = (project: string): Promise<Buffer> =>
+const ripgrepFiles = (project: string, hidden: readonly string[]): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     execFile(
       "rg",
-      ["--files", "--null", "--hidden", "--glob", "!.git", "--no-messages"],
+      [
+        "--files",
+        "--null",
+        "--hidden",
+        "--glob",
+        "!.git",
+        ...hidden.flatMap((name) => ["--glob", `!/${name}`]),
+        "--no-messages",
+      ],
       {
         cwd: project,
         env: { PATH: process.env.PATH ?? "/usr/bin:/bin", LC_ALL: "C" },
@@ -70,19 +78,29 @@ export function createSearch(): Search {
   let cached: { at: number; index: Promise<PathIndex> } | undefined;
 
   const build = async (env: OpEnv): Promise<PathIndex> => {
+    const hidden = env.hidden ?? [];
     try {
       const listed = await runGit(
         env.project,
-        ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        [
+          "ls-files",
+          "-z",
+          "--cached",
+          "--others",
+          "--exclude-standard",
+          "--",
+          ".",
+          ...hidden.map((name) => `:(exclude,literal)${name}`),
+        ],
         {
           maxBytes: INDEX_LIMITS.gitBytes,
         },
       );
-      return indexOf(listed.stdout);
+      return indexOf(listed.stdout, hidden);
     } catch (error) {
       // Only git's own failures fall back to ripgrep; a cap or a timeout is the caller's to hear about.
       if (error instanceof OpError && error.code !== "failed") throw error;
-      return indexOf(await ripgrepFiles(env.project));
+      return indexOf(await ripgrepFiles(env.project, hidden), hidden);
     }
   };
 

@@ -46,6 +46,11 @@ export interface AgentFiles {
   read(agentId: string): Promise<Array<{ path: string; bytes: Buffer }>>;
   /** One file whole, or null when it is absent, not a regular file, a link (or below one), or over `AGENT_FILE_LIMITS.maxBytes`. */
   readOne(agentId: string, path: string): Promise<Buffer | null>;
+  /**
+   * What the explorer keeps out of sight: the imported paths plus the removals the VM has not heard of yet (their copy still sits in
+   * its home). Fails closed: a folder or a removals file that cannot be read throws `internal` (logged once, no path), never an empty set.
+   */
+  hiddenOf(agentId: string): string[];
   /** The paths removed since the VM last heard of them: the worker deletes them from the home, then `delivered` clears them. */
   pendingRemovals(agentId: string): string[];
   delivered(agentId: string, removed: string[]): void;
@@ -96,12 +101,13 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
   };
 
   /** Files below `folder` (a real folder, else none), links and odd entries skipped, by path. */
-  function walk(folder: string, prefix = ""): Entry[] {
+  function walk(folder: string, prefix = "", strict = false): Entry[] {
     let names: string[];
     try {
       if (!lstatSync(folder).isDirectory()) return [];
       names = readdirSync(folder);
-    } catch {
+    } catch (error) {
+      if (strict && errorClass(error) !== "ENOENT") throw error;
       return [];
     }
     const found: Entry[] = [];
@@ -111,11 +117,12 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
       let stat: ReturnType<typeof lstatSync>;
       try {
         stat = lstatSync(absolute);
-      } catch {
+      } catch (error) {
+        if (strict && errorClass(error) !== "ENOENT") throw error;
         continue;
       }
       const path = prefix === "" ? name : `${prefix}/${name}`;
-      if (stat.isDirectory()) found.push(...walk(absolute, path));
+      if (stat.isDirectory()) found.push(...walk(absolute, path, strict));
       else if (stat.isFile())
         found.push({ path, absolute, size: stat.size, importedAt: Math.floor(stat.mtimeMs) });
     }
@@ -130,11 +137,12 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
   });
 
   const removalsFile = (agentId: string): string => join(removalsDir, `${agentId}.json`);
-  function pending(agentId: string): string[] {
+  function pending(agentId: string, strict = false): string[] {
     let text: string;
     try {
       text = readFileSync(removalsFile(idOf(agentId)), "utf8");
     } catch (error) {
+      if (strict && errorClass(error) !== "ENOENT") throw error;
       if (errorClass(error) !== "ENOENT")
         logger.warn("agent_files_removals_unreadable", { err: errorClass(error) });
       return [];
@@ -147,6 +155,7 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
           )
         : [];
     } catch {
+      if (strict) throw new Error("not_json");
       logger.warn("agent_files_removals_unreadable", { err: "not_json" });
       return [];
     }
@@ -277,6 +286,17 @@ export function createAgentFiles(deps: { readonly secretsDir: string; readonly l
         return null;
       } finally {
         await handle?.close();
+      }
+    },
+
+    hiddenOf(agentId) {
+      idOf(agentId);
+      try {
+        const imported = walk(join(root, agentId), "", true).map((entry) => entry.path);
+        return [...new Set([...imported, ...pending(agentId, true)])];
+      } catch (error) {
+        logger.error("agent_files_hidden_unreadable", { err: errorClass(error) });
+        throw new PapError("internal");
       }
     },
 

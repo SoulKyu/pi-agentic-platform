@@ -27,6 +27,7 @@ describe("method catalogue", () => {
       "agents.queueTask",
       "agents.resetThread",
       "agents.setPaused",
+      "agents.startBox",
       "agents.update",
       "agents.vm.clearClaudeToken",
       "agents.vm.setClaudeToken",

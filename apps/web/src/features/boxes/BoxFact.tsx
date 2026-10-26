@@ -39,7 +39,7 @@ export function BoxFact({ project, onSettings, opened }: Props) {
         <PhaseChip phase={phase} live />
         {changed ? <Chip tone="att" label={t("boxes.packagesChanged")} /> : null}
         {phase === "running" ? null : (
-          <BoxStart projectId={project.id} phase={phase} size="sm" variant="secondary" />
+          <BoxStart box={{ kind: "project", id: project.id }} phase={phase} size="sm" variant="secondary" />
         )}
         <LaunchStrip box={box} />
         {launching ? (

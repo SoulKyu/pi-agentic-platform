@@ -69,4 +69,21 @@ describe("closing a files pane with unsaved edits", () => {
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(ws().tabs[0]?.split).not.toBeNull();
   });
+
+  it("asks before closing an agent tab whose explorer holds unsaved edits", () => {
+    const store = useWorkspaceStore.getState();
+    store.open({ kind: "home" });
+    store.open({ kind: "agent", id: "atlas-1a2b" });
+    const key = ws().tabs.find((tab) => tab.item.kind === "agent")?.key as string;
+    closeItem(navigate as never, key);
+    expect(confirm).not.toHaveBeenCalled();
+    store.open({ kind: "agent", id: "atlas-1a2b" });
+    setUnsavedFiles("/agents/atlas-1a2b", true);
+    closeItem(navigate as never, key);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(ws().tabs.some((tab) => tab.key === key)).toBe(true);
+    confirm.mockReturnValue(true);
+    closeItem(navigate as never, key);
+    expect(ws().tabs.some((tab) => tab.key === key)).toBe(false);
+  });
 });

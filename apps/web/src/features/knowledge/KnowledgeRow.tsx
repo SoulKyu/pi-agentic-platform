@@ -75,7 +75,7 @@ export function KnowledgeRow({ projectId }: { readonly projectId: string }) {
     return (
       <div data-knowledge-row="" className="flex flex-wrap items-center gap-s3 text-ui text-muted">
         <p>{t("boxes.stopped.purpose")}</p>
-        <BoxStart projectId={projectId} phase={phase} size="sm" variant="secondary" />
+        <BoxStart box={{ kind: "project", id: projectId }} phase={phase} size="sm" variant="secondary" />
       </div>
     );
   }

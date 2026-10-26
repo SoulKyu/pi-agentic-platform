@@ -7,6 +7,9 @@ export const CODE_COPY_KEYS: Readonly<Partial<Record<MessageKey, "EmptyState" | 
     "boxes.error.sandbox_unavailable": "InlineError",
     "boxes.error.vm_bundle_stale": "InlineError",
     "boxes.error.command_failed": "InlineError",
+    "boxes.agentError.sandbox_unavailable": "InlineError",
+    "boxes.agentError.vm_bundle_stale": "InlineError",
+    "boxes.agentError.fallback": "InlineError",
     "error.sandbox_unavailable": "InlineError",
     "error.vm_bundle_stale": "InlineError",
   };

@@ -2,6 +2,8 @@ import { appendFileSync, linkSync, truncateSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { PapError } from "@pap/contracts";
+import { createFakeBoxOps, createFakeProjectBoxSource } from "../../kernel/testing/fake-boxes.ts";
 import { createHttpApp } from "../../kernel/http/app.ts";
 import type { HttpCaller } from "../../kernel/http/caller.ts";
 import { testCaller } from "../../testing/caller.ts";
@@ -189,5 +191,74 @@ describe("HEAD and other paths", () => {
     const res = await appOf().request("/files/other");
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: { code: "not_found" } });
+  });
+});
+
+describe("GET /files/raw under /agents/<id>", () => {
+  const AGENT = "helper-1a2b";
+  const path = `/agents/${AGENT}/home/a.png`;
+  const agentService = (
+    stopped = false,
+  ): { service: FilesService; ops: ReturnType<typeof createFakeBoxOps> } => {
+    const ops = createFakeBoxOps({
+      "fs.get": () => {
+        if (stopped) throw new PapError("box_stopped");
+        return { data: Buffer.from("PNG").toString("base64"), size: 3, nextOffset: null };
+      },
+    });
+    const service = createFilesService({
+      isMember: () => false,
+      roots: () => [bed.repo],
+      boundary: bed.bb.config(),
+      deny: bed.deny,
+      git: bed.git,
+      clock: bed.clock,
+      logger: bed.logger,
+      readOnly: false,
+      workerUmask: 0o022,
+      boxes: () => createFakeProjectBoxSource({}),
+      boxOps: () => createFakeBoxOps(),
+      agentOps: () => ops,
+      agents: () => ({
+        guestRootOf: (owner, id) => (owner === "u1" && id === AGENT ? "/tmp/vm/helper-1a2b" : null),
+        importedOf: () => [],
+      }),
+    });
+    return { service, ops };
+  };
+
+  it("serves the owner's agent file through the guest", async () => {
+    const { service } = agentService();
+    const res = await raw(
+      appOf(service, () => testCaller({ userId: "u1" })),
+      path,
+    );
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("PNG");
+  });
+
+  it("answers 404 for a token and for another user's agent, without asking the guest", async () => {
+    const { service, ops } = agentService();
+    const token = await raw(
+      appOf(service, () => testCaller({ kind: "token", userId: "u1" })),
+      path,
+    );
+    expect(token.status).toBe(404);
+    const other = await raw(
+      appOf(service, () => testCaller({ userId: "u2" })),
+      path,
+    );
+    expect(other.status).toBe(404);
+    expect(ops.all).toHaveLength(0);
+  });
+
+  it("answers 409 box_stopped for a stopped VM, as a project box does", async () => {
+    const { service } = agentService(true);
+    const res = await raw(
+      appOf(service, () => testCaller({ userId: "u1" })),
+      path,
+    );
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: { code: "box_stopped" } });
   });
 });

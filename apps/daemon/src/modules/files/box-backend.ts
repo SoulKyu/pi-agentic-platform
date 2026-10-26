@@ -10,6 +10,7 @@ import {
   type UploadAnswer,
 } from "@pap/contracts";
 import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
+import { type AgentFilesSource, agentOfPath, underAgents } from "../../kernel/agent-path.ts";
 import { type IsMember, routeBoxPath } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import {
@@ -26,9 +27,14 @@ import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { UploadInput } from "./upload.ts";
 
+/** A project's folder, or an agent's folder (`/agents/<id>`); `guestRoot` is where it lies in the guest (the same path for a project). */
 export interface BoxTarget {
-  readonly projectId: string;
+  readonly kind: "project" | "agent";
+  readonly id: string;
   readonly root: string;
+  readonly guestRoot: string;
+  /** Paths relative to `root` (rooted, like `/home/.kube/config`) that are never listed, read, written or searched. */
+  readonly hidden: ReadonlySet<string>;
 }
 
 export interface BoxRaw {
@@ -40,6 +46,8 @@ export interface BoxRaw {
 export interface BoxFilesDeps {
   readonly boxes: () => ProjectBoxSource | undefined;
   readonly ops: () => BoxOps | undefined;
+  readonly agentOps: () => BoxOps | undefined;
+  readonly agents: () => AgentFilesSource | undefined;
   readonly clock: Clock;
   readonly logger: Logger;
   readonly readOnly: boolean;
@@ -49,6 +57,12 @@ export interface BoxFilesDeps {
 export interface BoxFiles {
   /** The box a path of the caller's belongs to, or null (a host path, or no box source bound); `forbidden` for a member's host path. */
   match(caller: Caller, path: string): BoxTarget | null;
+  /**
+   * The agent's folder a path of the caller's belongs to, or null when the path is not under `/agents`. A path under `/agents` that
+   * is not the caller's own agent's (a token, another user's or an unknown agent, an odd spelling) is `not_found`: it never
+   * falls through to the host (R2).
+   */
+  matchAgent(caller: Caller, path: string): BoxTarget | null;
   list(target: BoxTarget, caller: Caller, params: ParamsOf<"files.list">): Promise<ResultOf<"files.list">>;
   read(target: BoxTarget, caller: Caller, params: ParamsOf<"files.read">): Promise<ResultOf<"files.read">>;
   search(
@@ -61,23 +75,31 @@ export interface BoxFiles {
   openRaw(target: BoxTarget, caller: Caller, path: string): Promise<BoxRaw>;
 }
 
+const NONE: ReadonlySet<string> = new Set();
 const b64 = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64");
 
 /** `files.*` and the raw routes for a path of a box project: the guest does the work, the daemon judges the path's name. */
 export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
-  const ops = (): BoxOps => {
-    const bound = deps.ops();
+  const ops = (target: BoxTarget): BoxOps => {
+    const bound = target.kind === "agent" ? deps.agentOps() : deps.ops();
     if (bound === undefined) throw new PapError("box_stopped");
     return bound;
   };
-  const scopeOf = (caller: Caller): Scope => ({ roots: [], config: NO_HOST_BOUNDARY, caller: caller.kind });
-  /** The path relative to the project folder, as a rooted candidate for the pattern rules. */
+  /** An agent's home is `/home` of its folder: a dot-entry there is protected like the daemon's home, a project has no host boundary. */
+  const scopeOf = (caller: Caller, target: BoxTarget): Scope =>
+    target.kind === "agent"
+      ? { roots: ["/"], config: { ...NO_HOST_BOUNDARY, home: ["/home"] }, caller: caller.kind }
+      : { roots: [], config: NO_HOST_BOUNDARY, caller: caller.kind };
+  /** The path relative to the box's folder, as a rooted candidate for the pattern rules. */
   const candidate = (target: BoxTarget, path: string): string => path.slice(target.root.length) || "/";
+  /** The pap path in the guest's form: the box's folder swapped for where it lies there. */
+  const guestPath = (target: BoxTarget, path: string): string =>
+    target.guestRoot + path.slice(target.root.length);
   /** What the path's name allows this caller (a token never sees what the boundary hides); the guest judges containment and links. */
   const protectionFor = (target: BoxTarget, caller: Caller, path: string): Protection => {
     const name = candidate(target, path);
-    if (judgeBoxName(name, caller.kind) !== null) throw new PapError("not_found");
-    return protectionOf(name, scopeOf(caller));
+    if (target.hidden.has(name) || judgeBoxName(name, caller.kind) !== null) throw new PapError("not_found");
+    return protectionOf(name, scopeOf(caller, target));
   };
   const gate = (caller: Caller, protection: Protection, confirmProtected: boolean): void => {
     const verdict = gateWrite({ protection, caller, confirmProtected, now: deps.clock.now() });
@@ -95,10 +117,10 @@ export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
     let offset = 0;
     let pending = Buffer.alloc(0);
     const send = async (data: Buffer, last: boolean): Promise<boolean> => {
-      const answer = await ops().call(target.projectId, {
+      const answer = await ops(target).call(target.id, {
         name: "fs.put",
         id,
-        path,
+        path: guestPath(target, path),
         offset,
         data: b64(data),
         last,
@@ -119,35 +141,65 @@ export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
   }
 
   return {
-    match: (caller, path) => routeBoxPath(deps, deps.boxes(), caller.userId, path),
+    match: (caller, path) => {
+      const found = routeBoxPath(deps, deps.boxes(), caller.userId, path);
+      return (
+        found && {
+          kind: "project",
+          id: found.projectId,
+          root: found.root,
+          guestRoot: found.root,
+          hidden: NONE,
+        }
+      );
+    },
+    matchAgent(caller, path) {
+      if (!underAgents(path)) return null;
+      const found = agentOfPath(path);
+      const source = deps.agents();
+      if (caller.kind === "token" || found === null || source === undefined) throw new PapError("not_found");
+      const guestRoot = source.guestRootOf(caller.userId, found.agentId);
+      if (guestRoot === null) throw new PapError("not_found");
+      const hidden = new Set(source.importedOf(found.agentId).map((imported) => `/home/${imported}`));
+      return { kind: "agent", id: found.agentId, root: found.root, guestRoot, hidden };
+    },
     async list(target, caller, { path, showIgnored }) {
       protectionFor(target, caller, path);
-      const listing = await ops().call(target.projectId, {
+      const listing = await ops(target).call(target.id, {
         name: "fs.list",
-        path,
+        path: guestPath(target, path),
         showIgnored: showIgnored === true,
       });
       // Like the host listing: an entry the caller may not open is listed as `protected`, never browsable.
       const folder = candidate(target, path).replace(/\/$/, "");
-      const entries = listing.entries.map((entry) =>
-        entry.protected || !entryIsProtected(`${folder}/${entry.name}`, scopeOf(caller))
-          ? entry
-          : { ...entry, protected: true },
-      );
+      const entries = listing.entries
+        .filter((entry) => !target.hidden.has(`${folder}/${entry.name}`))
+        .map((entry) =>
+          entry.protected || !entryIsProtected(`${folder}/${entry.name}`, scopeOf(caller, target))
+            ? entry
+            : { ...entry, protected: true },
+        );
       return { ...listing, entries };
     },
     async read(target, caller, { path, offset }) {
       protectionFor(target, caller, path);
-      return await ops().call(target.projectId, { name: "fs.read", path, offset: offset ?? 0 });
+      const read = await ops(target).call(target.id, {
+        name: "fs.read",
+        path: guestPath(target, path),
+        offset: offset ?? 0,
+      });
+      return target.kind === "agent" ? { ...read, meta: { ...read.meta, path } } : read;
     },
     async search(target, caller, { root, query, limit }) {
       if (root !== target.root) throw new PapError("not_found");
-      const found = await ops().call(target.projectId, {
+      const found = await ops(target).call(target.id, {
         name: "fs.search",
         query,
         limit: limit ?? FILE_LIMITS.searchResults,
       });
-      const shown = found.paths.filter((path) => judgeBoxName(`/${path}`, caller.kind) === null);
+      const shown = found.paths.filter(
+        (path) => !target.hidden.has(`/${path}`) && judgeBoxName(`/${path}`, caller.kind) === null,
+      );
       return { paths: shown, truncated: found.truncated };
     },
     async write(target, caller, params) {
@@ -158,7 +210,12 @@ export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
         throw new PapError("payload_too_large");
       const protection = protectionFor(target, caller, path);
       gate(caller, protection, params.confirmProtected === true);
-      const { etag } = await ops().call(target.projectId, { name: "fs.write", path, text, baseEtag });
+      const { etag } = await ops(target).call(target.id, {
+        name: "fs.write",
+        path: guestPath(target, path),
+        text,
+        baseEtag,
+      });
       deps.logger.info("file_written", { protection, callerKind: caller.kind, box: true });
       const meta: FileMeta = {
         path,
@@ -197,7 +254,7 @@ export function createBoxFiles(deps: BoxFilesDeps): BoxFiles {
       protectionFor(target, caller, path);
       const abort = new AbortController();
       const fetchAt = (offset: number) =>
-        ops().call(target.projectId, { name: "fs.get", path, offset }, abort.signal);
+        ops(target).call(target.id, { name: "fs.get", path: guestPath(target, path), offset }, abort.signal);
       let current = await fetchAt(0);
       const { size } = current;
       const body = new ReadableStream<Uint8Array>({

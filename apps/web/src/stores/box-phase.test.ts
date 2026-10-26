@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { boxProject } from "../testing/box-fixtures.ts";
 import { shellProject } from "../testing/shell-snapshot.ts";
-import { boxProjectOf, phaseOf } from "./box-phase.ts";
+import { agentIdOfPath, boxProjectOf, phaseOf } from "./box-phase.ts";
 
 const projects = new Map([
   ["b1", boxProject("running")],
@@ -20,5 +20,19 @@ describe("boxProjectOf", () => {
   it("reads the phase, and a box the stream has not described is stopped", () => {
     expect(phaseOf(boxProject("running"))).toBe("running");
     expect(phaseOf(shellProject({ id: "b3", kind: "box", root: "/boxes/b3/project" }))).toBe("stopped");
+  });
+});
+
+describe("agentIdOfPath", () => {
+  it("reads /agents/<id> and below, like the daemon, and nothing else", () => {
+    expect(agentIdOfPath("/agents/atlas-1a2b")).toBe("atlas-1a2b");
+    expect(agentIdOfPath("/agents/atlas-1a2b/home/x.md")).toBe("atlas-1a2b");
+    expect(agentIdOfPath("/agents")).toBeNull();
+    expect(agentIdOfPath("/agents/")).toBeNull();
+    expect(agentIdOfPath("/agents/Atlas")).toBeNull();
+    expect(agentIdOfPath("/agents/atlas-1a2b/../x")).toBeNull();
+    expect(agentIdOfPath("/agents//atlas-1a2b")).toBeNull();
+    expect(agentIdOfPath("/w/agents/atlas-1a2b")).toBeNull();
+    expect(agentIdOfPath("/boxes/b1/project")).toBeNull();
   });
 });

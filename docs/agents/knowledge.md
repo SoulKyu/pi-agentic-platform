@@ -22,7 +22,7 @@ pap keeps memory as plain files. A knowledge bundle is a `knowledge/` folder of 
 - `vmInitOf` replaces any host `knowledge` with `{path: "/agent/knowledge"}` for the thread and its children, and sets none for a task VM.
 - Writes under `/agent/knowledge` follow the approval matrix of the agent's home; they never ask for more (`policy/vm-stage.knowledge.test.ts`).
 - `agent-prompt.ts` no longer mentions `MEMORY.md`; new homes are not seeded with one. An existing `MEMORY.md` stays a plain file that pap does not read.
-- No chip on agent threads and no viewer in pap: the daemon never reads a VM disk. Ask the agent, or read the disk's `/agent/knowledge`.
+- No chip on agent threads. The agent's Files tab shows `knowledge/` of its VM (browsing goes through the guest while the VM runs; START starts it, `agents-vm.md` "Files"); the daemon never reads a VM disk itself.
 - Applying this to an existing install needs `sudo pap vm setup` (the agent bundle changed).
 
 ## Trust and its limit

@@ -120,7 +120,7 @@ export function Explorer({ root, selected, onOpen }: ExplorerProps) {
   if (rootFolder?.status === "error" && rootFolder.code === "box_stopped") {
     return (
       <div data-slot="explorer" className="flex min-h-0 flex-1 flex-col">
-        <BoxStopped path={root} />
+        <BoxStopped path={root} onStarted={refresh} />
       </div>
     );
   }

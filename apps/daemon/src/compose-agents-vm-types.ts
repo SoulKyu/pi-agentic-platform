@@ -94,6 +94,8 @@ export interface AgentsVm {
   readonly proxyPort: number;
   /** What the agents module asks of the VM runtime: stops, a delete's disk and mirrors, "Purge now", Resume (T15). */
   readonly agentLink: AgentVmLink;
+  /** `agents.startBox`: the agent's thread VM with its guest only, so its files can be browsed. Bound to the agents' registry by `bindLate`. */
+  startAgent(ownerId: string, agentId: string): Promise<void>;
   /** Where the runtime's crash pause goes (RT-40): the agents' registry and Inbox, which are built after this. Until then it is logged. */
   bindCrashPause(handler: (agentId: string) => void): void;
   bindRefusals: ReturnType<typeof composeVmProxy>["bindRefusals"];

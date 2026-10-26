@@ -175,6 +175,25 @@ describe("remove and pending removals", () => {
     expect(files.pendingRemovals(AGENT)).toEqual([]);
   });
 
+  it("hides the imported paths and the removals not yet delivered, until delivered", () => {
+    files.put(AGENT, KUBE, bytes("x"));
+    files.put(AGENT, "keep", bytes("y"));
+    files.remove(AGENT, KUBE);
+    expect(files.hiddenOf(AGENT).sort()).toEqual([KUBE, "keep"]);
+    files.delivered(AGENT, [KUBE]);
+    expect(files.hiddenOf(AGENT)).toEqual(["keep"]);
+    expect(files.hiddenOf(OTHER)).toEqual([]);
+  });
+
+  it("fails closed when the store cannot be read: refused and logged once, no path in the log", () => {
+    files.put(AGENT, KUBE, bytes("x"));
+    mkdirSync(join(secrets, "agent-files", ".removals", `${AGENT}.json`), { recursive: true });
+    expect(codeOf(() => files.hiddenOf(AGENT))).toBe("internal");
+    const logged = logs.lines.filter((line) => line.msg === "agent_files_hidden_unreadable");
+    expect(logged).toHaveLength(1);
+    expect(JSON.stringify(logged)).not.toContain(KUBE);
+  });
+
   it("keeps the pending removals across a new store (a daemon restart), at 0600", () => {
     files.put(AGENT, "a", bytes("x"));
     files.remove(AGENT, "a");

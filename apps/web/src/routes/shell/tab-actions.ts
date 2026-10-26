@@ -30,9 +30,13 @@ export function takeFocusAfterClose(): boolean {
   return asked;
 }
 
-/** False when one of `items` is a files pane with unsaved edits and the person does not want to lose them. */
+/** False when one of `items` is a files pane (or an agent's Files tab) with unsaved edits and the person does not want to lose them. */
 function mayDiscard(items: readonly (ItemRef | undefined)[]): boolean {
-  const unsaved = items.some((item) => item?.kind === "files" && hasUnsavedFiles(item.root));
+  const unsaved = items.some(
+    (item) =>
+      (item?.kind === "files" && hasUnsavedFiles(item.root)) ||
+      (item?.kind === "agent" && hasUnsavedFiles(`/agents/${item.id}`)),
+  );
   return !unsaved || window.confirm(t("files.edit.discardPane"));
 }
 

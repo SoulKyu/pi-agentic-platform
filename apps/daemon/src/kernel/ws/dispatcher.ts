@@ -175,7 +175,10 @@ export function createDispatcher(options: {
     if (!ctx.caller.permissions.has(def.permission)) return fail(frame.id, "forbidden");
     const { value: params, paths } = collectClientPaths(() => def.params.safeParse(frame.params ?? {}));
     if (!params.success) return fail(frame.id, "bad_request");
-    if (!options.gate.allows(ctx.caller.userId, paths)) return fail(frame.id, "forbidden");
+    if (
+      !options.gate.allows(ctx.caller.userId, paths, frame.method.startsWith("files.") ? "files" : undefined)
+    )
+      return fail(frame.id, "forbidden");
     if (def.idempotent) return run(frame.id, def, params.data, ctx, null);
     if (!frame.commandId) return fail(frame.id, "bad_request");
     return mutate(frame, frame.commandId, def, params.data, ctx);

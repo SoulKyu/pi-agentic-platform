@@ -10,7 +10,7 @@ beforeEach(() => useLaunchStore.getState().reset());
 
 describe("BoxStart", () => {
   it("the button says Building the image… while the image step runs", async () => {
-    const page = await mount(<BoxStart projectId={PROJECT_BOX} phase="starting" />);
+    const page = await mount(<BoxStart box={{ kind: "project", id: PROJECT_BOX }} phase="starting" />);
     await settle();
     const button = page.container.querySelector("button") as HTMLButtonElement;
     expect(button.textContent).toBe("Start");
@@ -30,7 +30,7 @@ describe("BoxStart", () => {
     let renders = 0;
     const page = await mount(
       <Profiler id="start" onRender={() => void (renders += 1)}>
-        <BoxStart projectId={PROJECT_BOX} phase="starting" />
+        <BoxStart box={{ kind: "project", id: PROJECT_BOX }} phase="starting" />
       </Profiler>,
     );
     const at = Date.now();
@@ -49,5 +49,20 @@ describe("BoxStart", () => {
         });
       });
     expect(renders).toBe(settled);
+  });
+
+  it("an agent's start waits in the agent's words, not the box's", async () => {
+    vi.useFakeTimers();
+    try {
+      const page = await mount(<BoxStart box={{ kind: "agent", id: "atlas-1a2b" }} phase="starting" />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3100);
+      });
+      const status = page.container.querySelector('[role="status"]');
+      expect(status?.textContent).toBe("Starting the agent's VM…");
+      expect(page.container.textContent).not.toContain("box");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

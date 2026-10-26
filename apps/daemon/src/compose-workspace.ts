@@ -2,6 +2,7 @@ import { chmodSync, mkdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Hono } from "hono";
 import type { Caller } from "@pap/contracts";
+import type { AgentFilesSource } from "./kernel/agent-path.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { IsMember } from "./kernel/box-path.ts";
@@ -104,6 +105,9 @@ export interface WorkspaceDeps {
   /** The owner's box projects and their guest (boxes B1): a box path goes to the guest, never to this machine. */
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
+  /** The agents' VMs and their folders (`/agents/<id>`): the explorer reaches them through the guest. */
+  readonly agentOps?: () => BoxOps | undefined;
+  readonly agents?: () => AgentFilesSource | undefined;
   readonly boxControl?: () => BoxControl | undefined;
   readonly boxTerminals?: () => BoxTerminals | undefined;
   /** Members reach box paths only (M14): the modules refuse a host path before any file-system call. */
@@ -169,6 +173,8 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     attachmentsDir: join(deps.config.home, ATTACHMENTS),
     ...(deps.boxes ? { boxes: deps.boxes } : {}),
     ...(deps.boxOps ? { boxOps: deps.boxOps } : {}),
+    ...(deps.agentOps ? { agentOps: deps.agentOps } : {}),
+    ...(deps.agents ? { agents: deps.agents } : {}),
     isMember: deps.isMember,
   });
   const vcs = createVcsModule({
@@ -214,7 +220,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
     remoteProtocols: deps.config.testGitProtocols ?? "https:ssh",
     runningIn: terminal.runningIn,
     runtime: { scopes: deps.scopes, env: deps.env, umask: workerUmask },
-    mount: (app, authenticate) => files.mount(app, httpCaller(authenticate, deps.gate)),
+    mount: (app, authenticate) => files.mount(app, httpCaller(authenticate, deps.gate, "files")),
     shutdown: () => {
       stopping ??= terminal.shutdown().finally(() => {
         // A throw here must not keep `stop()` from cutting the worker groups.

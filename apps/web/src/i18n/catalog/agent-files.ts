@@ -1,8 +1,8 @@
 export const agentFilesEn = {
   "agentFiles.tab": "Files",
-  "agentFiles.title": "Files in the agent's home",
+  "agentFiles.title": "Imported credentials",
   "agentFiles.hint":
-    "pap keeps a copy and writes each file into the home at every VM start, and at once while the VM runs. A file the agent changed is overwritten. Content is never shown here.",
+    "pap keeps a copy and writes each file into the home when the agent's first worker starts, and at once while a worker runs. A file the agent changed is overwritten. Content is never shown here.",
   "agentFiles.loading": "Reading the files…",
   "agentFiles.failed": "The files could not be read. Nothing was changed. Reload the tab to try again.",
   "agentFiles.col.path": "Path",
@@ -41,9 +41,9 @@ export const agentFilesEn = {
 
 export const agentFilesFr: Record<keyof typeof agentFilesEn, string> = {
   "agentFiles.tab": "Fichiers",
-  "agentFiles.title": "Fichiers dans le dossier personnel de l'agent",
+  "agentFiles.title": "Identifiants importés",
   "agentFiles.hint":
-    "pap garde une copie et écrit chaque fichier dans le dossier à chaque démarrage de la VM, et aussitôt quand la VM tourne. Un fichier modifié par l'agent est écrasé. Le contenu n'est jamais affiché ici.",
+    "pap garde une copie et écrit chaque fichier dans le dossier au démarrage du premier worker de l'agent, et aussitôt tant qu'un worker tourne. Un fichier modifié par l'agent est écrasé. Le contenu n'est jamais affiché ici.",
   "agentFiles.loading": "Lecture des fichiers…",
   "agentFiles.failed":
     "Les fichiers n'ont pas pu être lus. Rien n'a été modifié. Rechargez l'onglet pour réessayer.",

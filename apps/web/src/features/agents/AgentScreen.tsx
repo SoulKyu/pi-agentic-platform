@@ -2,6 +2,7 @@ import "./register-space-catalog.ts";
 import { type AgentRequestView, type AgentSummary, type ToolPreset } from "@pap/contracts";
 import { Button, LoadingLine, useIsPhone, useMediaQuery, usePendingAction, type AvatarStyle } from "@pap/ui";
 import { type ReactNode, useState } from "react";
+import "../../i18n/register-files.ts";
 import { errorKey, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { agentById, requestsOf } from "../../stores/agents-reducer.ts";
@@ -9,6 +10,7 @@ import { useAgents } from "../../stores/agents-store.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
+import { hasUnsavedFiles } from "../../stores/unsaved-files.ts";
 import type { Interleave } from "../../stores/thread-interleave.ts";
 import { setPaused } from "./agent-actions.ts";
 import { AgentFiles } from "./AgentFiles.tsx";
@@ -51,6 +53,8 @@ export interface AgentScreenProps {
   thread(slot: ThreadSlot): ReactNode;
   /** M7's tool preset picker for the agent's own Settings tab, given by the shell (features never import each other). */
   presetField?(value: ToolPreset, onChange: (preset: ToolPreset) => void): ReactNode;
+  /** The session explorer rooted at `root` (`/agents/<id>`), given by the shell for the same reason. */
+  filesPane?(root: string): ReactNode;
   /** Opens Settings › Agents (the sandbox's page); the agent's own settings are this screen's Settings tab. */
   onOpenSettings(): void;
   /** Opens a session in a tab (a task's). */
@@ -106,6 +110,7 @@ function AgentSpace({
   statusPanel,
   thread,
   presetField,
+  filesPane,
   onOpenSettings,
   onOpenSession,
   onOpenTrigger,
@@ -145,11 +150,16 @@ function AgentSpace({
   const [focus, setFocus] = useState<"budget" | undefined>(undefined);
   const [dialog, setDialog] = useState<"quarantine" | "delete" | null>(null);
   const panelShown = panelOpen && tab === "thread";
+  // Files unmounts when another tab opens: its unsaved edits would go with it, so the person is asked first.
+  const mayLeaveFiles = () =>
+    tab !== "files" || !hasUnsavedFiles(`/agents/${agentId}`) || window.confirm(t("files.edit.discardPane"));
   const openTab = (next: AgentTab) => {
+    if (next !== tab && !mayLeaveFiles()) return;
     setFocus(undefined);
     setTab(next);
   };
   const openBudget = () => {
+    if (!mayLeaveFiles()) return;
     setAsked(false);
     setFocus("budget");
     setTab("settings");
@@ -253,7 +263,16 @@ function AgentSpace({
       <>
         {header}
         {tab === "files" ? (
-          <AgentFiles agentId={agentId} />
+          filesPane === undefined ? (
+            <AgentFiles agentId={agentId} />
+          ) : (
+            <div data-agent-files-tab="" className="flex min-h-0 min-w-0 flex-1 flex-col">
+              <div className="flex min-h-0 flex-1 flex-col">{filesPane(`/agents/${agentId}`)}</div>
+              <div className="flex min-h-0 max-h-1/2 shrink-0 flex-col border-t border-border p-s3">
+                <AgentFiles agentId={agentId} />
+              </div>
+            </div>
+          )
         ) : (
           <AgentSettingsTab
             agent={agent}

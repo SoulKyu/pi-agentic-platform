@@ -1,4 +1,5 @@
 import type { BoxRef, Caller } from "@pap/contracts";
+import type { AgentFilesSource } from "./kernel/agent-path.ts";
 import type { IsMember } from "./kernel/box-path.ts";
 import type { BoxControl, BoxOps, BoxTerminals, ProjectBoxSource } from "./kernel/boxes.ts";
 import type { Clock } from "./kernel/clock.ts";
@@ -10,6 +11,7 @@ import {
   createBoxControl,
   createBoxOps,
   createBoxTerminals,
+  layoutOf,
   type AgentRuntime,
   type VmdClient,
 } from "./modules/agent-vm/index.ts";
@@ -58,6 +60,11 @@ export interface BoxWiringDeps {
   readonly logger: Logger;
   readonly home: string;
   readonly isMember: IsMember;
+  /** The agents registry's owner lookup (bound late: no agent is anyone's until it is) and the agent's imported credential paths. */
+  readonly agents: {
+    ownerOf(agentId: string): string | null;
+    importedOf(agentId: string): readonly string[];
+  };
   requireStepUp(caller: Caller, now: number): void;
 }
 
@@ -65,6 +72,9 @@ export interface BoxWiringDeps {
 export interface WorkspaceBoxes {
   readonly boxes: () => ProjectBoxSource;
   readonly boxOps: () => BoxOps;
+  /** The guest ops of the agents' VMs, and where an agent's folder lies (`/agents/<id>` in pap's paths). */
+  readonly agentOps: () => BoxOps;
+  readonly agents: () => AgentFilesSource;
   readonly boxControl: () => BoxControl;
   readonly boxTerminals: () => BoxTerminals;
   readonly isMember: IsMember;
@@ -102,6 +112,14 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
   const { vm, projects, logger } = deps;
   const source = projects.boxSource;
   const ops = createBoxOps(vm.runtime, deps.clock);
+  const agentOps = createBoxOps(vm.runtime, deps.clock, "agent");
+  const agentFiles: AgentFilesSource = {
+    guestRootOf: (ownerId, agentId) =>
+      deps.agents.ownerOf(agentId) === ownerId
+        ? layoutOf(vm.boxStack.backend, deps.home, { agentId, taskKey: null }).root
+        : null,
+    importedOf: (agentId) => deps.agents.importedOf(agentId),
+  };
   const terminals = createBoxTerminals(vm.runtime);
   const control = createBoxControl({
     launches: vm.launches,
@@ -142,10 +160,12 @@ export function composeBoxWiring(deps: BoxWiringDeps): BoxWiring {
     workspace: {
       boxes: () => source,
       boxOps: () => ops,
+      agentOps: () => agentOps,
+      agents: () => agentFiles,
       boxControl: () => control,
       boxTerminals: () => terminals,
       isMember: deps.isMember,
-      gate: createClientPathGate({ isMember: deps.isMember, boxes: () => source }),
+      gate: createClientPathGate({ isMember: deps.isMember, boxes: () => source, agents: () => agentFiles }),
     },
     bind({ sessions, automation, inbox }) {
       cleanup = sessions;

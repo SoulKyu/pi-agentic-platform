@@ -259,6 +259,7 @@ export const PROBES = {
     empty: true,
   },
   "agents.purgeTrash": { params: agent },
+  "agents.startBox": { params: agent },
   "agents.files.list": { params: agent },
   "agents.files.remove": { params: (s) => ({ ...agent(s), path: "notes.md" }) },
   "secrets.list": { params: agent },

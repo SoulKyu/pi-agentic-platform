@@ -151,3 +151,49 @@ describe("createBoxOps", () => {
     expect(await call).toEqual({ error: new PapError("timeout") });
   });
 });
+
+describe("createBoxOps for agents", () => {
+  const AGENT = "helper-1a2b";
+  function agentBed(phase: VmPhase) {
+    const refs: Array<{ method: string; box: { kind: string; id: string } }> = [];
+    const sent: BoxOp[] = [];
+    const link = {
+      sendOp: (_id: string, op: BoxOp) => {
+        sent.push(op);
+        return true;
+      },
+      onOpResult: () => () => undefined,
+      closed: new Promise<void>(() => undefined),
+    } as unknown as GuestLink;
+    const runtime: Pick<AgentRuntime, "phase" | "link" | "touch"> = {
+      phase: (box) => {
+        refs.push({ method: "phase", box });
+        return phase;
+      },
+      link: (box) => {
+        refs.push({ method: "link", box });
+        return phase === "running" ? link : undefined;
+      },
+      touch: (box) => void refs.push({ method: "touch", box }),
+    };
+    return { refs, sent, ops: createBoxOps(runtime, createFakeClock(), "agent") };
+  }
+
+  it("answers box_stopped for a stopped agent, never sending and never touching", async () => {
+    const { ops, refs, sent } = agentBed("stopped");
+    await expect(ops.call(AGENT, STATUS)).rejects.toEqual(new PapError("box_stopped"));
+    expect(sent).toEqual([]);
+    expect(refs.map((r) => r.method)).toEqual(["phase"]);
+  });
+
+  it("asks the runtime about the agent, for phase, link and touch", () => {
+    const { ops, refs, sent } = agentBed("running");
+    void ops.call(AGENT, STATUS).catch(() => undefined);
+    expect(refs).toEqual([
+      { method: "phase", box: { kind: "agent", id: AGENT } },
+      { method: "link", box: { kind: "agent", id: AGENT } },
+      { method: "touch", box: { kind: "agent", id: AGENT } },
+    ]);
+    expect(sent).toEqual([STATUS]);
+  });
+});

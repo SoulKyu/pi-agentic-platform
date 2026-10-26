@@ -33,6 +33,7 @@ export type AgentsVmRpc = Pick<
   | "agents.vm.setClaudeToken"
   | "agents.vm.clearClaudeToken"
   | "agents.vmStatus"
+  | "agents.startBox"
   | "agents.files.list"
   | "agents.files.remove"
   | "subscribe.launches"
@@ -67,7 +68,17 @@ export function composeAgentsVmRpc(
   /** Stops the daily sweep of the files trash. */
   stopSweep(): void;
   bindStatus(view: (ownerId: string) => Promise<VmStatusView>): void;
+  /** `agents.vmStatus` and `agents.startBox` (an owner's own agent only: the registry answers `not_found` for any other) to the composed VM stack, before the server listens. */
+  bindVm(vm: {
+    readonly status: { view(ownerId: string): Promise<VmStatusView> };
+    startAgent(ownerId: string, agentId: string): Promise<void>;
+  }): void;
   bindAgents(agents: { ownerOf(agentId: string): string | null }): void;
+  /** What the explorer needs of an agent: its owner (null until the registry is bound) and its imported credential paths. */
+  readonly agentsPort: {
+    ownerOf(agentId: string): string | null;
+    importedOf(agentId: string): readonly string[];
+  };
   /** `PUT /agent-files`, cookie only. */
   mount(app: Hono, authenticate: (header: string | undefined) => Caller | null): void;
 } {
@@ -90,6 +101,7 @@ export function composeAgentsVmRpc(
   const launchStop = createLaunchStop();
   const stopSweep = startFilesTrashSweep({ files: agentFiles, clock, logger: agentLogger });
   let vmView: ((ownerId: string) => Promise<VmStatusView>) | undefined;
+  let startAgent: ((ownerId: string, agentId: string) => Promise<void>) | undefined;
   return {
     claudeToken,
     stopSweep,
@@ -103,7 +115,15 @@ export function composeAgentsVmRpc(
         dispose: (agentId, stamp) => agentFiles.dispose(agentId, stamp),
       },
     },
+    agentsPort: {
+      ownerOf: (agentId) => ownerOf(agentId),
+      importedOf: (agentId) => agentFiles.hiddenOf(agentId),
+    },
     bindStatus: (view) => void (vmView = view),
+    bindVm(vm) {
+      vmView = vm.status.view;
+      startAgent = vm.startAgent;
+    },
     bindAgents(agents) {
       ownerOf = (agentId) => agents.ownerOf(agentId);
       launchLog.bindAgentOwner(ownerOf);
@@ -117,6 +137,11 @@ export function composeAgentsVmRpc(
     rpc: {
       "agents.vmStatus": async (_params, ctx) =>
         vmView ? vmView(ctx.caller.userId) : Promise.reject(new PapError("internal")),
+      "agents.startBox": async ({ agentId }, ctx) => {
+        if (startAgent === undefined) throw new PapError("internal");
+        await startAgent(ctx.caller.userId, agentId);
+        return { ok: true };
+      },
       "subscribe.launches": async (params, ctx) => ({
         sub: ctx.openSubscription("launches", ctx.caller.userId, params.after),
       }),

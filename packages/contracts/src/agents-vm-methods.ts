@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AgentFilePath, AgentFileView } from "./agents-files.ts";
 import { defineMethod } from "./define.ts";
 import { ApiKeyValue } from "./models-methods.ts";
+import { BOX_LIFE_ERRORS } from "./project-box-methods.ts";
 import { AgentId } from "./platform.ts";
 
 const Params = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
@@ -93,6 +94,15 @@ export const agentsVmMethods = {
     params: Params({ agentId: AgentId }),
     result: Ok,
     errors: ["step_up_required", "not_found", "sandbox_unavailable", "command_failed"],
+  }),
+  // The agent's thread VM with its guest only, no worker and no prompt, so the explorer can browse its files; like `projects.startBox`.
+  "agents.startBox": defineMethod({
+    name: "agents.startBox",
+    permission: "agents:admin",
+    idempotent: false,
+    params: Params({ agentId: AgentId }),
+    result: Ok,
+    errors: BOX_LIFE_ERRORS,
   }),
   // Agent files (sub-project 2): browser only like the agent form (agents:admin is outside the token permissions). The import
   // itself is `PUT /agent-files` (a body of up to 1 MiB does not fit a frame); a replace is an import to the same path.

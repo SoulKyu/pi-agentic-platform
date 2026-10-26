@@ -25,6 +25,7 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "agents.queueTask": false,
   "agents.resetThread": false,
   "agents.setPaused": false,
+  "agents.startBox": false,
   "agents.status": true,
   "agents.trash": true,
   "agents.update": false,

@@ -15,7 +15,7 @@ export interface BoxAuditActor {
   readonly actorId: string | null;
 }
 
-/** The guest ops of a project box (spec boxes): a box that is not running answers `box_stopped` and is never started by a call. */
+/** The guest ops of the boxes of one kind (a project box, or an agent's VM; `projectId` is the box's id): a box that is not running answers `box_stopped` and is never started by a call. */
 export interface BoxOps {
   call<N extends BoxOpName>(
     projectId: string,

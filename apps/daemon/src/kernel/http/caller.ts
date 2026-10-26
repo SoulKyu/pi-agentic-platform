@@ -19,6 +19,7 @@ export type HttpCaller = (
 export function httpCaller(
   authenticateCookieHeader: (header: string | undefined) => Caller | null,
   gate: ClientPathGate,
+  surface?: "files",
 ): HttpCaller {
   return (c, permission, paths = []) => {
     if (c.req.header("authorization") !== undefined)
@@ -28,7 +29,7 @@ export function httpCaller(
       return c.json({ error: { code: "unauthenticated" } }, 401);
     if (!caller.permissions.has(permission)) return c.json({ error: { code: "forbidden" } }, 403);
     const named = paths.filter((path): path is string => path !== undefined);
-    if (!gate.allows(caller.userId, named)) return c.json({ error: { code: "forbidden" } }, 403);
+    if (!gate.allows(caller.userId, named, surface)) return c.json({ error: { code: "forbidden" } }, 403);
     return caller;
   };
 }

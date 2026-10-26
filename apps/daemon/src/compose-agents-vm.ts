@@ -25,6 +25,7 @@ import {
   createFilesDelivery,
   createImageEntries,
   createAgentRuntime,
+  createAgentStart,
   createGateway,
   createLaunchRegistry,
   createLaunchTokens,
@@ -32,6 +33,7 @@ import {
   observedBackend,
   relayListenOf,
 } from "./modules/agent-vm/index.ts";
+import type { AgentsPort } from "./modules/agents/index.ts";
 import { createVmLaunch } from "./modules/sessions/index.ts";
 
 const notBound = (): never => {
@@ -78,7 +80,10 @@ export async function composeAgentsVm(
     ...(core.hub ? { hub: core.hub } : {}),
     ...(core.db ? { db: core.db } : {}),
   });
-  const lateHolder: { late: AgentsVmDerived | null } = { late: null };
+  const lateHolder: {
+    late: AgentsVmDerived | null;
+    agents: Pick<AgentsPort, "get"> | null;
+  } = { late: null, agents: null };
   const notice = (agentId: string, text: string): void =>
     lateHolder.late
       ? lateHolder.late.notify(agentId, text)
@@ -241,6 +246,7 @@ export async function composeAgentsVm(
     closers.push({ name: "agent_trash_sweep", close: agentLink.stopSweep });
     if (kata) closers.push({ name: "agent_image_upgrades", close: kata.startUpgrades() });
     const { vmLayoutOf } = boxes;
+    const imageTagOf = seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG);
     const baseLaunch = createVmLaunch({
       runtime,
       papHome: config.home,
@@ -252,7 +258,7 @@ export async function composeAgentsVm(
           sessionId,
           project !== undefined && lateHolder.late?.taintedNow(project.ownerId, sessionId) === true,
         ),
-      imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
+      imageTagOf,
       mirrors,
       recheck: (ownerId, agentId) =>
         lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
@@ -276,6 +282,20 @@ export async function composeAgentsVm(
       late: () => lateHolder.late,
       launches,
     });
+    const startAgent = createAgentStart({
+      runtime,
+      launches,
+      gate,
+      imageTagOf,
+      agentOf(ownerId, agentId) {
+        const record = lateHolder.agents?.get(ownerId, agentId) ?? null;
+        if (record === null || record.input === null) return null;
+        return { input: record.input, paused: record.paused, quarantined: record.quarantinedAt !== null };
+      },
+      recheck: (ownerId, agentId) =>
+        lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
+      disabled: (box) => (lateHolder.late ? lateHolder.late.boxDisabled(box) : notBound()),
+    });
     const composed: AgentsVm = {
       runtime,
       launches,
@@ -297,6 +317,7 @@ export async function composeAgentsVm(
         }
         late.pi.bindHelperOwners?.(() => launches.subscribedOwners());
         vmStatus.bindAgents(late.agents);
+        lateHolder.agents = late.agents;
         core.launchStop?.bind({
           launches,
           stopBox: (box) => runtime.stop(box),
@@ -328,6 +349,7 @@ export async function composeAgentsVm(
       gatewayPort: port,
       proxyPort,
       agentLink: agentLink.link,
+      startAgent,
       bindCrashPause: (handler) => void (crashPause = handler),
       bindRefusals: proxy.bindRefusals,
     };

@@ -67,8 +67,8 @@ export function ProjectSettings({ projectId, onClose }: Props) {
   const project = useShellStore((state) => state.view.projects.get(projectId));
   const phase = project === undefined ? "stopped" : phaseOf(project);
   const { state, replace } = useProjectBox(projectId, phase);
-  const restart = useBoxAction("projects.restartBox", projectId);
-  const rebuild = useBoxAction("projects.rebuild", projectId);
+  const restart = useBoxAction("projects.restartBox", { kind: "project", id: projectId });
+  const rebuild = useBoxAction("projects.rebuild", { kind: "project", id: projectId });
   const stage = useBoxStage({ kind: "project", id: projectId });
   const saving = usePendingAction();
   const [edited, setEdited] = useState<SettingsDraft | null>(null);
@@ -139,7 +139,7 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                 <PhaseChip phase={phase} live={false} />
                 <LaunchStrip box={{ kind: "project", id: projectId }} />
                 {phase === "stopped" ? (
-                  <BoxStart projectId={projectId} phase={phase} size="sm" />
+                  <BoxStart box={{ kind: "project", id: projectId }} phase={phase} size="sm" />
                 ) : (
                   <Button
                     size="sm"

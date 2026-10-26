@@ -9,6 +9,7 @@ import { runGuest } from "./guest.ts";
 import { KATA_LAYOUT, KATA_PROJECT_LAYOUT } from "./kata-layout.ts";
 import { BUNDLE_BIN } from "./ops/github-env.ts";
 import { ensureSigningAgent } from "./ops/github-agent.ts";
+import { createAgentGuestOps } from "./ops/agent.ts";
 import { createGuestOps } from "./ops/index.ts";
 import { takeGatewayToken } from "./scrub.ts";
 import { pickPackages, seedAgentFolder } from "./seed.ts";
@@ -87,9 +88,10 @@ await runGuest({
       // Its own process group: `signal` reaches the worker and what it started.
       detached: true,
     }),
-  ...(layout.project && githubDeps
-    ? { ops: createGuestOps(layout.project, () => Date.now(), githubDeps) }
-    : {}),
+  ops:
+    layout.project && githubDeps
+      ? createGuestOps(layout.project, () => Date.now(), githubDeps)
+      : createAgentGuestOps(layout.root, () => Date.now()),
   clock: {
     now: () => Date.now(),
     setTimeout: (fn, ms) => setTimeout(fn, ms),

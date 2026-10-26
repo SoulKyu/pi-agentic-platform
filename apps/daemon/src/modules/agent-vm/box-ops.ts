@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  type BoxRef,
   BOX_OP_LIMITS,
   BOX_OP_RESULTS,
   BOX_OP_TIMEOUTS,
@@ -27,7 +28,7 @@ const CODES: Readonly<Record<string, ErrorCode>> = { failed: "worker_failed" };
 const codeOf = (code: string): ErrorCode => CODES[code] ?? (code as ErrorCode);
 
 /**
- * The daemon's end of the guest operations (spec boxes). A box that is not running answers `box_stopped` without sending
+ * The daemon's end of the guest operations (spec boxes), for the boxes of one `kind` (a project's, or an agent's VM). A box that is not running answers `box_stopped` without sending
  * (a call never starts the VM); at most `BOX_OP_LIMITS.inFlight` calls wait on one box (`capacity` above); a call that is not
  * answered in `timeoutMs` on the clock is `timeout`; the guest's answer is matched by id and checked against the operation's
  * result schema; a link that closes fails every call waiting on it with `box_stopped`.
@@ -35,6 +36,7 @@ const codeOf = (code: string): ErrorCode => CODES[code] ?? (code as ErrorCode);
 export function createBoxOps(
   runtime: Pick<AgentRuntime, "phase" | "link"> & Partial<Pick<AgentRuntime, "touch">>,
   clock: Clock,
+  kind: BoxRef["kind"] = "project",
 ): BoxOps {
   const links = new WeakMap<GuestLink, LinkState>();
 
@@ -55,12 +57,12 @@ export function createBoxOps(
   };
 
   function run<N extends BoxOpName>(
-    projectId: string,
+    boxId: string,
     op: BoxOpArgs<N>,
     signal: AbortSignal | undefined,
     keepsAlive: boolean,
   ): Promise<BoxOpValue<N>> {
-    const box = { kind: "project", id: projectId } as const;
+    const box: BoxRef = { kind, id: boxId };
     const link = runtime.phase(box) === "running" ? runtime.link(box) : undefined;
     if (link === undefined) return Promise.reject(new PapError("box_stopped"));
     const state = stateOf(link);

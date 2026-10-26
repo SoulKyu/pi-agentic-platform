@@ -104,3 +104,12 @@ A project made from a name has its files in its box, not on this machine. Box: `
 - **Knowledge.** `projects.knowledge` and `projects.enableKnowledge` call `knowledge.state` and `knowledge.enable` in the guest when the box is running (else `box_stopped`; nothing starts). The `knowledge_enabled` audit still fires.
 - **Lanes.** `lanes.preview` of a box root answers `repo: false` (not a lane project) without `realpath` or git; lane creation goes through it, so no lane exists for a box root.
 - **Test.** `boxes.host-reads.int.test.ts` fails if the daemon's file system, `realpath` or git helpers receive a path under a box root.
+
+## An agent's folder (`/agents/<id>`)
+
+- **Routing.** An agent's VM folder is the pap path `/agents/<agentId>` (`kernel/agent-path.ts`: `agentOfPath`, lexical, `canonical` and a valid `AgentId`). `createBoxFiles().matchAgent` runs before the box-project match in `service.ts` for `list`, `read`, `write`, `search`, `upload` and the raw routes, and the call goes to the agent's `BoxOps` (`createBoxOps(runtime, clock, "agent")`) with the prefix swapped for the VM's layout root (`guestRoot + path.slice(root.length)`); `meta.path` comes back in pap form.
+- **`/agents` is reserved (R2).** A path at or under `/agents` never reaches the host for any caller: it is the caller's own agent, else `not_found` (a token, another user's agent, an unknown id, an odd spelling, no source bound). `openRaw` refuses it too.
+- **Hidden.** `.pi` and `lost+found` (the guest answers `not_found`) and the agent's imported credentials, by exact path relative to `home/` (`agentFiles.hiddenOf(agentId)`: the imported paths plus the removals not yet delivered to the VM): `not_found` on every method, dropped from listings and searches. An unreadable import store refuses the agent's routes (`internal`), never an unfiltered answer. After a plain `pap restore`, files imported before stay in the VM home and show until removed or imported again. The agent can copy a credential elsewhere; that copy shows like any file of its own (known limit).
+- **Protection.** A dot-entry directly in `home/` is `confirm` on write (scope `home: ["/home"]`, roots `["/"]`, relative to the agent's folder).
+- **Members.** The client-path gate lets a member send `/agents/<id>/...` only for their own agent; every other path stays `forbidden`.
+

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { agentsVmMethods } from "./agents-vm-methods.ts";
+import { TOKEN_PERMISSIONS } from "./index.ts";
 import { methods } from "./methods.ts";
 import { METHOD_IDEMPOTENT } from "./methods-idempotent.ts";
 
@@ -16,6 +17,27 @@ describe("agentsVmMethods", () => {
     expect(agentsVmMethods["agents.purgeTrash"].errors).toEqual(
       expect.arrayContaining(["step_up_required", "not_found", "sandbox_unavailable", "command_failed"]),
     );
+  });
+
+  it("agents.startBox is agents:admin, browser only, a mutation, and declares the box life errors", () => {
+    const def = agentsVmMethods["agents.startBox"];
+    expect(def.permission).toBe("agents:admin");
+    expect(methods["agents.startBox"].permission).toBe("agents:admin");
+    expect(TOKEN_PERMISSIONS).not.toContain("agents:admin");
+    expect(def.idempotent).toBe(false);
+    expect(METHOD_IDEMPOTENT["agents.startBox"]).toBe(false);
+    expect(def.errors).toEqual([
+      "not_found",
+      "capacity",
+      "sandbox_unavailable",
+      "disk_low",
+      "command_failed",
+      "agent_paused",
+      "vm_bundle_stale",
+      "stopped",
+    ]);
+    expect(def.params.safeParse({ agentId: "atlas-0000" }).success).toBe(true);
+    expect(def.params.safeParse({ agentId: "atlas-0000", extra: 1 }).success).toBe(false);
   });
 
   it("asks for the password step-up on the token and the purge", () => {

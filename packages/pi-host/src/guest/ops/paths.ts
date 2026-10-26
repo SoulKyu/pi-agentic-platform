@@ -17,6 +17,8 @@ export interface OpEnv {
   /** `layout.project`: every path an operation names is this folder or below it. */
   readonly project: string;
   readonly now: () => number;
+  /** Top-level names the search leaves out of its walk (an agent's `.pi`, `lost+found`). */
+  readonly hidden?: readonly string[];
   /** The GitHub ops' share of the guest (home, `/run`, wrapper scripts, environment); absent where no op needs it. */
   readonly github?: GithubDeps;
 }

@@ -6,9 +6,12 @@ export const boxesEn = {
   "boxes.phase.running": "Running",
   "boxes.start": "Start",
   "boxes.stage": "Starting the box…",
+  "boxes.agentStage": "Starting the agent's VM…",
   "boxes.packagesChanged": "Packages changed",
   "boxes.stopped.title": "Box stopped",
   "boxes.stopped.purpose": "The project's box is stopped. Start it to see its files.",
+  "boxes.stopped.agent.title": "VM stopped",
+  "boxes.stopped.agent.purpose": "The agent's VM is stopped. Start it to see its files.",
   "boxes.off": "Not available in a box yet.",
   "boxes.noBackup": "This project's files live only in its box: push them to keep a copy.",
   "boxes.settings": "Project settings",
@@ -67,6 +70,20 @@ export const boxesEn = {
     "The box could not start: its code is older than pap. Your files are intact. Run `sudo pap vm setup` on the server, then start the box again.",
   "boxes.error.agent_paused":
     "The box crashed 3 times in 10 minutes and is paused. Your files are intact. Fix the cause if you know it, then restart the box.",
+  "boxes.agentError.not_found":
+    "This agent no longer exists or its profile cannot be read, so there is no VM to start. Nothing was changed. Check Settings › Agents.",
+  "boxes.agentError.capacity":
+    "The agent's VM could not start: the server is at capacity. Its files are intact. Stop another box or agent, then try again.",
+  "boxes.agentError.agent_paused":
+    "The agent is paused or quarantined, so its VM was not started. Its files are intact. Resume it (Settings tab for a quarantined agent, header for a paused one), then start the VM.",
+  "boxes.agentError.vm_bundle_stale":
+    "The agent's VM could not start: its code is older than pap. Its files are intact. Run `sudo pap vm setup` on the server, then start the VM again.",
+  "boxes.agentError.sandbox_unavailable":
+    "The agent's VM could not start: this machine has no microVM support set up. Its files are intact. Run `sudo pap vm setup` on the server, then try again.",
+  "boxes.agentError.disk_low":
+    "The agent's VM was not started: the disk is almost full. Its files are intact. Free some space on the server, then try again.",
+  "boxes.agentError.fallback":
+    "The agent's VM could not start. Its files are intact. Try again; if it fails again, run `pap doctor`.",
 } as const;
 
 export const boxesFr: { readonly [K in keyof typeof boxesEn]: string } = {
@@ -76,9 +93,12 @@ export const boxesFr: { readonly [K in keyof typeof boxesEn]: string } = {
   "boxes.phase.running": "En marche",
   "boxes.start": "Démarrer",
   "boxes.stage": "Démarrage de la box…",
+  "boxes.agentStage": "Démarrage de la VM de l'agent…",
   "boxes.packagesChanged": "Paquets modifiés",
   "boxes.stopped.title": "Box arrêtée",
   "boxes.stopped.purpose": "La box du projet est arrêtée. Démarrez-la pour voir ses fichiers.",
+  "boxes.stopped.agent.title": "VM arrêtée",
+  "boxes.stopped.agent.purpose": "La VM de l'agent est arrêtée. Démarrez-la pour voir ses fichiers.",
   "boxes.off": "Pas encore disponible dans une box.",
   "boxes.noBackup":
     "Les fichiers de ce projet ne vivent que dans sa box : poussez-les pour en garder une copie.",
@@ -140,4 +160,18 @@ export const boxesFr: { readonly [K in keyof typeof boxesEn]: string } = {
     "La box n'a pas pu démarrer : son code est plus ancien que pap. Vos fichiers sont intacts. Lancez `sudo pap vm setup` sur le serveur, puis redémarrez la box.",
   "boxes.error.agent_paused":
     "La box a planté 3 fois en 10 minutes et est en pause. Vos fichiers sont intacts. Corrigez la cause si vous la connaissez, puis redémarrez la box.",
+  "boxes.agentError.not_found":
+    "Cet agent n'existe plus ou son profil est illisible, il n'y a donc pas de VM à démarrer. Rien n'a été modifié. Vérifiez Réglages › Agents.",
+  "boxes.agentError.capacity":
+    "La VM de l'agent n'a pas pu démarrer : le serveur est à pleine capacité. Ses fichiers sont intacts. Arrêtez une autre box ou un agent, puis réessayez.",
+  "boxes.agentError.agent_paused":
+    "L'agent est en pause ou en quarantaine : sa VM n'a pas été démarrée. Ses fichiers sont intacts. Reprenez-le (onglet Réglages s'il est en quarantaine, en-tête s'il est en pause), puis démarrez la VM.",
+  "boxes.agentError.vm_bundle_stale":
+    "La VM de l'agent n'a pas pu démarrer : son code est plus ancien que pap. Ses fichiers sont intacts. Lancez `sudo pap vm setup` sur le serveur, puis redémarrez la VM.",
+  "boxes.agentError.sandbox_unavailable":
+    "La VM de l'agent n'a pas pu démarrer : cette machine n'a pas de microVM configurée. Ses fichiers sont intacts. Lancez `sudo pap vm setup` sur le serveur, puis réessayez.",
+  "boxes.agentError.disk_low":
+    "La VM de l'agent n'a pas été démarrée : le disque est presque plein. Ses fichiers sont intacts. Libérez de l'espace sur le serveur, puis réessayez.",
+  "boxes.agentError.fallback":
+    "La VM de l'agent n'a pas pu démarrer. Ses fichiers sont intacts. Réessayez ; si cela échoue encore, lancez `pap doctor`.",
 };

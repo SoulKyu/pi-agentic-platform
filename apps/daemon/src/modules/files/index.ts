@@ -1,4 +1,5 @@
 import type { Hono } from "hono";
+import type { AgentFilesSource } from "../../kernel/agent-path.ts";
 import type { BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { DenySet } from "../../kernel/fs/deny-set.ts";
@@ -44,6 +45,9 @@ export function createFilesModule(deps: {
   /** Late-bound (J1 wires them): with no source bound, every path is a host path. */
   readonly boxes?: () => ProjectBoxSource | undefined;
   readonly boxOps?: () => BoxOps | undefined;
+  /** Late-bound: the agents' VMs and where their folders are (`/agents/<id>`); with none, `/agents` answers `not_found`. */
+  readonly agentOps?: () => BoxOps | undefined;
+  readonly agents?: () => AgentFilesSource | undefined;
   readonly isMember: (userId: string) => boolean;
 }): FilesModule {
   const logger = deps.logger.child({ module: "files" });
