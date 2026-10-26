@@ -87,8 +87,8 @@ export const skewOf = (
 ): BundleSkew =>
   createBundleSkew({
     treeBundle: treeBundleOf(import.meta.dirname),
-    installedDigest: async (fresh) => images.installedDigest(fresh),
-    treeDigest: async (dir) => images.digestOf(dir),
+    installedDigest: (fresh) => images.installedDigest(fresh),
+    treeDigest: (dir) => images.digestOf(dir),
     logger,
   });
 

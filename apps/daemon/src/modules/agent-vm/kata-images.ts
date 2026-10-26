@@ -6,8 +6,10 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { ImageObserver } from "../../kernel/launches.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { scrubKnownSecrets } from "../audit/index.ts";
+import { BASE_TAG_PREFIX, createBaseTag } from "./base-tag.ts";
+import { type DigestRunner, threadDigestRunner } from "./digest-runner.ts";
 import { createKataBuild } from "./kata-build.ts";
-import { agentLayerTag, treeDigest } from "./image-inputs.ts";
+import { agentLayerTag } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
 import type { Inputs } from "./profile-job.ts";
@@ -18,9 +20,6 @@ import { papErrorOf, type VmdClient, VmdError } from "./vmd-client.ts";
 
 /** An edit of Pi's settings or packages reaches a new start within this long (the preparation copies and hashes the packages). */
 export const PROFILE_TTL_MS = 30_000;
-/** The root-owned bundle changes only with `pap vm setup`: its digest is read again at most this often. */
-export const BASE_TTL_MS = 3_600_000;
-const BASE_TAG_PREFIX = "pap-agent-base-";
 /** The profile changes under a start this many times in a row: the start fails `conflict` and the next one tries again. */
 const RESOLVE_TRIES = 3;
 export const REBUILD_NOTICE =
@@ -48,6 +47,8 @@ export interface KataImagesDeps {
   readonly redact?: (line: string) => Promise<string>;
   /** Runs one profile preparation; the default is a worker thread (I4), tests run it in process. */
   readonly profileRunner?: ProfileRunner;
+  /** Hashes a bundle folder; the default is a worker thread, tests run it in process. */
+  readonly digestRunner?: DigestRunner;
   /** Posts once into the agent's thread (a late binding: the sessions come after this). */
   readonly notice: (agentId: string, text: string) => void;
 }
@@ -73,9 +74,9 @@ export interface KataImages {
   /** The agent is deleted: its notice memory and its package pairs go. */
   forget(agentId: string): void;
   /** The digest the base tag follows: the installed bundle's (the tag's suffix), read again when `fresh`. */
-  installedDigest(fresh?: boolean): string;
+  installedDigest(fresh?: boolean): Promise<string>;
   /** The same digest over another bundle folder (the daemon's own), so the two compare. */
-  digestOf(dir: string): string;
+  digestOf(dir: string): Promise<string>;
   /**
    * Once a week (the caller ticks): rebuilds the base with `apt-get upgrade`. A success is on disk before it is used (a restart
    * does not rebuild every image twice). A failure is logged and retried after an hour by the policy's `retryAt`, which is in
@@ -100,7 +101,6 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   const { client, clock, logger } = deps;
   const policy: ImagePolicy = createImagePolicy({ clock, lastBaseWeek: readWeek(deps.weekFile) });
   const running = new Map<string, RunningImage>();
-  let baseCache: { tag: string; at: number } | null = null;
   let baseFlight: Promise<void> | null = null;
   let prepared: Prepared | null = null;
   /** The last preparation that finished with its inputs fingerprinted (I4): an unchanged profile is not prepared again. */
@@ -140,19 +140,9 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   const buildOnce = (request: Build): Promise<void> => client.request(request).then(() => undefined);
 
   /** The digest of a bundle folder, salted like the base tag's: the installed one and the daemon's own compare under it. */
-  const bundleDigest = (dir: string): string => treeDigest(dir, `pap-base-2\0${deps.nodeImage}`);
-
-  function baseTagNow(fresh = false): string {
-    if (!fresh && baseCache !== null && clock.now() - baseCache.at < BASE_TTL_MS) return baseCache.tag;
-    try {
-      const tag = `${BASE_TAG_PREFIX}${bundleDigest(deps.bundleRoot)}`;
-      baseCache = { tag, at: clock.now() };
-      return tag;
-    } catch (error) {
-      logger.warn("agent_vm_bundle_unreadable", { err: error });
-      throw new PapError("sandbox_unavailable");
-    }
-  }
+  const bundleDigest = (dir: string): Promise<string> =>
+    (deps.digestRunner ?? threadDigestRunner)(dir, `pap-base-2\0${deps.nodeImage}`);
+  const currentBaseTag = createBaseTag({ clock, logger, digest: () => bundleDigest(deps.bundleRoot) });
 
   /** The week is on disk before `baseUpgradeFinished` makes the new `baseKey` live: a restart finds the tags that were built. */
   async function buildBase(baseTag: string, week: string | null): Promise<void> {
@@ -333,7 +323,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
         return live.tag;
       }
       try {
-        const baseTag = baseTagNow();
+        const baseTag = await currentBaseTag();
         await ensureBase(baseTag, { observe, boxId: logBox });
         for (let attempt = 0; attempt < RESOLVE_TRIES; attempt += 1) {
           const tag = await resolveOnce(agentId, systemPackages, baseTag, observe, logBox);
@@ -352,14 +342,21 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
       policy.forget(agentId);
       deps.entries.forget(agentId);
     },
-    installedDigest: (fresh) => baseTagNow(fresh).slice(BASE_TAG_PREFIX.length),
+    installedDigest: async (fresh) => (await currentBaseTag(fresh)).slice(BASE_TAG_PREFIX.length),
     digestOf: bundleDigest,
     buildLog: tailOf,
     async upgradeBaseIfDue() {
       try {
-        const baseTag = baseTagNow();
+        // Nothing due: nothing is read (the bundle's digest costs seconds of disk).
         const week = policy.claimBaseUpgrade();
         if (week === null) return;
+        let baseTag: string;
+        try {
+          baseTag = await currentBaseTag();
+        } catch (error) {
+          policy.baseUpgradeFinished(week, false);
+          throw error;
+        }
         if (baseFlight !== null) {
           // A start is building the base right now (with the upgrade): this week's claim is given back.
           policy.baseUpgradeFinished(week, false);

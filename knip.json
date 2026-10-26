@@ -36,7 +36,8 @@
       "entry": [
         "src/modules/search/search-thread.ts",
         "src/modules/agent-vm/mirror-parse-thread.ts",
-        "src/modules/agent-vm/profile-thread.ts"
+        "src/modules/agent-vm/profile-thread.ts",
+        "src/modules/agent-vm/digest-thread.ts"
       ],
       "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
