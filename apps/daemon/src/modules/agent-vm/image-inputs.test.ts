@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, readFileSync, readlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { IMAGE_TAG } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
@@ -95,6 +95,24 @@ describe("prepareProfileContext (RT-18)", () => {
     expect(listAll(s.out).filter((entry) => entry.rel.includes("mem0"))).toEqual([]);
     expect(skipped).toContain("pi-mem0: R17, memory stays out of VM images");
     expect(read("settings.json")).not.toContain("mem0");
+  });
+
+  it("a provider named only in enabledModels or defaultProvider gets no relay entry", () => {
+    s = scratch();
+    plantAgentDir(s);
+    const file = join(s.agentDir, "settings.json");
+    const settings = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    settings.defaultProvider = "only-default";
+    settings.enabledModels = ["acme/m1", "openrouter/x/y", "together/z"];
+    writeFileSync(file, JSON.stringify(settings));
+    const authOnly = ["zai", "claude-bridge"];
+    prepareProfileContext(s.agentDir, s.out, [], papHome(), BASE, authOnly);
+    const models = JSON.parse(read("models.json")) as { providers: Record<string, { baseUrl: string }> };
+    expect(Object.keys(models.providers).sort()).toEqual(["acme", "zai"]);
+    expect(models.providers.zai?.baseUrl).toBe("http://llm.internal:7842/zai");
+    expect(JSON.parse(read("settings.json"))).toMatchObject({
+      enabledModels: ["acme/m1", "openrouter/x/y", "together/z"],
+    });
   });
 
   it("generates models.json against the relay, no headers, every URL on port 7842", () => {

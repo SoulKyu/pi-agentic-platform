@@ -271,13 +271,9 @@ function readModels(agentDir: string): ModelsSource {
   return raw ?? { providers: {} };
 }
 
-function derivedProviders(settings: Record<string, unknown>, authOnly: readonly string[]): string[] {
-  const names: string[] = [...authOnly];
-  if (typeof settings.defaultProvider === "string") names.push(settings.defaultProvider);
-  if (Array.isArray(settings.enabledModels))
-    for (const item of settings.enabledModels)
-      if (typeof item === "string" && item.includes("/")) names.push(item.slice(0, item.indexOf("/")));
-  return names.filter((name) => !OWN_ROUTE_PROVIDERS.has(name));
+/** The providers with a credential in `auth.json`: the relay serves nothing else, so `enabledModels` adds no route. */
+function derivedProviders(authOnly: readonly string[]): string[] {
+  return authOnly.filter((name) => !OWN_ROUTE_PROVIDERS.has(name));
 }
 
 function writeJson(out: string, name: string, value: unknown): void {
@@ -337,7 +333,7 @@ function build(
   if (packages.length > 0) profile.packages = packages;
   if (skills.length > 0) profile.skills = skills;
   writeJson(out, "settings.json", profile);
-  writeJson(out, "models.json", modelsFile(models, derivedProviders(settings, authOnly), b.run.skipped));
+  writeJson(out, "models.json", modelsFile(models, derivedProviders(authOnly), b.run.skipped));
   const known = [...secrets, ...literalValuesOf(models), ...adapterSecrets(agentDir)];
   const input: AdapterInput = {
     agentDir: realpathSync(agentDir),
@@ -357,8 +353,9 @@ function build(
 
 /**
  * RT-18: writes the Pi profile the image gets, by allowlist (`out` is replaced). Every file written is scanned for every
- * known secret before the tag is computed; a hit or any other failure removes `out` and throws. `authProviders` (T15b) get a
- * relay entry like the settings' own. The base tag enters the profile tag: a new bundle, digest or weekly rebuild reaches it.
+ * known secret before the tag is computed; a hit or any other failure removes `out` and throws. `authProviders` (T15b),
+ * the providers with a credential in `auth.json`, get a relay entry; `enabledModels` and `defaultProvider` add none. The
+ * base tag enters the profile tag: a new bundle, digest or weekly rebuild reaches it.
  */
 export function prepareProfileContext(
   agentDir: string,
