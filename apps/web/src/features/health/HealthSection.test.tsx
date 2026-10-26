@@ -61,6 +61,8 @@ const rows = (container: HTMLElement) => [...container.querySelectorAll("tbody t
 
 describe("HealthSection", () => {
   it("renders a snapshot's rows: the time, the chip, the kind, the code, the sentence, the source link, ×N", async () => {
+    // Midday: a minute ago is today, so the row shows the time alone (just after midnight it would show yesterday's date).
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 9, 25, 12, 0, 0) });
     const ts = Date.now() - 60_000;
     const page = await show();
     snap([event({ ts, count: 2 })]);

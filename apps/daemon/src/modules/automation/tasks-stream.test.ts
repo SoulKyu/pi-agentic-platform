@@ -125,7 +125,8 @@ describe("the tasks snapshot (M10R43)", () => {
   });
 
   it("says whether quiet hours are on now", () => {
-    bed = createRunnerBed();
+    // 12:00 UTC, inside 00:00–23:59 (the real clock at 23:59 would not be).
+    bed = createRunnerBed({ startAt: Date.UTC(2026, 9, 25, 12, 0, 0) });
     bed.settings.value = AutomationSettings.parse({
       timezone: "UTC",
       quietHours: { from: "00:00", to: "23:59" },
