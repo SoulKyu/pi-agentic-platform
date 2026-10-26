@@ -23,7 +23,7 @@ const MKFS_TIMEOUT_MS = 10 * 60_000;
 
 type BoxDisk = { box: BoxRef; taskKey: null };
 type Sized = BoxDisk & { diskMb: number };
-type Delete = { box: BoxRef; taskKey: string | null; purge: boolean };
+type Delete = { box: BoxRef; taskKey: string | null; keepKey?: string; purge: boolean };
 
 const { O_RDWR, O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW } = constants;
 
@@ -77,7 +77,25 @@ export async function makeBlankDisk(exec: Exec, file: string, mb: number): Promi
   }
 }
 
-export function createDiskOps(deps: OpsDeps, list: () => Promise<VmEntry[]>) {
+/** Makes a kept disk as long as `mb`: a file that is shorter gets `ftruncate` up (as `disk.grow`), a longer one stays. True when it grew. */
+export function growKeptDisk(file: string, mb: number): boolean {
+  const fd = openSync(file, O_RDWR | O_NOFOLLOW);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) throw new VmdFailure("failed");
+    if (stat.size >= mb * MIB) return false;
+    ftruncateSync(fd, mb * MIB);
+    return true;
+  } finally {
+    closeSync(fd);
+  }
+}
+
+export function createDiskOps(
+  deps: OpsDeps,
+  list: () => Promise<VmEntry[]>,
+  keptHeld: (box: BoxRef, keepKey: string) => Promise<boolean>,
+) {
   const { exec, state, locks, clock, room } = deps;
 
   async function boxIsRunning(box: BoxRef, taskKey?: string): Promise<boolean> {
@@ -128,6 +146,13 @@ export function createDiskOps(deps: OpsDeps, list: () => Promise<VmEntry[]>) {
 
   function remove(request: Delete): Promise<unknown> {
     return locks.withBox(request.box, async () => {
+      if (request.keepKey !== undefined) {
+        const disk = state.keptPath(request.box, request.keepKey);
+        if (!folderExists(path.dirname(disk))) throw new VmdFailure("not_found");
+        if (await keptHeld(request.box, request.keepKey)) throw new VmdFailure("conflict");
+        removeTaskDir(disk);
+        return { deleted: true };
+      }
       if (request.taskKey !== null) {
         if (await boxIsRunning(request.box, request.taskKey)) throw new VmdFailure("conflict");
         const disk = state.diskPath(request.box, request.taskKey);

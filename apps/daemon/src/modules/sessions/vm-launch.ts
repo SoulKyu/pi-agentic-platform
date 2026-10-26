@@ -110,8 +110,12 @@ export interface VmLaunchDeps {
 export const taskKeyOf = (row: Pick<SessionRow, "agentRole" | "id">): string | null =>
   row.agentRole === "task" ? row.id.replaceAll("-", "") : null;
 
+/** The kept folder an isolated task row runs on (K2): its policy's key, for a task row only; null for every other row. */
+export const keepKeyOf = (row: Pick<SessionRow, "agentRole" | "task" | "keptKey">): string | null =>
+  row.agentRole === "task" ? (row.task?.keepKey ?? row.keptKey ?? null) : null;
+
 /** Which of an agent's VMs the row runs in; refused before anything is built for it. */
-function whoOf(row: SessionRow): Pick<VmSpec, "box" | "kind" | "taskKey"> {
+function whoOf(row: SessionRow): Pick<VmSpec, "box" | "kind" | "taskKey" | "keepKey"> {
   const { agentId } = row;
   if (agentId === undefined) throw new PapError("internal");
   const box: BoxRef = { kind: "agent", id: agentId };
@@ -119,12 +123,16 @@ function whoOf(row: SessionRow): Pick<VmSpec, "box" | "kind" | "taskKey"> {
   if (key === null) return { box, kind: "thread", taskKey: null };
   const taskKey = TaskKey.safeParse(key);
   if (!taskKey.success) throw new PapError("bad_request");
-  return { box, kind: "isolated", taskKey: taskKey.data };
+  const keep = keepKeyOf(row);
+  if (keep === null) return { box, kind: "isolated", taskKey: taskKey.data };
+  const keepKey = TaskKey.safeParse(keep);
+  if (!keepKey.success) throw new PapError("bad_request");
+  return { box, kind: "isolated", taskKey: taskKey.data, keepKey: keepKey.data };
 }
 
 /** What differs between an agent's launch and a project box's: the box, its resources, the image, the picks and the recheck. */
 interface BoxPlan {
-  readonly who: Pick<VmSpec, "box" | "kind" | "taskKey">;
+  readonly who: Pick<VmSpec, "box" | "kind" | "taskKey" | "keepKey">;
   readonly mirrorRow: SessionRow & { readonly projectId?: string };
   readonly resources: VmSpec["resources"];
   readonly claudeEnv: Readonly<Record<string, string>> | undefined;
@@ -203,7 +211,13 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       bind(compose) {
         try {
           const composed = compose();
-          const vm = { layout: started.layout, ...fixed, relayKey: started.relayKey, slot: started.slot };
+          const vm = {
+            layout: started.layout,
+            ...fixed,
+            relayKey: started.relayKey,
+            slot: started.slot,
+            ...(plan.who.keepKey === undefined ? {} : { kept: true }),
+          };
           const init = vmInitOf(composed.init, vm, file);
           if (deps.copyProviderScript) init.testProviderScript = deps.copyProviderScript(started.layout);
           return { ...composed, init };

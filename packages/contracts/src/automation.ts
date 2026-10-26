@@ -177,7 +177,14 @@ export const PrecheckCommand = z
 
 /** Where an agent trigger runs (M11R65): `isolated`, a fresh task in the agent's sandbox; `thread`, a prompt in its thread. */
 export const TRIGGER_TARGETS = ["isolated", "thread"] as const;
-export const TriggerAgent = z.object({ agentId: AgentId, target: z.enum(TRIGGER_TARGETS) }).strict();
+export const TriggerAgent = z
+  .object({
+    agentId: AgentId,
+    target: z.enum(TRIGGER_TARGETS),
+    /** An isolated task keeps its folder (a disk of its own) between this trigger's runs; absent reads as off. */
+    keep: z.boolean().optional(),
+  })
+  .strict();
 export type TriggerAgent = z.infer<typeof TriggerAgent>;
 
 export const TriggerExecution = z
@@ -263,6 +270,12 @@ export const TriggerInput = z
     // W5-R32: a precheck's output is fenced and tainted, and the thread is the agent's trusted context.
     if (agent?.target === "thread" && used.has("precheck"))
       ctx.addIssue({ code: "custom", path: ["prompt"], message: "{{precheck}} is for isolated tasks" });
+    if (agent?.target === "thread" && agent.keep === true)
+      ctx.addIssue({
+        code: "custom",
+        path: ["execution", "agent", "keep"],
+        message: "a thread keeps its own disk",
+      });
     if (agent?.target === "thread" && OUTSIDE_TEXT_SOURCES.has(input.source.type))
       ctx.addIssue({
         code: "custom",

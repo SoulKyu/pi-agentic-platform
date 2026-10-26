@@ -13,7 +13,7 @@ import {
   type VmSpec,
 } from "./modules/agent-vm/index.ts";
 import type { RequestItems } from "./modules/agents/index.ts";
-import { type SessionBoxes, type SessionRow, taskKeyOf } from "./modules/sessions/index.ts";
+import { type SessionBoxes, keepKeyOf, type SessionRow, taskKeyOf } from "./modules/sessions/index.ts";
 
 /** What exists only after the projects module (daemon.ts binds it): the box source, and the project's name for the owner's words. */
 export interface BoxesLate {
@@ -81,13 +81,13 @@ export function composeBoxes(
     /** The row's layout: an agent's, or a project box's (the box exists), else null. */
     vmLayoutOf(row: SessionRow): VmLayout | null {
       if (row.agentId !== undefined)
-        return layoutOf(backend, home, { agentId: row.agentId, taskKey: taskKeyOf(row) });
+        return layoutOf(backend, home, { agentId: row.agentId, taskKey: keepKeyOf(row) ?? taskKeyOf(row) });
       const projectId = sessions.projectOf(row);
       return projectId === null || sessions.box(projectId) === null
         ? null
         : projectLayoutOf(backend, home, projectId);
     },
-    layoutOfSpec: (spec: Pick<VmSpec, "box" | "taskKey">): VmLayout =>
+    layoutOfSpec: (spec: Pick<VmSpec, "box" | "taskKey" | "keepKey">): VmLayout =>
       spec.box.kind === "project"
         ? projectLayoutOf(backend, home, spec.box.id)
         : layoutOfSpec(backend, home, spec),

@@ -350,6 +350,7 @@ export async function composeAgentsVm(
       proxyPort,
       agentLink: agentLink.link,
       startAgent,
+      forgetKept: agentLink.forgetKept,
       bindCrashPause: (handler) => void (crashPause = handler),
       bindRefusals: proxy.bindRefusals,
     };

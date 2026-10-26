@@ -54,6 +54,8 @@ const mode = (file: string): number => lstatSync(file).mode & 0o777;
 describe("state folder", () => {
   it("derives every path from checked ids under the root", () => {
     expect(state.diskPath(box(agent), null)).toBe(path.join(root, "agents", agent, "disk.img"));
+    expect(state.keptPath(box(agent), key)).toBe(path.join(root, "agents", agent, "kept", key, "disk.img"));
+    expect(() => state.keptPath(box(agent), "../x")).toThrow();
     expect(state.diskPath(box(agent), key)).toBe(path.join(root, "agents", agent, "tasks", key, "disk.img"));
     expect(state.envFile("a".repeat(32))).toBe(path.join(root, "run", `${"a".repeat(32)}.env`));
     expect(state.buildDir("base")).toBe(path.join(root, "build", "base"));
@@ -114,6 +116,14 @@ describe("start sweep (RT-33, R30)", () => {
     writeFileSync(file, "disk");
     return file;
   };
+
+  it("leaves kept/ alone, whatever is running", () => {
+    mkdirSync(path.join(root, "agents", agent, "kept", key), { recursive: true });
+    const kept = path.join(root, "agents", agent, "kept", key, "disk.img");
+    writeFileSync(kept, "kept");
+    state.sweepAtStart([]);
+    expect(readFileSync(kept, "utf8")).toBe("kept");
+  });
 
   it("removes run/*.env and every task disk whose VM is not running, keeps the agent's disk and a running task's", () => {
     writeFileSync(path.join(root, "run", "x.env"), "TOKEN=1");

@@ -83,7 +83,7 @@ export interface Ops {
 
 export function createOps(deps: OpsDeps): Ops {
   const vm = createVmOps(deps);
-  const disk = createDiskOps(deps, vm.list);
+  const disk = createDiskOps(deps, vm.list, vm.keptHeld);
   const image = createImageOps(deps);
   const { locks, state } = deps;
 

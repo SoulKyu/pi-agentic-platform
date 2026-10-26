@@ -6,6 +6,7 @@ import { button, click, text } from "../../testing/dom.ts";
 import { agentOf, showWithStepUp } from "./board-bed.tsx";
 import { DraftHarness, segmentOn } from "./editor-bed.tsx";
 import { emptyDraft, toInput, type Draft } from "./editor.vm.ts";
+import { automationAgentsFr } from "../../i18n/catalog/automation-agents.ts";
 import { ExecutionSection } from "./ExecutionSection.tsx";
 
 const ATLAS = agentOf("atlas-1a2b", "Atlas");
@@ -35,7 +36,7 @@ describe("RunsAsField", () => {
     await click(button(page.container, "Agent"));
     expect(segmentOn(page.container, "Runs as")).toBe("Agent");
     expect(page.container.querySelector("input[value='/work/atlas']")).toBeNull();
-    expect(text(page.container)).toContain("in a fresh session in Atlas's home");
+    expect(text(page.container)).toContain("in a fresh session in Atlas's own microVM");
   });
 
   it("says in one line each where a thread and an isolated task run", async () => {
@@ -44,7 +45,7 @@ describe("RunsAsField", () => {
     expect(text(page.container)).toContain("in Atlas's thread, with its tools");
     await click(button(page.container, "Isolated task"));
     expect(text(page.container)).toContain(
-      "in a fresh session in Atlas's home, with this tool list, unattended, in its sandbox",
+      "in a fresh session in Atlas's own microVM, with this tool list, unattended, in its sandbox",
     );
   });
 
@@ -89,7 +90,69 @@ describe("RunsAsField", () => {
   });
 });
 
+const keepOf = (container: ParentNode) =>
+  [...container.querySelectorAll<HTMLElement>('[role="switch"]')].find(
+    (node) =>
+      container.querySelector(`#${node.getAttribute("aria-labelledby") ?? "none"}`)?.textContent ===
+      "Keep its folder between runs",
+  ) ?? null;
+
+describe("the keep switch", () => {
+  it("shows only for an agent's isolated task, with the exact copy", async () => {
+    const isolated = await show(initial({ agentId: ATLAS.id, target: "isolated", sourceType: "manual" }));
+    expect(keepOf(isolated.container)).not.toBeNull();
+    expect(text(isolated.container)).toContain(
+      "Each run finds what the previous one left. Every run starts as untrusted.",
+    );
+    const thread = await show(initial({ agentId: ATLAS.id, target: "thread", sourceType: "manual" }));
+    expect(keepOf(thread.container)).toBeNull();
+    const project = await show(initial());
+    expect(keepOf(project.container)).toBeNull();
+  });
+
+  it("shows for a feed, which forces isolated", async () => {
+    const page = await show(initial({ agentId: ATLAS.id, target: "thread", sourceType: "feed" }));
+    expect(keepOf(page.container)).not.toBeNull();
+  });
+
+  it("toggles on, and turns off and clears when the target becomes Thread", async () => {
+    const page = await show(initial({ agentId: ATLAS.id, target: "isolated", sourceType: "manual" }));
+    expect(keepOf(page.container)?.getAttribute("aria-checked")).toBe("false");
+    const keep = keepOf(page.container);
+    if (keep === null) throw new Error("no keep switch");
+    await click(keep);
+    expect(keepOf(page.container)?.getAttribute("aria-checked")).toBe("true");
+    await click(button(page.container, "Thread"));
+    await click(button(page.container, "Isolated task"));
+    expect(keepOf(page.container)?.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("has the exact French copy", () => {
+    expect(automationAgentsFr["automation.editor.keep"]).toBe("Garder son dossier entre les runs");
+    expect(automationAgentsFr["automation.editor.keep.hint"]).toBe(
+      "Chaque run retrouve ce que le précédent a laissé. Chaque run démarre comme non fiable. Désactiver l'option, ou changer d'agent ou de cible, supprime définitivement le dossier, sans confirmation.",
+    );
+  });
+
+  it("shows on for a draft that has keep", async () => {
+    const page = await show(initial({ agentId: ATLAS.id, target: "isolated", keep: true }));
+    expect(keepOf(page.container)?.getAttribute("aria-checked")).toBe("true");
+  });
+});
+
 describe("toInput with an agent", () => {
+  const base0 = { name: "n", prompt: "Look" };
+  it("sends keep only with an isolated agent target", () => {
+    const on = toInput(initial({ ...base0, agentId: ATLAS.id, target: "isolated", keep: true }));
+    expect(on.ok && on.input.execution.agent).toEqual({ agentId: ATLAS.id, keep: true, target: "isolated" });
+    const off = toInput(initial({ ...base0, agentId: ATLAS.id, target: "isolated" }));
+    expect(off.ok && off.input.execution.agent).toEqual({ agentId: ATLAS.id, target: "isolated" });
+    const thread = toInput(
+      initial({ ...base0, agentId: ATLAS.id, target: "thread", sourceType: "manual", keep: true }),
+    );
+    expect(thread.ok && thread.input.execution.agent).toEqual({ agentId: ATLAS.id, target: "thread" });
+  });
+
   const base = { name: "n", prompt: "Look" };
   it("sends the agent and the target, and no cwd", () => {
     const result = toInput(initial({ ...base, agentId: ATLAS.id, target: "isolated" }));

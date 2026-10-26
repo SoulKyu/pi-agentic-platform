@@ -1,3 +1,4 @@
+import { keptKeyOf } from "@pap/contracts";
 import type { MigrationSource } from "./kernel/db/migrate.ts";
 import type { M11, M11Core, M11Modules } from "./compose-m11-types.ts";
 import { bindVmCrash, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
@@ -69,6 +70,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   });
   const agentsLogger = core.logger.child({ module: "agents" });
   const vm = vmPortsOf(modules.vm);
+  const forgetKept = vm.kept;
   const guard = createAgentGuard();
   platform.register("lane.note", modules.lanes.note);
   const agents = createAgents({
@@ -101,6 +103,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       onceOf: once.forSession,
       onceUsed: (sessionId, id) => void once.used(sessionId, id),
       ...(modules.claudeEnvOf ? { claudeEnvOf: modules.claudeEnvOf } : {}),
+      keptKeyOf: modules.automationModule.keptKeyOf,
       ...vm.sessions,
     },
   });
@@ -195,6 +198,10 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     events,
     delegations,
     spend,
+    // The kept folder of a trigger (K2) is the agent's VM side: the trigger id without dashes is its disk key.
+    ...(forgetKept === undefined
+      ? {}
+      : { forgetKept: (_ownerId, agentId, triggerId) => forgetKept(agentId, keptKeyOf(triggerId)) }),
   });
   // Notifications and approval requests (Task 17): the owner answers a request through agents.answerApproval.
   const agentRequests = createRequests({

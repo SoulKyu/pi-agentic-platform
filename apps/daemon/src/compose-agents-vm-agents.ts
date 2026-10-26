@@ -4,6 +4,7 @@ import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
   type AgentRuntime,
+  createKeptForget,
   disposeAgent,
   purgeAgent,
   startTrashSweep,
@@ -70,7 +71,12 @@ export interface AgentsLinkContext {
  * What the agents module asks of the VM runtime (T15): the stop of a delete, a quarantine and a Resume, the disk and mirrors of a
  * delete, "Purge now", and the daily sweep of the daemon's trash (RT-40). Returns the link and the way to stop the sweep.
  */
-export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; stopSweep: () => void } {
+export function composeAgentsLink(ctx: AgentsLinkContext): {
+  link: AgentVmLink;
+  stopSweep: () => void;
+  /** A trigger's kept folder goes (K2): pap-vmd's `kept/<key>/` disk, or the process backend's folder. Logs, never throws. */
+  forgetKept: (agentId: string, keepKey: string) => Promise<"done" | "busy">;
+} {
   const trash: TrashDeps = {
     client: ctx.client,
     papHome: ctx.papHome,
@@ -94,5 +100,11 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
       resume: (agentId) => ctx.runtime.resume({ kind: "agent", id: agentId }),
     },
     stopSweep: startTrashSweep(trash),
+    forgetKept: createKeptForget({
+      client: ctx.client,
+      papHome: ctx.papHome,
+      logger: ctx.logger,
+      remove: removeTree,
+    }),
   };
 }

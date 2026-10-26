@@ -17,8 +17,8 @@ import {
 import { parseVmName, sameBox, vmName } from "./box-name.ts";
 import { VmdFailure } from "./errors.ts";
 import { readNetFacts } from "./net-facts.ts";
-import { fileExists, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
-import { reclaimDisk } from "./ops-reclaim.ts";
+import { fileExists, growKeptDisk, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
+import { procHoldsFile, reclaimDisk } from "./ops-reclaim.ts";
 import type { OpsDeps, VmStartRequest } from "./ops.ts";
 
 export type VmStateName = ReturnType<(typeof VmState)["parse"]>;
@@ -158,10 +158,40 @@ export function createVmOps(deps: OpsDeps) {
     if (code !== 0) throw new VmdFailure("failed");
   };
 
+  /**
+   * Kept disks held by a VM this pap-vmd started: container name -> its keep key. A stop (named by task key only) drops its
+   * entry and never removes a kept folder; the name stays listed only while `nerdctl ps` shows the VM not stopped.
+   */
+  const keptVms = new Map<string, { box: BoxRef; keepKey: string }>();
+
+  /** Whether a live VM, or any process, holds the kept disk. Fails closed: an unreadable `nerdctl ps` throws. */
+  async function keptHeld(box: BoxRef, keepKey: string): Promise<boolean> {
+    const mine = [...keptVms].filter(([, held]) => sameBox(held.box, box) && held.keepKey === keepKey);
+    if (mine.length > 0) {
+      const vms = await list();
+      for (const [name] of mine) {
+        const parsed = parseVmName(name);
+        const live = vms.some(
+          (vm) =>
+            parsed !== null &&
+            sameBox(vm.box, parsed.box) &&
+            vm.taskKey === parsed.taskKey &&
+            vm.state !== "stopped",
+        );
+        if (live) return true;
+        keptVms.delete(name);
+      }
+    }
+    const file = state.keptPath(box, keepKey);
+    return fileExists(file) && (deps.holdsFile ?? procHoldsFile)(file);
+  }
+
   async function startVm(request: VmStartRequest, name: string): Promise<{ address: string }> {
     const isolated = request.taskKey !== null;
     // R30: an isolated VM gets a blank disk of its own; the box's disk is not even looked at.
-    const disk = state.diskPath(request.box, request.taskKey);
+    const keepKey = request.keepKey ?? null;
+    const disk =
+      keepKey === null ? state.diskPath(request.box, request.taskKey) : state.keptPath(request.box, keepKey);
     const volume = volumePath(deps.volumeRoot, name);
     const env = {
       PAP_GATEWAY: `${AGENT_NET.host}:${AGENT_NET.gatewayPort}`,
@@ -172,8 +202,11 @@ export function createVmOps(deps: OpsDeps) {
       PAP_IMAGE_TAG: request.image,
     };
     if (!Object.values(env).every((value) => ENV_VALUE.test(value))) throw new VmdFailure("bad_request");
-    if (isolated) await deps.room(request.resources.diskMb);
-    else if (!fileExists(disk)) throw new VmdFailure("not_found");
+    // A kept start asks for room only when its disk is made (below); a held kept disk is refused before anything is touched.
+    if (keepKey !== null && (await keptHeld(request.box, keepKey))) throw new VmdFailure("conflict");
+    const diskExists = keepKey !== null && fileExists(disk);
+    if (isolated && !diskExists) await deps.room(request.resources.diskMb);
+    else if (!isolated && !fileExists(disk)) throw new VmdFailure("not_found");
     // AVM-E49: a VM without its ruleset and bridge would have the whole network to itself.
     const facts = await readNetFacts(exec);
     if (!facts.ruleset || !facts.bridge) {
@@ -185,7 +218,9 @@ export function createVmOps(deps: OpsDeps) {
     let cleaned = null as boolean | null;
     try {
       const address = net.allocate(name);
-      if (isolated) {
+      if (diskExists) {
+        growKeptDisk(disk, request.resources.diskMb);
+      } else if (isolated) {
         diskMade = true;
         await makeBlankDisk(exec, disk, request.resources.diskMb);
       }
@@ -228,6 +263,7 @@ export function createVmOps(deps: OpsDeps) {
           throw error;
         }
       });
+      if (keepKey !== null) keptVms.set(name, { box: request.box, keepKey });
       return { address: address.ip };
     } catch (error) {
       let removed = cleaned;
@@ -284,6 +320,8 @@ export function createVmOps(deps: OpsDeps) {
     const name = vmName(request.box, request.taskKey);
     const volume = volumePath(deps.volumeRoot, name);
     return locks.withBox(request.box, async () => {
+      // A kept VM's folder is never removed here: only `tasks/<key>/` goes, and a kept start never made one.
+      keptVms.delete(name);
       // containerd forgets the token with the container (R8); a container already gone is fine.
       const removed = await removeContainer(name);
       const detached = await step("detach", () => net.detach(name));
@@ -314,5 +352,14 @@ export function createVmOps(deps: OpsDeps) {
     throw new VmdFailure("failed");
   }
 
-  return { idle, start, stop, pause: control(pauseArgv), resume: control(unpauseArgv), status, list };
+  return {
+    idle,
+    keptHeld,
+    start,
+    stop,
+    pause: control(pauseArgv),
+    resume: control(unpauseArgv),
+    status,
+    list,
+  };
 }

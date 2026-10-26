@@ -6,13 +6,16 @@ export const automationAgentsEn = {
   "automation.editor.agent": "Agent",
   "automation.editor.target.thread.line": "in {name}'s thread, with its tools",
   "automation.editor.target.isolated.line":
-    "in a fresh session in {name}'s home, with this tool list, unattended, in its sandbox",
+    "in a fresh session in {name}'s own microVM, with this tool list, unattended, in its sandbox",
+  "automation.editor.keep": "Keep its folder between runs",
+  "automation.editor.keep.hint":
+    "Each run finds what the previous one left. Every run starts as untrusted. Turning it off, or changing the agent or the target, deletes the folder for good, with no confirmation.",
   "automation.editor.target.outside":
     "A webhook or a feed runs as an isolated task only: outside text never reaches an agent's thread.",
   "automation.editor.threadPrecheck":
     "A thread trigger cannot use {{precheck}}: the precheck's output is outside text and the thread is the agent's trusted context. Run it as an isolated task to quote it.",
   "automation.dry.isolatedTask":
-    "isolated-task · sandbox {state} · home read-only, writes in a scratch folder",
+    "isolated-task · sandbox {state} · own microVM, writable home, blank disk unless the folder is kept",
   "automation.dry.sandbox.on": "on",
   "automation.dry.sandbox.unavailable": "unavailable (the VM stack is not ready)",
   "automation.dry.sandbox.checking": "being checked",
@@ -32,13 +35,16 @@ export const automationAgentsFr: Record<keyof typeof automationAgentsEn, string>
   "automation.editor.agent": "Agent",
   "automation.editor.target.thread.line": "dans le thread de {name}, avec ses outils",
   "automation.editor.target.isolated.line":
-    "dans une session neuve dans le dossier personnel de {name}, avec cette liste d'outils, sans surveillance, dans son bac à sable",
+    "dans une session neuve dans la microVM propre de {name}, avec cette liste d'outils, sans surveillance, dans son bac à sable",
+  "automation.editor.keep": "Garder son dossier entre les runs",
+  "automation.editor.keep.hint":
+    "Chaque run retrouve ce que le précédent a laissé. Chaque run démarre comme non fiable. Désactiver l'option, ou changer d'agent ou de cible, supprime définitivement le dossier, sans confirmation.",
   "automation.editor.target.outside":
     "Un webhook ou un flux ne s'exécute qu'en tâche isolée : un texte venu de l'extérieur n'atteint jamais le thread d'un agent.",
   "automation.editor.threadPrecheck":
     "Un déclencheur de thread ne peut pas utiliser {{precheck}} : la sortie du precheck est un texte extérieur et le thread est le contexte de confiance de l'agent. Lancez-le en tâche isolée pour la citer.",
   "automation.dry.isolatedTask":
-    "isolated-task · bac à sable {state} · dossier personnel en lecture seule, écritures dans un dossier temporaire",
+    "isolated-task · bac à sable {state} · microVM propre, dossier personnel modifiable, disque vierge sauf si le dossier est gardé",
   "automation.dry.sandbox.on": "actif",
   "automation.dry.sandbox.unavailable": "indisponible (la pile de VM n'est pas prête)",
   "automation.dry.sandbox.checking": "en cours de vérification",

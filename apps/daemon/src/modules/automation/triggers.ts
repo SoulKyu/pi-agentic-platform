@@ -21,6 +21,7 @@ import type { ProjectsPort } from "../projects/index.ts";
 import { boxCwdOf, gatedBoxCwdOf, resolveSessionCwd } from "../sessions/index.ts";
 import { newHookSecret } from "./hook-auth.ts";
 import { feedUrlRefusal } from "./net-guard.ts";
+import { createKeptForgetter } from "./kept-folder.ts";
 import { isStateFolder } from "./trigger-folder.ts";
 import { createTriggerStore, type TriggerRow } from "./store.ts";
 import { agrees, type AgentBinding, resolveExecution } from "./trigger-agent.ts";
@@ -93,6 +94,7 @@ function refuseUnfetchableFeed(input: TriggerInput): void {
 export function createTriggers(deps: TriggersDeps) {
   const store = createTriggerStore(deps.db);
   const secretsDir = join(deps.config.home, "secrets", "triggers");
+  const forgetKept = createKeptForgetter(deps, (ownerId, id) => find(ownerId, id)?.input ?? null);
 
   function recordOf(row: TriggerRow): TriggerRecord {
     let input: TriggerInput | null = null;
@@ -231,9 +233,9 @@ export function createTriggers(deps: TriggersDeps) {
     const row = store.get(ownerId, id);
     return row ? recordOf(row) : null;
   };
-
   return {
-    // Reads for the other automation tasks (the runner, the scheduler, the hook route).
+    // Reads for the other automation tasks (the runner, the scheduler, the hook route); `kept` forgets kept folders.
+    kept: forgetKept,
     get: find,
     /** The folder a task starts in, checked as when the trigger was saved (`invalid_cwd`; never pap's own state). */
     resolveFolder: folderOf,
@@ -356,6 +358,7 @@ export function createTriggers(deps: TriggersDeps) {
       if (!changed) throw new PapError("conflict");
       if (!isWebhook) dropSecret(triggerId);
       const record = owned(caller.userId, triggerId);
+      forgetKept.changed(caller.userId, triggerId, before.input, input);
       audit(caller, "updated", record);
       notify(caller.userId, triggerId, false);
       return { trigger: viewOf(record, false), secret };
@@ -364,6 +367,7 @@ export function createTriggers(deps: TriggersDeps) {
     remove(caller: Caller, triggerId: string): { ok: true } {
       const record = owned(caller.userId, triggerId);
       store.remove(caller.userId, triggerId);
+      forgetKept.changed(caller.userId, triggerId, record.input, null);
       dropSecret(triggerId);
       audit(caller, "deleted", record);
       notify(caller.userId, triggerId, true);

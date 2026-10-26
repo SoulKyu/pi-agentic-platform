@@ -55,6 +55,8 @@ The installer run with no flags refuses it (the new release has no `update apply
 
 ## Rollback below M14 loses the owner's Claude token
 
+`pap update rollback` to a release older than the kept task folder (decision 137) reads a trigger with `execution.agent.keep` as unreadable (its schema is strict) and fails its queued kept tasks `bad_policy`; the kept disks stay on pap-vmd's side until their agent is deleted.
+
 The first M14 boot moves the legacy `secrets/claude-token` file into the vault. `pap update rollback` to a release older than M14 restores the database snapshot but not that file, so the owner's Claude bridge stops until the token is set again in Settings.
 
 ## Guards

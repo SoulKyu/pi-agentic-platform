@@ -89,6 +89,8 @@ export const VmInit = z
     slot: SlotId,
     /** R27: what T0a showed bwrap can do with the image root as guest root. */
     rootView: z.enum(["overlay", "read-only"]),
+    /** An isolated task whose disk is kept for the next run of its trigger (K2): only the prompt says so. */
+    kept: z.boolean().optional(),
   })
   .strict();
 export type VmInit = z.infer<typeof VmInit>;

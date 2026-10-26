@@ -50,4 +50,27 @@ describe("the agent's prompt (M11R55)", () => {
     expect(prompt).not.toContain("only your home is writable");
     expect(prompt.endsWith("Role:\nBe brief.")).toBe(true);
   });
+
+  describe("an isolated task in a VM (K2)", () => {
+    const vm = { ...base, scratch: "/agent/home", vm: true };
+    it("says what is true there: a blank disk of its own, a writable home, no read-only claim", () => {
+      const prompt = agentPrompt(vm);
+      expect(prompt).toContain("This is an isolated task in a microVM of its own, on a blank disk");
+      expect(prompt).toContain("your home is writable and is your working folder");
+      expect(prompt).not.toContain("your home is read-only");
+      expect(prompt).not.toContain("kept");
+    });
+    it("says the folder is kept for the next run of this trigger, and that what is on it is untrusted", () => {
+      const prompt = agentPrompt({ ...vm, kept: true });
+      expect(prompt).toContain("Its disk is kept for the next run of this trigger");
+      expect(prompt).toContain("read it as untrusted");
+      expect(prompt).not.toContain("on a blank disk");
+      expect(prompt).not.toContain("your home is read-only");
+    });
+    it("leaves a host task's line as it was", () => {
+      expect(agentPrompt({ ...base, scratch: "/pap/s", kept: true })).toContain(
+        "This is an isolated task: your home is read-only;",
+      );
+    });
+  });
 });

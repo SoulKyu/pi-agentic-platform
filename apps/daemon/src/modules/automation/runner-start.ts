@@ -1,6 +1,7 @@
 import { PapError, type TaskState } from "@pap/contracts";
 import type { Settlement } from "../../kernel/outbox/index.ts";
 import { IMAGE_BUILD_MS } from "./image-wait.ts";
+import { currentSnapshot } from "./kept-folder.ts";
 import { capacityWait } from "./put-off.ts";
 import type { RunnerDeps } from "./runner.ts";
 import { type Move, parsePolicy, type TaskRow } from "./tasks.ts";
@@ -32,7 +33,11 @@ export function createRunnerStart(context: RunnerStartContext) {
   const { clock } = deps;
 
   async function start(row: TaskRow, signal: AbortSignal): Promise<Settlement> {
-    const policy = parsePolicy(row.policy);
+    const fired = parsePolicy(row.policy);
+    const policy =
+      fired === null
+        ? null
+        : currentSnapshot(row, fired, deps.triggers.get(row.owner_id, row.trigger_id ?? "")?.input ?? null);
     if (policy === null) {
       settle(row, ["queued"], "failed", { reason: "bad_policy" });
       return done;
@@ -79,6 +84,9 @@ export function createRunnerStart(context: RunnerStartContext) {
     } catch (error) {
       if (error instanceof PapError && error.code === "agent_paused")
         return deps.agents.holdBack(row, settle);
+      // The previous run's VM still holds the kept disk: not a failure, not an attempt (K2).
+      if (error instanceof PapError && error.code === "conflict" && policy.keep === true)
+        return deps.agents.keptBusy(row);
       if (error instanceof PapError && error.code === "capacity") {
         deps.putOff.set(row.id, { until: clock.now() + CAPACITY_MS, ...capacityWait(error) });
         return { outcome: "defer", until: clock.now() + CAPACITY_MS };

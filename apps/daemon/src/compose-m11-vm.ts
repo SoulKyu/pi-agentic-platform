@@ -25,6 +25,8 @@ export interface VmPorts {
     checkPackages?: AgentsVm["checkPackages"];
     vm?: AgentsVm["agentLink"];
   };
+  /** A trigger's kept folder goes (K2); absent in a bed that composes without the VM stack. */
+  readonly kept?: AgentsVm["forgetKept"];
 }
 
 const NONE: VmPorts = { sessions: {}, agents: {} };
@@ -42,6 +44,7 @@ export function vmPortsOf(vm: AgentsVm | undefined): VmPorts {
   return {
     sessions: { vmLayoutOf, ...(vm.boxes ? { boxes: vm.boxes.sessions } : {}) },
     agents: { resourceHost, checkPackages, vm: agentLink },
+    kept: vm.forgetKept,
   };
 }
 

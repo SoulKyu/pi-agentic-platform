@@ -1,4 +1,3 @@
-import { readdirSync } from "node:fs";
 import { PapError, type TaskState } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -7,6 +6,8 @@ import type { Settlement } from "../../kernel/outbox/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import { DELEGATION_ASK_CHARS, SUMMARY_CHARS } from "../agents/index.ts";
 import { writeJournal } from "./fire-journal.ts";
+import { createKeptBusy } from "./kept-busy.ts";
+import { holdsFiles, type KeptForgetter, keepKeyOfTask, keptTaskEnded } from "./kept-folder.ts";
 import type { TaskViews } from "./task-view.ts";
 import type { AgentBinding, AgentPorts } from "./trigger-agent.ts";
 import type { PutOff } from "./put-off.ts";
@@ -35,9 +36,10 @@ export interface AgentStartDeps {
   readonly putOff: Map<string, PutOff>;
   /** The thread target's half of the end hook: its card moves to the state the task ended with (M11R71). */
   readonly thread?: { ended(row: TaskRow, state: TaskState): void };
+  readonly kept: Pick<KeptForgetter, "ended">;
 }
 
-/** Ends kept for the bind: the boot interrupts at most this many tasks' worth of cards (a bound on the memory). */
+/** Ends kept for the bind (a bound on the memory). */
 const UNBOUND_MAX = 500;
 
 /** What a scratch removal tells the log: a tree too deep to unlock, or an open that failed for a reason of the host. */
@@ -47,15 +49,6 @@ const scratchIssue =
     code === "too_deep"
       ? logger.warn("agent_scratch_too_deep", { taskId })
       : logger.warn("agent_scratch_open_failed", { taskId, code });
-
-/** Whether a folder holds anything: a task that starts again must not read its first attempt's files as its own. */
-function holdsFiles(path: string): boolean {
-  try {
-    return readdirSync(path).length > 0;
-  } catch {
-    return true;
-  }
-}
 
 /**
  * The agent half of the runner (M11R67): an isolated task starts through `createAgentSession` with the `isolated-task`
@@ -123,13 +116,21 @@ export function createAgentStart(deps: AgentStartDeps) {
     // W5-R30: Retry makes a NEW task with a NEW folder; only an outbox re-run of this same task id reuses this one.
     // A task started again finds the files of its first attempt: unless the folder is empty, the run starts tainted
     // (W5-R9: it would otherwise read, as its own work, what an earlier tainted attempt wrote there).
-    const tainted = row.tainted === 1 || (reused && holdsFiles(path));
+    const keepKey = keepKeyOfTask(row, policy);
+    // A kept folder holds whatever earlier runs read from outside: every run starts tainted (K-R3).
+    const tainted = keepKey !== null || row.tainted === 1 || (reused && holdsFiles(path));
     try {
       return await ports.sessions.createAgentSession({
         ownerId: row.owner_id,
         agentId,
         role: "task",
-        task: { mode: policy.mode, tools: policy.tools, preset: policy.preset, tainted },
+        task: {
+          mode: policy.mode,
+          tools: policy.tools,
+          preset: policy.preset,
+          tainted,
+          ...(keepKey === null ? {} : { keepKey }),
+        },
         scratch: path,
       });
     } catch (error) {
@@ -140,7 +141,7 @@ export function createAgentStart(deps: AgentStartDeps) {
     }
   }
 
-  /** The agent is paused or quarantined now (read again after an await). */
+  /** The agent is paused or quarantined now (read again). */
   function pausedNow(row: TaskRow): boolean {
     const ports = binding.ports();
     const agent = row.agent_id === null ? null : ports?.registry.get(row.owner_id, row.agent_id);
@@ -263,16 +264,17 @@ export function createAgentStart(deps: AgentStartDeps) {
 
   return {
     begin,
+    keptBusy: createKeptBusy({ clock, logger, putOff: deps.putOff }),
     pausedNow,
     holdBack,
     /**
-     * The task's end hook (the runner's): a card for an isolated agent task that ran and ended `done` or `failed`. While the
-     * agents are not bound (the boot recovers the tasks first) the end is kept and handled by `replay`, never dropped.
+     * The task's end hook: a card for an isolated agent task that ended `done` or `failed`; unbound ends wait for `replay`.
      */
     ended(row: TaskRow, state: TaskState): void {
       const ports = binding.ports();
       if (row.target === "thread") deps.thread?.ended(row, state);
       if (row.agent_id === null) return;
+      keptTaskEnded(deps.kept, row);
       if (state !== "done" && state !== "failed" && !(state === "interrupted" && row.origin === "delegate"))
         return;
       if (!ports) {

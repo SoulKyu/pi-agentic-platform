@@ -29,6 +29,11 @@ export interface TaskSessionPolicy {
   readonly tools: readonly string[];
   readonly preset: "read-only" | "full";
   readonly tainted: boolean;
+  /**
+   * An agent's isolated task whose trigger keeps its folder (K2): the trigger id without dashes. It rides on the new row only
+   * (never stored, never read back): a reopened task session starts on a blank disk, as before (K-R5).
+   */
+  readonly keepKey?: string;
 }
 
 export interface SessionsAutomationPort {

@@ -92,6 +92,8 @@ export interface AgentSurface {
   projectEnv(launch: ProjectLaunch): Promise<ProjectLaunch>;
   /** The row runs in a VM (R15, R37): its layout, else null. */
   vmLayoutOf(row: SessionRow): VmLayout | null;
+  /** A stored task session's row at a relaunch: carries the kept folder key its running task still has (I2). */
+  withKeptKey(row: SessionRow): SessionRow;
   /** The agent's part of the session's rules (M11R52); nothing for a session without an agent. */
   rulesOf(row: SessionRow, owner: OwnerLists): AgentRuleParts;
   readonly approvedCalls: ApprovedCalls;
@@ -300,6 +302,10 @@ export function createAgentSurface(deps: {
       return Object.keys(claudeEnv).length > 0 ? { ...launch, claudeEnv } : launch;
     },
     vmLayoutOf,
+    withKeptKey(row) {
+      const key = row.agentRole === "task" ? (ports.agents?.keptKeyOf?.(row.ownerId, row.id) ?? null) : null;
+      return key === null ? row : { ...row, keptKey: key };
+    },
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,
     guardAnswer(session, dialogId, caller, response, sessionId) {

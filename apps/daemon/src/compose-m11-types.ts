@@ -67,7 +67,7 @@ export interface M11Modules {
     readonly note: PlatformHandler<"lane.note">;
   };
   /** M10's automation module, built before this entry: an agent's triggers and tasks (Task 10). */
-  readonly automationModule: Pick<AutomationModule, "agentLink" | "bindAgents" | "agentTasks">;
+  readonly automationModule: Pick<AutomationModule, "agentLink" | "bindAgents" | "agentTasks" | "keptKeyOf">;
   /** M10's Inbox: the delegation result's reply item, the reply a reset closes, the items a delete drops (M11R79, M11R91). */
   readonly inbox: {
     readonly agentItems: Pick<

@@ -1,10 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { type BoxRef, boxKey, type VmLayout } from "@pap/contracts";
+import { type BoxRef, boxKey, PapError, type VmLayout } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { layoutOf } from "./layouts.ts";
+import { layoutOfSpec } from "./layouts.ts";
 import { projectLayoutOf as vmProjectLayoutOf } from "./project-layout.ts";
 import type { AgentRuntimeBackend, VmSpec } from "./runtime.ts";
 
@@ -56,7 +56,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
   const { clock, logger } = options;
   const running = new Map<
     string,
-    { box: BoxRef; taskKey: string | null; child: ChildProcess; gone: Promise<void> }
+    { box: BoxRef; taskKey: string | null; keepKey: string | null; child: ChildProcess; gone: Promise<void> }
   >();
 
   const killGroup = (child: ChildProcess, signal: NodeJS.Signals): void => {
@@ -83,7 +83,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
     const guestLayout =
       spec.box.kind === "project"
         ? vmProjectLayoutOf("process", options.papHome, spec.box.id)
-        : layoutOf("process", options.papHome, { agentId: spec.box.id, taskKey: spec.taskKey });
+        : layoutOfSpec("process", options.papHome, spec);
     const folders =
       guestLayout.project === undefined
         ? [guestLayout.home, guestLayout.knowledge, guestLayout.inbox]
@@ -104,6 +104,12 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
 
   return {
     start(spec, launch, steps) {
+      // As pap-vmd: a kept folder is held by one live VM at a time (K2).
+      if (
+        spec.keepKey &&
+        [...running.values()].some((live) => live.keepKey === spec.keepKey && live.box.id === spec.box.id)
+      )
+        return Promise.reject(new PapError("conflict"));
       steps?.step("vm", "running");
       const { root, home, guestLayout } = prepare(spec);
       const run = join(root, "run");
@@ -149,7 +155,7 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           resolve();
         });
       });
-      running.set(key, { box: spec.box, taskKey: spec.taskKey, child, gone });
+      running.set(key, { box: spec.box, taskKey: spec.taskKey, keepKey: spec.keepKey ?? null, child, gone });
       steps?.step("vm", "done");
       return Promise.resolve({ address: "127.0.0.1" });
     },

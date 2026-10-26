@@ -141,6 +141,9 @@ export function createFire(deps: FireDeps) {
       tools: [...execution.tools],
       preset: presetOfTools(execution.tools),
       env: [...execution.env],
+      ...(execution.agent?.keep === true && execution.agent.target === "isolated"
+        ? { keep: true, keepTrigger: record.id }
+        : {}),
     };
     const taskId = deps.newId();
     writeJournal(db, {

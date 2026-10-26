@@ -58,7 +58,7 @@ describe("TriggerEditor: an agent trigger", () => {
       <TriggerEditor triggerId="g9" onOpenSession={vi.fn()} onOpenTasks={vi.fn()} />,
     );
     await settle();
-    expect(text(page.container)).toContain("in a fresh session in Atlas's home");
+    expect(text(page.container)).toContain("in a fresh session in Atlas's own microVM");
     await click(button(page.container, "Save"));
     await settle();
     const sent = bed.called("automation.triggers.update")[0]?.params as {
@@ -75,7 +75,7 @@ describe("TriggerEditor: an agent trigger", () => {
     const page = await showWithStepUp(
       <TriggerEditor triggerId={`new:agent:${ATLAS.id}`} onOpenSession={vi.fn()} onOpenTasks={vi.fn()} />,
     );
-    expect(text(page.container)).toContain("in a fresh session in Atlas's home");
+    expect(text(page.container)).toContain("in a fresh session in Atlas's own microVM");
     expect(page.container.querySelector("input[value='/work/atlas']")).toBeNull();
   });
 });

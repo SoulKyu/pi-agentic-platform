@@ -21,6 +21,8 @@ export interface SessionRow {
   readonly toolPreset?: StoredPreset | undefined;
   /** A new task session's policy while its row is not stored: never read back from the store (M10R31). */
   readonly task?: TaskSessionPolicy | undefined;
+  /** A relaunched task session's kept folder key, derived at each launch from its running task (I2): never stored. */
+  readonly keptKey?: string | undefined;
   /** A new child session's policy while its row is not stored, like `task`: never read back from the store (M11R136). */
   readonly child?: ChildSessionPolicy | undefined;
   /** The agent the session belongs to, its role there, and the session it is a child of (M11R35): set at insert, never changed. */

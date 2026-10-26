@@ -38,6 +38,8 @@ export interface Draft {
   /** The agent the trigger runs as; "" is a project trigger that runs in `cwd` (M11R127). */
   readonly agentId: string;
   readonly target: "isolated" | "thread";
+  /** An isolated task keeps its folder between runs; sent only with an isolated agent target. */
+  readonly keep: boolean;
   readonly tools: readonly string[];
   readonly mode: Mode | null;
   readonly precheck: string;
@@ -77,6 +79,7 @@ export function emptyDraft(cwd: string, timezone: string): Draft {
     cwd,
     agentId: "",
     target: "isolated",
+    keep: false,
     tools: [...AUTOMATION_READ_TOOLS],
     mode: null,
     precheck: "",
@@ -113,6 +116,7 @@ export function draftOf(view: TriggerView, fallback: Draft): Draft | null {
     cwd: execution.cwd ?? "",
     agentId: execution.agent?.agentId ?? "",
     target: execution.agent?.target ?? "isolated",
+    keep: execution.agent?.keep === true,
     tools: [...execution.tools],
     mode: execution.mode ?? null,
     precheck: execution.precheck ?? "",
@@ -211,7 +215,13 @@ export function toInput(draft: Draft): InputResult {
     execution: {
       ...(draft.agentId === ""
         ? { cwd: draft.cwd.trim() }
-        : { agent: { agentId: draft.agentId, target: effectiveTarget(draft) } }),
+        : {
+            agent: {
+              agentId: draft.agentId,
+              target: effectiveTarget(draft),
+              ...(draft.keep && !onThread ? { keep: true } : {}),
+            },
+          }),
       tools: onThread ? undefined : [...draft.tools],
       mode: onThread ? undefined : (draft.mode ?? undefined),
       precheck: draft.precheck.trim() === "" ? null : draft.precheck,

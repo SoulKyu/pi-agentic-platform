@@ -11,6 +11,8 @@ const NodeImage = z.string().regex(/^docker\.io\/library\/node@sha256:[0-9a-f]{6
 const Kind = z.enum(["thread", "isolated"]);
 /** An isolated task's key (a task uuid without dashes). Its VM is `pap-<agent id>-<key>`, its disk pap-vmd's own (R30). */
 export const TaskKey = z.string().regex(/^[0-9a-f]{32}$/);
+/** The key of a trigger's kept task disk (`kept/<key>/`): its id without dashes, which is a `TaskKey`. */
+export const keptKeyOf = (triggerId: string): string => triggerId.replaceAll("-", "");
 const box = { box: BoxRef };
 /** Every disk op names its disk (R30, RT-05): the box's (`taskKey: null`); only `disk.delete` may name a task's. */
 const boxDisk = { box: BoxRef, taskKey: z.null() };
@@ -32,6 +34,8 @@ export const VmdRequest = z.discriminatedUnion("op", [
       ...box,
       kind: Kind,
       taskKey: TaskKey.nullable(),
+      /** A trigger's kept folder (its id without dashes): pap-vmd keeps that task's disk between runs. Only with `isolated`. */
+      keepKey: TaskKey.nullable().optional(),
       image: Tag,
       resources: AgentResources,
       launchId: LaunchId,
@@ -39,6 +43,7 @@ export const VmdRequest = z.discriminatedUnion("op", [
     })
     .strict()
     .refine((request) => (request.kind === "isolated") === (request.taskKey !== null), "isolated iff taskKey")
+    .refine((request) => request.keepKey == null || request.kind === "isolated", "keepKey only when isolated")
     .refine(agentTasksOnly, AGENT_TASKS_ONLY),
   z
     .object({ op: z.literal("vm.stop"), ...box, taskKey: TaskKey.nullable() })
@@ -55,9 +60,20 @@ export const VmdRequest = z.discriminatedUnion("op", [
   z.object({ op: z.literal("disk.create"), ...boxDisk, diskMb: AgentResources.shape.diskMb }).strict(),
   z.object({ op: z.literal("disk.grow"), ...boxDisk, diskMb: AgentResources.shape.diskMb }).strict(),
   z
-    .object({ op: z.literal("disk.delete"), ...box, taskKey: TaskKey.nullable(), purge: z.boolean() })
+    .object({
+      op: z.literal("disk.delete"),
+      ...box,
+      taskKey: TaskKey.nullable(),
+      keepKey: TaskKey.optional(),
+      purge: z.boolean(),
+    })
     .strict()
-    .refine(agentTasksOnly, AGENT_TASKS_ONLY),
+    .refine(agentTasksOnly, AGENT_TASKS_ONLY)
+    .refine(
+      (request) =>
+        request.keepKey === undefined || (request.taskKey === null && request.box.kind === "agent"),
+      "keepKey: an agent's kept folder, no task key",
+    ),
   /** RT-40: `box` null purges every trash entry older than 7 days; a box purges that box's entries now ("Purge now"). */
   z.object({ op: z.literal("trash.purge"), box: BoxRef.nullable() }).strict(),
   z

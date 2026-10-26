@@ -47,7 +47,7 @@ import { type AgentPorts, createAgentBinding, createAgentTriggerLink } from "./t
 import { triggerSecretsDir } from "./trigger-secrets.ts";
 import { createTriggers, type TriggerChanged, type Triggers, type TriggersDeps } from "./triggers.ts";
 
-export type { AgentBinding, AgentPorts } from "./trigger-agent.ts";
+export { type AgentBinding, type AgentPorts, createAgentBinding } from "./trigger-agent.ts";
 export { createTriggers, type TriggerChanged } from "./triggers.ts";
 export { createTaskEngine, type Engine } from "./engine.ts";
 export { createReleaseTools } from "./release-tools.ts";
@@ -125,10 +125,7 @@ export interface AutomationDeps {
   /** The Inbox's hourly retention, called by the housekeeping pass; none until the Inbox is built (M10R49). */
   readonly inboxRetention?: () => void;
   /** The outbox receipts of a task's pending resumes, which Cancel retires with the task (Task 17). */
-  readonly resume?: {
-    keysOf(sessionId: string): readonly string[];
-    sending(sessionId: string): boolean;
-  };
+  readonly resume?: { keysOf(sessionId: string): readonly string[]; sending(sessionId: string): boolean };
   /** A database written by a newer pap: the module arms nothing (M10R150). */
   readonly readOnly: boolean;
   /** The `feed.fetch` span (closed values only); none: no span is written. */
@@ -156,6 +153,7 @@ export interface AutomationModule {
   } | null;
   /** The task of a session and whether its trigger is over its daily budget (M10R66): the resume planner reads it. */
   taskOf(ownerId: string, sessionId: string): { taskId: string; overBudget: boolean } | null;
+  readonly keptKeyOf: Engine["keptKeyOf"];
   /** What the agents registry asks of the triggers and tasks of an agent (M11, carry 1; quarantine, M11R115); bound by `agents.setLinks`. */
   readonly agentLink: ReturnType<typeof createAgentLink>;
   /** What the projects module asks when a box project is deleted (boxes B1). */
@@ -321,6 +319,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
         return null;
       return { taskId: row.id, overBudget: built.gates.taskOver(ownerId, row) };
     },
+    keptKeyOf: built.keptKeyOf,
     taskInfo(taskId) {
       const row = built.store.get(taskId);
       return row

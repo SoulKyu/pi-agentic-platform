@@ -129,6 +129,25 @@ describe("VmdRequest", () => {
     expect(VmdRequest.safeParse({ ...without, taskKey: null }).success).toBe(true);
   });
 
+  it("keepKey goes only with an isolated agent start, and is 32 hex", () => {
+    const isolated = { ...start, kind: "isolated", taskKey: key };
+    expect(VmdRequest.safeParse({ ...isolated, keepKey: hex(32, "9") }).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...isolated, keepKey: null }).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...start, keepKey: hex(32, "9") }).success, "thread").toBe(false);
+    expect(VmdRequest.safeParse({ ...isolated, keepKey: "not-hex" }).success).toBe(false);
+    expect(VmdRequest.safeParse({ ...isolated, keepKey: hex(31, "9") }).success).toBe(false);
+  });
+
+  it("disk.delete names a kept folder only with a null taskKey, for an agent", () => {
+    const base = { op: "disk.delete", box: start.box, purge: false };
+    expect(VmdRequest.safeParse({ ...base, taskKey: null, keepKey: hex(32, "9") }).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...base, taskKey: key, keepKey: hex(32, "9") }).success).toBe(false);
+    expect(VmdRequest.safeParse({ ...base, taskKey: null, keepKey: "zz" }).success).toBe(false);
+    expect(
+      VmdRequest.safeParse({ ...base, box: project, taskKey: null, keepKey: hex(32, "9") }).success,
+    ).toBe(false);
+  });
+
   it("refuses an apt name outside SystemPackage and a from that is neither a pinned Node digest nor a pap tag", () => {
     const build = valid["image.build"] as Record<string, unknown>;
     expect(VmdRequest.safeParse({ ...build, aptPackages: ["-o=x"] }).success).toBe(false);

@@ -96,6 +96,8 @@ export interface AgentsVm {
   readonly agentLink: AgentVmLink;
   /** `agents.startBox`: the agent's thread VM with its guest only, so its files can be browsed. Bound to the agents' registry by `bindLate`. */
   startAgent(ownerId: string, agentId: string): Promise<void>;
+  /** A trigger's kept folder is forgotten (K2): best effort, never throws. */
+  readonly forgetKept: (agentId: string, keepKey: string) => Promise<"done" | "busy">;
   /** Where the runtime's crash pause goes (RT-40): the agents' registry and Inbox, which are built after this. Until then it is logged. */
   bindCrashPause(handler: (agentId: string) => void): void;
   bindRefusals: ReturnType<typeof composeVmProxy>["bindRefusals"];

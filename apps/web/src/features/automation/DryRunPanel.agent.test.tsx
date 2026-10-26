@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 describe("DryRunPanel: an agent trigger", () => {
-  it("says the profile of an isolated task: sandbox state, home read-only, writes in a scratch folder", async () => {
+  it("says the profile of an isolated task: sandbox state, own microVM, writable home, blank disk unless the folder is kept", async () => {
     const page = await showWithStepUp(
       <DryRunPanel input={inputOf("isolated")} sourceType="manual" savedId={null} onInvalid={vi.fn()} />,
     );
@@ -53,7 +53,7 @@ describe("DryRunPanel: an agent trigger", () => {
     const words = text(page.container);
     expect(words).toContain("isolated-task");
     expect(words).toContain("sandbox on");
-    expect(words).toContain("home read-only, writes in a scratch folder");
+    expect(words).toContain("own microVM, writable home, blank disk unless the folder is kept");
   });
 
   it("offers no payload to a thread target, and one to an isolated task", async () => {

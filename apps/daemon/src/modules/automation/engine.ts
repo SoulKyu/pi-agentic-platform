@@ -10,6 +10,8 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { createAdmission } from "./admit.ts";
+import { createKeptKeyOf } from "./kept-folder.ts";
+import { createKeptHeld } from "./kept-wait.ts";
 import { createAgentTasks } from "./agent-tasks.ts";
 import { createAgentBudget } from "./agent-budget.ts";
 import { type BootReport, recoverTasks } from "./boot.ts";
@@ -33,7 +35,7 @@ export interface EngineDeps {
   readonly db: Db;
   readonly clock: Clock;
   readonly logger: Logger;
-  readonly triggers: Pick<Triggers, "get" | "resolveFolder" | "summaries" | "summary">;
+  readonly triggers: Pick<Triggers, "get" | "resolveFolder" | "summaries" | "summary" | "kept">;
   /** The trigger's own `last_fire_at` and `last_start_at`: written by the triggers store, called here. */
   readonly triggerMarks: {
     fired(ownerId: string, triggerId: string, at: number): void;
@@ -175,8 +177,10 @@ export function createTaskEngine(deps: EngineDeps) {
     policy: deps.policy,
     putOff,
     thread,
+    kept: deps.triggers.kept,
   });
   const admission = createAdmission({
+    held: createKeptHeld({ db, store, starting }),
     store,
     settings: deps.settings,
     starting,
@@ -295,7 +299,10 @@ export function createTaskEngine(deps: EngineDeps) {
         readOnly: deps.readOnly,
         health,
       }),
+    /** The kept folder key of a task session at its relaunch (I2). */
+    keptKeyOf: createKeptKeyOf(store, deps.triggers),
     stop(): void {
+      deps.triggers.kept.stop();
       limits.stop();
       runner.stop();
       stream.stop();

@@ -19,6 +19,8 @@ export interface AdmissionDeps {
   readonly starting: ReadonlyMap<string, string>;
   /** Tasks put off until a time (no worker was free): not picked again before it, so the others get their turn. */
   readonly putOff: Map<string, PutOff>;
+  /** The queued tasks that wait for the run holding their kept folder (K2): not picked, no attempt, no waiting reason. */
+  readonly held?: () => readonly string[];
   now(): number;
 }
 
@@ -56,10 +58,11 @@ export function createAdmission(deps: AdmissionDeps) {
       }
       // A task held for slots (passive) is only said so: the owner's slots hold it back, and a free one starts it at once.
       const off = [...deps.putOff].filter(([, entry]) => entry.passive !== true);
-      const excluded = [...deps.starting.keys(), ...off.map(([id]) => id)];
+      const held = deps.held?.() ?? [];
+      const excluded = [...deps.starting.keys(), ...off.map(([id]) => id), ...held];
       const task = eligible.length > 0 ? deps.store.nextQueued(eligible, excluded, now) : undefined;
       if (task) return { kind: "task", task };
-      if (blocked === null && off.length > 0 && eligible.length > 0)
+      if (blocked === null && (off.length > 0 || held.length > 0) && eligible.length > 0)
         return { kind: "none", reason: "capacity" };
       return blocked === "slots"
         ? { kind: "none", reason: "slots", full }

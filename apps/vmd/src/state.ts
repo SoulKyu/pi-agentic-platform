@@ -53,6 +53,8 @@ export interface VmdState {
   /** Where `disk.delete` moves a box folder: `trash/<prefix>-<stamp>`, the prefix telling the two kinds apart. */
   trashPath(box: BoxRef, stamp: number): string;
   diskPath(box: BoxRef, taskKey: string | null): string;
+  /** A trigger's kept task disk: `agents/<id>/kept/<keepKey>/disk.img`, beside `tasks/` (the sweep never reads it). */
+  keptPath(box: BoxRef, keepKey: string): string;
   envFile(launchId: string): string;
   buildDir(layer: ImageLayer): string;
   /** The folder holding `Dockerfile`, outside every build context (RT-33). */
@@ -124,6 +126,10 @@ export function createState(deps: StateDeps): VmdState {
       if (taskKey === null) return path.join(boxDir(box), "disk.img");
       if (box.kind !== "agent") throw new Error("state: a project box has no task disk");
       return path.join(boxDir(box), "tasks", TaskKey.parse(taskKey), "disk.img");
+    },
+    keptPath(box, keepKey) {
+      if (box.kind !== "agent") throw new Error("state: a project box has no kept disk");
+      return path.join(boxDir(box), "kept", TaskKey.parse(keepKey), "disk.img");
     },
     envFile,
     buildDir(layer) {

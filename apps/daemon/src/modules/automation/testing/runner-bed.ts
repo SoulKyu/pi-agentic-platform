@@ -15,6 +15,7 @@ import {
   createTaskEngine,
   createTriggerStore,
   type Engine,
+  createAgentBinding,
   type FireInput,
   type Operations,
 } from "../index.ts";
@@ -224,12 +225,12 @@ export function fakePolicy() {
 }
 
 type ImageWait = NonNullable<Parameters<typeof createTaskEngine>[0]["imageBuild"]>;
-
 /** The runner over a real database and a fake clock; the sessions, the runs and the policy are fakes. */
 export function createRunnerBed(
   options: { readOnly?: boolean; startAt?: number; realRuns?: boolean; imageBuild?: ImageWait } = {},
 ) {
-  const base = createAutomationBed({ startAt: options.startAt });
+  const agentBinding = createAgentBinding();
+  const base = createAutomationBed({ startAt: options.startAt, agents: agentBinding });
   const order: Order = [];
   const sessions = fakeSessions(order);
   const runs = fakeRuns(order);
@@ -251,6 +252,7 @@ export function createRunnerBed(
     current?.engine.stop();
     const outbox = createOutbox({ db: base.db, clock: base.clock, logger: base.logger, readOnly });
     const engine = createTaskEngine({
+      agents: current === undefined ? agentBinding : createAgentBinding(),
       db: base.db,
       clock: base.clock,
       logger: base.logger,

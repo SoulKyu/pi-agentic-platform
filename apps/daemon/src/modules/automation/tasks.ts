@@ -52,6 +52,10 @@ export const TaskPolicySnapshot = z
     tools: ToolAllowlist,
     preset: z.enum(["read-only", "full"]),
     env: z.array(z.string().max(64)).max(16),
+    /** An isolated agent task whose folder is kept between its trigger's runs (K-R2: taken at fire time). */
+    keep: z.boolean().optional(),
+    /** The trigger whose folder it is: the task row forgets its trigger when the trigger is deleted, the folder's key does not. */
+    keepTrigger: z.string().max(64).optional(),
   })
   .strict();
 export type TaskPolicySnapshot = z.infer<typeof TaskPolicySnapshot>;

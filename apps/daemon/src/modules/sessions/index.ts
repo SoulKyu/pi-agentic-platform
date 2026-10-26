@@ -57,7 +57,7 @@ export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
 export type { SessionRow } from "./store.ts";
 export type { SessionBoxes } from "./project-gate.ts";
-export { createVmLaunch, type MirrorInputs, taskKeyOf, type VmLaunch } from "./vm-launch.ts";
+export { createVmLaunch, type MirrorInputs, keepKeyOf, taskKeyOf, type VmLaunch } from "./vm-launch.ts";
 export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
 export type { SessionsLanePort } from "./lane-port.ts";
 

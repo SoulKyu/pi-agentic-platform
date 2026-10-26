@@ -132,6 +132,8 @@ function agentFactsOf(init: InitRecord, scratch: string | null, vmNetwork: boole
     network: vm ? vmNetwork : null,
     scratch,
     knowledge: init.knowledge?.path ?? null,
+    vm: vm !== undefined,
+    kept: vm?.kept === true,
   };
 }
 

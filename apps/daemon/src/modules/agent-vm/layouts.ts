@@ -64,8 +64,9 @@ export function layoutOf(
 export function layoutOfSpec(
   backend: "kata" | "process",
   papHome: string,
-  spec: Pick<VmSpec, "box" | "taskKey">,
+  spec: Pick<VmSpec, "box" | "taskKey" | "keepKey">,
 ): VmLayout {
   if (spec.box.kind !== "agent") throw new PapError("sandbox_unavailable");
-  return layoutOf(backend, papHome, { agentId: spec.box.id, taskKey: spec.taskKey });
+  // A kept task's folder is the trigger's, not the run's: the process backend names it by the keep key (K2).
+  return layoutOf(backend, papHome, { agentId: spec.box.id, taskKey: spec.keepKey ?? spec.taskKey });
 }

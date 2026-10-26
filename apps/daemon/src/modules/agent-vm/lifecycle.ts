@@ -43,6 +43,9 @@ export interface IdleStop {
   readonly live: number;
 }
 
+/** A kept task's VM holds its trigger's disk: it stops this long after its worker left, whatever PAP_WORKER_IDLE_MINUTES says (K2). */
+export const KEPT_IDLE_MS = 1_000;
+
 export function createIdleStop(clock: Clock, idleMs: number, onIdle: () => void): IdleStop {
   let live = 0;
   let timer: TimerHandle | undefined;

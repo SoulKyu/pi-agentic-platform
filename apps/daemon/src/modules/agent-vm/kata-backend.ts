@@ -97,6 +97,7 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
               box: spec.box,
               kind: spec.kind,
               taskKey: spec.taskKey,
+              ...(spec.keepKey ? { keepKey: spec.keepKey } : {}),
               image: spec.image,
               resources: spec.resources,
               launchId: launch.launchId,

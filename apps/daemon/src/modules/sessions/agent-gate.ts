@@ -40,6 +40,8 @@ export interface SessionsAgentDeps {
   onceUsed?(sessionId: string, id: string): void;
   /** The VM layout of a session row that runs in a VM, else null (R15, R37). */
   vmLayoutOf?(row: SessionRow): VmLayout | null;
+  /** The kept folder key of a task session at a relaunch (its running task's trigger keeps it still), else null (I2). */
+  keptKeyOf?(ownerId: string, sessionId: string): string | null;
   /** The project boxes (task A3): which box a row with no agent runs in, and that box now. Absent: no row is in a box. */
   readonly boxes?: SessionBoxes;
   /**

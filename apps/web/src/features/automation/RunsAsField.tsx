@@ -1,5 +1,5 @@
 import { OUTSIDE_TEXT_SOURCES } from "@pap/contracts";
-import { Segmented, Select } from "@pap/ui";
+import { Segmented, Select, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { useAgents } from "../../stores/agents-store.ts";
 import { shown } from "./board.vm.ts";
@@ -47,12 +47,20 @@ export function RunsAsField({ draft, set }: Pick<SectionProps, "draft" | "set">)
               ...(outside ? [] : [{ value: "thread" as const, label: t("automation.editor.target.thread") }]),
               { value: "isolated" as const, label: t("automation.editor.target.isolated") },
             ]}
-            onChange={(next) => set({ target: next })}
+            onChange={(next) => set(next === "thread" ? { target: next, keep: false } : { target: next })}
           />
           <p className="text-ui text-muted">
             {t(`automation.editor.target.${target}.line`, { name })}
             {outside ? ` ${t("automation.editor.target.outside")}` : ""}
           </p>
+          {target === "isolated" ? (
+            <Switch
+              label={t("automation.editor.keep")}
+              hint={t("automation.editor.keep.hint")}
+              checked={draft.keep}
+              onChange={(keep) => set({ keep })}
+            />
+          ) : null}
         </>
       )}
     </div>

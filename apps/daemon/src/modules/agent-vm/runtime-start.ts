@@ -1,7 +1,7 @@
 import { boxKey, PapError, type VmLayout } from "@pap/contracts";
 import { VM_OVERHEAD_MB } from "../../kernel/config-agents-vm.ts";
 import type { GuestLink } from "./guest-link.ts";
-import { createIdleStop, fitsCapacity, type IdleStop } from "./lifecycle.ts";
+import { createIdleStop, fitsCapacity, type IdleStop, KEPT_IDLE_MS } from "./lifecycle.ts";
 import type { AgentRuntimeDeps, VmPhaseChange, VmSpec } from "./runtime.ts";
 import type { VmWorkerHandle } from "./vm-worker.ts";
 
@@ -67,7 +67,11 @@ export function createVmStarter(context: VmStarterContext) {
       launchId: issued.launchId,
       relayKey: issued.relayKey,
       layout,
-      idle: createIdleStop(clock, deps.idleMs, () => void tearDown(entry)),
+      idle: createIdleStop(
+        clock,
+        spec.kind === "isolated" && spec.keepKey ? KEPT_IDLE_MS : deps.idleMs,
+        () => void tearDown(entry),
+      ),
       workers: new Set(),
       abort: new AbortController(),
       phase: "starting",

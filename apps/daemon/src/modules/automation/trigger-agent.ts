@@ -43,6 +43,11 @@ export interface AgentPorts {
   readonly delegations: Pick<DelegationBack, "back">;
   /** The runs registry's own table, read per agent: there is no second counter (M11R74). */
   readonly spend: Pick<AgentSpend, "agentSpentToday" | "taskRuns">;
+  /**
+   * Deletes the kept folder of an agent's trigger (K2); logs and never throws. `busy`: a live VM holds the disk, try again later.
+   * Absent: nothing keeps a folder (a bed without the VM).
+   */
+  readonly forgetKept?: (ownerId: string, agentId: string, triggerId: string) => Promise<"done" | "busy">;
 }
 
 export interface AgentBinding {

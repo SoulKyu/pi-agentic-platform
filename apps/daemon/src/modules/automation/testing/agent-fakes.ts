@@ -123,7 +123,10 @@ export function fakeAgentPorts(root: string, realSpend?: AgentPorts["spend"]) {
       return true;
     },
   );
+  /** The agent-vm side of "forget the kept folder" (K2): what automation asked, by agent and trigger. */
+  const forgetKept = vi.fn<NonNullable<AgentPorts["forgetKept"]>>(async () => "done");
   const ports: AgentPorts = {
+    forgetKept,
     registry: {
       get: (ownerId, agentId) => owned(ownerId, agentId),
       homeOf(ownerId, agentId) {
@@ -164,6 +167,7 @@ export function fakeAgentPorts(root: string, realSpend?: AgentPorts["spend"]) {
   };
   return {
     ports,
+    forgetKept,
     agents,
     cards,
     removed,
@@ -223,6 +227,7 @@ export function insertAgentTrigger(
     target?: "isolated" | "thread";
     source?: { type: string } & Record<string, unknown>;
     precheck?: string | null;
+    keep?: boolean;
   } = {},
 ): string {
   const id = over.id ?? "trg-agent-1";
@@ -232,7 +237,11 @@ export function insertAgentTrigger(
     name: "Agent trigger",
     source,
     execution: {
-      agent: { agentId, target: over.target ?? "isolated" },
+      agent: {
+        agentId,
+        target: over.target ?? "isolated",
+        ...(over.keep === undefined ? {} : { keep: over.keep }),
+      },
       tools: ["read", "grep"],
       mode: "supervised",
       precheck: over.precheck ?? null,

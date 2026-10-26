@@ -18,6 +18,8 @@ export interface VmSpec {
   readonly box: BoxRef;
   readonly kind: "thread" | "isolated";
   readonly taskKey: string | null;
+  /** A kept task's disk (K2): the trigger id without dashes; only with `kind: "isolated"`. The process backend roots the VM's folder at it. */
+  readonly keepKey?: string | null;
   readonly image: string;
   readonly resources: AgentResources;
   /** The launch to report `disk`, `vm` and `guest` to (its opener ends it). Absent: nobody follows this start. */

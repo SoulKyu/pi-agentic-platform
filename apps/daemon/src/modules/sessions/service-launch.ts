@@ -94,7 +94,9 @@ export function createLaunch(ctx: LaunchContext) {
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
-  async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
+  async function launch(stored: SessionRow, isNew: boolean): Promise<LiveSession> {
+    // A relaunched task session asks again whether its folder is kept: the stored row never says (I2).
+    const row = isNew ? stored : ctx.agent.withKeptKey(stored);
     // The gate of every agent session, first of all (M11R53): for a host row the one await before the spawn, so no check
     // can fall between; a VM row awaits its VM too, and `start` reads again what the boot may have changed.
     const gating = ctx.agent.gate(row);
