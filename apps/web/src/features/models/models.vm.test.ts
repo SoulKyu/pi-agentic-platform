@@ -3,12 +3,14 @@ import { describe, expect, it } from "vitest";
 import { RpcError } from "../../runtime/index.ts";
 import {
   applyLoginStreamEvent,
+  askedOn,
   EMPTY_FLOW,
   flowDone,
   NOTES_MAX,
   providerSwitch,
   readOnlyPath,
   signInState,
+  withAsked,
   writeFailureKind,
 } from "./models.vm.ts";
 
@@ -61,6 +63,52 @@ describe("provider switch", () => {
   it("is off with nothing to count for no model, and for none on", () => {
     expect(providerSwitch([])).toEqual({ on: false, enabled: 0, total: 0 });
     expect(providerSwitch(provider([model("a", false)]).models)).toEqual({ on: false, enabled: 0, total: 1 });
+  });
+});
+
+describe("switches as asked", () => {
+  it("the later of a provider's write and a model's own wins; other keys change nothing", () => {
+    expect(
+      askedOn(
+        new Map([
+          ["p:a", false],
+          ["m:a/x", true],
+        ]),
+        "a",
+        "x",
+        false,
+      ),
+    ).toBe(true);
+    expect(
+      askedOn(
+        new Map([
+          ["m:a/x", true],
+          ["p:a", false],
+        ]),
+        "a",
+        "x",
+        true,
+      ),
+    ).toBe(false);
+    expect(
+      askedOn(
+        new Map([
+          ["p:b", false],
+          ["m:a/y", false],
+        ]),
+        "a",
+        "x",
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  it("leaves the providers as they are with nothing asked", () => {
+    const providers = [{ id: "a", models: [{ id: "x", enabled: true }] }];
+    expect(withAsked(providers, new Map())).toBe(providers);
+    expect(withAsked(providers, new Map([["m:a/x", false]]))).toEqual([
+      { id: "a", models: [{ id: "x", enabled: false }] },
+    ]);
   });
 });
 

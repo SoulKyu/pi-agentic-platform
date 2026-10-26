@@ -19,7 +19,7 @@ function setup() {
   const reloadOverview = vi.fn();
   const overview: ModelsOverview = overviewOfWorld(made.world);
   function Probe({ value }: { readonly value: ModelsOverview }) {
-    seen.now = useAvailability({ value, reload: reloadOverview });
+    seen.now = useAvailability({ value, loading: false, reload: reloadOverview });
     return null;
   }
   return { ...made, seen, Probe, overview, reloadOverview };

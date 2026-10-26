@@ -36,7 +36,7 @@ describe("LazyAvailability", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const { world } = availabilityBed();
     const page = await mount(
-      <LazyAvailability overview={overviewOfWorld(world)} reloadOverview={() => {}} />,
+      <LazyAvailability overview={overviewOfWorld(world)} loading={false} reloadOverview={() => {}} />,
     );
     await vi.waitFor(
       async () => {

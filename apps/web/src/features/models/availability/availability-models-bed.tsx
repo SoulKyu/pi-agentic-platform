@@ -8,7 +8,9 @@ export * from "./availability-world.ts";
 
 function Host() {
   const list = useOverview();
-  return list.value ? <AvailabilitySection overview={list.value} reloadOverview={list.reload} /> : null;
+  return list.value ? (
+    <AvailabilitySection overview={list.value} loading={list.loading} reloadOverview={list.reload} />
+  ) : null;
 }
 
 export const showAvailability = () => mount(<Host />);

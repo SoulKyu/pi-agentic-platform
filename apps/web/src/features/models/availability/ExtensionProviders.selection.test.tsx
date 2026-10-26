@@ -89,6 +89,22 @@ describe("My selection and an extension's models (Settings)", () => {
     expect(text(box)).toContain("1 of 2");
   });
 
+  it("ext.switch-asked: a model's switch keeps what was asked until the extensions read after the write are in", async () => {
+    const { bed, world, page } = await opened();
+    const box = page.container.querySelector("[data-extensions]") as HTMLElement;
+    let reread: () => void = () => {};
+    bed.handlers["models.extensions"] = () =>
+      new Promise((resolve) => (reread = () => resolve(bridgeAnswer(world))));
+    await click(switchOf(box, "Opus via bridge"));
+    await settle();
+    // The write and the overview are in; the extension read made after them is not.
+    expect(bed.called("models.extensions")).toHaveLength(2);
+    expect(switchOf(box, "Opus via bridge").getAttribute("aria-checked")).toBe("true");
+    reread();
+    await settle();
+    expect(switchOf(box, "Opus via bridge").getAttribute("aria-checked")).toBe("true");
+  });
+
   it("ext.switch-provider: the provider's switch writes its provider op, as for any provider", async () => {
     const { bed, page } = await opened();
     const box = page.container.querySelector("[data-extensions]") as HTMLElement;

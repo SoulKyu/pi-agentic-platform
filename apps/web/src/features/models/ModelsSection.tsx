@@ -1,5 +1,5 @@
 import "./register-catalog.ts";
-import type { ModelsOverview } from "@pap/contracts";
+import type { EnabledOp, ModelsOverview } from "@pap/contracts";
 import { Button, Heading, InlineError, useIsPhone } from "@pap/ui";
 import { WaitLine } from "../../lib/wait-since.tsx";
 import "../../i18n/register-launch.ts";
@@ -11,7 +11,7 @@ import { LazyAvailability } from "./availability/index.ts";
 import { DiscardConfirm } from "./DiscardConfirm.tsx";
 import { refreshExtensions } from "./extension-read.ts";
 import { failureText } from "./failure.ts";
-import { readOnlyPath, writeFailureText } from "./models.vm.ts";
+import { readOnlyPath, withAsked, writeFailureText } from "./models.vm.ts";
 import { ProviderDetail } from "./ProviderDetail.tsx";
 import { PricingSwitch } from "./PricingSwitch.tsx";
 import { OrphanKey, ProviderFormPanel } from "./ProviderFormPanel.tsx";
@@ -66,7 +66,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
     reload();
     refreshExtensions();
   }, [reload]);
-  const writes = useModelWrites(reloadAfterWrite, failure);
+  const writes = useModelWrites(reloadAfterWrite, failure, !list.loading);
   const login = useLoginFlow({ stepUp, onFinished: reloadAfterWrite });
   // A sign-in restored after a reload belongs to its provider: that one is selected from the start and stays so.
   const [selected, setSelected] = useState<string | null>(() => login.flow?.provider ?? null);
@@ -85,6 +85,15 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
       return done ?? null;
     });
   const rpc = () => getRuntime().rpc;
+  const flip = (key: string, op: Extract<EnabledOp, { enabled: boolean }>) =>
+    writes.run(
+      key,
+      async () => {
+        await rpc().call("models.setEnabled", { op }, { commandId: rpc().newCommandId() });
+        return null;
+      },
+      op.enabled,
+    );
 
   const refresh = () => {
     setRefreshing(true);
@@ -125,7 +134,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
       </div>
     );
 
-  const provider = overview.providers.find((one) => one.id === selected) ?? null;
+  const provider = withAsked(overview.providers, writes.asked).find((one) => one.id === selected) ?? null;
   const show = (id: string) => {
     forms.close();
     setSelected(id);
@@ -180,7 +189,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
             onKeep={() => setSwitchTo(null)}
           />
         ) : null}
-        <LazyAvailability overview={overview} reloadOverview={list.reload} />
+        <LazyAvailability overview={overview} loading={list.loading} reloadOverview={list.reload} />
       </div>
       <div className={phone ? "flex flex-col gap-s4" : "flex items-start gap-s4"}>
         <div className={phone ? "" : "w-64 shrink-0"}>
@@ -211,21 +220,14 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
             onSaid={(text) => writes.say({ tone: "status", text })}
             handlers={{
               onProvider: (on) =>
-                void write(`p:${provider.id}`, () =>
-                  rpc().call(
-                    "models.setEnabled",
-                    { op: { op: "provider", provider: provider.id, enabled: on } },
-                    { commandId: rpc().newCommandId() },
-                  ),
-                ),
+                void flip(`p:${provider.id}`, { op: "provider", provider: provider.id, enabled: on }),
               onModel: (modelId, on) =>
-                void write(`m:${provider.id}/${modelId}`, () =>
-                  rpc().call(
-                    "models.setEnabled",
-                    { op: { op: "toggle", provider: provider.id, modelId, enabled: on } },
-                    { commandId: rpc().newCommandId() },
-                  ),
-                ),
+                void flip(`m:${provider.id}/${modelId}`, {
+                  op: "toggle",
+                  provider: provider.id,
+                  modelId,
+                  enabled: on,
+                }),
               onStar: (modelId) =>
                 void write(
                   DEFAULT_KEY,

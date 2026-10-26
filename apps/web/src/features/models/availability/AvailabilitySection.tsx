@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import "../../../i18n/register-settings-availability.ts";
 import { useT } from "../../../i18n/index.ts";
 import { useExtensionRead } from "../extension-read.ts";
+import { withAsked } from "../models.vm.ts";
 import { modeOf, providerRows, unmatchedRows, type AvailabilityMode } from "./availability.vm.ts";
 import { ExtensionProviders } from "./ExtensionProviders.tsx";
 import { ModeSwitch } from "./ModeSwitch.tsx";
@@ -18,20 +19,29 @@ import { useAvailability } from "./use-availability.ts";
  */
 export function AvailabilitySection({
   overview,
+  loading,
   reloadOverview,
 }: {
   readonly overview: ModelsOverview;
+  /** The overview's read asked for has not answered yet. */
+  readonly loading: boolean;
   reloadOverview(): void;
 }) {
   const t = useT();
   const phone = useIsPhone();
-  const source = useMemo(() => ({ value: overview, reload: reloadOverview }), [overview, reloadOverview]);
+  const source = useMemo(
+    () => ({ value: overview, loading, reload: reloadOverview }),
+    [overview, loading, reloadOverview],
+  );
   const view = useAvailability(source);
   // "My selection" chosen while there is no list yet: the screen's mode only, until the first switch writes one.
   const [chosen, setChosen] = useState(false);
   const shown: AvailabilityMode = chosen ? "selection" : modeOf(overview.enabled.patterns);
   const readOnly = view.readOnlyPath !== null;
-  const rows = useMemo(() => providerRows(overview.providers, view.available), [overview, view.available]);
+  const rows = useMemo(
+    () => providerRows(withAsked(overview.providers, view.asked), view.available),
+    [overview, view.asked, view.available],
+  );
   const read = useExtensionRead();
   const extensionIds = useMemo(
     () => new Set(read.status === "ready" ? read.answer.providers.map((provider) => provider.id) : []),
@@ -117,7 +127,12 @@ export function AvailabilitySection({
       <ExtensionProviders
         providers={overview.providers}
         providersTruncated={overview.truncated}
-        selection={{ disabled: readOnly || shown === "all", pending: view.pending, ...handlers }}
+        selection={{
+          disabled: readOnly || shown === "all",
+          pending: view.pending,
+          asked: view.asked,
+          ...handlers,
+        }}
       />
     </section>
   );

@@ -11,6 +11,8 @@ export interface ExtensionSelection {
   /** "All the models", a project's selection, or a write the screen cannot make: the switches show and do not move. */
   readonly disabled: boolean;
   readonly pending: ReadonlySet<string>;
+  /** The switches as last asked, until the reads after the writes are in (`useModelWrites`). */
+  readonly asked: ReadonlyMap<string, boolean>;
   onProvider(provider: string, on: boolean): void;
   onModel(provider: string, modelId: string, on: boolean): void;
 }

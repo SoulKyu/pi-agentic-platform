@@ -5,6 +5,7 @@ import { usePiCauseText } from "../../../stores/loading-cause.ts";
 import { useT } from "../../../i18n/index.ts";
 import { readExtensions, useExtensionRead } from "../extension-read.ts";
 import { codeText } from "../failure.ts";
+import { withAsked } from "../models.vm.ts";
 import { extensionRows } from "./availability.vm.ts";
 import { ExtensionRowItem, type ExtensionSelection } from "./ExtensionRowItem.tsx";
 
@@ -28,7 +29,10 @@ export function ExtensionProviders({
   const t = useT();
   const cause = usePiCauseText(t);
   const state = useExtensionRead();
-  const rows = state.status === "ready" ? extensionRows(state.answer, providers) : [];
+  const rows =
+    state.status === "ready"
+      ? extensionRows({ providers: withAsked(state.answer.providers, selection.asked) }, providers)
+      : [];
   const busy = state.status === "reading" || (state.status === "ready" && state.refreshing);
   return (
     <section data-extensions className="flex flex-col items-start gap-s2">

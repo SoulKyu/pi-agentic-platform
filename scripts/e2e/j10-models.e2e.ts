@@ -40,9 +40,9 @@ function enabledModels(pap: PapInstance): unknown {
 }
 
 /**
- * A switch shows the list the page reads again once its write is answered: two Pi helper runs one after the other, the
- * write (`models.setEnabled`) and then that read (`models.overview`). So the click is followed by the write in Pi's file
- * first, then by the switch, each with its own wait.
+ * A switch shows what was asked from the click until the list read after its write is in: two Pi helper runs one after
+ * the other, the write (`models.setEnabled`) and then that read (`models.overview`). So the click is followed by the
+ * write in Pi's file first, then by the switch, each with its own wait.
  */
 async function switchOff(pap: PapInstance, control: Locator): Promise<void> {
   const before = enabledModels(pap);

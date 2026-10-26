@@ -158,6 +158,27 @@ describe("switches", () => {
     expect(switchOf(page.container, "claude-b name").disabled).toBe(false);
   });
 
+  it("shows what was asked from the click until the list read after the write is in, then the list", async () => {
+    const { bed, page } = await open("anthropic");
+    let write: (value: unknown) => void = () => {};
+    bed.handlers["models.setEnabled"] = () => new Promise((resolve) => (write = resolve));
+    const read = bed.handlers["models.overview"];
+    let reread: () => void = () => {};
+    bed.handlers["models.overview"] = (params) =>
+      new Promise((resolve) => (reread = () => resolve(read?.(params))));
+    const checked = () => switchOf(page.container, "claude-b name").getAttribute("aria-checked");
+    await click(switchOf(page.container, "claude-b name"));
+    expect(checked()).toBe("true");
+    write({ patterns: null });
+    await settle();
+    expect(bed.called("models.overview")).toHaveLength(2);
+    expect(checked()).toBe("true");
+    // This fake daemon's list never changes: once it is in, it wins over what was asked.
+    reread();
+    await settle();
+    expect(checked()).toBe("false");
+  });
+
   it("reads the providers again once, after the last of several parallel writes", async () => {
     const { bed, page } = await open("anthropic");
     const release: Array<(value: unknown) => void> = [];

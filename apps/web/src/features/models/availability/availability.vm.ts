@@ -111,7 +111,7 @@ export interface ExtensionRow {
  * re-registers a built-in id (M4); one that re-registers a models.json provider is listed and marked `overrides`.
  */
 export function extensionRows(
-  answer: Pick<ExtensionProviders, "providers">,
+  answer: { readonly providers: readonly ExtensionProviders["providers"][number][] },
   providers: readonly ProviderView[],
 ): ExtensionRow[] {
   const own = new Set(providers.filter((provider) => provider.origin === "models.json").map((one) => one.id));

@@ -7,7 +7,11 @@ const loadSection = () =>
   import("./AvailabilitySection.tsx").then((module) => ({ default: module.AvailabilitySection }));
 
 /** The availability view, loaded when Settings > Models opens. A gone chunk toasts "reload"; the screen stays standing. */
-export function LazyAvailability(props: { readonly overview: ModelsOverview; reloadOverview(): void }) {
+export function LazyAvailability(props: {
+  readonly overview: ModelsOverview;
+  readonly loading: boolean;
+  reloadOverview(): void;
+}) {
   const text = useLazyFailureText();
   const { Lazy, attempt } = useRetryableLazy(loadSection);
   return (

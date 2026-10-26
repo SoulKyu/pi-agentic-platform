@@ -25,6 +25,39 @@ export function providerSwitch(models: ProviderView["models"]): SwitchState {
   return { on: models.length > 0 && enabled === models.length, enabled, total: models.length };
 }
 
+/** A model's switch as last asked (`useModelWrites`' keys): the later of its provider's write and its own wins. */
+export function askedOn(
+  asked: ReadonlyMap<string, boolean>,
+  provider: string,
+  modelId: string,
+  enabled: boolean,
+): boolean {
+  let on = enabled;
+  for (const [key, value] of asked)
+    if (key === `p:${provider}` || key === `m:${provider}/${modelId}`) on = value;
+  return on;
+}
+
+interface Switchable {
+  readonly id: string;
+  readonly models: readonly { readonly id: string; readonly enabled: boolean }[];
+}
+
+/** Providers with each model's `enabled` as asked, until the lists read after the writes are in. */
+export function withAsked<P extends Switchable>(
+  providers: readonly P[],
+  asked: ReadonlyMap<string, boolean>,
+) {
+  if (asked.size === 0) return providers;
+  return providers.map((provider) => ({
+    ...provider,
+    models: provider.models.map((model) => ({
+      ...model,
+      enabled: askedOn(asked, provider.id, model.id, model.enabled),
+    })),
+  }));
+}
+
 /** The settings file that decides when a project scope is in force: every switch and star is read-only then. */
 export const readOnlyPath = (
   enabled: Pick<ModelsOverview["enabled"], "scope" | "settingsPath">,

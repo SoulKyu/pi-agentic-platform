@@ -2,7 +2,7 @@ import type { EnabledOp, ModelsOverview } from "@pap/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportClientIssue } from "../../../lib/report.ts";
 import { getRuntime } from "../../../runtime/index.ts";
-import { refreshExtensions } from "../extension-read.ts";
+import { busy, refreshExtensions, useExtensionRead } from "../extension-read.ts";
 import { readOnlyPath, writeFailureText } from "../models.vm.ts";
 import { isStale, parseAvailable, type AvailableState } from "../picker/use-available-models.ts";
 import { useModelWrites } from "../use-model-writes.ts";
@@ -76,16 +76,19 @@ function usePreview(): { state: AvailableState; request(): void } {
 
 export interface AvailabilitySource {
   readonly value: ModelsOverview;
+  /** The overview's read asked for has not answered yet. */
+  readonly loading: boolean;
   reload(): void;
 }
 
 /**
  * The availability view's data (task 14): the overview of the Settings screen (its reload is handed in, so the
  * provider list and this view never disagree), the preview, and writes through `models.setEnabled` (no step-up).
- * The preview is read again whenever the overview changes and after every write.
+ * The preview is read again whenever the overview changes and after every write. A switch shows what was asked until
+ * the overview and the extension read made after the last write are in (the preview is not a switch).
  */
 export function useAvailability(overview: AvailabilitySource) {
-  const { value, reload: reloadOverview } = overview;
+  const { value, loading, reload: reloadOverview } = overview;
   const preview = usePreview();
   const { request } = preview;
   useEffect(request, [value, request]);
@@ -98,15 +101,20 @@ export function useAvailability(overview: AvailabilitySource) {
     request();
     refreshExtensions();
   }, [reloadOverview, request]);
-  const writes = useModelWrites(reload, failure);
+  const extensionsBusy = useExtensionRead(busy);
+  const writes = useModelWrites(reload, failure, !loading && !extensionsBusy);
   const { run } = writes;
   const write = useCallback(
     (op: EnabledOp): Promise<void> =>
-      run(keyOf(op), async () => {
-        const rpc = getRuntime().rpc;
-        await rpc.call("models.setEnabled", { op }, { commandId: rpc.newCommandId() });
-        return null;
-      }),
+      run(
+        keyOf(op),
+        async () => {
+          const rpc = getRuntime().rpc;
+          await rpc.call("models.setEnabled", { op }, { commandId: rpc.newCommandId() });
+          return null;
+        },
+        op.op === "toggle" || op.op === "provider" ? op.enabled : undefined,
+      ),
     [run],
   );
 
@@ -119,8 +127,9 @@ export function useAvailability(overview: AvailabilitySource) {
       write,
       reload,
       pending: writes.pending,
+      asked: writes.asked,
       notice: writes.notice,
     }),
-    [value, preview.state, path, write, reload, writes.pending, writes.notice],
+    [value, preview.state, path, write, reload, writes.pending, writes.asked, writes.notice],
   );
 }
