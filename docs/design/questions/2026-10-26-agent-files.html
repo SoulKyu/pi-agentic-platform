@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fichiers des agents · Questions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* DESIGN.md §3.1 Night, §3.2 Day · Papier, §3.4 geometry */
+  :root {
+    --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33; --border:#2D2840; --border-strong:#3D3657;
+    --control-border:#6B6485; --text:#F2EFFA; --text-muted:#9C95B5; --text-dim:#6B6485; --grid:#FFFFFF06;
+    --agent:#A78BFA; --you:#FB923C; --you-fill:#FB923C; --you-ink:#1B0D00; --you-tint:#FB923C1A; --you-line:#FB923C66;
+    --attn:#EC4899; --ok:#34D399; --err:#F87171; --focus-ring:#FB923C;
+    --radius-sm:2px; --radius-md:3px; --grid-size:24px;
+    --ui:'Manrope',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#FAF9F6; --bg-side:#F3F1EC; --surface:#FFFFFF; --surface-2:#EEEBE4; --border:#E2DED5; --border-strong:#CFC9BC;
+      --control-border:#8F877A; --text:#1C1917; --text-muted:#6B645A; --text-dim:#A8A196; --grid:#1C19170A;
+      --agent:#6D28D9; --you:#C2410C; --you-tint:#FFF4EA; --you-line:#FDBA74; --attn:#BE185D; --ok:#047857; --err:#DC2626;
+      --focus-ring:#C2410C; color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.55 var(--ui); padding: 32px 16px 80px; caret-color: var(--you);
+         background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+         background-size: var(--grid-size) var(--grid-size); }
+  @media (max-width: 767px) { body { --grid-size: 16px; padding-top: 20px; } }
+  ::selection { background: color-mix(in srgb, var(--agent) 30%, transparent); }
+  :focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+  .page { max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+  /* §4 typography */
+  .hud { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  h1 { font: 800 20px/1.25 var(--ui); margin-top: 4px; }
+  h2 { font: 700 16px/1.3 var(--ui); }
+  h3 { font: 600 13px/1.4 var(--ui); }
+  p { max-width: 72ch; }
+  .muted { color: var(--text-muted); }
+  code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: var(--radius-sm); }
+
+  /* §9.1 card, chip, button, input */
+  .card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font: 600 10px/16px var(--mono); text-transform: uppercase; letter-spacing: .08em;
+          padding: 0 6px; border: 1px solid currentColor; border-radius: var(--radius-sm); vertical-align: 1px; white-space: nowrap; }
+  .chip.agent { color: var(--agent); }
+  .btn { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; height: 26px; padding: 0 12px; border-radius: var(--radius-sm);
+         border: 1px solid var(--control-border); background: transparent; color: var(--text); cursor: pointer; transition: background 120ms ease-out; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--you-fill); color: var(--you-ink); border-color: transparent; }
+  .btn.primary:hover { background: var(--you-fill); filter: brightness(1.06); }
+  .btn.sm { height: 24px; padding: 0 8px; font-size: 10px; }
+  textarea { width: 100%; min-height: 52px; resize: vertical; font: 13px/1.5 var(--ui); color: var(--text); background: var(--bg);
+             border: 1px solid var(--control-border); border-radius: var(--radius-sm); padding: 6px 8px; }
+  textarea::placeholder { color: var(--text-muted); opacity: 1; }
+  @media (pointer: coarse) { .btn, .opt { min-height: 44px; } }
+
+  /* the state today */
+  ul.facts { list-style: none; display: grid; gap: 6px; }
+  ul.facts li { padding-left: 14px; position: relative; max-width: 80ch; }
+  ul.facts li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--agent); }
+
+  /* the mockup: an agent tab (§8, §9.1 tabs) */
+  .app { border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--bg); overflow: hidden; }
+  .head { display: flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--bg-side); border-bottom: 1px solid var(--border); }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--agent); color: var(--agent); border-radius: var(--radius-md); display: grid; place-items: center; font: 700 11px var(--ui); }
+  .name { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--agent); }
+  .tabs { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); background: var(--bg-side); }
+  .tabs span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 3px 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); }
+  .tabs span.on { color: var(--text); border-color: var(--agent); background: var(--surface-2); }
+  .split { display: grid; grid-template-columns: 220px 1fr; min-height: 200px; }
+  .tree { border-right: 1px solid var(--border); padding: 8px 0; font: 12px/1.9 var(--mono); }
+  .tree div { padding: 0 10px; white-space: nowrap; }
+  .tree .sel { background: var(--surface-2); box-shadow: inset 2px 0 0 var(--agent); }
+  .tree .in1 { padding-left: 24px; } .tree .in2 { padding-left: 38px; }
+  .viewer { display: flex; flex-direction: column; min-width: 0; }
+  .vtabs { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .vtabs span { font: 12px var(--mono); padding: 2px 8px; border-radius: var(--radius-sm); color: var(--text-muted); border: 1px solid transparent; }
+  .vtabs span.on { color: var(--text); background: var(--surface-2); border-color: var(--agent); }
+  pre.code { padding: 10px 12px; font: 12px/1.6 var(--mono); color: var(--text); white-space: pre-wrap; }
+  .creds { border-top: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+  td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+  td.act { text-align: right; white-space: nowrap; }
+  .btn.danger { color: var(--err); border-color: var(--err); }
+  .empty { border: 1px dashed var(--border-strong); border-radius: var(--radius-md); padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; margin: 12px; }
+  @media (max-width: 767px) { .split { grid-template-columns: 1fr; } .tree { border-right: 0; border-bottom: 1px solid var(--border); } }
+
+  /* questions */
+  .opts { display: grid; gap: 8px; }
+  .opt { text-align: left; width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; cursor: pointer; color: var(--text);
+         background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); font: 13px/1.5 var(--ui); transition: background 120ms ease-out; }
+  .opt:hover { background: var(--surface-2); }
+  .opt b { font-weight: 600; }
+  .opt .muted { font-size: 12px; }
+  .opt[aria-pressed="true"] { background: var(--surface-2); border-color: var(--agent); box-shadow: inset 2px 0 0 var(--agent); }
+  .opt[aria-pressed="true"] .pick::before { content: "✓ "; color: var(--agent); }
+  .pick { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; }
+  #sent { color: var(--ok); }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header>
+    <div class="hud">Agents · Fichiers · 4 questions</div>
+    <h1>Un explorateur de fichiers pour les agents</h1>
+    <p class="muted">Une réponse par question, une note si besoin, puis « Envoyer ». Chaque question a une reco ; « Appliquer toutes les recos » remplit tout.</p>
+  </header>
+
+  <section class="card" aria-labelledby="now">
+    <h2 id="now">Aujourd’hui</h2>
+    <ul class="facts">
+      <li>Une session de projet a l’explorateur : arbre, fichiers ouverts en onglets, édition. La VM de la box le sert ; box arrêtée → panneau « Box arrêtée » + DÉMARRER.</li>
+      <li>L’onglet <b>Fichiers</b> d’un agent ne liste que les identifiants importés (<code>.kube/config</code>, tokens), sans contenu, réécrits par pap à chaque démarrage. Rien de ce que l’agent écrit n’est visible.</li>
+      <li>La VM d’un agent n’a pas encore les opérations fichiers : seules les box de projet les ont.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="preview" style="display:flex;flex-direction:column;gap:8px">
+    <h2 id="preview">Aperçu avec les recos</h2>
+    <div class="app" aria-label="Maquette de l’onglet Fichiers d’un agent">
+      <div class="head"><div class="av">CN</div><span class="name">CyberNews</span></div>
+      <div class="tabs"><span>Fil</span><span class="on">Fichiers</span><span>Réglages</span></div>
+      <div class="split">
+        <div class="tree">
+          <div>▾ home</div>
+          <div class="in1">▾ reports</div>
+          <div class="in2 sel">digest-2026-10-26.md</div>
+          <div class="in1">notes.md</div>
+          <div>▸ inbox</div>
+          <div>▸ knowledge</div>
+        </div>
+        <div class="viewer">
+          <div class="vtabs"><span class="on">digest-2026-10-26.md</span><span>notes.md</span></div>
+          <pre class="code"># Veille cyber · 26 oct.
+- CVE-2026-xxxx (OpenSSH) …
+- …</pre>
+        </div>
+      </div>
+      <div class="creds">
+        <h3>Identifiants importés</h3>
+        <table>
+          <tr><th>Chemin</th><th>Taille</th><th>Importé</th><th></th></tr>
+          <tr><td><code>.config/gmail/token.json</code></td><td class="num">0,6 Ko</td><td class="num">21 oct.</td>
+              <td class="act"><button class="btn sm" tabindex="-1">Remplacer</button> <button class="btn sm danger" tabindex="-1">Supprimer</button></td></tr>
+        </table>
+      </div>
+    </div>
+    <p class="muted">Q4 reco, VM arrêtée :</p>
+    <div class="app">
+      <div class="tabs"><span>Fil</span><span class="on">Fichiers</span><span>Réglages</span></div>
+      <div class="empty">
+        <h3>VM arrêtée</h3>
+        <p class="muted">La VM de l’agent est arrêtée. Démarrez-la pour voir ses fichiers.</p>
+        <button class="btn primary" tabindex="-1">Démarrer</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="card q" data-q="q1" aria-labelledby="q1">
+    <h2 id="q1">1 · Ce que montre l’arbre</h2>
+    <div class="opts">
+      <button class="opt" data-choice="q1-home" aria-pressed="false"><span class="pick">A</span><b>Le home seulement</b><span class="muted"><code>/agent/home</code> : le dossier courant de l’agent, là où il écrit.</span></button>
+      <button class="opt" data-choice="q1-agent" data-reco aria-pressed="false"><span class="pick">B <span class="chip agent">reco</span></span><b>Toute la VM de l’agent, sauf <code>.pi</code></b><span class="muted">Un seul arbre : <code>home</code>, <code>inbox</code> (pièces jointes reçues), <code>knowledge</code> (sa mémoire OKF). <code>.pi</code> (transcripts, config Pi) reste caché, comme <code>.git</code> dans un projet.</span></button>
+    </div>
+    <textarea data-note="q1" aria-label="Note sur la question 1" placeholder="Note (optionnel)"></textarea>
+  </section>
+
+  <section class="card q" data-q="q2" aria-labelledby="q2">
+    <h2 id="q2">2 · Ce que tu peux y faire</h2>
+    <div class="opts">
+      <button class="opt" data-choice="q2-edit" data-reco aria-pressed="false"><span class="pick">A <span class="chip agent">reco</span></span><b>Comme les sessions</b><span class="muted">Ouvrir, éditer, enregistrer (mot de passe pour les fichiers sensibles, mêmes règles qu’un projet), déposer un fichier. Pour corriger une note ou un script de l’agent.</span></button>
+      <button class="opt" data-choice="q2-read" aria-pressed="false"><span class="pick">B</span><b>Lecture seule</b><span class="muted">Ouvrir et télécharger. Aucun risque d’écraser un fichier pendant un run.</span></button>
+    </div>
+    <textarea data-note="q2" aria-label="Note sur la question 2" placeholder="Note (optionnel)"></textarea>
+  </section>
+
+  <section class="card q" data-q="q3" aria-labelledby="q3">
+    <h2 id="q3">3 · Les identifiants importés dans l’arbre</h2>
+    <div class="opts">
+      <button class="opt" data-choice="q3-hidden" data-reco aria-pressed="false"><span class="pick">A <span class="chip agent">reco</span></span><b>Cachés dans l’arbre, gérés à part</b><span class="muted">La liste actuelle (Importer, Remplacer, Supprimer, jamais le contenu) reste sous l’arbre. Un identifiant ne s’affiche jamais (DESIGN.md §11 : les secrets ne sont jamais affichés).</span></button>
+      <button class="opt" data-choice="q3-shown" aria-pressed="false"><span class="pick">B</span><b>Visibles comme les autres fichiers</b><span class="muted">Contenu lisible. Une édition est écrasée au démarrage suivant : la copie de pap fait foi.</span></button>
+    </div>
+    <textarea data-note="q3" aria-label="Note sur la question 3" placeholder="Note (optionnel)"></textarea>
+  </section>
+
+  <section class="card q" data-q="q4" aria-labelledby="q4">
+    <h2 id="q4">4 · Quand la VM de l’agent est arrêtée</h2>
+    <p class="muted">C’est le cas courant : un agent au repos n’a pas de VM qui tourne.</p>
+    <div class="opts">
+      <button class="opt" data-choice="q4-start" data-reco aria-pressed="false"><span class="pick">A <span class="chip agent">reco</span></span><b>Panneau « VM arrêtée » + DÉMARRER, comme les projets</b><span class="muted">Regarder ne démarre jamais la VM. DÉMARRER la lance sans prompt ; elle s’arrête seule après 30 min sans activité. La RAM de l’agent n’est prise que quand tu le demandes.</span></button>
+      <button class="opt" data-choice="q4-auto" aria-pressed="false"><span class="pick">B</span><b>L’onglet démarre la VM tout seul</b><span class="muted">Plus fluide, mais chaque coup d’œil coûte un démarrage (quelques secondes, puis la RAM de l’agent pendant 30 min).</span></button>
+    </div>
+    <p class="muted">Non proposé : lire le disque depuis l’hôte quand la VM est arrêtée (montage root, contourne la VM).</p>
+    <textarea data-note="q4" aria-label="Note sur la question 4" placeholder="Note (optionnel)"></textarea>
+  </section>
+
+  <section class="card" aria-labelledby="out">
+    <h2 id="out">Hors périmètre, sauf avis contraire</h2>
+    <ul class="facts">
+      <li>Les fichiers des tâches isolées : dossier temporaire supprimé avec la tâche, leur résultat va dans l’Inbox.</li>
+      <li>Un onglet Changes / git pour l’agent.</li>
+      <li>Ouvrir un chemin cité dans le fil directement dans l’explorateur.</li>
+    </ul>
+    <textarea data-note="q5" aria-label="Autre remarque" placeholder="Autre chose ? (optionnel)"></textarea>
+  </section>
+
+  <div class="bar">
+    <span id="sent" role="status"></span>
+    <button class="btn" id="recos">Appliquer toutes les recos</button>
+    <button class="btn primary" id="send">Envoyer</button>
+  </div>
+</main>
+<script>
+  const KEY = "pap-agent-files-explorer";
+  const groups = () => [...document.querySelectorAll(".q[data-q]")];
+  const select = (opt) => opt.closest(".opts").querySelectorAll(".opt").forEach((o) => o.setAttribute("aria-pressed", String(o === opt)));
+  function chosen() {
+    const out = {};
+    groups().forEach((g) => { const p = g.querySelector('.opt[aria-pressed="true"]'); out[g.dataset.q] = p ? p.dataset.choice : null; });
+    document.querySelectorAll("[data-note]").forEach((n) => { if (n.value.trim() !== "") out[n.dataset.note + "-note"] = n.value.trim(); });
+    return out;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(chosen())); } catch {} }
+  document.querySelectorAll(".opt").forEach((o) => o.addEventListener("click", () => { select(o); save(); }));
+  document.getElementById("recos").addEventListener("click", () => { groups().forEach((g) => { const r = g.querySelector(".opt[data-reco]"); if (r) select(r); }); save(); });
+  document.getElementById("send").addEventListener("click", () => {
+    const answers = chosen();
+    if (window.brainstorm) window.brainstorm.send({ type: "answers", choice: "agent-files-submitted", answers });
+    document.getElementById("sent").textContent = "Envoyé. Dis « choix faits » dans le terminal.";
+    save();
+  });
+  document.addEventListener("input", save);
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || "{}");
+    groups().forEach((g) => { const p = g.querySelector(`.opt[data-choice="${saved[g.dataset.q]}"]`); if (p) select(p); });
+    document.querySelectorAll("[data-note]").forEach((n) => { n.value = saved[n.dataset.note + "-note"] || ""; });
+  } catch {}
+</script>
+</body>
+</html>
