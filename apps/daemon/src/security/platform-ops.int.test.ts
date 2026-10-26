@@ -138,7 +138,7 @@ function expectCells(sessionId: string, type: SessionType): void {
  * `subagent.run` runs also starts a child worker that reads the same script: its eight raw calls are all forbidden (type
  * `child`) and are answered into the same file, so each id is expected twice, once from the parent and once from the child.
  */
-function expectAnswers(name: string, type: SessionType, childScripted = true): void {
+async function expectAnswers(name: string, type: SessionType, childScripted = true): Promise<void> {
   const answer = (id: string, cell: Cell) => `${id}:${cell === "ok" ? "ok" : cell}`;
   const expected = PLATFORM_OP_NAMES.flatMap((op, index) => [
     answer(`r${index + 1}`, MATRIX[type][op]),
@@ -146,10 +146,16 @@ function expectAnswers(name: string, type: SessionType, childScripted = true): v
       ? [answer(`r${index + 1}`, MATRIX.child[op])]
       : []),
   ]);
-  const seen = rawAnswers(resultsFile(name)).map((entry) =>
-    answer(entry.id, entry.ok ? "ok" : (entry.error as Cell)),
+  // The daemon's rows are written before the worker hears its answers and appends them: wait for the file.
+  await vi.waitFor(
+    () => {
+      const seen = rawAnswers(resultsFile(name)).map((entry) =>
+        answer(entry.id, entry.ok ? "ok" : (entry.error as Cell)),
+      );
+      expect(seen.sort(), type).toEqual(expected.sort());
+    },
+    { timeout: 30_000, interval: 100 },
   );
-  expect(seen.sort(), type).toEqual(expected.sort());
 }
 
 const WEBHOOK_SOURCE = { type: "webhook", format: "alertmanager" } as const;
@@ -181,7 +187,7 @@ describe("every op from every session type, agent sessions in the process-backen
     await call("sessions.prompt", { sessionId, text: "go" });
     await settled(sessionId);
     expectCells(sessionId, "plain");
-    expectAnswers("plain", "plain");
+    await expectAnswers("plain", "plain");
     const tools = await toolsOf(sessionId);
     expect(tools).toContain("bash");
     expect(tools.filter((name) => /^(agent_|lane_|secret_|network_|subagent)/.test(name))).toEqual([
@@ -204,7 +210,7 @@ describe("every op from every session type, agent sessions in the process-backen
     );
     await settled(sessionId);
     expectCells(sessionId, "lane");
-    expectAnswers("lane", "lane");
+    await expectAnswers("lane", "lane");
     const tools = await toolsOf(sessionId);
     expect(tools).toContain("lane_note");
     expect(tools).toContain("subagent");
@@ -262,7 +268,7 @@ describe("every op from every session type, agent sessions in the process-backen
     await call("sessions.prompt", { sessionId, text: "go" });
     await settled(sessionId, true);
     expectCells(sessionId, "agent-thread");
-    expectAnswers("thread", "agent-thread", false);
+    await expectAnswers("thread", "agent-thread", false);
     // Scout's thread task has started and ended: no worker of the next case reads a script meant for another.
     await vi.waitFor(() => expect(taskRowsOf(bed.t, scout).map((task) => task.state)).toEqual(["done"]), {
       timeout: 60_000,
@@ -346,7 +352,7 @@ describe("every op from every session type, agent sessions in the process-backen
     await call("sessions.prompt", { sessionId: id, text: "go" });
     await settled(id);
     expectCells(id, "child");
-    expectAnswers("child", "child");
+    await expectAnswers("child", "child");
     expect(effectsOf(bed.t)).toEqual(before);
   }, 120_000);
 
