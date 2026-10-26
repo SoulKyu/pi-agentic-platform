@@ -213,6 +213,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     waiting: promptWaiting,
     logger: deps.logger,
     store: deps.store,
+    runsInVm: (row) => agent.vmLayoutOf(row) !== null,
+    boxHomeOf: (row) => agent.vmLayoutOf(row)?.home ?? null,
     running: async (id) => live.get(id) ?? (await reopening.get(id)?.catch(() => null)) ?? null,
     // The worker is sent the whole rules, which now say whether the preset is read-only.
     presetChanged: (row) => grants.pushWhere((tracked) => tracked.id === row.id),

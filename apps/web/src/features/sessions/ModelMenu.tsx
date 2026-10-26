@@ -37,7 +37,7 @@ function StageLabel({ since, label }: { readonly since: number | null; readonly 
 /**
  * The model menu (M7R51, R52, R53): the session's own models, in the shared picker list (search, groups by provider in
  * the list's order), the current row marked and a star that sets the default. Fetched when it opens; a cold session's
- * worker starts for it.
+ * worker starts for it only outside a VM; in a VM the menu comes from the settings at once.
  */
 export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProps) {
   const t = useT();
