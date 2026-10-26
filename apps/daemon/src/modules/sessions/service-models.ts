@@ -3,7 +3,6 @@ import {
   AvailableModelsData,
   type Caller,
   type CommandInput,
-  type ModelSummary,
   MAX_LISTED_MODELS,
   PapError,
   SessionCommandsData,
@@ -11,6 +10,7 @@ import {
   type ToolPreset,
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
+import { type BoxModels, boxKeyOf, createBoxModels } from "./box-models.ts";
 import { refusalOf } from "./live-commands.ts";
 import type { LiveSession } from "./live-types.ts";
 import { type SessionRow, type SessionsStore, storedPresetOf } from "./store.ts";
@@ -33,6 +33,10 @@ export interface SessionModelsDeps {
   runsInVm(row: SessionRow): boolean;
   /** The home folder in the box of a project-box row (one per box); null for any other row. It names the box in the cache. */
   boxHomeOf?(row: SessionRow): string | null;
+  /** An agent row's saved model, the one its gate applies at start; null for any other row. It is always in the cold menu. */
+  savedModelOf?(row: SessionRow): { provider: string; modelId: string } | null;
+  /** The extension models each box last listed (shared with the worker start, which fills it); memory only when absent. */
+  readonly boxModels?: BoxModels;
   /** A member sees only the providers the owner shares (M14); the owner sees all. */
   readonly providers: {
     sessionModels(userId: string, data: AvailableModelsData): Promise<AvailableModelsData>;
@@ -45,7 +49,7 @@ export interface SessionModels {
    * The models the session's own runtime offers, in Pi's order (M7R41). A cold session's worker is started for it, so
    * capacity applies and extension providers and the project's trust are what the session really has. A cold session in
    * a VM is not: nothing starts, and the answer is `models.available` plus the extension models its box's worker last
-   * listed (memory only).
+   * listed (kept on disk), and an agent's saved model.
    */
   models(sessionId: string, caller: Caller): Promise<AvailableModelsData>;
   /** The models to pick from before a session exists. It names no folder, so no host helper reads a project (M14). */
@@ -80,20 +84,22 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
     if (!answer.ok) throw refused(input.type, answer.error);
     return answer.data;
   }
-  // ponytail: the last live list of each box, in memory (one entry per box, so unbounded is fine); lost on a restart.
-  const boxModels = new Map<string, ModelSummary[]>();
-  const boxOf = (row: SessionRow) =>
-    row.agentId !== undefined ? `agent:${row.agentId}` : `project:${deps.boxHomeOf?.(row) ?? row.cwd}`;
-  // A cold VM session is answered from the owner's available models and the box's extension models, with no start.
+  // The last list of each box, kept in `<papHome>/box-models.json` (`box-models.ts`): it survives a restart.
+  const boxModels = deps.boxModels ?? createBoxModels({ now: () => Date.now(), logger: deps.logger });
+  const boxOf = (row: SessionRow) => boxKeyOf(row, deps.boxHomeOf);
   async function coldVmModels(row: SessionRow, caller: Caller): Promise<AvailableModelsData> {
     const host = await deps.providers.available(caller);
     const hostProviders = new Set(host.providerIds ?? host.models.map((m) => m.provider));
-    const extension = (boxModels.get(boxOf(row)) ?? []).filter((m) => !hostProviders.has(m.provider));
+    const extension = boxModels.get(boxOf(row)).filter((m) => !hostProviders.has(m.provider));
     const all = [...host.models, ...extension];
+    // The saved model of an agent is always offered, and is the one it will run on.
+    const saved = deps.savedModelOf?.(row) ?? null;
+    if (saved && !all.some((m) => m.provider === saved.provider && m.id === saved.modelId))
+      all.push({ provider: saved.provider, id: saved.modelId, name: saved.modelId, reasoning: false });
     const data = {
       models: all.slice(0, MAX_LISTED_MODELS),
       truncated: host.truncated || all.length > MAX_LISTED_MODELS,
-      current: null,
+      current: saved ? { provider: saved.provider, id: saved.modelId } : null,
     };
     return deps.providers.sessionModels(caller.userId, data);
   }
@@ -108,7 +114,7 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
         deps.logger.warn("models_answer_unreadable", { sessionId });
         throw new PapError("command_failed");
       }
-      if (vm) boxModels.set(boxOf(row), parsed.data.models);
+      if (vm) boxModels.record(boxOf(row), parsed.data.models);
       return deps.providers.sessionModels(caller.userId, parsed.data);
     },
     availableModels: (caller) => deps.providers.available(caller),

@@ -16,6 +16,7 @@ import { createPromptFlow } from "./service-prompt.ts";
 import { createFolderRestart } from "./restart-folder.ts";
 import { createAdoption } from "./service-adopt.ts";
 import { createSessionCommands } from "./service-commands.ts";
+import { createBoxModels } from "./box-models.ts";
 import { createSessionModels } from "./service-models.ts";
 import { createLaunch } from "./service-launch.ts";
 import { createSessionMarks } from "./service-marks.ts";
@@ -132,8 +133,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     logger: deps.logger,
     waiting: promptWaiting,
   });
+  const boxModels = createBoxModels({
+    papHome: deps.worker.papHome,
+    now: () => deps.clock.now(),
+    logger: deps.logger,
+  });
   const { launch, ensureLive } = createLaunch({
     deps,
+    boxModels,
     live,
     reopening,
     starting,
@@ -215,6 +222,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     store: deps.store,
     runsInVm: (row) => agent.vmLayoutOf(row) !== null,
     boxHomeOf: (row) => agent.vmLayoutOf(row)?.home ?? null,
+    boxModels,
+    savedModelOf: (row) =>
+      row.agentId === undefined ? null : (agent.profileOf(row.ownerId, row.agentId)?.input.model ?? null),
     running: async (id) => live.get(id) ?? (await reopening.get(id)?.catch(() => null)) ?? null,
     // The worker is sent the whole rules, which now say whether the preset is read-only.
     presetChanged: (row) => grants.pushWhere((tracked) => tracked.id === row.id),

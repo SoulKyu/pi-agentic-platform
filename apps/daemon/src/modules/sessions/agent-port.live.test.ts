@@ -43,6 +43,8 @@ describe("applyLive (M11R47)", () => {
     });
     expect(answer).toBe("applied");
     expect(bed.spawned[0]?.requests).toEqual([
+      // The VM start keeps the box's models in the background.
+      expect.objectContaining({ type: "get_available_models" }),
       expect.objectContaining({ type: "set_model", provider: "p", modelId: "m" }),
       expect.objectContaining({ type: "set_thinking_level", level: "high" }),
     ]);

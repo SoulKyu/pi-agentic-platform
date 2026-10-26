@@ -161,6 +161,8 @@ describe("createAgentSession (M11R50)", () => {
     expect(bed.spawned[0]?.requests).toEqual([
       expect.objectContaining({ type: "set_model", provider: "p", modelId: "m" }),
       expect.objectContaining({ type: "set_thinking_level", level: "high" }),
+      // The VM start keeps the box's models in the background.
+      expect.objectContaining({ type: "get_available_models" }),
     ]);
   });
 });

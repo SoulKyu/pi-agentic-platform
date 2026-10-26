@@ -4,6 +4,7 @@ import { hasKnowledge } from "../../kernel/fs/knowledge.ts";
 import { type LaunchHandle, launchCodeOf } from "../../kernel/launches.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { initTools, storeNewSession } from "./automation-port.ts";
+import { type BoxModels, boxKeyOf, refreshBoxModels } from "./box-models.ts";
 import { storeChildPolicy } from "./child-port.ts";
 import { type AgentLaunch, applyProfileModel, initFieldsOf, refusedModelNotice } from "./agent-gate.ts";
 import type { AgentSurface } from "./agent-surface.ts";
@@ -22,6 +23,8 @@ import { vmBranchOf, type VmStarted } from "./vm-launch.ts";
 /** What starting a worker needs of the service: its deps and the maps it shares with it (M4R27). */
 export interface LaunchContext {
   readonly deps: SessionsServiceDeps;
+  /** The extension models of each box: a VM worker's list is kept at every start. */
+  readonly boxModels: BoxModels;
   readonly live: Map<string, LiveSession>;
   readonly reopening: Map<string, Promise<LiveSession>>;
   readonly starting: Set<LiveSession>;
@@ -326,6 +329,14 @@ export function createLaunch(ctx: LaunchContext) {
               }),
             );
         });
+      // Never awaited: the box's list is kept for its cold menu, and a failure costs the start nothing.
+      if (vmLaunch)
+        refreshBoxModels(
+          session,
+          boxKeyOf(row, (r) => ctx.agent.vmLayoutOf(r)?.home ?? null),
+          ctx.boxModels,
+          logger,
+        );
       return session;
     } catch (error) {
       await session.stop();

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { AgentInput, type InitRecord } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -176,6 +176,27 @@ describe("agent sessions in vm mode (T8a)", () => {
     expect(world.specs).toEqual([]);
     expect(bed.spawned).toHaveLength(1);
     expect(initRecordOf(bed.spawned[0])).not.toHaveProperty("vm");
+  });
+});
+
+describe("a VM worker's start keeps its box's models", () => {
+  const bridge = { provider: "claude-bridge", id: "b-1", name: "b", reasoning: false };
+  it("asks the worker once for its list and keeps it for the box, without a menu call", async () => {
+    const { papHome } = setup({
+      replies: { get_available_models: { data: { models: [bridge], truncated: false, current: null } } },
+    });
+    await thread();
+    const types = () => bed.spawned[0]?.requests.map((request) => request.type) ?? [];
+    expect(types().filter((type) => type === "get_available_models")).toHaveLength(1);
+    await vi.waitFor(() =>
+      expect(JSON.parse(readFileSync(join(papHome, "box-models.json"), "utf8")).boxes).toEqual({
+        [`agent:${ID}`]: { at: expect.any(Number), models: [bridge] },
+      }),
+    );
+  });
+  it("a refused refresh does not fail the start", async () => {
+    setup({ replies: { get_available_models: { error: "no" } } });
+    await expect(thread()).resolves.toMatchObject({ sessionId: expect.any(String) });
   });
 });
 
