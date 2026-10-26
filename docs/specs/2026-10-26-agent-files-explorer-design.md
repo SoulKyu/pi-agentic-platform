@@ -78,7 +78,7 @@ On a phone, the explorer stacks as `FilesPane` already does. The credentials sec
 - **Prefix swap.** The guest still sees its own `/agent`. The daemon swaps the prefix both ways, in request paths and in any path a result carries.
   - The match is lexical, like `boxOfPath`. `/agents/<id>/../x`, `/agents/<id>X` and an unknown id are not agent paths.
   - A path that is not lexically clean is never routed to the host.
-- **Routing.** `files.*` and the raw routes route an agent path to the agent's guest, beside the box project routing (`modules/files/box-backend.ts`). `BoxOps` takes a `BoxRef` (`{kind, id}`) instead of a project id: today it hard-codes `kind: "project"`.
+- **Routing.** `files.*` and the raw routes route an agent path to the agent's guest, beside the box project routing (`modules/files/box-backend.ts`). `BoxOps` serves agents too: today it hard-codes `kind: "project"` (the plan builds one instance per kind, ruling R1).
 
 ### 4.3 Starting and stopping
 
