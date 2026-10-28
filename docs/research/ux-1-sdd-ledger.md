@@ -1,0 +1,80 @@
+# SDD ledger — plan: docs/plans/2026-10-28-ux-1.md
+
+- Spec: docs/specs/2026-10-28-ux-1-design.md (decision 138). Plan commit f745ff80. Model table (owner-approved): Sonnet implementers and task reviewers, Opus final review; Opus escalation at fix rounds 4-5 pre-approved for this run.
+- Ruling: planner Q1 — a project trigger task session keeps TO TERMINAL (it already has the Terminal surface button; hiding it needs a session-type field on the stream, a third daemon change) — owner chose the default flow; cost if wrong: one button visible on task sessions, nothing runs before Enter.
+- Pre-flight scan (Sonnet): preflight.md in this directory (pair table, per-task table, 7 findings).
+- Ruling: PF-A store imports a feature → new stores/knowledge-enabled.ts — AGENTS.md module boundaries — cost if wrong: one extra small store file.
+- Ruling: PF-B Escape closes the quote toolbar without stopping the run (spec §4.3) — plan only kept Escape from stopping the run — cost if wrong: a capture listener while a selection toolbar shows.
+- Ruling: PF-C builder refinements R6 R8 R16 R18 R23 accepted; Q1 default kept — builder-level per spec §6 — cost if wrong: rework of the named refinement.
+- Ruling: PF-D T1 wiring (SkillsRpc Pick, audit stubs, audit required) — plan omission — cost if wrong: none (typecheck would catch).
+- Ruling: PF-E docs-truth timing moves e2e.md/terminal.md to T5 — keeps each task's gate green — cost if wrong: none.
+- Ruling: PF-F TerminalScreen fakes updated, unused exports dropped — knip gate — cost if wrong: none.
+- Ruling: PF-G T2 creates snapshot.cost.test.ts, composeSessionCost reads runs.port — module boundary — cost if wrong: none.
+- Task 1: dispatched (Sonnet implementer a4a72eac96821df30, BASE f745ff80)
+- Task 1: implementer DONE_WITH_CONCERNS (d0754d41; concerns: O_NOFOLLOW and /proc readlink are two guards, single-guard mutation does not fail alone; token test uses sessions:read; skills.md wording for docs-truth). Review dispatched (Sonnet a9ecf6f679c5ed0f8) on f745ff80..d0754d41.
+- Task 1: review Approved (Sonnet). ⚠️ helper error mapping resolved by controller: config_path_refused/config_hard_link are existing codes mapped by contracts helperErrorCode (kernel/helper/pool.ts:291), already exercised by models tests. ⚠️ token test: tokens can never hold pi:* (TOKEN_PERMISSIONS), so a sessions:read token is the reachable case.
+- Task 1: minor (deferred): O_NOFOLLOW not individually pinned (shadowed by /proc readlink check on Linux).
+- Task 1: minor (deferred): methods-idempotent.ts "templates.save" out of alphabetical order.
+- Task 1: minor (deferred): silent .catch on fsync/close cleanup in prompt-template.ts.
+- Task 1: minor (deferred): rm(temp) failure after a successful link throws though the file is in place.
+- Task 1: minor (deferred): service.ts import order ../audit after ../auth.
+- Task 1: complete (commits f745ff80..d0754d41, review clean)
+- Task 2: dispatched (Sonnet implementer a1ef519deb3cd71c1, BASE d0754d41)
+- Task 2: implementer DONE_WITH_CONCERNS (5f21768e; composeSessionCost takes Pick<RunsService,'port'|'peek'> since peek is not on RunsPort; contracts/int RED not seen before impl; existing tests adapted).
+- Task 2: review Approved (Sonnet). Ruling: composeSessionCost takes Pick<RunsService,"port"|"peek"> instead of runs.port alone (PF-G) — peek exists only on RunsService, listeners still go through runs.port — cost if wrong: a compose file names RunsService.
+- Task 2: ⚠️ 320 px wrap (J16) unverified visually → the controller's pre-merge full pnpm test:e2e covers J16.
+- Task 2: minor (deferred): {parent:true} wiring in compose-session-cost.ts has no test.
+- Task 2: minor (deferred): session-cost.int.test waits first null-run cost event, not idle; equality weak if scripted cost is 0.
+- Task 2: minor (deferred): snapshot.test.ts default policy assertion became self-referential (DEFAULT_SESSION_POLICY_VIEW).
+- Task 2: minor (deferred): UsageLine builds Intl.NumberFormat every render.
+- Task 2: complete (commits d0754d41..5f21768e, review clean)
+- Task 3: dispatched (Sonnet implementer a51396ecb4dc7575c, BASE 5f21768e)
+- Task 3: implementer DONE_WITH_CONCERNS (9029df3e; place.cwd null → base=root; md regex local; knowledge-enabled store left to T6).
+- Task 3: review Approved (Sonnet). Ruling: null place.cwd → base=root, roots=[root] — fail-safe, daemon file rules and T4 scope still decide — cost if wrong: relative paths resolve from the project root instead of the session folder in that rare case.
+- Task 3: minor (deferred): listedRoot never cleared — a stopped box after a first listing lets the target open the tab (no box start; viewer shows stopped state).
+- Task 3: minor (deferred): null-cwd fallback untested.
+- Task 3: minor (deferred): AppShell resetReplyTools() call not pinned by a test.
+- Task 3: minor (deferred): unconsumed target stays until a manual Files open (bounded 32).
+- Task 3: minor (deferred): FilesPane import order nit.
+- Task 3: complete (commits 5f21768e..9029df3e, review clean)
+- Task 4: dispatched (Sonnet implementer ac0afb03ca7bcf045, BASE 9029df3e)
+- Task 4: implementer DONE_WITH_CONCERNS (2b01efc0; useReplyMarkdown dropped unused 'finished' param — T5 re-adds; recogniser tightened per R14: relative paths need a known extension or Dockerfile/Makefile; agent scope links only /agent/...).
+- Task 4: review Approved (Sonnet). Ruling: recogniser tightened (relative paths need a known extension or Dockerfile/Makefile; `a/b` tokens stay text) — R14 "may tighten, never widen" — cost if wrong: extensionless relative files (bin/run, go.mod, .gitignore) do not link.
+- Task 4: ⚠️ long path wrapping in Safari (button inline) → covered by the pre-merge full e2e (J16) or the owner's preview check.
+- Task 4: minor (deferred): h1-h6 near-identical entries in render.tsx.
+- Task 4: minor (deferred): KNOWN_EXTENSIONS lacks mod/sum; dotfiles never link.
+- Task 4: minor (deferred): unsafe-href span branch does not reset the link context.
+- Task 4: minor (deferred): stream test "ends inside prefix" assertion cannot fail.
+- Task 4: complete (commits 9029df3e..2b01efc0, review clean)
+- Task 5: dispatched (Sonnet implementer a61345d0d7d20b013, BASE 2b01efc0)
+- Task 5: implementer DONE_WITH_CONCERNS (55e58e09; ShellHandOff interface gained canSend/useStatus and async send, status moved to stores/shell-answers.ts because the chat remounts on split/phone swap; typist registered in useTerminal; J17 passes Chromium+WebKit).
+- Task 5: review Needs fixes (Sonnet): 1 Important (plan-mandated UX1-R24): a second block clicked during block A's in-flight hand-off gets A's "Typed" outcome.
+- Ruling: UX1-R24 amended — the shared in-flight promise is returned only for the identical text of the same session; a different text while one is in flight answers a busy outcome shown as "Nothing was typed" — spec §4.2 status must be true — cost if wrong: a second click during a slow create must be repeated.
+- Task 5: minor (deferred): J17 asserts file absence at one instant (no negative poll).
+- Task 5: minor (deferred): typed answer ignores handle.input's return value.
+- Task 5: minor (deferred): stale "Typed" status until next click; inFlight map not in sign-out reset (settles within 10 s).
+- Task 5: fix round 1/5 dispatched (resume a61345d0d7d20b013, FIX_BASE 55e58e09)
+- Task 5: fix round 1 implemented (74560646: busy outcome + reply.shell.busy EN/FR; identical blocks still share a status — same text, same hand-off). Re-review dispatched (Sonnet ae10acc083b619af8).
+- Task 5: fix round 1/5 (1 addressed, 0 open; commits 55e58e09..74560646)
+- Task 5: minor (deferred): fix report gives aggregate counts, not the covering test's output.
+- Task 5: complete (commits 2b01efc0..74560646, review clean)
+- Task 6: dispatched (Sonnet implementer a8fd41b8f72776c83, BASE 74560646)
+- Task 6: implementer DONE_WITH_CONCERNS (16b914e4; overlayOpen keyed on [data-closes-on-escape] because the literal marker in eager commands/context.ts broke build-output; Escape tests in routes/shell; toolbar width estimated 240 px).
+- Controller: compiler-gate.test.ts fails on PathText.tsx and ShellBlock.tsx ("compiles with no bailout", default in a destructured parameter) — introduced by T4/T5, missed because `vitest related` does not reach compiler-gate.test.ts. Ruling: fixed in Task 6's fix round (blocks the lot gate); every later web task's gate adds `pnpm exec vitest run --project unit apps/web/src/compiler-gate.test.ts` — cost if wrong: none.
+- Task 6: review Approved (Sonnet). Ruling: overlayOpen keyed on [data-closes-on-escape] accepted (eager literal would break the markers row) — cost if wrong: none, same behaviour. Escape tests in routes/shell accepted (boundaries).
+- Task 6: minor (deferred): placeToolbar geometry asserted by bounds; scroll reread re-renders and sticks at the margin; composer-insert unbounded join; dialog closed mid-save drops "Saved"; use-insert focus listener stale if textarea replaced.
+- Task 6: complete (commits 74560646..16b914e4, review clean)
+- Fix wave before final review (controller ruling): (1) compiler-gate bailouts in PathText.tsx and ShellBlock.tsx (T4/T5); (2) quote toolbar overflows in French (240 px estimate) — the owner's UI is French; (3) quote clip can leave a lone surrogate at 20 000. Dispatched to the Task 6 implementer (a8fd41b8f72776c83), FIX_BASE 16b914e4.
+- Pre-final fix wave done (52aaa4ab): PathText default read in body; ShellBlock no longer calls a hook off a prop (ShellHandOff.useStatus → subscribe + statusOf with useSyncExternalStore); toolbar clamps by measured width; quote clip never splits a pair.
+- Ruling: no separate scoped re-review of 52aaa4ab — the Opus whole-branch final review covers it explicitly — cost if wrong: none (the final review is stricter).
+- Final review dispatched (Opus ab9ae9d24aae7e0c0) on 4d4be11f..52aaa4ab.
+- Final review (Opus): 0 Critical, 1 Important (I1: the template dialog and skills.md promise boxes/agents get templates at the next Pi profile image build; image-inputs.ts build() never copies prompts/), 8 new minors; verdict "ready after fixes"; triage: fix before merge — sign-out test must pin resetReplyTools(), the path-streaming assertion that cannot fail; m1 m2 m6 ride along; m3 m4 m5 follow-ups.
+- Ruling: I1 is resolved by MAKING THE SPEC TRUE, not by changing the copy — spec §4.5 (owner-approved, decision 138) promises templates reach boxes and agents with the next Pi profile image build; build() gains the `prompts/` copy like `skills/` (one line, a copied root so the fingerprint follows, the existing secret scan refuses a template holding a known secret); the dialog copy and skills.md stay, made precise — boxes run on host-made profile images and pap is moving every project into boxes (B4), so a host-only template would be near useless — cost if wrong: every profile image rebuilds once at its next start after the merge; a template holding a vault value refuses the build with the existing "a Pi profile file holds a secret" message.
+- Task UX-1 follow-ups (deferred): m3 TO TERMINAL replaces a Files split with unsaved edits (pre-existing reveal gap); m4 absolute folders become links; m5 refusal re-announced on remount.
+- UX-2 RB note (from m7): MarkdownBody delegates to MarkdownTree({text, copyLabels}) — UX-2 props must reach COMPONENTS through a context in MarkdownBody (as ReplyTools/ShellHandOffContext) or by threading MarkdownTree; packages/contracts/src/methods.test.ts is at 399 lines; UX-1's `code` entry wraps <PathText whole> and UX-2's inline-math line lands in the same entry: keep both.
+- Final fix wave dispatched (one Sonnet fixer), FIX_BASE 52aaa4ab.
+- Final fix wave implemented (fc77cb23; prompts also added to INSIDE_AGENT, image-inputs.ts 396 lines; both agent and project box images carry the profile layer; copy unchanged, docs lines added).
+- Final fix wave re-review (Opus): all findings addressed (52aaa4ab..fc77cb23). Side effects confirmed: profiles rebuild only where <Pi agent dir>/prompts/ exists (none on this host today); owner templates ship into every box, members' included (same exposure as skills/).
+- Ruling: residual minor parked — a template name containing "credentials" is valid for PromptTemplateName but dropped from the profile by DENIED_NAME (only an agent_profile_skipped log) — cost if wrong: such a template stays host-only; follow-up: refuse those names in the contract or document it.
+- Follow-ups (deferred): skills.md/agents-vm.md "Members" could say the owner's skills and templates are readable in members' boxes; a template deleted on the host stays on existing box disks (same as skills/); a symlinked skills/ or prompts/ pointing at <agent>/npm copies all of npm/ (pre-existing).
+- Pre-merge gate (controller, rebased on main ecdb96b4, head 85fa7eeb): install, build, lint, format, typecheck, knip, unit related, int related (271 files, 1391 passed, 1 skipped), compiler gate, budgets, full e2e (38 passed) — all green.
