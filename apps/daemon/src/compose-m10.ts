@@ -12,6 +12,7 @@ import {
   registerAttachmentCleanup,
 } from "./compose-runs.ts";
 import { composeTrace, type ComposedTrace } from "./compose-trace.ts";
+import { composeSessionCost } from "./compose-session-cost.ts";
 import { composeUsage } from "./compose-usage.ts";
 import type { MigrationSource } from "./kernel/db/migrate.ts";
 import type { Outbox } from "./kernel/outbox/index.ts";
@@ -63,7 +64,7 @@ export interface M10Early {
 export type M10Modules = AutomationModules &
   Readonly<Record<string, unknown>> & {
     readonly settings: SettingsModule;
-    readonly sessions: Pick<SessionsModule, "automation" | "modeOf" | "sandboxedThread" | "kindOf">;
+    readonly sessions: Pick<SessionsModule, "automation" | "modeOf" | "sandboxedThread" | "kindOf" | "cost">;
   };
 
 export interface M10 {
@@ -134,6 +135,7 @@ export function composeM10(core: M10Core, early: M10Early, modules: M10Modules):
   });
   const usage = (late.usage = composeUsage(core, early, modules, automation.taskOf));
   registerAttachmentCleanup(core, outbox, modules.sessions.automation);
+  const stopSessionCost = composeSessionCost(early.runs, modules.sessions);
   early.metrics.bind({
     settings: { automation: (ownerId) => modules.settings.port.automation(ownerId) },
     workers: () => modules.sessions.automation.workers(),
@@ -180,6 +182,7 @@ export function composeM10(core: M10Core, early: M10Early, modules: M10Modules):
       early.trace.stall.stop();
       SEAMS.delete(core.config.home);
       usage.stop();
+      stopSessionCost();
     },
   };
   if (core.config.testProviderScript)

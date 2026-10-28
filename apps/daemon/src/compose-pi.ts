@@ -126,6 +126,7 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
     logger: deps.logger,
     clock: deps.clock,
     writes,
+    audit: deps.audit.port,
   });
   return {
     rpc: {

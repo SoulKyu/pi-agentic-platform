@@ -32,6 +32,7 @@ describe("agent text and the markdown renderer", () => {
   it("reports a renderer that failed to load as lazy_chunk_failed, and keeps the text", async () => {
     page = await mount(
       <MessageRow
+        sessionId="s1"
         item={{ kind: "message", key: "m", author: "agent", text: "hello", thinking: "", entryId: null }}
       />,
     );
@@ -42,6 +43,7 @@ describe("agent text and the markdown renderer", () => {
   it("does not send your own text through markdown", async () => {
     page = await mount(
       <MessageRow
+        sessionId="s1"
         item={{ kind: "message", key: "m", author: "you", text: "**as typed**", thinking: "", entryId: null }}
       />,
     );
@@ -52,10 +54,10 @@ describe("agent text and the markdown renderer", () => {
 
   it("renders a streaming reply block by block and parses only the growing one again", async () => {
     const partial = (text: string) => ({ kind: "partial" as const, key: "p", text, thinking: "" });
-    page = await mount(<MessageRow item={partial("p1\n\np2\n\np3")} />);
+    page = await mount(<MessageRow sessionId="s1" item={partial("p1\n\np2\n\np3")} />);
     expect(rendered.texts).toEqual(["p1", "p2", "p3"]);
     rendered.texts.length = 0;
-    await page.rerender(<MessageRow item={partial("p1\n\np2\n\np3 more")} />);
+    await page.rerender(<MessageRow sessionId="s1" item={partial("p1\n\np2\n\np3 more")} />);
     expect(rendered.texts).toEqual(["p3 more"]);
     expect([...page.container.querySelectorAll("[data-plain]")].map((node) => node.textContent)).toEqual([
       "p1",
@@ -67,7 +69,10 @@ describe("agent text and the markdown renderer", () => {
   it("renders a finished message as one Markdown with the whole text", async () => {
     const text = "p1\n\np2\n\np3";
     page = await mount(
-      <MessageRow item={{ kind: "message", key: "m", author: "agent", text, thinking: "", entryId: null }} />,
+      <MessageRow
+        sessionId="s1"
+        item={{ kind: "message", key: "m", author: "agent", text, thinking: "", entryId: null }}
+      />,
     );
     expect(rendered.texts).toEqual([text]);
   });

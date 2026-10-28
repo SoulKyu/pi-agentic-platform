@@ -80,6 +80,19 @@ export default function CodeEditorView(props: CodeEditorProps) {
       });
   }, [value]);
 
+  const lineKey = props.line?.key;
+  useEffect(() => {
+    const target = latest.current.line;
+    const current = view.current;
+    if (!target || !current) return;
+    const wanted = Number.isFinite(target.n) ? Math.trunc(target.n) : 1;
+    const from = current.state.doc.line(Math.min(Math.max(wanted, 1), current.state.doc.lines)).from;
+    current.dispatch({
+      selection: { anchor: from },
+      effects: EditorView.scrollIntoView(from, { y: "center" }),
+    });
+  }, [lineKey]);
+
   const { label } = labels;
   const phrases = JSON.stringify(labels.phrases ?? {});
   useEffect(() => {

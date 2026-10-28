@@ -129,6 +129,7 @@ describe("session stream v2", () => {
       toolPreset: "configured",
       children: [],
       hiddenChildren: 0,
+      cost: null,
     });
   });
 

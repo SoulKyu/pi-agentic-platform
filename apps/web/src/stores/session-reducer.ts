@@ -6,6 +6,7 @@ import {
   NO_HISTORY,
   type PartialMessage,
   type QueueView,
+  type SessionCost,
   type SessionLoadout,
   type ToolPreset,
   type SessionPolicyView,
@@ -72,6 +73,8 @@ export interface SessionView extends UiState {
   readonly toolPreset: ToolPreset | null;
   /** The session's subagents, newest first (M11R153); empty from an older daemon. */
   readonly children: readonly ChildView[];
+  /** What the session has cost so far, from the snapshot and each `cost` event; null when it has had no run. */
+  readonly cost: SessionCost | null;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -100,6 +103,7 @@ export const EMPTY_VIEW: SessionView = {
   loadout: null,
   toolPreset: null,
   children: [],
+  cost: null,
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -155,6 +159,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         loadout: event.loadout,
         toolPreset: event.loadout?.preset ?? event.toolPreset ?? null,
         children: event.children,
+        cost: event.cost,
         loaded: true,
         generation: view.generation + 1,
       };
@@ -222,6 +227,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
           };
     case "subagents":
       return { ...view, children: event.children };
+    case "cost":
+      return { ...view, cost: event.cost };
     case "loadout":
       return { ...view, loadout: event.loadout, toolPreset: event.loadout.preset };
     default:

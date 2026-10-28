@@ -40,6 +40,7 @@ import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { SessionsProjectPort } from "./project-port.ts";
 import type { SessionsOwnerCascade } from "./owner-cascade.ts";
+import { createSessionCost, type SessionCostPort } from "./session-cost.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
@@ -145,6 +146,8 @@ export interface SessionsModule {
     notice(sessionId: string, text: string, now?: true): void;
     taint(sessionId: string): void;
   };
+  /** The session's cost on its stream and in its snapshot; the runs service feeds it (`composeSessionCost`, UX-1). */
+  readonly cost: SessionCostPort;
   /** The only way lanes touch sessions (M9R37). */
   readonly lanes: SessionsLanePort;
   /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
@@ -193,6 +196,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   const forkTmpDir = join(config.home, "fork-tmp");
   purgeForkTmp(forkTmpDir, logger);
   const store = createSessionsStore(deps.db);
+  const cost = createSessionCost({ hub: deps.hub, clock: deps.clock, store, logger });
   const laneHooks = createLaneHooks({
     clock: deps.clock,
     logger,
@@ -215,6 +219,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     laneHooks,
     onSessionStarted: held.flush,
     store,
+    cost,
     exports,
     clock: deps.clock,
     logger,
@@ -280,10 +285,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
     scanPort: service.scanPort,
+    cost,
     async shutdownAll() {
       try {
         await service.shutdownAll();
       } finally {
+        cost.stop();
         exports.stop();
       }
     },

@@ -9,7 +9,8 @@ const EDITABLE = 'input, textarea, select, [contenteditable="true"], [contentedi
 
 /** Radix popper content (menus, selects, popovers) or a menu or listbox, but never a mere tooltip. */
 function overlayOpen(doc: Document): boolean {
-  if (doc.querySelector('[role="menu"], [role="listbox"]')) return true;
+  // A floating selection bar (the quote toolbar and strip, UX-1; the name stays neutral so the lazy chunk's markers stay out of this eager file): Escape closes them first and the next one stops the run.
+  if (doc.querySelector('[role="menu"], [role="listbox"], [data-closes-on-escape]')) return true;
   return [...doc.querySelectorAll("[data-radix-popper-content-wrapper]")].some(
     (wrapper) => wrapper.querySelector('[role="tooltip"]') === null,
   );

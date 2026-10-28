@@ -1,4 +1,4 @@
-import { type Dialog, SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
+import { DEFAULT_SESSION_POLICY_VIEW, type Dialog, SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import {
@@ -53,16 +53,12 @@ describe("fitSnapshot", () => {
       name: null,
       cwd: "",
       outsideWrite: false,
-      policy: {
-        mode: "auto-accept-edits",
-        explicit: false,
-        tainted: false,
-        defaultMode: "auto-accept-edits",
-      },
+      policy: DEFAULT_SESSION_POLICY_VIEW,
       loadout: null,
       toolPreset: "configured",
       children: [],
       hiddenChildren: 0,
+      cost: null,
     });
   });
 
@@ -121,9 +117,9 @@ describe("fitSnapshot", () => {
       dialog("d3", "c".repeat(400)),
     ];
     const rows = [row(1), row(2)];
-    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1623);
+    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1635);
     expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1", "d2"]);
-    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1623);
+    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1635);
   });
 
   it("keeps the session's own approvals before its children's dialogs when the room is short (review M8)", () => {

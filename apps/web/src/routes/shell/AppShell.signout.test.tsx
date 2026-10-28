@@ -3,9 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { remember, rememberedRoots, resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { RpcError } from "../../runtime/rpc.ts";
 import type { Runtime } from "../../runtime/index.ts";
+import { useComposerInsert } from "../../stores/composer-insert.ts";
 import { useAddProjectRequest } from "../../stores/add-project-request.ts";
 import { usePaletteRequest } from "../../stores/palette-request.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
+import { useFilesTarget } from "../../stores/files-target.ts";
+import { useReplyPorts } from "../../stores/reply-ports.ts";
+import { useShellAnswers } from "../../stores/shell-answers.ts";
+import { useTerminalTypists } from "../../stores/terminal-typists.ts";
 import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
@@ -72,7 +77,22 @@ describe("sign-out wipes the M8 client stores (MC34)", () => {
     useAddProjectRequest.getState().ask(() => {});
     usePaletteRequest.getState().askSearch("p1");
 
+    useReplyPorts.getState().register("s1", {
+      scope: { base: "/p", roots: ["/p"], filesRoot: "/p", agentId: null },
+      openFile: () => {},
+    });
+    useFilesTarget.getState().push("/p", "/p/f", 1);
+    useTerminalTypists.getState().register("t1", { handOff: () => "typed" });
+    useShellAnswers.getState().set("b", { since: null, answer: null });
+    useComposerInsert.getState().push("s1", "> quoted\n\n");
+
     await page.unmount();
+
+    expect(useReplyPorts.getState().ports).toEqual({});
+    expect(useFilesTarget.getState().targets).toEqual({});
+    expect(useTerminalTypists.getState().typists).toEqual({});
+    expect(useShellAnswers.getState().byBlock).toEqual({});
+    expect(useComposerInsert.getState().items).toEqual({});
 
     expect(useSecretDialog.getState().requestId).toBeNull();
     expect(useAddProjectRequest.getState().open).toBe(false);

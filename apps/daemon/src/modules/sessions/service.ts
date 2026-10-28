@@ -201,6 +201,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     outsideWrite: adoption.outsideWrite,
     policyView: (row) => policyLink.viewOf(row),
     children: (id) => child.viewsOf(id),
+    cost: (id) => deps.cost?.snapshotOf(id) ?? null,
   });
 
   const commands = createSessionCommands({

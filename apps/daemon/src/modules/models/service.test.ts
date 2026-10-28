@@ -232,6 +232,7 @@ describe("the helper op table", () => {
         !op.startsWith("trust.") &&
         !op.startsWith("skills.") &&
         !op.startsWith("plugins.") &&
+        !op.startsWith("templates.") &&
         !op.startsWith("subagents."),
     );
     expect(calls.map((call) => call.op).sort()).toEqual(modelsOps.sort());

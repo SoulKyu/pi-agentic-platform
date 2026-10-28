@@ -9,6 +9,8 @@ const screen = () => ({
   write: vi.fn(() => Promise.resolve()),
   reset: vi.fn(),
   focus: vi.fn(),
+  paste: vi.fn(),
+  bracketedPaste: () => false,
 });
 
 afterEach(() => vi.restoreAllMocks());

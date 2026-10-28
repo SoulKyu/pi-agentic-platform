@@ -27,6 +27,7 @@ import { RequestCards } from "./RequestCards.tsx";
 import { panelLayout, WIDE_QUERY } from "./status.vm.ts";
 import { threadInterleave } from "./thread-plan.tsx";
 import { useAgentCards, useMarkRead, useNow, useOpenThread } from "./use-agent-space.ts";
+import { useAgentReplyPort } from "./use-agent-reply-port.ts";
 import { useHandOff } from "./use-hand-off.ts";
 import { useAgentLifecycle } from "./use-agent-lifecycle.ts";
 import { useAgentView } from "./use-agent-view.ts";
@@ -158,6 +159,7 @@ function AgentSpace({
     setFocus(undefined);
     setTab(next);
   };
+  useAgentReplyPort(agentId, sessionId, () => openTab("files"));
   const openBudget = () => {
     if (!mayLeaveFiles()) return;
     setAsked(false);

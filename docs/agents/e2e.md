@@ -1,6 +1,6 @@
 # End-to-end journeys
 
-Fifteen browser journeys (J01 to J16 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
+Sixteen browser journeys (J01 to J17 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
 
 ## What runs where
 
@@ -21,6 +21,10 @@ Nothing here has run on macOS, Windows or WSL.
 - Day's focus outline on the active tab reaches 3:1.
 
 The 320 px width is set in the test (`setViewportSize`) on the desktop projects, not by a phone project: the phone projects own J06 only, and a Pixel 7 is 412 px wide. Touch and 44 px targets stay J06's job. J16 injects only the read-only 72ch probe (removed at once); no screenshots, no `bypassCSP`. Time: 7.9 s on Chromium and 8.3 s on WebKit in the full run.
+
+## Reply tools in the journeys (J17)
+
+J17 runs with `SHELL=/bin/bash` (`papEnv`) and the DOM renderer of xterm. A scripted reply holds three bash fences; the journey clicks To terminal on each. A single line and a two-line block (bracketed paste on, bash's default) appear in the terminal's rows while their files are absent, and only the owner's Enter creates them. After `bind 'set enable-bracketed-paste off'` the two-line block is refused with the `reply.shell.multiline` alert, no row holds it and no file exists. It ends on the files in the project folder.
 
 ## Agents in the journeys (J07)
 
@@ -92,7 +96,7 @@ With `PAP_TEST_PUSH_LOOPBACK=1`, `daemon.ts` starts the **daemon process only** 
 
 - **J13 does not compare the VAPID `k=` value** in the `Authorization` header with the daemon's public key; it checks that a push arrives, once, encrypted for the sink's key with `aes128gcm`, signed with a `vapid` scheme, carrying the generic sentence and none of the command.
 - **J13 forces the Notification permission to `granted`** in the page (headless Chromium reports `denied`, and the page reads it before asking). It proves pap's handling of a granted browser, not a real permission prompt.
-- **J11 removes `WebGL2RenderingContext`** from the page so xterm uses its DOM renderer, whose text a locator can read. The canvas and WebGL renderers are not exercised.
+- **J11 and J17 remove `WebGL2RenderingContext`** from the page so xterm uses its DOM renderer, whose text a locator can read. The canvas and WebGL renderers are not exercised.
 - WebKit here is Playwright's build, not Safari on iOS or macOS.
 - Known limits (M13R34): WebKit passkey, push on Chromium only, the container needs network host mode, and the suite does not cover Windows or WSL.
 

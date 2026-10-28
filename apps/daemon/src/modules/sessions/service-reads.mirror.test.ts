@@ -54,6 +54,7 @@ function setup(options: {
     outsideWrite: () => false,
     policyView: () => ({}) as never,
     children: () => [],
+    cost: () => null,
   });
   return { reads, pages, papHome, agentDir, row };
 }
@@ -112,6 +113,7 @@ describe("unverified user entries (R32)", () => {
       outsideWrite: () => false,
       policyView: () => ({}) as never,
       children: () => [],
+      cost: () => null,
     });
     await reads.ensureReader();
     return reads;

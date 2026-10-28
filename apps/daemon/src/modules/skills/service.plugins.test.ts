@@ -37,6 +37,7 @@ function bed(answer: (call: RunCall) => unknown = answerFor) {
   const { pool, calls } = fakePool(answer);
   const clock = createFakeClock();
   const service = createSkillsService({
+    audit: { append: () => {} },
     helpers: pool,
     projects: { covers: (owner, cwd) => owner === "u1" && cwd.startsWith("/w/api") },
     logger: captureLogger().logger,
@@ -175,6 +176,7 @@ describe("the shared Pi write queue (MC29)", () => {
     const writes = createPiWriteQueue();
     const clock = createFakeClock();
     const service = createSkillsService({
+      audit: { append: () => {} },
       helpers: pool,
       projects: { covers: () => true },
       logger: captureLogger().logger,
@@ -202,6 +204,7 @@ describe("the shared Pi write queue (MC29)", () => {
       stopAll: async () => {},
     };
     const service = createSkillsService({
+      audit: { append: () => {} },
       helpers: pool,
       projects: { covers: () => true },
       logger: captureLogger().logger,

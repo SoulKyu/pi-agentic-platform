@@ -113,3 +113,4 @@ A project made from a name has its files in its box, not on this machine. Box: `
 - **Protection.** A dot-entry directly in `home/` is `confirm` on write (scope `home: ["/home"]`, roots `["/"]`, relative to the agent's folder).
 - **Members.** The client-path gate lets a member send `/agents/<id>/...` only for their own agent; every other path stays `forbidden`.
 
+- **Opened from a reply (UX-1).** A session tab or an agent thread registers a reply port (`stores/reply-ports.ts`); its `openFile(path, line)` pushes a target (`stores/files-target.ts`, one per Files root) and splits the tab with Files (or opens the agent's Files tab). `FilesPane` takes the target once its root has listed, so a stopped box shows START and the file opens after it; a Markdown file with a line opens in Source, and `CodeEditor`'s `line` puts the cursor there (clamped to the loaded text, no automatic load-more).

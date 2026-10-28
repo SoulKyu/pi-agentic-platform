@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ClientPath } from "./client-path.ts";
 import { defineMethod } from "./define.ts";
+import { TemplatesSaveParams, TemplatesSaveResult } from "./prompt-templates.ts";
 
 /**
  * Pinned at implementation: `skills` 1.7.2, published 2026-10-09 (at least 3 days old: minimumReleaseAge). The package is the
@@ -297,5 +298,24 @@ export const skillsMethods = {
     params: PluginSetEnabledParams.extend({ cwd: Cwd.optional() }),
     result: PluginSetEnabledResult,
     errors: PLUGIN_WRITE_ERRORS,
+  }),
+  // The password step-up first, in the service; Pi's folder is the owner's (UX-1).
+  "templates.save": defineMethod({
+    name: "templates.save",
+    permission: "pi:admin",
+    idempotent: false,
+    sensitiveParams: ["name", "replace"],
+    params: TemplatesSaveParams,
+    result: TemplatesSaveResult,
+    errors: [
+      "step_up_required",
+      "conflict",
+      "config_path_refused",
+      "config_hard_link",
+      "pi_busy",
+      "capacity",
+      "timeout",
+      "helper_failed",
+    ],
   }),
 } as const;

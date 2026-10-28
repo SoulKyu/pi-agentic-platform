@@ -20,7 +20,8 @@ export { AuthorGroup } from "./ai/AuthorGroup.tsx";
 export { DaySeparator } from "./ai/DaySeparator.tsx";
 export { RunStatusChip, type RunStatus } from "./ai/RunStatusChip.tsx";
 export { Fence } from "./ai/Fence.tsx";
-export { Markdown } from "./ai/Markdown.tsx";
+export { Markdown, type MarkdownProps } from "./ai/Markdown.tsx";
+export type { LinkedSpan, PathLinks, ShellHandOff, ShellStatus } from "./ai/markdown/reply-tools.ts";
 export { copyText } from "./clipboard.ts";
 export type { CodeCopyLabels } from "./ai/markdown/CodeBlock.tsx";
 export { Mark, type MarkProps } from "./brand/Mark.tsx";
@@ -54,6 +55,7 @@ export {
   IconLock,
   IconMore,
   IconPlus,
+  IconQuote,
   IconRefresh,
   IconSearch,
   IconSettings,
@@ -61,6 +63,8 @@ export {
   IconSpinner,
   IconSplit,
   IconTasks,
+  IconTemplate,
+  IconTerminal,
   IconTree,
   IconUndo,
   IconWarning,

@@ -21,6 +21,8 @@ export interface CodeEditorProps {
   /** From `languageFor(path)`; null or absent is plain text. */
   readonly language?: LanguageLoader | null;
   readonly labels: CodeLabels;
+  /** Puts the cursor on line `n` (clamped to the text) and scrolls it to the middle; a new `key` applies it again. */
+  readonly line?: { readonly n: number; readonly key: number };
   /** The editor chunk or the language cannot load: the text stays plain. Called once per failure. */
   readonly onLoadError?: () => void;
 }

@@ -54,6 +54,27 @@ export interface MessageView {
   readonly nestedCalls?: readonly NestedCallView[];
   /** A user entry of a VM session that pap did not send (R32): the row says so on its author line. */
   readonly unverified?: true;
+  /** The context an assistant reply reported using (Pi's `calculateContextTokens`); absent for any other message, a failed or aborted reply, or a usage that is unusable. */
+  readonly contextTokens?: number;
+}
+
+/** Pi's `calculateContextTokens`: `totalTokens` when above 0, else the four counts; nothing when a count is not a usable number. */
+function contextTokensOf(message: {
+  role?: unknown;
+  stopReason?: unknown;
+  usage?: unknown;
+}): number | undefined {
+  if (message.role !== "assistant" || message.stopReason === "error" || message.stopReason === "aborted")
+    return;
+  if (typeof message.usage !== "object" || message.usage === null) return;
+  const usage = message.usage as Record<string, unknown>;
+  const counts = [usage.totalTokens, usage.input, usage.output, usage.cacheRead, usage.cacheWrite].map((n) =>
+    n === undefined ? 0 : n,
+  );
+  if (!counts.every((n) => typeof n === "number" && Number.isFinite(n) && n >= 0)) return;
+  const [total = 0, ...parts] = counts as number[];
+  const used = total > 0 ? total : parts.reduce((sum, n) => sum + n, 0);
+  return used > 0 ? used : undefined;
 }
 
 const MAX_ERROR = 500;
@@ -98,6 +119,7 @@ export function toMessageView(
     display?: unknown;
     isError?: unknown;
     nestedCalls?: unknown;
+    usage?: unknown;
   };
   if (message.role === "custom" && message.display === false) return null;
   const role = KNOWN_ROLES.has(message.role) ? (message.role as MessageRole) : "other";
@@ -136,6 +158,7 @@ export function toMessageView(
   const omitted =
     message.omitted === true && typeof message.bytes === "number" && Number.isFinite(message.bytes);
   const ref = refOf(message, role);
+  const contextTokens = contextTokensOf(message);
   return {
     entryId,
     key: ref,
@@ -163,6 +186,7 @@ export function toMessageView(
     omittedBytes: omitted ? (message.bytes as number) : null,
     truncatedChars: truncatedChars(message.papTruncated),
     ...(nestedCalls ? { nestedCalls } : {}),
+    ...(contextTokens !== undefined ? { contextTokens } : {}),
     ...(unverified ? { unverified: true as const } : {}),
   };
 }

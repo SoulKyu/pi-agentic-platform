@@ -12,6 +12,10 @@ export interface TerminalScreen {
   /** Runs after every write queued before it. */
   reset(): void;
   focus(): void;
+  /** `term.paste(text)`: xterm turns new lines into CR and wraps a bracketed paste itself, and the text reaches `onData`. */
+  paste(text: string): void;
+  /** The program in the terminal asked for bracketed paste (`term.modes.bracketedPasteMode`). */
+  bracketedPaste(): boolean;
 }
 
 export interface TerminalSurfaceProps {
@@ -116,6 +120,8 @@ export function TerminalSurface(props: TerminalSurfaceProps) {
         });
       },
       focus: () => term.focus(),
+      paste: (text) => term.paste(text),
+      bracketedPaste: () => term.modes.bracketedPasteMode,
     };
 
     term.attachCustomKeyEventHandler((event) => {

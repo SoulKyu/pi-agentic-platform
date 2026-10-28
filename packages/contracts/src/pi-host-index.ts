@@ -37,6 +37,7 @@ export * from "./relay-ipc.ts";
 export * from "./policy-paths.ts";
 export * from "./vault-names.ts";
 export * from "./session-loadout.ts";
+export * from "./prompt-templates.ts";
 export * from "./skills-methods.ts";
 export * from "./subagents.ts";
 export * from "./streams.ts";

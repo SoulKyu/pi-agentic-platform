@@ -17,6 +17,7 @@ describe("skill installs and invocation switches share one queue (MC55, T24 M9)"
     );
     const clock = createFakeClock();
     const service = createSkillsService({
+      audit: { append: () => {} },
       helpers: pool,
       projects: { covers: () => true },
       logger: captureLogger().logger,

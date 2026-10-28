@@ -2,7 +2,7 @@ import "./register-models-catalog.ts";
 import type { SessionLoadout, ThinkingLevel } from "@pap/contracts";
 import { Button, InlineError } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -19,10 +19,12 @@ interface ModelBarProps {
   /** Null while the session is cold: the worker that knows its model is not running. */
   readonly loadout: SessionLoadout | null;
   readonly running: boolean;
+  /** The last item of the pills' wrapping row: the usage line (UX-1). */
+  readonly after?: ReactNode;
 }
 
 /** The model and reasoning pills of the composer (DESIGN §9.2). */
-export function ModelBar({ sessionId, loadout, running }: ModelBarProps) {
+export function ModelBar({ sessionId, loadout, running, after }: ModelBarProps) {
   const t = useT();
   const lazyText = useLazyFailureText();
   const runtime = getRuntime();
@@ -85,6 +87,7 @@ export function ModelBar({ sessionId, loadout, running }: ModelBarProps) {
           />
         ) : null}
         <SessionTools sessionId={sessionId} loadout={loadout} running={running} />
+        {after}
       </div>
       {running ? <p className="text-ui text-muted">{t("sessionModels.idleOnly")}</p> : null}
       {level.error ? <InlineError announce="action">{level.error}</InlineError> : null}

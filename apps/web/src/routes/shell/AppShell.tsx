@@ -20,6 +20,7 @@ import { resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { useInboxReveal } from "../../stores/inbox-reveal.ts";
 import { feedInbox, useInboxStore } from "../../stores/inbox-store.ts";
 import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
+import { resetReplyTools } from "../../stores/reply-tools-reset.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
@@ -118,6 +119,7 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
       useInboxReveal.getState().clear();
       usePaletteRequest.setState({ search: null });
       resetFolderMemory();
+      resetReplyTools();
     };
   }, []);
   useShellEffects({ mobile, role, treeOpen: readTreeOpen });

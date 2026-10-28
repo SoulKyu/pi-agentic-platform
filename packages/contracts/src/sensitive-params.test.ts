@@ -22,6 +22,7 @@ describe("sensitiveParams", () => {
       "secrets.answerRequest",
       "secrets.set",
       "sessions.respondDialog",
+      "templates.save",
     ]);
   });
 
@@ -39,6 +40,7 @@ describe("sensitiveParams", () => {
       "secrets.answerRequest": "value",
       "secrets.set": "value",
       "sessions.respondDialog": "response",
+      "templates.save": "body",
     };
     for (const def of Object.values(methods)) {
       if (!def.sensitiveParams) continue;

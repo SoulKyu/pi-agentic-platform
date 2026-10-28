@@ -12,6 +12,7 @@ export type SkillsRpc = Pick<
   | "plugins.remove"
   | "plugins.update"
   | "plugins.setEnabled"
+  | "templates.save"
 >;
 
 export function skillsRpc(service: SkillsService): SkillsRpc {
@@ -25,5 +26,6 @@ export function skillsRpc(service: SkillsService): SkillsRpc {
     "plugins.remove": async (params, ctx) => service.removePlugin(ctx.caller, params),
     "plugins.update": async (params, ctx) => service.updatePlugins(ctx.caller, params),
     "plugins.setEnabled": async (params, ctx) => service.setPluginsEnabled(ctx.caller, params),
+    "templates.save": async (params, ctx) => service.templates.save(ctx.caller, params),
   };
 }

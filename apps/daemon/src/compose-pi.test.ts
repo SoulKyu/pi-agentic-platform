@@ -128,6 +128,7 @@ describe("composePi", () => {
       "skills.search",
       "skills.setInvocation",
       "subscribe.login",
+      "templates.save",
       "trust.set",
       "trust.status",
     ]);

@@ -15,6 +15,7 @@ import {
   type Panel,
   type PartialMessage,
   type QueueView,
+  type SessionCost,
   type SessionLoadout,
   type ToolPreset,
   type SessionPolicyView,
@@ -105,6 +106,7 @@ export interface SnapshotInput {
   readonly loadout?: SessionLoadout | null;
   readonly toolPreset?: ToolPreset;
   readonly children?: readonly ChildView[];
+  readonly cost?: SessionCost | null;
 }
 
 /** A row as it goes into a snapshot: its message bounded like `boundedRow`, its entry id kept. */
@@ -154,6 +156,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     toolPreset: input.toolPreset ?? "configured",
     children: [],
     hiddenChildren: 0,
+    cost: input.cost ?? null,
   };
   let used = sizeOf(snapshot);
   // Everything but approvals and rows stays under `room`: the rows keep their floor (M4R7).

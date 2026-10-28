@@ -164,7 +164,13 @@ describe("TerminalPane", () => {
     const { pane, bed } = setup();
     await mount(pane());
     await settle();
-    current.surface?.onScreen({ write: () => Promise.resolve(), reset() {}, focus() {} });
+    current.surface?.onScreen({
+      write: () => Promise.resolve(),
+      reset() {},
+      focus() {},
+      paste() {},
+      bracketedPaste: () => false,
+    });
     current.surface?.onData("ls\r");
     expect(bed.sentFrames().at(-1)?.payload).toEqual(new TextEncoder().encode("ls\r"));
   });

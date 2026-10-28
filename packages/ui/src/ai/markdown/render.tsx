@@ -3,7 +3,10 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "../../cn.ts";
 import { CodeBlock, type CodeCopyLabels } from "./CodeBlock.tsx";
+import { PathText, ReplyTools } from "./PathText.tsx";
+import { SHELL_LANGS, type PathLinks, type ShellHandOff } from "./reply-tools.ts";
 import { safeHref } from "./safe-url.ts";
+import { ShellBlock, ShellHandOffContext } from "./ShellBlock.tsx";
 
 export const MAX_MARKDOWN_CHARS = 100_000;
 
@@ -72,7 +75,12 @@ const CopyLabels = createContext<CodeCopyLabels | undefined>(undefined);
 
 function FencedCode({ node }: { readonly node: HastNode | undefined }) {
   const { code, lang } = fenced(node);
-  return <CodeBlock code={code} lang={lang} labels={useContext(CopyLabels)} />;
+  const labels = useContext(CopyLabels);
+  const handOff = useContext(ShellHandOffContext);
+  if (handOff && SHELL_LANGS.has(lang.toLowerCase())) {
+    return <ShellBlock code={code} lang={lang} labels={labels} handOff={handOff} />;
+  }
+  return <CodeBlock code={code} lang={lang} labels={labels} />;
 }
 
 const COMPONENTS: Components = {
@@ -80,7 +88,7 @@ const COMPONENTS: Components = {
     const safe = href ? safeHref(href) : null;
     return safe ? (
       <a href={safe} target="_blank" rel="noopener noreferrer" className={LINK_CLASSES}>
-        {children}
+        <ReplyTools>{children}</ReplyTools>
       </a>
     ) : (
       <span>{children}</span>
@@ -89,9 +97,36 @@ const COMPONENTS: Components = {
   // An image would be a request to wherever the model pointed (zero telemetry, CSP img-src): show its alt text.
   img: ({ alt }) => <span>{alt ?? ""}</span>,
   pre: ({ node }) => <FencedCode node={node as HastNode | undefined} />,
-  p: ({ children }) => <p className="max-w-measure text-pretty">{children}</p>,
-  li: ({ children }) => <li className="text-pretty">{children}</li>,
-  code: ({ children }) => <code className={INLINE_CODE_CLASSES}>{children}</code>,
+  p: ({ children }) => (
+    <p className="max-w-measure text-pretty">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  li: ({ children }) => (
+    <li className="text-pretty">
+      <PathText>{children}</PathText>
+    </li>
+  ),
+  code: ({ children }) => (
+    <code className={INLINE_CODE_CLASSES}>
+      <PathText whole>{children}</PathText>
+    </code>
+  ),
+  strong: ({ children }) => (
+    <strong>
+      <PathText>{children}</PathText>
+    </strong>
+  ),
+  em: ({ children }) => (
+    <em>
+      <PathText>{children}</PathText>
+    </em>
+  ),
+  del: ({ children }) => (
+    <del>
+      <PathText>{children}</PathText>
+    </del>
+  ),
   ul: ({ children }) => <ul className={cn(LIST_CLASSES, "list-disc")}>{children}</ul>,
   ol: ({ children }) => <ol className={cn(LIST_CLASSES, "list-decimal")}>{children}</ol>,
   blockquote: ({ children }) => <blockquote className={QUOTE_CLASSES}>{children}</blockquote>,
@@ -100,24 +135,70 @@ const COMPONENTS: Components = {
       <table className={TABLE_CLASSES}>{children}</table>
     </div>
   ),
-  th: ({ children }) => <th className={cn(CELL_CLASSES, "font-semibold")}>{children}</th>,
-  td: ({ children }) => <td className={CELL_CLASSES}>{children}</td>,
-  h1: ({ children }) => <p className="max-w-measure font-bold">{children}</p>,
-  h2: ({ children }) => <p className="max-w-measure font-bold">{children}</p>,
-  h3: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
-  h4: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
-  h5: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
-  h6: ({ children }) => <p className="max-w-measure font-semibold">{children}</p>,
+  th: ({ children }) => (
+    <th className={cn(CELL_CLASSES, "font-semibold")}>
+      <PathText>{children}</PathText>
+    </th>
+  ),
+  td: ({ children }) => (
+    <td className={CELL_CLASSES}>
+      <PathText>{children}</PathText>
+    </td>
+  ),
+  h1: ({ children }) => (
+    <p className="max-w-measure font-bold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  h2: ({ children }) => (
+    <p className="max-w-measure font-bold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  h3: ({ children }) => (
+    <p className="max-w-measure font-semibold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  h4: ({ children }) => (
+    <p className="max-w-measure font-semibold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  h5: ({ children }) => (
+    <p className="max-w-measure font-semibold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
+  h6: ({ children }) => (
+    <p className="max-w-measure font-semibold">
+      <PathText>{children}</PathText>
+    </p>
+  ),
 };
 
-/** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. */
+/** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. The reply tools wrap it from outside. */
 export default function MarkdownBody({
   text,
   copyLabels,
+  pathLinks,
+  shellHandOff,
 }: {
   readonly text: string;
   readonly copyLabels?: CodeCopyLabels;
+  readonly pathLinks?: PathLinks;
+  readonly shellHandOff?: ShellHandOff;
 }) {
+  return (
+    <ReplyTools pathLinks={pathLinks}>
+      <ShellHandOffContext.Provider value={shellHandOff}>
+        <MarkdownTree text={text} copyLabels={copyLabels} />
+      </ShellHandOffContext.Provider>
+    </ReplyTools>
+  );
+}
+
+function MarkdownTree({ text, copyLabels }: { readonly text: string; readonly copyLabels?: CodeCopyLabels }) {
   if (text.length > MAX_MARKDOWN_CHARS) {
     return (
       <div data-markdown-plain="" className={PLAIN_CLASSES}>

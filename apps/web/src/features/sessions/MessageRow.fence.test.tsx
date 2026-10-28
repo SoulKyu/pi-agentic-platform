@@ -20,6 +20,7 @@ const fenced = (body: string, source = "webhook") =>
 const you = (body: string) =>
   mount(
     <MessageRow
+      sessionId="s1"
       item={{ kind: "message", key: "m", author: "you", text: body, thinking: "", entryId: null }}
     />,
   );

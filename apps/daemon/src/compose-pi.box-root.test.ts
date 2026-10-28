@@ -41,7 +41,11 @@ describe("a box project's root never reaches a Pi helper (boxes B1)", () => {
     const { logger } = captureLogger();
     const deps = { helpers: pool, projects: port, logger, clock: createFakeClock() };
     const mcp = createMcpModule({ ...deps, writes: createPiWriteQueue() }).rpc;
-    const skills = createSkillsModule({ ...deps, writes: createPiWriteQueue() }).rpc;
+    const skills = createSkillsModule({
+      ...deps,
+      writes: createPiWriteQueue(),
+      audit: { append: () => {} },
+    }).rpc;
     const trust = createTrustModule({
       ...deps,
       sessions: { restartFolder: () => 0 },

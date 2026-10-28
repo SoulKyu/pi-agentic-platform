@@ -1,13 +1,20 @@
 import type { ForkPoint } from "@pap/contracts";
-import { IconSplit, IconUndo, MessageAction, MessageActions, InlineError } from "@pap/ui";
+import { IconSplit, IconTemplate, IconUndo, MessageAction, MessageActions, InlineError } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { useT } from "../../i18n/index.ts";
+import "../../i18n/register-reply-tools.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
+import { useRole } from "../../lib/role-context.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { deviceStorage, saveDraft } from "../../stores/drafts.ts";
 import { BranchSwitcher } from "./BranchSwitcher.tsx";
 import { branchChoicesFor } from "./branches.vm.ts";
 import { useAction, type Track } from "./use-action.ts";
+
+// One function for the life of the page, so the lazy component is shared.
+const loadTemplateDialog = () =>
+  import("./dialogs/SaveTemplateDialog.tsx").then((module) => ({ default: module.SaveTemplateDialog }));
 
 /** What a user row needs to offer "Fork from here" and "Edit from here". */
 export interface RowActions {
@@ -26,8 +33,23 @@ export interface RowActions {
 }
 
 /** The actions of one of your messages: step between branches, fork from it, edit from it. */
-export function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions }) {
+export function RowButtons({
+  entryId,
+  actions,
+  text,
+  unverified,
+}: {
+  entryId: string;
+  actions: RowActions;
+  /** The row's text, for "Save as template". */
+  text: string;
+  /** A user entry the VM wrote and pap did not send: it is not offered as a template. */
+  unverified: boolean;
+}) {
   const t = useT();
+  const lazyText = useLazyFailureText();
+  const owner = useRole() === "owner";
+  const [saving, setSaving] = useState(false);
   const runtime = getRuntime();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -80,6 +102,13 @@ export function RowButtons({ entryId, actions }: { entryId: string; actions: Row
             }
           />
         )}
+        {owner && !unverified ? (
+          <MessageAction
+            label={t("reply.template.action")}
+            icon={IconTemplate}
+            onClick={() => setSaving(true)}
+          />
+        ) : null}
         <MessageAction
           label={edit.slow ? t("actions.working") : t("row.edit")}
           icon={IconUndo}
@@ -92,6 +121,13 @@ export function RowButtons({ entryId, actions }: { entryId: string; actions: Row
           }
         />
       </MessageActions>
+      <LazyPanel
+        text={lazyText}
+        load={loadTemplateDialog}
+        open={saving}
+        props={{ text, onClose: () => setSaving(false) }}
+        onFailed={() => setSaving(false)}
+      />
       {error ? <InlineError announce="action">{error}</InlineError> : null}
     </>
   );

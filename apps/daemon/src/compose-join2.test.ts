@@ -59,6 +59,7 @@ function rig(options: { autoResume?: boolean } = {}): Rig {
       modeOf: () => "supervised",
       sandboxedThread: () => false,
       kindOf: () => null,
+      cost: { bind: () => {}, changed: () => {}, snapshotOf: () => null, stop: () => {} },
       automation: {
         onAttention: () => () => {},
         workers: () => ({ used: 0, max: 4 }),

@@ -44,6 +44,7 @@ import {
   SetEnabledResult,
   RefreshCatalogResult,
 } from "./models-methods.ts";
+import { TemplateWriteResult, TemplatesSaveParams } from "./prompt-templates.ts";
 import {
   PluginSourceParams,
   PluginSetEnabledParams,
@@ -214,6 +215,8 @@ export const HELPER_OPS = {
   "plugins.remove": { params: PluginSourceParams, result: Done },
   "plugins.update": { params: PluginUpdateParams, result: PluginUpdateResult },
   "plugins.setEnabled": { params: PluginSetEnabledParams, result: PluginSetEnabledResult },
+  // A prompt template (UX-1): one file in the owner's `prompts/` folder, never replaced without `replace`.
+  "templates.write": { params: TemplatesSaveParams, result: TemplateWriteResult },
   // Subagent profiles (Task 29a): Pi's agent files, read offline; the project's only while Pi trusts the project (M11R135).
   "subagents.profiles": { params: SubagentsProfilesHelperParams, result: SubagentsProfilesResult },
   // One profile whole (Task 29b): the file the front-matter name picks, project over user, a duplicate name refused.

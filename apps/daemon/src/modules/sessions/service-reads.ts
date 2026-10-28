@@ -7,6 +7,7 @@ import {
   type HistoryMeta,
   IDLE_ACTIVITY,
   PapError,
+  type SessionCost,
   type SessionPolicyView,
   type SessionStatus,
   type SessionSummary,
@@ -89,6 +90,8 @@ export interface SessionReadsDeps {
   policyView(row: SessionRow): SessionPolicyView;
   /** The session's subagents with their open dialogs (M11R140). */
   children(sessionId: string): ChildView[];
+  /** What the session has cost so far; null when it has had no run. */
+  cost(sessionId: string): SessionCost | null;
 }
 
 export interface SessionReads {
@@ -298,6 +301,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         loadout: session?.loadout() ?? null,
         toolPreset: row.toolPreset ?? "configured",
         children: deps.children(sessionId),
+        cost: deps.cost(sessionId),
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

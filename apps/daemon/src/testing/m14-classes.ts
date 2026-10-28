@@ -44,6 +44,7 @@ export const FORBIDDEN = [
     "skills.setInvocation",
     "skills.search",
     "skills.install",
+    "templates.save",
     "plugins.list",
     "plugins.install",
   ],

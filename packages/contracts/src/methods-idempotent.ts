@@ -207,6 +207,7 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "skills.search": true,
   "skills.setInvocation": false,
   "subagents.cancel": false,
+  "templates.save": false,
   "subagents.profiles": true,
   "subscribe.agents": true,
   "subscribe.inbox": true,

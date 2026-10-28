@@ -40,6 +40,7 @@ import type { ReleaseResult } from "./restart-folder.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import type { SessionCommands } from "./service-commands.ts";
 import type { SessionModels, SessionModelsDeps } from "./service-models.ts";
+import type { SessionCostPort } from "./session-cost.ts";
 import type { SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 import type { VmLaunch } from "./vm-launch.ts";
@@ -91,6 +92,8 @@ export interface SessionsServiceDeps {
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
   /** The runs registry: sees each run start and end and every raw Pi event of the session (M10R84). */
   readonly runs?: RunObserver;
+  /** What a snapshot carries of the session's cost (UX-1); absent in tests that build the service alone. */
+  readonly cost?: Pick<SessionCostPort, "snapshotOf">;
   /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
   readonly admission?: Admission;
   /** The owner's box projects, bound late by the composition: a cwd under a box root is a box session (boxes B1). */

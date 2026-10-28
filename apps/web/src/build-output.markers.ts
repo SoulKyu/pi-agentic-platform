@@ -227,6 +227,17 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
       /May come from an extension, checked when it runs/,
     ],
   },
+  {
+    title: "keeps UX-1's reply tools and their strings out of the initial assets",
+    markers: [
+      /data-quote-toolbar/,
+      /data-usage-line/,
+      /data-save-template/,
+      /data-shell-block/,
+      /This shell cannot hold several lines/,
+      /Ce shell ne peut pas retenir plusieurs lignes/,
+    ],
+  },
 ];
 
 /**

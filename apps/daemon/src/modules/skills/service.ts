@@ -14,7 +14,9 @@ import type { HelperPool } from "../../kernel/helper/pool.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createPiWriteQueue, type PiWriteQueue } from "../../kernel/pi-write-queue.ts";
 import { requireStepUp } from "../auth/index.ts";
+import type { AuditPort } from "../audit/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
+import { createTemplates } from "./templates.ts";
 
 /** Reading skill folders, one frontmatter line, or one small search: the helper starts, does it, answers. */
 const DEADLINE_MS = 30_000;
@@ -30,6 +32,8 @@ export interface SkillsServiceDeps {
   readonly clock: Clock;
   /** The shared queue of every write of Pi's own files (MC29); a module built on its own gets a private one. */
   readonly writes?: PiWriteQueue;
+  /** The template write leaves one row (UX-1). */
+  readonly audit: Pick<AuditPort, "append">;
 }
 
 type OpName = keyof typeof HELPER_OPS;
@@ -89,7 +93,15 @@ export function createSkillsService(deps: SkillsServiceDeps) {
     return { folder, rest };
   }
 
+  const templates = createTemplates({
+    run: (op, params, deadlineMs) => run(op, params, deadlineMs),
+    writes: piWrites,
+    clock: deps.clock,
+    audit: deps.audit,
+  });
+
   return {
+    templates,
     /** The skills Pi's loader finds for the folder; a project's only while it is trusted (the helper decides, M7R110). */
     async list(caller: Caller, cwd?: string): Promise<SkillsListResult> {
       return run("skills.list", {}, DEADLINE_MS, folderOf(caller, cwd));

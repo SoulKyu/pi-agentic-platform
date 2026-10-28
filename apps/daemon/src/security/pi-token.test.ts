@@ -41,6 +41,7 @@ const SAMPLES: Record<string, unknown> = {
   "skills.setInvocation": { items: [{ path: "/a/SKILL.md", disabled: true }] },
   "skills.search": { query: "web" },
   "skills.install": { source: "o/r", scope: "global" },
+  "templates.save": { name: "review", body: "x" },
   "plugins.list": {},
   "plugins.install": { source: "npm:x", scope: "user" },
   "plugins.remove": { source: "npm:x", scope: "user" },

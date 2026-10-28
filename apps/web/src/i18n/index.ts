@@ -35,6 +35,7 @@ import type { lanesEn } from "./catalog/lanes.ts";
 import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { knowledgeEn } from "./catalog/knowledge.ts";
+import type { replyToolsEn } from "./catalog/reply-tools.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
 import type { modelPickerEn } from "./catalog/model-picker.ts";
 import type { landingEn } from "./catalog/landing.ts";
@@ -112,6 +113,7 @@ export type MessageKey =
   | keyof typeof inboxAgentsEn
   | keyof typeof homeEn
   | keyof typeof knowledgeEn
+  | keyof typeof replyToolsEn
   | keyof typeof boxesEn
   | keyof typeof githubEn
   | keyof typeof usageEn

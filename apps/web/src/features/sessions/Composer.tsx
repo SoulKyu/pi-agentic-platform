@@ -7,14 +7,17 @@ import { AttachButton } from "./composer/AttachButton.tsx";
 import { AttachmentTray } from "./composer/AttachmentTray.tsx";
 import { MentionMenu } from "./composer/MentionMenu.tsx";
 import { useComposerFieldProps } from "./composer/menus.ts";
+import { useInsertInto } from "./composer/use-insert.ts";
 import { useAttachments } from "./composer/use-attachments.ts";
 import { useMentions } from "./composer/use-mentions.ts";
 import { ModelBar } from "./ModelBar.tsx";
 import { useComposerCommands } from "./use-composer-commands.ts";
 import { rememberScreen, targetScreen } from "./last-screen.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
+import { QuoteStrip } from "./quote/QuoteStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
 import { useSessionStage } from "../launch/use-stage.ts";
+import { UsageLine } from "./UsageLine.tsx";
 
 interface ComposerProps {
   readonly sessionId: string;
@@ -42,6 +45,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     setText: c.changeText,
     fieldRef: mentions.fieldRef,
   });
+  useInsertInto(sessionId, mentions.fieldRef, c.text, c.changeText);
   const fieldProps = useComposerFieldProps([mentions, commands], attachments);
   const stage = useSessionStage(sessionId);
   const blocked = c.pending !== null || c.compacting || c.sending;
@@ -87,6 +91,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         if (event.key === "Tab" && plain && onTabToPanel?.()) event.preventDefault();
       }}
     >
+      <QuoteStrip sessionId={sessionId} />
       <QueueStrip queue={view.queue} onClear={c.clearQueue} />
       {c.pending ? (
         <div role="status" className="flex items-center gap-s2 border-l-2 border-attn-line px-s3 py-s2">
@@ -127,7 +132,12 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         {commands.menu}
         <div className="flex flex-wrap items-center gap-s2">
           {c.canStop ? <Button onClick={c.stop}>{t("sessions.composer.stop")}</Button> : null}
-          <ModelBar sessionId={sessionId} loadout={view.loadout} running={c.running} />
+          <ModelBar
+            sessionId={sessionId}
+            loadout={view.loadout}
+            running={c.running}
+            after={<UsageLine view={view} />}
+          />
           {c.running ? (
             <Segmented
               label={t("sessions.composer.whenWorking")}

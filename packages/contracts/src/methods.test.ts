@@ -129,6 +129,7 @@ describe("method catalogue", () => {
       "skills.install",
       "skills.setInvocation",
       "subagents.cancel",
+      "templates.save",
       "trust.set",
       "usage.cancelResume",
       "usage.resumeNow",

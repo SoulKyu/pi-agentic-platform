@@ -47,10 +47,12 @@ interface FileViewerProps {
   /** The unsaved edits and view modes of the open tabs, kept by the pane; a viewer on its own keeps its own. */
   readonly buffers?: Buffers;
   readonly stepUp?: StepUp;
+  /** Put the cursor here when the editor shows the file (a path opened from a reply). */
+  readonly line?: { readonly n: number; readonly key: number };
 }
 
 /** One file: code in the editor (editable when the whole file is loaded and may be edited), Markdown as a preview or its source, an image through the sandboxed raw route. */
-export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewerProps) {
+export function FileViewer({ path, panelId, tabId, buffers, stepUp, line }: FileViewerProps) {
   const t = useT();
   const cause = useBoxCauseText(t, path);
   const file = useOpenFile(path);
@@ -95,6 +97,7 @@ export function FileViewer({ path, panelId, tabId, buffers, stepUp }: FileViewer
         onChange={(draft) => held.edit(path, { etag: meta.etag, text: file.text }, draft)}
         onSave={save.save}
         language={languageFor(path)}
+        {...(line === undefined ? {} : { line })}
         labels={{ label: t("files.viewer.editorLabel"), phrases: editorPhrases(t) }}
         onLoadError={() => reportClientIssue("lazy_chunk_failed")}
       />

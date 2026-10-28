@@ -1,10 +1,10 @@
-import { Markdown, Message, Reasoning, type CodeCopyLabels } from "@pap/ui";
-import { memo, useMemo } from "react";
+import { Markdown, Message, Reasoning, type MarkdownProps } from "@pap/ui";
+import { memo } from "react";
 import { useT } from "../../i18n/index.ts";
-import { reportClientIssue } from "../../lib/report.ts";
 import { FencedPart } from "./FencedPart.tsx";
 import { splitFences } from "./fence.vm.ts";
 import "./register-policy-catalog.ts";
+import { useReplyMarkdown } from "./reply-markdown.ts";
 import { RowButtons, type RowActions } from "./RowActions.tsx";
 import { splitBlocks } from "./streaming-blocks.ts";
 import type { MessageItem, PartialItem, SummaryItem } from "./transcript.vm.ts";
@@ -24,16 +24,11 @@ function YourText({ text }: { text: string }) {
   );
 }
 
-const markdownFailed = () => reportClientIssue("lazy_chunk_failed");
-
-function useCopyLabels(): CodeCopyLabels {
-  const t = useT();
-  return useMemo(() => ({ copy: t("sessions.code.copy"), copied: t("sessions.code.copied") }), [t]);
-}
+type ReplyMarkdown = Pick<MarkdownProps, "onLoadError" | "copyLabels" | "pathLinks" | "shellHandOff">;
 
 /** One block of a streaming reply: it renders again only when its own text changes (M4R113). */
-const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
-  return <Markdown text={text} onLoadError={markdownFailed} copyLabels={useCopyLabels()} />;
+const MarkdownBlock = memo(function MarkdownBlock({ text, tools }: { text: string; tools: ReplyMarkdown }) {
+  return <Markdown text={text} {...tools} />;
 });
 
 /**
@@ -42,16 +37,18 @@ const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
  * the run's header stands for this row's.
  */
 export function MessageRow({
+  sessionId,
   item,
   actions,
   grouped,
 }: {
+  sessionId: string;
   item: MessageItem | PartialItem;
   actions?: RowActions;
   grouped?: boolean;
 }) {
   const t = useT();
-  const copyLabels = useCopyLabels();
+  const markdown = useReplyMarkdown(sessionId, item.kind === "message");
   const author = item.kind === "partial" ? "agent" : item.author;
   const entryId = item.kind === "message" && author === "you" ? item.entryId : null;
   // The reply is still thinking while no answer text has come.
@@ -61,7 +58,16 @@ export function MessageRow({
       author={author}
       label={t(`author.${author}`)}
       grouped={grouped ?? false}
-      actions={actions && entryId !== null ? <RowButtons entryId={entryId} actions={actions} /> : undefined}
+      actions={
+        actions && entryId !== null ? (
+          <RowButtons
+            entryId={entryId}
+            actions={actions}
+            text={item.text}
+            unverified={item.kind === "message" && item.unverified === true}
+          />
+        ) : undefined
+      }
     >
       {item.thinking ? (
         <Reasoning label={thinking ? t("sessions.transcript.thinking") : t("sessions.transcript.thought")}>
@@ -71,9 +77,11 @@ export function MessageRow({
       {author === "agent" && item.text ? (
         item.kind === "partial" ? (
           // Blocks only grow at the end, so an index names the same block until the message ends.
-          splitBlocks(item.text).map((block, index) => <MarkdownBlock key={index} text={block} />)
+          splitBlocks(item.text).map((block, index) => (
+            <MarkdownBlock key={index} text={block} tools={markdown} />
+          ))
         ) : (
-          <Markdown text={item.text} onLoadError={markdownFailed} copyLabels={copyLabels} />
+          <Markdown text={item.text} {...markdown} />
         )
       ) : author === "you" ? (
         <YourText text={item.text} />

@@ -3,6 +3,7 @@ import { useRole } from "../../lib/role-context.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { itemKey, type ItemRef } from "../../features/workspace/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useReplyPort } from "./reply-port-host.ts";
 import { useTerminalReady } from "./surface-view.ts";
 import { placeOf, showSurface, terminalAllowed, useTerminalFeed, type Surface } from "./surface.ts";
 import { surfaceItemClass } from "./SurfaceSwitch.tsx";
@@ -18,6 +19,7 @@ export function SurfaceBar({ tabKey, sessionId, split }: SurfaceBarProps) {
   const t = useT();
   const role = useRole();
   useTerminalFeed();
+  useReplyPort(tabKey, sessionId);
   const ready = useTerminalReady((state) => state.ready);
   const place = placeOf(
     useShellStore((state) => state.view),

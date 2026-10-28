@@ -26,6 +26,7 @@ describe("skillsRpc", () => {
       removePlugin: record("removePlugin", { ok: true }),
       updatePlugins: record("updatePlugins", {}),
       setPluginsEnabled: record("setPluginsEnabled", {}),
+      templates: { save: record("templates.save", {}) },
     } as unknown as SkillsService;
     const rpc = skillsRpc(service);
     await rpc["skills.list"]({ cwd: "/w" }, ctx);
@@ -38,13 +39,16 @@ describe("skillsRpc", () => {
     await rpc["plugins.remove"](plugin, ctx);
     await rpc["plugins.update"]({}, ctx);
     await rpc["plugins.setEnabled"]({ items: [plugin], enabled: true }, ctx);
-    expect(calls.slice(4)).toEqual([
+    const template = { name: "review", body: "x" };
+    await rpc["templates.save"](template, ctx);
+    expect(calls.slice(4, -1)).toEqual([
       ["listPlugins", [ctx.caller, "/w"]],
       ["installPlugin", [ctx.caller, plugin]],
       ["removePlugin", [ctx.caller, plugin]],
       ["updatePlugins", [ctx.caller, {}]],
       ["setPluginsEnabled", [ctx.caller, { items: [plugin], enabled: true }]],
     ]);
+    expect(calls.at(-1)).toEqual(["templates.save", [ctx.caller, template]]);
     expect(calls.slice(0, 4)).toEqual([
       ["list", [ctx.caller, "/w"]],
       ["setInvocation", [ctx.caller, { items: [{ path: "/a", disabled: true }] }]],
@@ -61,6 +65,7 @@ describe("skillsRpc", () => {
       "skills.list",
       "skills.search",
       "skills.setInvocation",
+      "templates.save",
     ]);
   });
 });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { IMAGE_TAG } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { agentLayerTag, prepareProfileContext } from "./image-inputs.ts";
+import { profileFingerprint } from "./profile-fingerprint.ts";
 import { PROFILE_SECRET_NOTICE, ProfileSecretError } from "./secret-scan.ts";
 import {
   listAll,
@@ -231,6 +232,47 @@ describe("prepareProfileContext (RT-18)", () => {
     expect(skipped).toEqual([]);
     expect(JSON.parse(read("models.json"))).toEqual({ providers: {} });
     expect(JSON.parse(read("settings.json"))).toEqual({});
+  });
+});
+
+describe("prompt templates (UX-1 §4.5)", () => {
+  const TEMPLATE = "agent/prompts/review.md";
+  it("copies prompts/ into the profile and follows it as a copied root", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.put(TEMPLATE, "Review $1 carefully\n");
+    const { roots } = prepare();
+    expect(read("prompts/review.md")).toBe("Review $1 carefully\n");
+    expect(roots.some((root) => root.endsWith("/prompts"))).toBe(true);
+  });
+
+  it("builds as before without a prompts folder", () => {
+    s = scratch();
+    plantAgentDir(s);
+    const { roots } = prepare();
+    expect(existsSync(join(s.out, "prompts"))).toBe(false);
+    expect(roots.some((root) => root.endsWith("/prompts"))).toBe(false);
+  });
+
+  it("refuses a template that holds a known secret", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.put(TEMPLATE, `token ${VAULT_VALUE}`);
+    expect(() => prepare([VAULT_VALUE])).toThrow(ProfileSecretError);
+    expect(existsSync(s.out)).toBe(false);
+  });
+
+  it("a changed template changes the tag and the fingerprint, so the next start rebuilds", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.put(TEMPLATE, "one");
+    const first = prepare();
+    const printed = (roots: string[]) => profileFingerprint(s.agentDir, roots, "salt").digest;
+    const before = printed(first.roots);
+    s.put(TEMPLATE, "two, longer");
+    const second = prepare();
+    expect(second.tag).not.toBe(first.tag);
+    expect(printed(second.roots)).not.toBe(before);
   });
 });
 

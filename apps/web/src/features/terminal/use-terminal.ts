@@ -6,6 +6,7 @@ import { getTerminalChannel } from "../../runtime/terminal-channel.ts";
 import type { TerminalChannel, TerminalHandle, TerminalSink } from "../../runtime/terminal-types.ts";
 import { feedTerminals } from "../../stores/terminal-feed.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
+import { useTerminalTypists, type HandOffOutcome } from "../../stores/terminal-typists.ts";
 import {
   bytesOfBinary,
   INITIAL_VIEW,
@@ -42,6 +43,11 @@ export interface TerminalController {
   confirmClose(): void;
   /** "Try again" after the automatic retries ran out. */
   retry(): void;
+  /**
+   * Types a reply's shell text through the screen's paste, then focuses the screen: the owner's Enter runs it.
+   * `multiline`: several lines and the shell did not ask for bracketed paste, so nothing is typed (a new line would run).
+   */
+  handOff(text: string): HandOffOutcome;
   dispose(): void;
 }
 
@@ -63,8 +69,13 @@ export function createTerminalController(deps: TerminalControllerDeps): Terminal
   let closing = false;
 
   const set = (next: Partial<TerminalPaneView>): void => {
-    view = { ...view, ...next };
+    const merged = { ...view, ...next };
+    view = { ...merged, typing: merged.phase === "live" && replayEnd === null && screen !== null };
     deps.onChange(view);
+  };
+  // `typing` also depends on the replay and the screen, which change outside `set`.
+  const refreshTyping = (): void => {
+    if ((view.phase === "live" && replayEnd === null && screen !== null) !== view.typing) set({});
   };
   const clearTimer = (timer: number | null): null => {
     if (timer !== null) timers.clear(timer);
@@ -94,6 +105,7 @@ export function createTerminalController(deps: TerminalControllerDeps): Terminal
         set({ exit: { code: known?.exitCode ?? null, signal: known?.signal ?? null } });
         enter("exited");
       }
+      refreshTyping();
     },
     reset() {
       screen?.reset();
@@ -102,14 +114,17 @@ export function createTerminalController(deps: TerminalControllerDeps): Terminal
       const target = screen;
       if (!target) {
         replayEnd = null; // nothing to answer for: do not keep the input dropped
+        refreshTyping();
         return Promise.resolve();
       }
       return target.write(bytes).then(
         () => {
           if (replayEnd !== null && end >= replayEnd) replayEnd = null;
+          refreshTyping();
         },
         (failure: unknown) => {
           replayEnd = null; // the channel counts a failed write as written; so does the guard
+          refreshTyping();
           throw failure;
         },
       );
@@ -192,6 +207,7 @@ export function createTerminalController(deps: TerminalControllerDeps): Terminal
     view: () => view,
     setScreen(next) {
       screen = next;
+      refreshTyping();
     },
     input: (data) => send(encoder.encode(data)),
     binary: (data) => send(bytesOfBinary(data)),
@@ -211,6 +227,13 @@ export function createTerminalController(deps: TerminalControllerDeps): Terminal
       busyAttempts = 0;
       set({ busyExhausted: false });
       reopen();
+    },
+    handOff(text) {
+      if (!view.typing || screen === null) return "not_ready";
+      if (text.includes("\n") && !screen.bracketedPaste()) return "multiline";
+      screen.paste(text);
+      screen.focus();
+      return "typed";
     },
     dispose() {
       disposed = true;
@@ -273,10 +296,14 @@ export function useTerminal(
       onChange: setView,
     });
     controllerRef.current = controller;
+    const unregister = useTerminalTypists
+      .getState()
+      .register(id, { handOff: (text) => controller.handOff(text) });
     controller.setScreen(screenRef.current);
     if (sizeRef.current) controller.resize(sizeRef.current.cols, sizeRef.current.rows);
     return () => {
       controllerRef.current = null;
+      unregister();
       controller.dispose();
       stopFeed();
     };

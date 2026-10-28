@@ -1,6 +1,6 @@
 import { FILE_LIMITS } from "@pap/contracts";
 import { Banner, Button, IconButton, IconRefresh, LoadingLine, Switch } from "@pap/ui";
-import { useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useT } from "../../i18n/index.ts";
 import "../../i18n/register-launch.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -35,10 +35,12 @@ interface ExplorerProps {
   /** The file shown in the viewer. */
   readonly selected: string | null;
   onOpen(path: string): void;
+  /** The root answered its listing (not a stopped box, not a failure). */
+  onListed?(): void;
 }
 
 /** The project tree (WAI-ARIA tree pattern): folders list when they open, the selected file carries the selection mark. */
-export function Explorer({ root, selected, onOpen }: ExplorerProps) {
+export function Explorer({ root, selected, onOpen, onListed }: ExplorerProps) {
   const t = useT();
   const cause = useBoxCauseText(t, root);
   const [showIgnored, setShowIgnored] = useState(readShowIgnored);
@@ -50,6 +52,10 @@ export function Explorer({ root, selected, onOpen }: ExplorerProps) {
 
   const rows = visibleRows(root, expanded, folders);
   const rootFolder = folders.get(root);
+  const listed = rootFolder?.status === "ready";
+  useEffect(() => {
+    if (listed) onListed?.();
+  }, [listed, onListed]);
   const tabbable = rows.some((row) => row.path === focused) ? focused : (rows[0]?.path ?? null);
   const siblings = (row: TreeRow) => {
     const parent = row.path.slice(0, row.path.lastIndexOf("/")) || "/";

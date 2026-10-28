@@ -12,6 +12,8 @@ export interface TerminalPaneView {
   /** "Close the terminal and stop what runs in it?" is on screen. */
   readonly confirmingClose: boolean;
   readonly closeFailed: boolean;
+  /** Live, the replay written and a screen set: what is typed now reaches the shell and nothing answers a replayed query. */
+  readonly typing: boolean;
 }
 
 export const INITIAL_VIEW: TerminalPaneView = {
@@ -21,6 +23,7 @@ export const INITIAL_VIEW: TerminalPaneView = {
   busyExhausted: false,
   confirmingClose: false,
   closeFailed: false,
+  typing: false,
 };
 
 /** A size reported by the pane is sent at most this often (M8R80). */

@@ -54,8 +54,8 @@ const PackageJson = z
   .loose();
 const NPM_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const GLOB = /[*?[{]/;
-/** The only parts of the agent folder a copied root may live in (Pi's own install folders and the skills). */
-const INSIDE_AGENT = ["npm", "git", "skills"];
+/** The only parts of the agent folder a copied root may live in (Pi's own install folders, the skills and the prompt templates). */
+const INSIDE_AGENT = ["npm", "git", "skills", "prompts"];
 const FILTER_KEYS = ["extensions", "skills", "prompts", "themes"] as const;
 
 function statOrNull(path: string) {
@@ -326,6 +326,7 @@ function build(
     .map((e) => b.packageEntry(e))
     .filter((e) => e !== null);
   b.copy(join(agentDir, "skills"), "skills", "skills");
+  b.copy(join(agentDir, "prompts"), "prompts", "prompts");
   const skills = [
     ...new Set((Array.isArray(settings.skills) ? settings.skills : []).map((s) => b.skillEntry(s))),
   ].filter((s) => s !== null);

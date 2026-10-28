@@ -21,6 +21,7 @@ export type SessionStatus = z.infer<typeof SessionStatus>;
 
 import { AlwaysScope, ApprovalAnswer, DEFAULT_SESSION_POLICY_VIEW, SessionPolicyView } from "./policy.ts";
 import { LoginEvent } from "./models-methods.ts";
+import { SessionCost } from "./session-cost.ts";
 import { SessionLoadout, ToolPreset } from "./session-loadout.ts";
 import { CHILD_VIEWS, ChildView } from "./children.ts";
 import { Dialog } from "./dialog.ts";
@@ -250,6 +251,8 @@ const Snapshot = z.object({
   children: z.array(ChildView).max(CHILD_VIEWS).default([]),
   /** Children whose line did not fit the snapshot's room: they exist but are not listed here; 0 from an older daemon. */
   hiddenChildren: z.number().int().nonnegative().max(CHILD_VIEWS).default(0),
+  /** What the session has cost so far; `null` when it has had no run, and from an older daemon (UX-1). */
+  cost: SessionCost.nullable().default(null),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
@@ -290,6 +293,7 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("policy"), policy: SessionPolicyView }),
   z.object({ kind: z.literal("loadout"), loadout: SessionLoadout }),
   z.object({ kind: z.literal("subagents"), children: z.array(ChildView).max(CHILD_VIEWS) }),
+  z.object({ kind: z.literal("cost"), cost: SessionCost }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
 export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;

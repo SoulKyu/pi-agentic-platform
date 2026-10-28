@@ -36,6 +36,7 @@ function bed(answer: (call: RunCall) => unknown = answerFor) {
   const clock = createFakeClock();
   const { logger } = captureLogger();
   const service = createSkillsService({
+    audit: { append: () => {} },
     helpers: pool,
     projects: { covers: (owner, cwd) => owner === "u1" && cwd.startsWith("/w/api") },
     logger,
@@ -101,6 +102,7 @@ describe("skills.setInvocation", () => {
       stopAll: async () => {},
     };
     const service = createSkillsService({
+      audit: { append: () => {} },
       helpers: pool,
       projects: { covers: () => true },
       logger: captureLogger().logger,
@@ -207,6 +209,7 @@ describe("skills.install (M7R140)", () => {
     };
     const clock = createFakeClock();
     const service = createSkillsService({
+      audit: { append: () => {} },
       helpers: pool,
       projects: { covers: () => true },
       logger: captureLogger().logger,

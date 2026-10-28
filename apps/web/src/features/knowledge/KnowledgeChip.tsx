@@ -6,6 +6,7 @@ import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { useCurrentProject } from "../../stores/current-project.ts";
+import { useKnowledgeEnabled } from "../../stores/knowledge-enabled.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useWorkspaceStore } from "../workspace/index.ts";
 import { useKnowledgeStore } from "./knowledge-store.ts";
@@ -47,6 +48,7 @@ export function KnowledgeChip({
             useKnowledgeStore.getState().markPending(sessionId);
           }
           lastEnabled.current = answer.enabled;
+          useKnowledgeEnabled.getState().setEnabled(sessionId, answer.enabled);
           setEnabled(answer.enabled);
         },
         () => undefined,
@@ -55,6 +57,9 @@ export function KnowledgeChip({
       current = false;
     };
   }, [projectId, sessionId, version]);
+
+  // The reply tools read the answer (TO KNOWLEDGE); it goes with the chip.
+  useEffect(() => () => useKnowledgeEnabled.getState().setEnabled(sessionId, null), [sessionId]);
 
   useEffect(() => {
     if (status === "cold") coldSeen.current = true;

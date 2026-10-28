@@ -66,11 +66,10 @@ export async function itemFor(sessionId: string, which: Surface): Promise<ItemRe
 
 const VIEWS: Readonly<Record<Surface, SurfaceView>> = { changes: "review", terminal: "term", files: "files" };
 
-/** Splits the session tab with the surface, or focuses it when it already is the split. False: nothing to show. */
-export async function showSurface(tabKey: string, sessionId: string, which: Surface): Promise<boolean> {
-  const item = await itemFor(sessionId, which);
+/** Splits the tab with the item, or focuses it when it already is the split, and shows it on a phone. False: the tab is gone. */
+function reveal(tabKey: string, item: ItemRef, which: Surface): boolean {
   const tab = useWorkspaceStore.getState().ws.tabs.find((one) => one.key === tabKey);
-  if (item === null || !tab) return false;
+  if (!tab) return false;
   if (tab.split && itemKey(tab.split.item) === itemKey(item)) {
     document.getElementById(SPLIT_PANE_ID)?.focus();
   } else {
@@ -78,4 +77,17 @@ export async function showSurface(tabKey: string, sessionId: string, which: Surf
   }
   useSurfaceView.getState().show(tabKey, VIEWS[which]);
   return true;
+}
+
+/** Splits the session tab with the surface, or focuses it when it already is the split. False: nothing to show. */
+export async function showSurface(tabKey: string, sessionId: string, which: Surface): Promise<boolean> {
+  if (which === "terminal") return (await showTerminalFor(tabKey, sessionId)) !== null;
+  const item = await itemFor(sessionId, which);
+  return item !== null && reveal(tabKey, item, which);
+}
+
+/** The session's terminal (UX1-R18) shown in its tab: its id, or null when there is none to show. */
+export async function showTerminalFor(tabKey: string, sessionId: string): Promise<string | null> {
+  const item = await itemFor(sessionId, "terminal");
+  return item?.kind === "terminal" && reveal(tabKey, item, "terminal") ? item.id : null;
 }

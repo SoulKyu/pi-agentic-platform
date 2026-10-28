@@ -34,6 +34,7 @@ import {
   pluginsUpdateOp,
 } from "./ops/plugins.ts";
 import { pluginsResolveOp } from "./ops/plugins-resolve.ts";
+import { templateWriteOp } from "./ops/prompt-template.ts";
 import { skillsInstallOp } from "./ops/skills-install.ts";
 import { skillsSearchOp } from "./ops/skills-search.ts";
 import { skillsListOp, skillsSetInvocationOp } from "./ops/skills.ts";
@@ -122,6 +123,7 @@ export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   "plugins.remove": pluginsRemoveOp,
   "plugins.update": pluginsUpdateOp,
   "plugins.setEnabled": pluginsSetEnabledOp,
+  "templates.write": templateWriteOp,
   "subagents.profiles": subagentProfilesOp,
   "subagents.profile": subagentProfileOp,
   ...(env.PAP_TEST_PROVIDER === "1" ? testOps : {}),

@@ -4,6 +4,7 @@ import { useRole } from "../../lib/role-context.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { placeOf, showSurface, terminalAllowed, useTerminalFeed } from "./surface.ts";
+import { useReplyPort } from "./reply-port-host.ts";
 import { useSurfaceView, useTerminalReady } from "./surface-view.ts";
 
 /** One look for the bar and the switch: the current item gets the agent underline of `Segmented` (DESIGN.md §9.1). */
@@ -28,6 +29,7 @@ export function SurfaceSwitch({ tabKey, sessionId, selected }: SurfaceSwitchProp
   const t = useT();
   const role = useRole();
   useTerminalFeed();
+  useReplyPort(tabKey, sessionId);
   const ready = useTerminalReady((state) => state.ready);
   const place = placeOf(
     useShellStore((state) => state.view),

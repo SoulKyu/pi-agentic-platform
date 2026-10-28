@@ -10,6 +10,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
 import { MessageRow, SummaryRow, type RowActions } from "./MessageRow.tsx";
 import { Minimap } from "./Minimap.tsx";
+import { QuoteToolbar } from "./quote/QuoteToolbar.tsx";
 import { rowId } from "./minimap.vm.ts";
 import { ToolItemCard } from "./ToolItemCard.tsx";
 import { groupItems, interleaveRow } from "./transcript-groups.ts";
@@ -213,7 +214,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
                         {item.kind === "tool" ? (
                           <ToolItemCard item={item} sessionId={sessionId} detail={toolDetail ?? "compact"} />
                         ) : (
-                          <MessageRow item={item} grouped actions={actionsFor(item)} />
+                          <MessageRow sessionId={sessionId} item={item} grouped actions={actionsFor(item)} />
                         )}
                       </div>
                     ))}
@@ -233,7 +234,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
                         <p className="mt-s1 text-muted">{t("session.failure.next")}</p>
                       </div>
                     ) : group.item.kind === "message" ? (
-                      <MessageRow item={group.item} actions={actionsFor(group.item)} />
+                      <MessageRow sessionId={sessionId} item={group.item} actions={actionsFor(group.item)} />
                     ) : null}
                   </div>
                 )}
@@ -248,6 +249,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
         </ol>
         <Minimap scope={scope} items={shown} view={view} onLoadOlder={() => void older.load()} />
       </div>
+      <QuoteToolbar sessionId={sessionId} />
       {branches.error ? <InlineError announce="background">{branches.error}</InlineError> : null}
       {matchNotice ? (
         <p role="status" className="text-ui text-muted">
