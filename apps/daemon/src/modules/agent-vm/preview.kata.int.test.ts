@@ -87,7 +87,7 @@ describe.skipIf(skip)("a box session's service on the real stack", () => {
       expect(view).toMatchObject({ state: "running", reason: null, network: true });
       const read = (name: string) =>
         (bed as KataBed).call<{ text: string }>("files.read", { path: `${project.root}/${name}` });
-      expect((await read("cap.txt")).text).toMatch(new RegExp(`^CapEff:\\s+${CAP_EFF_SHELL}$`));
+      expect((await read("cap.txt")).text.trim()).toMatch(new RegExp(`^CapEff:\\s+${CAP_EFF_SHELL}$`));
       expect((await read("touch.txt")).text.trim()).toBe("failed");
     },
     LONG_MS,
@@ -221,7 +221,7 @@ describe.skipIf(skip)("a service of an agent without network on the real stack",
       expect(
         dev
           .split("\n")
-          .filter((line) => line.includes(":") && !line.includes("|"))
+          .filter((line) => line.includes(":") && !line.includes("|") && !line.startsWith("exit:"))
           .map((line) => line.split(":")[0]?.trim()),
       ).toEqual(["lo"]);
       const routes = (await probe(`cat /proc/${service.pid}/net/route`)).split("\n");
