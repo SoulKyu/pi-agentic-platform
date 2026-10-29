@@ -102,14 +102,12 @@ describe("the other routes", () => {
     expect(reply.body).not.toContain(CANARY.trigger);
   });
 
-  it("the GitHub routes: creating the App is the owner's, a member only starts their own sign-in", async () => {
+  it("the GitHub routes: creating the App is the owner's", async () => {
     const create = await u.member.http("/github/app/new?state=" + "0".repeat(32));
     expect([400, 403, 404]).toContain(create.status);
     const finish = await u.member.http(`/github/app/authorized/finish?ticket=${"0".repeat(32)}`);
     expect([400, 403, 404]).toContain(finish.status);
-    const authorize = await u.member.http("/github/app/authorize");
-    expect(authorize.status).toBeLessThan(500);
-    for (const reply of [create, finish, authorize]) expect(reply.body).not.toContain(u.owner.id);
+    for (const reply of [create, finish]) expect(reply.body).not.toContain(u.owner.id);
   });
 
   it("a member's token cannot write or upload to the owner's rows, and the callbacks and fonts give nothing of the owner's", async () => {

@@ -48,7 +48,12 @@ export function MessageRow({
   grouped?: boolean;
 }) {
   const t = useT();
-  const markdown = useReplyMarkdown(sessionId, item.kind === "message");
+  const markdown = useReplyMarkdown(
+    sessionId,
+    item.kind === "message",
+    item.kind === "message" ? item.entryId : null,
+    item.text,
+  );
   const author = item.kind === "partial" ? "agent" : item.author;
   const entryId = item.kind === "message" && author === "you" ? item.entryId : null;
   // The reply is still thinking while no answer text has come.

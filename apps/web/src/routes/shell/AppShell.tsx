@@ -15,6 +15,8 @@ import { useLaunchStore } from "../../stores/launch-store.ts";
 import { feedLanes } from "../../stores/lane-feed.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
+import { feedPreviews } from "../../stores/previews-feed.ts";
+import { usePreviewsStore } from "../../stores/previews-store.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
 import { resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { useInboxReveal } from "../../stores/inbox-reveal.ts";
@@ -38,6 +40,7 @@ import { NewAgentHost } from "./NewAgentHost.tsx";
 import { NewLaneHost } from "./NewLaneHost.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
+import { PreviewOpenHost } from "./PreviewOpenHost.tsx";
 import { ProjectSettingsHost } from "./ProjectSettingsHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { SecretDialogHost } from "./SecretDialogHost.tsx";
@@ -92,9 +95,13 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
     const stopInbox = feedInbox(getRuntime().subscriptions, () => reportClientIssue("inbox_feed_failed"));
     const stopAgents = feedAgents(getRuntime().subscriptions, () => reportClientIssue("agents_feed_failed"));
     const stopLaunches = feedLaunches(getRuntime().subscriptions);
+    const stopPreviews = feedPreviews(getRuntime().subscriptions, () =>
+      reportClientIssue("previews_feed_failed"),
+    );
     return () => {
       stop();
       stopLaunches();
+      stopPreviews();
       stopLanes();
       stopInbox();
       stopAgents();
@@ -102,6 +109,7 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
       useInboxStore.getState().reset();
       useAgentsStore.getState().reset();
       useLaunchStore.getState().reset();
+      usePreviewsStore.getState().reset();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
       // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset
@@ -134,6 +142,7 @@ export function AppShell({ username, role, passkeysAvailable, onSignedOut }: App
           <NewAgentHost />
           <AddProjectHost />
           <ProjectSettingsHost />
+          <PreviewOpenHost />
           <SecretDialogHost />
           <LazyPanel
             text={lazyText}

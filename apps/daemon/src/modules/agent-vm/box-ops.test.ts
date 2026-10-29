@@ -20,6 +20,8 @@ function bed(phase: VmPhase = "running") {
     spawnWorker: () => Promise.reject(new Error("unused")),
     shutdown: () => undefined,
     openTerminal: () => Promise.reject(new Error("unused")),
+    openTunnel: () => Promise.reject(new Error("unused")),
+    onServiceReport: () => () => undefined,
     sendOp: (id, op) => {
       sent.push({ id, op });
       return true;

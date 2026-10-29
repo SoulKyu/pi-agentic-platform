@@ -31,13 +31,19 @@ interface Headers {
   /** The same header sent more than once: `headers` keeps the first, `headersDistinct` all of them. */
   authorizations?: string[];
   origin?: string;
+  "sec-fetch-site"?: string;
   url?: string;
 }
 
-async function upgrade(headers: Headers, refusals: Array<[string, string | undefined]> = []) {
+async function upgrade(
+  headers: Headers,
+  refusals: Array<[string, string | undefined]> = [],
+  siteRefusals: Array<[string, string]> = [],
+) {
   const server = createWsServer({
     allowedOrigins: new Set([ALLOWED]),
     onOriginRefused: (via, origin) => refusals.push([via, origin]),
+    onFetchSiteRefused: (via, site) => siteRefusals.push([via, site]),
     credentialOf,
     authenticate: (credential) =>
       credential?.value === COOKIE || credential?.value === TOKEN ? testCaller() : null,
@@ -93,6 +99,21 @@ describe("credentials on the upgrade (M5R70)", () => {
     ["a cookie with an allowed Origin", { cookie: `pap_session=${COOKIE}`, origin: ALLOWED }, 101],
     ["a cookie without Origin", { cookie: `pap_session=${COOKIE}` }, 403],
     [
+      "a cookie with an allowed Origin from a same-site page",
+      { cookie: `pap_session=${COOKIE}`, origin: ALLOWED, "sec-fetch-site": "same-site" },
+      403,
+    ],
+    [
+      "a cookie with an allowed Origin from a cross-site page",
+      { cookie: `pap_session=${COOKIE}`, origin: ALLOWED, "sec-fetch-site": "cross-site" },
+      403,
+    ],
+    [
+      "a cookie with an allowed Origin, same-origin",
+      { cookie: `pap_session=${COOKIE}`, origin: ALLOWED, "sec-fetch-site": "same-origin" },
+      101,
+    ],
+    [
       "a cookie and a bearer",
       { cookie: `pap_session=${COOKIE}`, authorization: `Bearer ${TOKEN}`, origin: ALLOWED },
       400,
@@ -144,5 +165,17 @@ describe("credentials on the upgrade (M5R70)", () => {
       ["ws", "https://evil.test"],
       ["ws", undefined],
     ]);
+  });
+
+  it("reports a refusal for its Fetch Metadata as the kind of site, before the Origin check", async () => {
+    const refusals: Array<[string, string | undefined]> = [];
+    const siteRefusals: Array<[string, string]> = [];
+    await upgrade(
+      { cookie: `pap_session=${COOKIE}`, origin: "https://evil.test", "sec-fetch-site": "same-site" },
+      refusals,
+      siteRefusals,
+    );
+    expect(siteRefusals).toEqual([["ws", "same-site"]]);
+    expect(refusals).toEqual([]);
   });
 });

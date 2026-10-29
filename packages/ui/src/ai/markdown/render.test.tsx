@@ -56,10 +56,10 @@ describe("model markdown is untrusted text (checklist: no HTML or markdown injec
     expect(good).toContain('<a href="https://ok.test/p" target="_blank" rel="noopener noreferrer"');
   });
 
-  it("never loads an image: it becomes its alt text", () => {
+  it("never loads an image: it becomes [image: alt]", () => {
     const out = html("![a cat](https://e.test/cat.png)");
     expect(out).not.toContain("<img");
-    expect(out).toContain("a cat");
+    expect(out).toContain("[image: a cat]");
   });
 
   it("renders GFM tables, and fenced code as a code block in plain text first", () => {

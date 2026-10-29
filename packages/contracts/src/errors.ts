@@ -43,6 +43,7 @@ export const ERROR_CODES = [
   "account_disabled",
   "invite_invalid",
   "username_taken",
+  "unavailable",
   "unknown_method",
   "internal",
 ] as const;
@@ -109,6 +110,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   invite_invalid:
     "This invitation link does not work: it expired, was used, or was revoked. Ask for a new one.",
   username_taken: "This username is taken. Choose another; your invitation is still valid.",
+  unavailable: "Previews are not available: pap could not open its preview port. See pap doctor.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

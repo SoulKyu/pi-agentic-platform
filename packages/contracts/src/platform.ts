@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TrustedHost } from "./policy.ts";
+import { ServiceCommand, ServiceFailure, ServiceId, ServiceName, ServicePort } from "./preview-service.ts";
 import { isVaultName } from "./vault-names.ts";
 
 /**
@@ -106,6 +107,21 @@ export const PLATFORM_OPS = {
     whenTainted: "run",
     deadlineMs: 240 * MINUTE,
   },
+  "preview.start": {
+    tool: "preview_start",
+    // plain is a project box's session only: the daemon refuses the call `forbidden` for any row not in a box.
+    callers: ["agent-thread", "plain"],
+    exfiltration: false,
+    whenTainted: "run",
+    deadlineMs: 60_000,
+  },
+  "preview.stop": {
+    tool: "preview_stop",
+    callers: ["agent-thread", "plain"],
+    exfiltration: false,
+    whenTainted: "run",
+    deadlineMs: 10_000,
+  },
 } as const satisfies Record<string, PlatformOpSpec>;
 export type PlatformOp = keyof typeof PLATFORM_OPS;
 export const PLATFORM_OP_NAMES = Object.keys(PLATFORM_OPS) as [PlatformOp, ...PlatformOp[]];
@@ -205,6 +221,8 @@ export const PLATFORM_ARGS = {
         .optional(),
     })
     .strict(),
+  "preview.start": z.object({ name: ServiceName, command: ServiceCommand, port: ServicePort }).strict(),
+  "preview.stop": z.object({ name: ServiceName }).strict(),
 } as const satisfies Record<PlatformOp, z.ZodType>;
 
 export const PLATFORM_RESULTS = {
@@ -224,6 +242,16 @@ export const PLATFORM_RESULTS = {
   "subagent.run": z
     .object({ childId: Id, answer: z.string().max(51_200), clipped: z.boolean(), tainted: z.boolean() })
     .strict(),
+  "preview.start": z
+    .object({
+      id: ServiceId,
+      name: ServiceName,
+      port: ServicePort,
+      status: z.enum(["running", "failed"]),
+      reason: ServiceFailure.nullable(),
+    })
+    .strict(),
+  "preview.stop": z.object({ stopped: z.boolean() }).strict(),
 } as const satisfies Record<PlatformOp, z.ZodType>;
 
 /** Worker → daemon. `toolCallId` lets the daemon check its own record of the owner's answer (tainted `ask` ops). */
@@ -301,7 +329,7 @@ export const InitPlatform = z
   .object({
     ops: z
       .array(PlatformOpName)
-      .max(8)
+      .max(16)
       .refine((ops) => new Set(ops).size === ops.length, "unique"),
   })
   .strict()

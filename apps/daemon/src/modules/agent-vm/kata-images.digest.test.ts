@@ -74,9 +74,9 @@ describe("the bundle digest goes through the runner", () => {
   it("resolve and installedDigest share it, salted as the base tag is, and read it again after an hour", async () => {
     const images = make(counting);
     await images.resolve("scout-0001", [], "thread");
-    expect(runs).toEqual([{ dir: bundle(), format: `pap-base-2\0${NODE}` }]);
+    expect(runs).toEqual([{ dir: bundle(), format: `pap-base-3\0${NODE}` }]);
     const digest = await images.installedDigest();
-    expect(digest).toBe(treeDigest(bundle(), `pap-base-2\0${NODE}`));
+    expect(digest).toBe(treeDigest(bundle(), `pap-base-3\0${NODE}`));
     expect(runs).toHaveLength(1);
     await images.installedDigest(true);
     expect(runs).toHaveLength(2);
@@ -87,7 +87,7 @@ describe("the bundle digest goes through the runner", () => {
 
   it("digestOf hashes another folder through the runner", async () => {
     await make(counting).digestOf(join(root, "agent"));
-    expect(runs).toEqual([{ dir: join(root, "agent"), format: `pap-base-2\0${NODE}` }]);
+    expect(runs).toEqual([{ dir: join(root, "agent"), format: `pap-base-3\0${NODE}` }]);
   });
 
   it("two concurrent callers share one digest run, and a failure is not cached", async () => {

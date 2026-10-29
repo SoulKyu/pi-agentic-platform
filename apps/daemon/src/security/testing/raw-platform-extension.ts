@@ -22,6 +22,8 @@ export const RAW_ARGS: Readonly<Record<PlatformOp, object>> = {
   "secret.request": { name: "RAW_TOKEN", reason: "asked by a raw call" },
   "network.request": { host: "raw.test", reason: "asked by a raw call" },
   "subagent.run": { task: "raw subagent task" },
+  "preview.start": { name: "raw-site", command: "exit 3", port: 8000 },
+  "preview.stop": { name: "raw-site" },
 };
 
 export const rawCall = (op: PlatformOp, toolCallId = `raw-${op}`, args: object = RAW_ARGS[op]): RawCall => ({

@@ -23,6 +23,7 @@ export const putAgentBundle = (bundle: string, { deployed = false } = {}): void 
   put(join(bundle, "dist/main.js"), "export {};\n");
   put(join(bundle, "dist/guest/main.js"), "export {};\n");
   put(join(bundle, "dist/relay/main.js"), "export {};\n");
+  put(join(bundle, "dist/guest/services/ns-dialer.js"), "export {};\n");
   put(join(bundle, "bin/gh"), "#!/bin/sh\n");
   put(join(bundle, "bin/pap-git-credential"), "#!/bin/sh\n");
   put(join(bundle, "bin/pap-ssh-sign"), "#!/bin/sh\n");

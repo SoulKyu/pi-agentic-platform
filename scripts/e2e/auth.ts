@@ -3,6 +3,7 @@
 // (as scripts/smoke-dist.ts does): the daemon allows the origin `http://localhost:<port>`, the socket is the same.
 import type { Page } from "@playwright/test";
 import { http } from "../smoke-lib.ts";
+import { loopbackOf } from "./rpc.ts";
 
 export const SESSION_COOKIE = "pap_session";
 
@@ -15,10 +16,8 @@ export interface Origin {
   readonly owner: Credentials;
 }
 
-const loopback = (origin: string): string => origin.replace("//localhost:", "//127.0.0.1:");
-
 async function startSession(origin: string, path: string, body: object, expected: number): Promise<string> {
-  const res = await http(`${loopback(origin)}${path}`, {
+  const res = await http(`${loopbackOf(origin)}${path}`, {
     method: "POST",
     headers: { origin, "content-type": "application/json" },
     body: JSON.stringify(body),

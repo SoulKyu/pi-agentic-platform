@@ -28,7 +28,7 @@ const guestHello = {
   box: { kind: "agent", id: "helper-1a2b" },
   launchId: hex(32),
   token: hex(64),
-  protocol: 3,
+  protocol: 4,
   imageTag: TAG,
 };
 const workerHello = {
@@ -324,5 +324,38 @@ describe("guest operations on the wire", () => {
       false,
     );
     expect(GuestReport.safeParse({ type: "op_result", id, ok: false }).success).toBe(false);
+  });
+});
+
+describe("preview services on the wire (protocol 4)", () => {
+  const slot = hex(32, "c");
+  const service = "ab".repeat(16);
+
+  it("opens a tunnel by slot and service, and refuses an extra key or a short id", () => {
+    expect(GuestCommand.safeParse({ type: "tunnel_open", slot, service }).success).toBe(true);
+    expect(GuestCommand.safeParse({ type: "tunnel_open", slot, service, extra: 1 }).success).toBe(false);
+    expect(GuestCommand.safeParse({ type: "tunnel_open", slot: "short", service }).success).toBe(false);
+    expect(GuestCommand.safeParse({ type: "tunnel_open", slot, service: "short" }).success).toBe(false);
+  });
+
+  it("reports a service that ended by itself", () => {
+    const report = { type: "service", id: service, state: "exited", code: 1, signal: null };
+    expect(GuestReport.safeParse(report).success).toBe(true);
+    expect(GuestReport.safeParse({ ...report, code: null, signal: "SIGKILL" }).success).toBe(true);
+    expect(GuestReport.safeParse({ ...report, state: "running" }).success).toBe(false);
+    expect(GuestReport.safeParse({ ...report, signal: "kill" }).success).toBe(false);
+    expect(GuestReport.safeParse({ ...report, extra: 1 }).success).toBe(false);
+  });
+
+  it("carries the service ops to the guest, the service name in `service`", () => {
+    const op = (value: unknown) => GuestCommand.safeParse({ type: "op", id: service, op: value }).success;
+    const start = { name: "svc.start", service: "site", command: "python3 -m http.server 8000", port: 8000 };
+    expect(op({ ...start, network: false })).toBe(true);
+    expect(op(start)).toBe(false);
+    expect(op({ ...start, network: false, port: 7842 })).toBe(false);
+    expect(op({ name: "svc.list" })).toBe(true);
+    expect(op({ name: "svc.stop", service: "site" })).toBe(true);
+    expect(op({ name: "svc.logs", service: "Site" })).toBe(false);
+    expect(op({ name: "svc.restart", service: "site", extra: 1 })).toBe(false);
   });
 });

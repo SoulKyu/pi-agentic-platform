@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { parseBoxKey, type BoxRef } from "@pap/contracts";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
 import {
   SplitView,
@@ -6,6 +7,11 @@ import {
   type ItemRef,
   type SettingsSection,
 } from "../../features/workspace/index.ts";
+import { boxOfSession } from "../../features/previews/preview-box.ts";
+import { useLazyFailureText } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
+import { usePreviewsStore } from "../../stores/previews-store.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { HomePane } from "./HomePane.tsx";
 import { runCommand } from "../../lib/command-registry.ts";
 import { type NewLanePrefill, useNewLaneRequest } from "../../stores/new-lane-request.ts";
@@ -18,6 +24,7 @@ import { LazyPane } from "./LazyPane.tsx";
 import type { TasksPaneProps } from "./tasks-pane-entry.tsx";
 import type { TriggerPaneProps } from "./trigger-pane-entry.tsx";
 import { leaveTerminal, openTerminalInstead } from "./terminal-tab.ts";
+import { armedKey, openPreview } from "./preview-tab.ts";
 import { openTriggerInstead } from "./trigger-tab.ts";
 import { NotFound } from "./NotFound.tsx";
 
@@ -57,6 +64,12 @@ const loadTasks = () => import("./tasks-pane-entry.tsx").then((m) => ({ default:
 const loadTrigger = () => import("./trigger-pane-entry.tsx").then((m) => ({ default: m.TriggerPaneEntry }));
 // The agent tab (M11R109): its own chunk; the thread inside it is the session screen, given by `agentThread`.
 const loadAgent = () => import("./agent-pane-entry.tsx").then((m) => ({ default: m.AgentPaneEntry }));
+// The previews (UX-2): the strip above a box session's composer and the pane, each its own chunk with its own catalog.
+const loadStrip = () =>
+  import("../../features/previews/PreviewStrip.tsx").then((m) => ({ default: m.PreviewStrip }));
+const loadPreview = () =>
+  import("../../features/previews/PreviewPane.tsx").then((m) => ({ default: m.PreviewPane }));
+const noop = () => {};
 
 /**
  * "Open in Files" from the changes pane: the shell opens the folder's Files pane (features never import each other).
@@ -67,18 +80,53 @@ const openInFiles = (root: string) => () => useWorkspaceStore.getState().open({ 
 /** The session screen gets the account's tool card detail from here: features do not read each other's stores. */
 function SessionPane({
   sessionId,
+  agentId,
   beforeComposer,
   header,
   interleave,
 }: {
   readonly sessionId: string;
+  /** An agent's thread runs in the agent's VM; any other session in its project's box, when it has one. */
+  readonly agentId?: string;
   readonly beforeComposer?: ReactNode;
   readonly header?: ReactNode;
   readonly interleave?: Interleave;
 }) {
   const toolDetail = useAppearanceStore((state) => state.account.toolDetail);
+  const lazyText = useLazyFailureText();
+  const projectId = useShellStore((state) => boxOfSession(state.view, sessionId)?.id ?? null);
+  const box = useMemo<BoxRef | null>(
+    () =>
+      agentId !== undefined
+        ? { kind: "agent", id: agentId }
+        : projectId === null
+          ? null
+          : { kind: "project", id: projectId },
+    [agentId, projectId],
+  );
+  const strip =
+    box === null ? null : (
+      <LazyPanel text={lazyText} load={loadStrip} open props={{ box, onOpen: openPreview }} onFailed={noop} />
+    );
   return (
-    <LazyPane load={loadSession} props={{ sessionId, toolDetail, beforeComposer, header, interleave }} />
+    <LazyPane
+      load={loadSession}
+      props={{
+        sessionId,
+        toolDetail,
+        beforeComposer:
+          strip === null ? (
+            beforeComposer
+          ) : (
+            <>
+              {strip}
+              {beforeComposer}
+            </>
+          ),
+        header,
+        interleave,
+      }}
+    />
   );
 }
 
@@ -153,10 +201,11 @@ function TriggerPane({ triggerId }: { readonly triggerId: string }) {
 }
 
 /** The agent's thread is the session screen, with the agent's header, its request cards and the cards among the rows. */
-const agentThread = ({ sessionId, header, beforeComposer, interleave }: ThreadSlot) => (
+const agentThread = (agentId: string, { sessionId, header, beforeComposer, interleave }: ThreadSlot) => (
   <SessionPane
     key={sessionId}
     sessionId={sessionId}
+    agentId={agentId}
     header={header}
     beforeComposer={beforeComposer}
     interleave={interleave}
@@ -177,10 +226,36 @@ function AgentTab({ agentId }: { readonly agentId: string }) {
         avatarStyle,
         eventCards,
         statusPanel,
-        thread: agentThread,
+        thread: (slot: ThreadSlot) => agentThread(agentId, slot),
         onOpenSettings: openAgentSettings,
         onOpenSession: openSession,
         onOpenTrigger: openTrigger,
+      }}
+    />
+  );
+}
+
+/**
+ * A preview item's pane. It mounts armed only when the owner's own click opened it (UX2-R77): a pane restored with the
+ * workspace, or remounted by a rearranged split, loads nothing until its OPEN PREVIEW is clicked. The click's mark is
+ * dropped when the pane goes away.
+ */
+function PreviewTab({ box: key, name }: { readonly box: string; readonly name: string }) {
+  const armed = usePreviewsStore((state) => state.armed.has(armedKey({ kind: "preview", box: key, name })));
+  const box = useMemo(() => parseBoxKey(key), [key]);
+  useEffect(
+    () => () => usePreviewsStore.getState().disarm(armedKey({ kind: "preview", box: key, name })),
+    [key, name],
+  );
+  if (box === null) return <NotFound />;
+  return (
+    <LazyPane
+      load={loadPreview}
+      props={{
+        box,
+        name,
+        armed,
+        onOpenAgent: (agentId: string) => useWorkspaceStore.getState().open({ kind: "agent", id: agentId }),
       }}
     />
   );
@@ -238,6 +313,7 @@ export const PANE_RENDERERS: Renderers = {
   tasks: () => <TasksPane />,
   trigger: (item) => <TriggerPane key={item.id} triggerId={item.id} />,
   agent: (item) => <AgentTab key={item.id} agentId={item.id} />,
+  preview: (item) => <PreviewTab key={`${item.box}/${item.name}`} box={item.box} name={item.name} />,
   "dev-ui": () =>
     DevGallery ? (
       <Suspense fallback={null}>

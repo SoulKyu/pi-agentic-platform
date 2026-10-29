@@ -166,6 +166,8 @@ export interface SessionsService extends SessionCommands, SessionModels {
     sessionId: string,
     caller: Caller,
   ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
+  /** The joined text blocks of one assistant entry (previews' HTML artifacts read it, UX2-R33); `not_found` for a session that is not the caller's. */
+  entryText(sessionId: string, entryId: string, caller: Caller): Promise<string | null>;
   /**
    * A new session on a new file, cut before a user message of the session's branch (ADR 0009). Allowed while the source
    * runs and for a cold one: no worker is started, and the new session is cold. At the first message there is no file

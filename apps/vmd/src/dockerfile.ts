@@ -9,7 +9,7 @@ export const BASE_BUNDLE_DIR = "/opt/pap/pi-host";
 
 const NODE_DIGEST = /^docker\.io\/library\/node@sha256:[0-9a-f]{64}$/;
 
-/** R7, RT-14 (e2fsprogs: the guest grows its own disk), RT-06/RT-37 (worker environment). */
+/** R7, RT-14 (e2fsprogs: the guest grows its own disk), RT-06/RT-37 (worker environment), UX2-R63 (util-linux: `nsenter`). */
 const BASE_PACKAGES = [
   "bubblewrap",
   "git",
@@ -22,6 +22,7 @@ const BASE_PACKAGES = [
   "e2fsprogs",
   "gh",
   "openssh-client",
+  "util-linux",
 ] as const;
 /** The box terminal's pty (lot B2, B0 §1): built in a stage of the same Node base (same ABI), then copied beside the bundle. */
 const PTY_BUILD_PACKAGES = ["build-essential", "python3", "make", "g++"] as const;

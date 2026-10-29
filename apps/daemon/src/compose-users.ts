@@ -10,6 +10,7 @@ import { type AuthModule, requireStepUp } from "./modules/auth/index.ts";
 import type { AutomationOwnerCascade } from "./modules/automation/index.ts";
 import type { ModelsPort } from "./modules/models/index.ts";
 import { forgetPushOwner } from "./modules/push/index.ts";
+import type { PreviewTokens } from "./modules/previews/index.ts";
 import type { SearchModule } from "./modules/search/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 import type { SessionsOwnerCascade } from "./modules/sessions/index.ts";
@@ -70,6 +71,8 @@ export interface UsersDeleteLate {
   readonly m10Late: { readonly automation: { readonly ownerCascade: AutomationOwnerCascade } };
   readonly sessions: { readonly ownerCascade: SessionsOwnerCascade };
   readonly search: Pick<SearchModule, "dropOwner">;
+  /** A disabled or deleted user's preview tokens die with the account (UX2-R72): the disable reaches them here too. */
+  readonly previews: Pick<PreviewTokens, "revokeOwner">;
 }
 
 export interface ComposedUsers {
@@ -131,6 +134,7 @@ export function composeUsers(
     sessions: { removeAll: (ownerId) => deleting().sessions.ownerCascade.removeAll(ownerId) },
     push: { forgetOwner: (ownerId) => forgetPushOwner(core.db, ownerId) },
     search: { dropOwner: (ownerId) => deleting().search.dropOwner(ownerId) },
+    previews: { revokeOwner: (ownerId) => deleting().previews.revokeOwner(ownerId) },
     vault,
     auth: { deleteUser: (userId) => auth.deleteUser(userId) },
     logger: core.logger,
@@ -164,6 +168,7 @@ export function composeUsers(
       },
       agents: { list: (userId) => late().agents.list(userId) },
       stopAgent: (agentId) => late().agentsVm.agentLink.stop(agentId),
+      previews: { revokeOwner: (ownerId) => deleting().previews.revokeOwner(ownerId) },
       logger: core.logger,
     }),
     cascade,

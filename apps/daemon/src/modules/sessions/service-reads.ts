@@ -121,6 +121,11 @@ export interface SessionReads {
     caller: Caller,
     sessionId: string,
   ): Promise<{ leafId: string | null; entries: BranchPathEntry[] }>;
+  /**
+   * The text blocks of one assistant entry of a session the caller owns, joined with "" (the web's join), whole and not clipped
+   * for the wire; null for any other entry, an unknown id or a session with no file (UX2-R33).
+   */
+  entryText(sessionId: string, entryId: string, caller: Caller): Promise<string | null>;
   /** The text of the session's last assistant message on its current branch, cut to `max` characters; null when none. */
   agentText(sessionId: string, max: number, since?: number): Promise<string | null>;
 }
@@ -225,6 +230,18 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const session = deps.live.get(sessionId);
       const file = fileOf(row, session);
       return file ? reader.branchPath(file, session?.leafId() ?? null) : { leafId: null, entries: [] };
+    },
+    async entryText(sessionId, entryId, caller) {
+      const row = deps.owned(sessionId, caller);
+      const reader = await ensureReader();
+      const file = fileOf(row, deps.live.get(sessionId));
+      if (!file) return null;
+      // A page that ends at the entry: its own rows come last. An unknown id falls back to the file's end, which the filter drops.
+      const own = reader.page(file, { leafId: entryId, limit: 1 }).rows.filter((r) => r.entryId === entryId);
+      const message = own
+        .map((r) => r.message)
+        .find((m) => (m as { role?: unknown } | null)?.role === "assistant");
+      return message === undefined ? null : textOfResult(message);
     },
     async agentText(sessionId, max, since) {
       const row = deps.store.get(sessionId);

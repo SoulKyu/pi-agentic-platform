@@ -10,12 +10,14 @@ export interface DisableDeps {
   readonly agents: { list(ownerId: string): ReadonlyArray<{ readonly id: string }> };
   /** Stops every VM of the agent and leaves its disk. */
   stopAgent(agentId: string): Promise<void>;
+  /** The user's preview tokens (a lease or an HTML artifact) die with their account (UX2-R72). */
+  readonly previews: { revokeOwner(ownerId: string): unknown };
   readonly logger: Pick<Logger, "warn">;
 }
 
 export interface Disabling {
   /**
-   * Stops every box and agent VM of the user; the data stays. Each stop is tried whatever the others do, and a failure is
+   * Revokes the user's preview tokens, then stops every box and agent VM of the user; the data stays. Each stop is tried whatever the others do, and a failure is
    * answered `internal` after the last one, so the owner can retry: the account is already disabled, and the launch gate and
    * the relay's `paused` hold the VMs that did not stop from doing more.
    */
@@ -25,6 +27,8 @@ export interface Disabling {
 export function createDisabling(deps: DisableDeps): Disabling {
   return {
     async stopAll(userId) {
+      // First and unconditional: a stop that fails below must not leave a page open on a disabled account's box.
+      deps.previews.revokeOwner(userId);
       let failed = false;
       const attempt = async (what: string, id: string, work: () => Promise<void>): Promise<void> => {
         try {

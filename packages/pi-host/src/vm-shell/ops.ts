@@ -20,6 +20,14 @@ const MAX_QUEUED = 32;
 const SECCOMP_FD = 3;
 const SHELL_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
+/** The names every VM shell command gets, last so nothing else moves them; a preview service gets the same (UX-2 §5). */
+export const shellFixedEnv = (layout: VmShellSpec["layout"]): Readonly<Record<string, string>> => ({
+  PATH: SHELL_PATH,
+  HOME: layout.home,
+  LANG: "C.UTF-8",
+  TERM: "dumb",
+});
+
 /**
  * The agent's shell in its VM: every command is `bwrap … -- /bin/sh -c <command>` with the filter on fd 3 (R2, R18). The
  * environment is a fixed allowlist plus the vault (ADR 0081), never the worker's (it holds the relay key, R13) and never the one Pi passes. One
@@ -40,12 +48,7 @@ export function vmShell(
   const timers = deps.timers ?? SYSTEM_TIMERS;
   const spawn = deps.spawn ?? nodeSpawn;
   const filter = encodeSeccomp(shellSeccompProgram());
-  const fixed = {
-    PATH: SHELL_PATH,
-    HOME: spec.layout.home,
-    LANG: "C.UTF-8",
-    TERM: "dumb",
-  };
+  const fixed = shellFixedEnv(spec.layout);
   const proxy = spec.network ? deps.proxyEnv : {};
   const overlay = `${spec.layout.shellOverlay}/${spec.slot}`;
   let overlayMade = false;

@@ -132,6 +132,8 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           PAP_IMAGE_TAG: spec.image,
           // AVM-E11: what `pap-guest` reads instead of Kata's fixed `/agent` and `/run`.
           PAP_GUEST_LAYOUT: JSON.stringify(guestLayout),
+          // Preview services run unconfined here (tests only, UX2-R20): Kata's guest never gets this marker.
+          PAP_GUEST_SERVICES: "plain",
           PAP_GUEST_RUN_DIR: run,
           PAP_TEST_PROVIDER_SCRIPT: options.providerScript,
           // The fake GitHub's origin (tests only, this backend only): Kata's guest never gets it, so it refuses loopback and file URLs.

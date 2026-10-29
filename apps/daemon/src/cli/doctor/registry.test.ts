@@ -22,6 +22,7 @@ describe("ALL_CHECKS", () => {
       "https",
       "push",
       "update_available",
+      "preview.listener",
       "vm.kvm",
       "vm.vmd",
       "vm.stack",

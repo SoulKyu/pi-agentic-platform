@@ -54,3 +54,7 @@ export * from "./json-bytes.ts";
 export * from "./vcs-status.ts";
 export * from "./pty-frames.ts";
 export * from "./box-github-ops.ts";
+export * from "./box-service-ops.ts";
+export * from "./fences.ts";
+export * from "./preview-service.ts";
+export * from "./tunnel-frames.ts";

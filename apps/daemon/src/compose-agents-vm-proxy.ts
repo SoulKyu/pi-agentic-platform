@@ -92,6 +92,8 @@ export function composeVmProxy(ctx: VmProxyContext) {
     onTaint: (launch) => taintAll(launchTaint.mark(launch.launchId)),
   });
   return {
+    /** The list the proxy judges a box with: the previews' CSP reads the same one (UX2-R71). */
+    hostsOf,
     bindTaint: (handler: (sessionId: string) => void): void => void (taint = handler),
     /** A session started in the launch: it starts tainted when the launch's proxy already let unclean content through. */
     join(launchId: string, sessionId: string, tainted = false): void {

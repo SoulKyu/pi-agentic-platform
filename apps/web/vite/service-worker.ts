@@ -4,6 +4,7 @@ import { stripTypeScriptTypes } from "node:module";
 import { join } from "node:path";
 import { minifySync, transformWithOxc, type Plugin } from "vite";
 import { BROWSER_TARGETS } from "../browser-targets.ts";
+import { richLazyAssets } from "./rich-assets.ts";
 
 const SOURCE = new URL("../sw/sw.ts", import.meta.url);
 const PUBLIC_FILES = ["/favicon.svg", "/manifest.webmanifest"];
@@ -77,8 +78,10 @@ export function serviceWorker(): Plugin {
         if (!publicDir)
           throw new Error("pap-service-worker: the public folder is required (manifest and icons)");
         const files = new Map<string, Content>();
+        // Math and diagrams load when a reply needs them (UX-2): not part of the install download or the worker's list.
+        const lazy = richLazyAssets(bundle);
         for (const [name, output] of Object.entries(bundle)) {
-          if (!name.startsWith("assets/") || name.endsWith(".map")) continue;
+          if (!name.startsWith("assets/") || name.endsWith(".map") || lazy.has(name)) continue;
           files.set(`/${name}`, output.type === "chunk" ? output.code : output.source);
         }
         const index = bundle["index.html"];

@@ -25,6 +25,7 @@ export function buildRouteTree(Root: () => ReactNode) {
     route("/trigger/$id"),
     route("/agents/$id"),
     route("/n/$id"),
+    route("/preview/$box/$name"),
     route("/dev/ui"),
   ]);
 }

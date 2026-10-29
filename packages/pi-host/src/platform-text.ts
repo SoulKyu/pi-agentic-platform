@@ -44,6 +44,17 @@ export const SUCCESS_TEMPLATES: Readonly<Record<string, string>> = {
     "The owner provided {name} (ref {ref}). It is in your shell's environment as ${name} for every command. Never print it; outputs show it as [SECRET:{name}].",
   "secret.request:once":
     "The owner provided {name} (ref {ref}). It is in your shell's environment as ${name} for your next command that uses ${name}. Never print it; outputs show it as [SECRET:{name}].",
+  "preview.start:running":
+    "The preview {name} runs on port {port}. The owner opens it from the chat; you never get its address. Links inside it must be relative.",
+  "preview.start:failed:port_timeout":
+    "pap started {name}, but nothing listened on port {port} within 30 s. Run the command in your shell to see its output.",
+  "preview.start:failed:port_not_owned":
+    "Another program in your VM already listens on port {port}. Pick another port.",
+  "preview.start:failed:exited":
+    "The command of {name} ended before it listened. Run it in your shell to see why.",
+  "preview.start:failed:spawn_failed": "The command of {name} could not start.",
+  "preview.stop:stopped": "The preview is stopped.",
+  "preview.stop:none": "No preview of that name runs.",
 };
 
 /** M11R103: the one refusal with a sentence of its own, because the generic one does not tell the agent why. */
@@ -79,6 +90,15 @@ export function successText(op: Exclude<PlatformOp, "subagent.run">, result: unk
       const template = SUCCESS_TEMPLATES[`secret.request:${value.mode === "vault" ? "vault" : "once"}`];
       return template === undefined ? null : fill(template, { name: name.data, ref: value.ref });
     }
+    case "preview.start": {
+      const key = value.status === "running" ? "running" : `failed:${String(value.reason)}`;
+      const template = SUCCESS_TEMPLATES[`preview.start:${key}`];
+      return template === undefined
+        ? null
+        : fill(template, { name: String(value.name), port: String(value.port) });
+    }
+    case "preview.stop":
+      return SUCCESS_TEMPLATES[`preview.stop:${value.stopped === true ? "stopped" : "none"}`] ?? null;
     default:
       return SUCCESS_TEMPLATES[op] ?? null;
   }

@@ -18,6 +18,7 @@ describe("parseUnit round trip over renderUnit", () => {
       node: NODE,
       main: MAIN,
       port,
+      previewPort: null,
       host: null,
       home,
       env: {
@@ -108,8 +109,27 @@ describe("parseUnit refuses what is not ours (null)", () => {
   ])("ExecStart=%s", (exec) => {
     expect(parseUnit(`[Service]\nExecStart=${exec}\n`)).toBeNull();
   });
+  it("reads --preview-port, spaced or with =, and null without it", () => {
+    expect(parseUnit(render())).toMatchObject({ previewPort: null });
+    expect(parseUnit(render().replace("serve", "serve --preview-port 9001"))).toMatchObject({
+      previewPort: 9001,
+    });
+    expect(parseUnit(render().replace("serve", "serve --preview-port=9002"))).toMatchObject({
+      previewPort: 9002,
+    });
+  });
   it("a bad port, a bad host or an unsafe tls path", () => {
-    for (const flags of ["--port 0", "--port 70000", "--port x", "--host a;b", "--host", "--tls-cert /a$b"]) {
+    for (const flags of [
+      "--port 0",
+      "--port 70000",
+      "--port x",
+      "--host a;b",
+      "--host",
+      "--tls-cert /a$b",
+      "--preview-port 0",
+      "--preview-port x",
+      "--preview-port",
+    ]) {
       expect(parseUnit(render().replace("serve", `serve ${flags}`))).toBeNull();
     }
   });

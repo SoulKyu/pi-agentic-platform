@@ -12,6 +12,7 @@ import { coverCommand } from "./command-cover.ts";
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
 import { decide } from "./decide.ts";
 import { networkRequestPlan } from "./network-request-plan.ts";
+import { judgedCategory, previewStartPlan } from "./preview-start-plan.ts";
 import { checkReadTarget } from "./read-target.ts";
 import { READ_ONLY_REASON } from "./reasons.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
@@ -95,7 +96,7 @@ export function readOnlyRefusal(
 ): { reason: string; modelReason: string } | null {
   const verdict = decide({
     mode: "read-only",
-    category: now.kind.category,
+    category: judgedCategory(now.kind),
     tainted: now.tainted,
     external: now.kind.external,
     protectedRead: PROTECTED_READS.get(call),
@@ -119,6 +120,7 @@ export function platformPlan(call: CallFacts): ApprovalPlan | null {
   const platform = call.kind.platform;
   if (!platform) return null;
   if (platform.op === "network.request") return networkRequestPlan(call);
+  if (platform.op === "preview.start") return previewStartPlan(call);
   if (!call.tainted || platform.whenTainted === "run")
     return { outcome: "allow", reason: "pap platform call" };
   // Owner a6 (ii): the daemon composes `autonomy` for an agent thread only; an isolated task never reaches here.

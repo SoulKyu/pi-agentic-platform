@@ -153,7 +153,7 @@ describe("D2: the daemon's package.json ships", () => {
   )("the real built package starts a command with the workspace's dependencies linked in", async () => {
     const out = tmp();
     const pkg = await buildNpm({ repo: repoRoot, out });
-    for (const from of ["apps/daemon", "packages/pi-host"]) {
+    for (const from of ["apps/daemon", "packages/pi-host", "packages/contracts"]) {
       const base = join(repoRoot, from, "node_modules");
       for (const entry of readdirSync(base)) {
         if (entry === "@pap" || entry === ".bin") continue;

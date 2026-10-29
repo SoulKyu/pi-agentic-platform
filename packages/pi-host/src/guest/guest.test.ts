@@ -230,3 +230,101 @@ describe("runGuest operations", () => {
     );
   });
 });
+
+describe("runGuest preview services", () => {
+  const ID = "cd".repeat(16);
+  const svcOp = { name: "svc.list" };
+  const fakeHost = () => {
+    const seen: string[] = [];
+    let closed = 0;
+    let report: ((report: never) => void) | undefined;
+    return {
+      seen,
+      closed: () => closed,
+      emit: (value: unknown) => report?.(value as never),
+      factory: (send: (report: never) => void) => {
+        report = send;
+        return {
+          op: (op: { name: string }) => {
+            seen.push(op.name);
+            return Promise.resolve({ ok: true as const, value: { services: [] } });
+          },
+          connectTo: () => Promise.reject(new Error("unused")),
+          closeAll: () => void closed++,
+        };
+      },
+    };
+  };
+
+  it("svc.* goes to the service host in an agent's VM and a project box alike, before the box ops", async () => {
+    const hosts = fakeHost();
+    const boxOps: string[] = [];
+    for (const ops of [
+      undefined,
+      async (op: { name: string }) => (boxOps.push(op.name), { ok: false as const, code: "failed" as const }),
+    ]) {
+      const run = await start({
+        services: hosts.factory as never,
+        ...(ops === undefined ? {} : { ops: ops as never }),
+      });
+      await run.hello();
+      run.gateway.send({ type: "op", id: ID, op: svcOp });
+      await vi.waitFor(() =>
+        expect(run.gateway.frames).toContainEqual({
+          type: "op_result",
+          id: ID,
+          ok: true,
+          value: { services: [] },
+        }),
+      );
+    }
+    expect(hosts.seen).toEqual(["svc.list", "svc.list"]);
+    expect(boxOps).toEqual([]);
+  });
+
+  it("answers failed to a svc op when the guest has no service host", async () => {
+    const run = await start();
+    await run.hello();
+    run.gateway.send({ type: "op", id: ID, op: svcOp });
+    await vi.waitFor(() =>
+      expect(run.gateway.frames).toContainEqual({ type: "op_result", id: ID, ok: false, code: "failed" }),
+    );
+  });
+
+  it("forwards a service report to the daemon as it is", async () => {
+    const hosts = fakeHost();
+    const run = await start({ services: hosts.factory as never });
+    await run.hello();
+    const report = { type: "service", id: ID, state: "exited", code: 1, signal: null };
+    hosts.emit(report);
+    await vi.waitFor(() => expect(run.gateway.frames).toContainEqual(report));
+  });
+
+  it("closeAll on shutdown stops every service, and on a closed gateway too", async () => {
+    const hosts = fakeHost();
+    const run = await start({ services: hosts.factory as never });
+    await run.hello();
+    run.gateway.send({ type: "shutdown" });
+    await vi.waitFor(() => expect(run.exits).toEqual([0]));
+    expect(hosts.closed()).toBe(1);
+    const lost = fakeHost();
+    const other = await start({ services: lost.factory as never });
+    await other.hello();
+    other.gateway.hangUp();
+    await vi.waitFor(() => expect(other.exits).toEqual([1]));
+    expect(lost.closed()).toBe(1);
+  });
+
+  it("stops the services, then exits, when the guest is told to terminate", async () => {
+    const hosts = fakeHost();
+    let terminate: () => void = () => undefined;
+    const run = await start({
+      services: hosts.factory as never,
+      onTerminate: (handler) => void (terminate = handler),
+    });
+    await run.hello();
+    terminate();
+    await vi.waitFor(() => expect(run.exits).toEqual([0]));
+    expect(hosts.closed()).toBe(1);
+  });
+});

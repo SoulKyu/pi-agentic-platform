@@ -2,6 +2,8 @@ import { z } from "zod";
 import { AgentResources, SystemPackage } from "./agents-resources.ts";
 import { BoxPhase, ProjectHosts } from "./boxes.ts";
 import { defineMethod } from "./define.ts";
+import { PreviewDecl } from "./preview-service.ts";
+import { previewsMethods } from "./previews-methods.ts";
 import { ProjectView, SHELL_LIMITS } from "./shell.ts";
 
 const Id = z.string().min(1).max(128);
@@ -22,6 +24,9 @@ export const ProjectBoxView = z
       })
       .strict(),
     scratch: z.boolean(),
+    /** `.pi/project.yaml`'s preview as the page shows it (the command is shown, UX2-R80); null when the file declares none. */
+    preview: PreviewDecl.nullable().optional(),
+    previewInvalid: z.literal(true).optional(),
     counts: z
       .object({ sessions: z.number().int().nonnegative(), triggers: z.number().int().nonnegative() })
       .strict(),
@@ -115,4 +120,5 @@ export const projectBoxMethods = {
     result: Ok,
     errors: BOX_LIFE_ERRORS,
   }),
+  ...previewsMethods,
 } as const;

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { CallFacts } from "./pipeline.ts";
 import { egressStage } from "./egress.ts";
 import { sandboxVerdict, UNSANDBOXED_SHELL } from "./sandbox-rule.ts";
-import { classifyTool, type ToolKind } from "./tool-kind.ts";
+import { classifyTool, PLATFORM_SOURCE, type ToolKind } from "./tool-kind.ts";
 
 const caged = (mode: "auto-accept-edits" | "full-access" = "auto-accept-edits") =>
   PolicyRules.parse({
@@ -65,6 +65,15 @@ describe("the sandbox rule (M11R34)", () => {
   it("blocks an extension's own bash that is not the sandboxed one, in full access too", () => {
     const own = classifyTool("bash", { path: "/ext/bash.js" });
     expect(sandboxVerdict(callOf("bash", own, caged("full-access")))?.outcome).toBe("block");
+  });
+
+  it("exempts only preview_start among the platform tools, and only from the platform source", () => {
+    const start = classifyTool("preview_start", { path: PLATFORM_SOURCE });
+    expect(sandboxVerdict(callOf("preview_start", start, caged()))).toBeNull();
+    const notify = classifyTool("agent_notify", { path: PLATFORM_SOURCE });
+    expect(sandboxVerdict(callOf("agent_notify", notify, caged()))?.outcome).toBe("block");
+    const forged = classifyTool("preview_start", { path: "/ext/x.js" });
+    expect(sandboxVerdict(callOf("preview_start", forged, caged()))?.outcome).toBe("block");
   });
 
   it("does not judge a tool without a command", () => {

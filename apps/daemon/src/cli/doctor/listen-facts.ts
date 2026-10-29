@@ -5,6 +5,8 @@ export interface ListenFacts {
   readonly publicOrigin: string;
   readonly tls: boolean;
   readonly insecureHttp: boolean;
+  /** `--preview-port`, else `PAP_PREVIEW_PORT`, else the app's port + 1 (`parsePreview`). */
+  readonly previewPort: number;
 }
 
 // The defaults and rules below are the ones of `loadConfig` (kernel/config.ts), which doctor must not import for its side
@@ -38,6 +40,20 @@ function originOf(raw: string | undefined): string | null {
   }
 }
 
+/** The host a probe of the daemon's own listeners connects to: loopback for a loopback or wildcard bind, else the bind address. */
+export function probeHostOf(unit: ParsedUnit | null): string {
+  const host = hostOf(unit?.host ?? null);
+  return isLoopbackOrWildcard(host) ? DEFAULT_HOST : host;
+}
+
+/** `parsePreview`'s port rule for a unit; what the daemon would refuse falls back to the default. */
+function previewPortOf(unit: ParsedUnit | null, env: NodeJS.ProcessEnv, port: number): number {
+  if (unit?.previewPort != null) return unit.previewPort;
+  const raw = (unit === null ? env : unit.env).PAP_PREVIEW_PORT;
+  const set = raw !== undefined && /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
+  return set >= 1 && set <= 65_535 && set !== port ? set : port + 1;
+}
+
 /**
  * Where the daemon of `unit` says it is reached. `PAP_PUBLIC_ORIGIN` comes from the unit's environment (the shell's only when
  * no unit is installed, as the daemon never sees the shell's); else `scheme://host:port`, with `localhost` for a loopback or
@@ -54,5 +70,6 @@ export function listenFacts(unit: ParsedUnit | null, env: NodeJS.ProcessEnv): Li
     publicOrigin: originOf((unit === null ? env : unit.env).PAP_PUBLIC_ORIGIN) ?? listen,
     tls,
     insecureHttp: unit?.insecureHttp ?? false,
+    previewPort: previewPortOf(unit, env, port),
   };
 }

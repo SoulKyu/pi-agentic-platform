@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, type ReactNode } from "react";
 import type { CodeCopyLabels } from "./markdown/CodeBlock.tsx";
 import type { PathLinks, ShellHandOff } from "./markdown/reply-tools.ts";
+import type { RichReplies } from "./markdown/rich-replies.ts";
 
 const MarkdownBody = lazy(() => import("./markdown/render.tsx"));
 const PLAIN_CLASSES = "whitespace-pre-wrap break-words";
@@ -37,6 +38,8 @@ export interface MarkdownProps {
   readonly pathLinks?: PathLinks;
   /** Shell blocks get TO TERMINAL when set. */
   readonly shellHandOff?: ShellHandOff;
+  /** Images of the box, math, diagrams and previews in the text when set; without it an image is `[image: alt]`. */
+  readonly richReplies?: RichReplies;
 }
 
 /** Model text as markdown (DESIGN §9.2 message body), loaded on first use; plain text until then and if it fails. */

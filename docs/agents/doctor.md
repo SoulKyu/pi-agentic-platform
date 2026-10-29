@@ -41,7 +41,7 @@ The `journal` check never prints a journal line (the first start writes a one-ti
 
 ## Daemon checks
 
-They read the home, never write it. The order of the whole list is the order of the output: the seven system checks, then `schema`, `update_pending`, `backup`, `update_available` (`https` and `push` sit between `backup` and `update_available`, built from `pushReadiness` in `kernel/push-readiness.ts`).
+They read the home, never write it. The order of the whole list is the order of the output: the seven system checks, then `schema`, `update_pending`, `backup`, `update_available` (`https` and `push` sit between `backup` and `update_available`, built from `pushReadiness` in `kernel/push-readiness.ts`), then `preview.listener`.
 
 | id | what it looks at | `fail` | `warn` | `info` |
 |---|---|---|---|---|
@@ -51,8 +51,9 @@ They read the home, never write it. The order of the whole list is the order of 
 | `https` | `listenFacts` (below) through the push readiness function | | plain HTTP, or an origin that does not match | `http://localhost` works on this machine only |
 | `push` | the same readiness, plus `secrets/push/vapid.json` by `lstat`: absent is ok (created at the first start); a regular file of mode 0600 in a folder of mode 0700, both owned by the user, is ok | | push is off (`keys_unreadable`, or the readiness above); never `fail` | localhost only |
 | `update_available` | `update/last-check.json`, written by the daily check (on by default; `PAP_UPDATE_CHECK=0` turns it off) or with `PAP_UPDATE_CHECK=1`; no network call | | | |
+| `preview.listener` | `GET /` on the preview port (`--preview-port`, else `PAP_PREVIEW_PORT`, else the app's port + 1) of the running daemon, on `127.0.0.1` for a loopback or wildcard bind, 2 s, certificate not verified; sends nothing | nothing answers: another program holds the port (see `preview_listener_unavailable` in the log, or set `PAP_PREVIEW_PORT`) | something answers, but not with a bare 404 and a CSP starting `sandbox ` | |
 
-`update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
+`preview.listener` is `skip` when the daemon is not running. `update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
 
 ## Agent VM checks
 

@@ -83,15 +83,56 @@ describe("the built service worker (M12R14, M12R28)", () => {
     expect(sw).not.toContain("__SHELL__");
   });
 
-  it("precaches index.html, every emitted asset (lazy chunks included) and the public files", async () => {
+  const shellOf = async () => {
     const sw = await readFile(join(out, "sw.js"), "utf8");
     const list = /(\["\/","\/index\.html"[^\]]*\])/.exec(sw)?.[1];
     expect(list, "the inlined shell list").toBeDefined();
-    const shell = JSON.parse(list ?? "[]") as string[];
+    return JSON.parse(list ?? "[]") as string[];
+  };
+
+  // Math and diagrams load when a reply needs them (UX-2): KaTeX, Mermaid's core and its diagram types, and the KaTeX fonts
+  // are most of the build, a PWA install must not download them, and the worker's list is held to a gzip budget.
+  it("precaches index.html, the public files and every emitted asset except the rich replies' lazy ones", async () => {
+    const shell = await shellOf();
     expect(shell).toContain("/index.html");
     expect(shell.slice(0, 2)).toEqual(["/", "/index.html"]);
-    expect(shell.slice(2)).toEqual([...assetsOf(), ...publicFiles()]);
-    expect(assetsOf().length).toBeGreaterThan(3);
+    const left = assetsOf().filter((path) => !shell.includes(path));
+    expect(shell.slice(2)).toEqual([...assetsOf().filter((path) => !left.includes(path)), ...publicFiles()]);
+    const code = async (path: string) => readFile(join(out, path), "utf8");
+    // What is left out: the 20 KaTeX fonts, every chunk that holds KaTeX or Mermaid, and Mermaid's diagram types.
+    expect(left.filter((path) => /^\/assets\/KaTeX_.+\.woff2$/u.test(path))).toHaveLength(20);
+    for (const marker of [/katex-mathml/, /dompurifyConfig/])
+      for (const path of assetsOf().filter((name) => name.endsWith(".js")))
+        if (marker.test(await code(path))) expect(left, `${String(marker)} ${path}`).toContain(path);
+    for (const type of ["flowDiagram", "sequenceDiagram", "classDiagram", "stateDiagram", "ganttDiagram"])
+      expect(
+        left.some((path) => path.startsWith(`/assets/${type}`)),
+        type,
+      ).toBe(true);
+    expect(left.some((path) => /math-.*\.css$/u.test(path))).toBe(true);
+    // Everything the shell needs stays: the initial files, and no precached chunk imports a left-out one statically.
+    const html = await readFile(join(out, "index.html"), "utf8");
+    for (const [, name] of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g))
+      expect(left).not.toContain(name);
+    for (const path of shell.filter((name) => name.endsWith(".js"))) {
+      const statics = [...(await code(path)).matchAll(/(?:from|import)\s*["'`]\.\/([^"'`]+)["'`]/g)];
+      for (const [, name] of statics)
+        expect(left, `${path} imports ${name}`).not.toContain(`/assets/${name}`);
+    }
+    // Nor does a precached chunk import one dynamically, except the two lazy modules themselves (real `import(...)`
+    // specifiers, not Vite's preload list): the app's own lazy chunks, shiki's among them, stay precached.
+    const roots = /^\/assets\/(?:math|mermaid)-[^/]+\.js$/u;
+    for (const path of shell.filter((name) => name.endsWith(".js")))
+      for (const [, name] of (await code(path)).matchAll(/\bimport\(\s*["'`]\.\/([^"'`]+)["'`]\s*\)/g))
+        if (left.includes(`/assets/${name}`))
+          expect(`/assets/${name}`, `${path} imports ${name}`).toMatch(roots);
+    for (const start of ["TooltipPopup-", "font-support-", "highlight-"])
+      expect(
+        shell.some((name) => name.startsWith(`/assets/${start}`)),
+        start,
+      ).toBe(true);
+    expect(left.filter((name) => /\/(?:TooltipPopup|font-support|highlight)-/u.test(name))).toEqual([]);
+    expect(assetsOf().length - left.length).toBeGreaterThan(3);
   });
 
   it("names its cache with a 16-hex build id", async () => {
@@ -107,15 +148,15 @@ describe("the built service worker (M12R14, M12R28)", () => {
     expect(gzipKb).toBeLessThanOrEqual(budget);
   });
 
-  it("precaches every file of dist: the dist root equals the shell list plus sw.js", async () => {
-    const sw = await readFile(join(out, "sw.js"), "utf8");
-    const shell = JSON.parse(/(\["\/","\/index\.html"[^\]]*\])/.exec(sw)?.[1] ?? "[]") as string[];
+  it("precaches every file of dist but the rich replies' lazy assets: the dist root equals the shell list plus them plus sw.js", async () => {
+    const shell = await shellOf();
+    const left = assetsOf().filter((path) => !shell.includes(path));
     const walk = (dir: string): string[] =>
       readdirSync(join(out, dir), { withFileTypes: true }).flatMap((entry) =>
         entry.isDirectory() ? walk(`${dir}/${entry.name}`) : [`${dir}/${entry.name}`],
       );
     const files = walk("").map((path) => path.replace(/^\/\//, "/"));
-    expect(files.sort()).toEqual([...shell.filter((path) => path !== "/"), "/sw.js"].sort());
+    expect(files.sort()).toEqual([...shell.filter((path) => path !== "/"), ...left, "/sw.js"].sort());
   });
 
   it("the built, minified worker passes /auth through and sends an evil click to /", async () => {

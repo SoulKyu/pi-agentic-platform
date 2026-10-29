@@ -2,9 +2,11 @@ import { z } from "zod";
 import { AgentResources, SystemPackages } from "./agents-resources.ts";
 import { FILE_CHUNK_B64 } from "./file-chunk.ts";
 import { BOX_GITHUB_OPS, BOX_GITHUB_RESULTS, BOX_GITHUB_TIMEOUTS } from "./box-github-ops.ts";
+import { BOX_SERVICE_OPS, BOX_SERVICE_RESULTS, BOX_SERVICE_TIMEOUTS } from "./box-service-ops.ts";
 import { AGENT_LIMITS } from "./agents.ts";
 import { Etag, FILE_LIMITS, FilePath, FilesListResult, FilesReadResult, FilesSearchResult } from "./files.ts";
 import { AgentHostEntry } from "./host-entry.ts";
+import { PreviewDecl } from "./preview-service.ts";
 import { DiffSide, RepoPath, VCS_LIMITS, VcsStatus } from "./vcs.ts";
 
 export { BoxRef, ProjectId, boxKey, parseBoxKey } from "./box-ref.ts";
@@ -91,6 +93,7 @@ export const BoxOp = z.discriminatedUnion("name", [
   op("knowledge.enable", {}),
   op("project.config", {}),
   ...BOX_GITHUB_OPS,
+  ...BOX_SERVICE_OPS,
 ]);
 export type BoxOp = z.infer<typeof BoxOp>;
 export type BoxOpName = BoxOp["name"];
@@ -117,9 +120,12 @@ export const BOX_OP_RESULTS = {
     .object({
       packages: SystemPackages.nullable(),
       error: z.enum(["too_large", "invalid_yaml", "not_a_map", "bad_packages"]).nullable(),
+      preview: PreviewDecl.nullable(),
+      previewInvalid: z.boolean(),
     })
     .strict(),
   ...BOX_GITHUB_RESULTS,
+  ...BOX_SERVICE_RESULTS,
 } as const satisfies { readonly [N in BoxOpName]: z.ZodType };
 
 /** Milliseconds a guest op may take: the clone and the push are slower than the rest. */
@@ -143,5 +149,6 @@ export const BOX_OP_TIMEOUTS: Record<BoxOpName, number> = {
   "github.token": BOX_OP_LIMITS.timeoutMs,
   "github.identity": BOX_OP_LIMITS.timeoutMs,
   "github.forgetKey": BOX_OP_LIMITS.timeoutMs,
+  ...BOX_SERVICE_TIMEOUTS,
 };
 export type BoxOpValue<N extends BoxOpName = BoxOpName> = z.output<(typeof BOX_OP_RESULTS)[N]>;

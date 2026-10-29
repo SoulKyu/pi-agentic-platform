@@ -114,6 +114,17 @@ The unit stays stopped after a manual stop until you start it, and the token is 
 
 pap binds loopback only; the unit never carries `--host`. From your laptop: `ssh -L 7777:localhost:7777 <you>@<host>`, then open `http://localhost:7777`. Plain HTTP on loopback is ADR 0004.
 
+## Previews: the second port (UX-2, ADR 0088)
+
+pap serves what an agent builds in its VM, and the HTML of a reply's `html` fence, from a second listener on its own origin, so a page there is cross-origin to pap. Details: `daemon.md` ("The preview listener"), `agents-vm.md` ("Previews").
+
+- **Port.** The main port plus one (7778 for 7777), or `--preview-port` / `PAP_PREVIEW_PORT`. It binds the same host as the app and the same TLS settings. A taken port logs `preview_listener_unavailable` and pap runs on without previews; `pap doctor` fails `preview.listener`. `pap service install` has no preview flag: the unit's `PAP_PREVIEW_PORT` goes in its environment, and `pap doctor` reads it from there.
+- **Loopback and `ssh -L`.** The browser must reach both ports: `ssh -L 7777:localhost:7777 -L 7778:localhost:7778 <you>@<host>`, then open `http://localhost:7777`. With one port only the app works and a preview frame stays empty.
+- **A reverse proxy or a LAN address must expose the preview port too.** Give it a hostname of its own (or its own port) on the same proxy and set `PAP_PREVIEW_ORIGIN` to the origin the browser uses for it (`https://preview.example.net`). The proxy must pass WebSocket upgrades and streamed bodies, and must not add cookies or rewrite `Content-Security-Policy`, `Referrer-Policy` or `Cache-Control` (the page's policy is the listener's). The app's `PAP_PUBLIC_ORIGIN` is unchanged. Without `PAP_PREVIEW_ORIGIN` the default is the app's public origin with the preview port, which a proxy on 443 does not serve.
+- **`--insecure-http`** (testing only, a trusted LAN): tokens travel in clear text, as the session cookie does. Browsers send no Fetch Metadata to a plain-HTTP LAN address and WebKit sends pap's cookie on a framed preview's requests; the layers that still hold are in `auth.md` ("Same-site requests and previews"). `PAP_PREVIEW_ORIGIN` may be `http://` with this flag.
+- **Container.** `scripts/pap-container.sh` publishes the app's port only (on `127.0.0.1`), so the preview port is not reachable from the host browser: HTML artifacts do not show there. A container has no KVM, so there are no services either.
+- **After the update, run `sudo pap vm setup`** (`AGENT_VM_PROTOCOL` is 4: an older guest is refused, and the base image gained `nsenter`).
+
 ## Commands
 
 ```

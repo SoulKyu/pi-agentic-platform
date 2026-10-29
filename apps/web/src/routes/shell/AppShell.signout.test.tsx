@@ -6,6 +6,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { useComposerInsert } from "../../stores/composer-insert.ts";
 import { useAddProjectRequest } from "../../stores/add-project-request.ts";
 import { usePaletteRequest } from "../../stores/palette-request.ts";
+import { usePreviewsStore } from "../../stores/previews-store.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useFilesTarget } from "../../stores/files-target.ts";
 import { useReplyPorts } from "../../stores/reply-ports.ts";
@@ -18,6 +19,7 @@ import { hasUnsavedFiles, resetUnsavedFiles, setUnsavedFiles } from "../../store
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { settle } from "../../testing/dom.ts";
 import { terminalView, vcsFile, vcsStatus } from "../../testing/m8-fixtures.ts";
+import { previewView } from "../../testing/previews-fixtures.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { terminalFor, terminalMemory } from "./surface-terminal.ts";
@@ -106,5 +108,25 @@ describe("sign-out wipes the M8 client stores (MC34)", () => {
     expect(hasUnsavedFiles("/p")).toBe(false);
     expect(rememberedRoots()).toBe(0);
     expect(terminalMemory()).toEqual({ recent: 0, inFlight: 0, unknownOutcome: 0 });
+  });
+
+  it("opens the previews stream with the shell and empties the previews store at sign-out (UX2-R42)", async () => {
+    const bed = fakeRuntime("open");
+    bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
+    current.runtime = bed.runtime;
+    const page = await renderShell("/");
+    await settle();
+    expect(bed.called("subscribe.previews")).toHaveLength(1);
+
+    usePreviewsStore.getState().apply({ type: "snapshot", services: [previewView()] });
+    usePreviewsStore.getState().arm("project:x/web");
+    expect(usePreviewsStore.getState().services.size).toBe(1);
+
+    await page.unmount();
+
+    expect(usePreviewsStore.getState().services.size).toBe(0);
+    expect(usePreviewsStore.getState().ready).toBe(false);
+    expect(usePreviewsStore.getState().armed.size).toBe(0);
+    expect(bed.called("unsubscribe").length).toBeGreaterThan(0);
   });
 });

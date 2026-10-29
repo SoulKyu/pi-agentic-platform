@@ -2,6 +2,7 @@ import { isMap, isScalar, parseDocument } from "yaml";
 import { z } from "zod";
 import { SystemPackages } from "./agents-resources.ts";
 import type { CONFIG_FIELDS } from "./lanes.ts";
+import { PreviewDecl } from "./preview-service.ts";
 
 export const PROJECT_CONFIG_LIMITS = {
   fileBytes: 64 * 1024,
@@ -53,6 +54,10 @@ export type ConfigRead =
       readonly packages?: readonly string[];
       /** The file names `packages` but not as a list of package names: the lanes ignore it, a box refuses it. */
       readonly badPackages?: true;
+      /** A box's preview service (UX-2): only a file that names the field validly has it. */
+      readonly preview?: PreviewDecl;
+      /** The file names `preview` but not as a command and a port: it is dropped and named, like `packages`. */
+      readonly badPreview?: true;
     }
   | { readonly ok: false; readonly error: "too_large" | "invalid_yaml" | "not_a_map" };
 
@@ -103,7 +108,21 @@ export function readProjectConfig(bytes: Uint8Array): ConfigRead {
     else warnings.push(field);
   }
   const read = { ok: true, config: config as ProjectConfig, warnings } as const;
-  if (!Object.hasOwn(value, "packages")) return read;
-  const packages = SystemPackages.safeParse((value as Record<string, unknown>).packages);
-  return packages.success ? { ...read, packages: packages.data } : { ...read, badPackages: true };
+  return { ...read, ...boxFields(value as Record<string, unknown>) };
+}
+
+/** The fields only a box reads: `packages` and `preview`, each present only when the file names it. */
+function boxFields(value: Record<string, unknown>) {
+  const out: { packages?: string[]; badPackages?: true; preview?: PreviewDecl; badPreview?: true } = {};
+  if (Object.hasOwn(value, "packages")) {
+    const packages = SystemPackages.safeParse(value.packages);
+    if (packages.success) out.packages = packages.data;
+    else out.badPackages = true;
+  }
+  if (Object.hasOwn(value, "preview")) {
+    const preview = PreviewDecl.safeParse(value.preview);
+    if (preview.success) out.preview = preview.data;
+    else out.badPreview = true;
+  }
+  return out;
 }

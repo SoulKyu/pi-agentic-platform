@@ -147,7 +147,7 @@ export default defineConfig(
               ],
               allow: [["web-feature", { domain: "knowledge" }]],
             },
-            // Boxes lot B1: the project page, Files, Changes, the knowledge row, the project menu and settings and the agent form render the box pieces (`features/boxes`: START, the stopped panel, the resource fields).
+            // Boxes lot B1 (and UX-2: the preview pane): the project page, Files, Changes, the knowledge row, the project menu and settings and the agent form render the box pieces (`features/boxes`: START, the stopped panel, the resource fields).
             {
               from: [
                 ["web-feature", { domain: "home" }],
@@ -157,8 +157,17 @@ export default defineConfig(
                 ["web-feature", { domain: "projects" }],
                 ["web-feature", { domain: "agents" }],
                 ["web-feature", { domain: "github" }],
+                ["web-feature", { domain: "previews" }],
               ],
               allow: [["web-feature", { domain: "boxes" }]],
+            },
+            // UX-2: the project page and the agent's status panel list the box's preview services (`features/previews`).
+            {
+              from: [
+                ["web-feature", { domain: "home" }],
+                ["web-feature", { domain: "agents" }],
+              ],
+              allow: [["web-feature", { domain: "previews" }]],
             },
             // Launch progress (A7): the project page, the box line, project settings, the session screen, the agent thread and the task card render the step panel and strip (`features/launch`).
             {

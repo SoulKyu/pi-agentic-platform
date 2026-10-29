@@ -160,16 +160,22 @@ describe("the composed http app", () => {
   it("sends the CSP, and HSTS only when it serves TLS itself (R73, R74)", async () => {
     const plain = await boot(ANSWER);
     const csp = (await httpRequest(`${plain.base}/healthz`)).headers["content-security-policy"];
-    expect(csp).toBe(
+    // The app frames the preview origin only (UX-2 T3): the harness binds the preview port to 0, so the port is any.
+    expect(String(csp).replace(/frame-src http:\/\/localhost:\d+$/, "frame-src PREVIEW")).toBe(
       "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
-        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'",
+        "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-src PREVIEW",
     );
     expect((await httpRequest(`${plain.base}/healthz`)).headers["strict-transport-security"]).toBeUndefined();
     const secure = await boot(ANSWER, { tls: true });
     const reply = await httpRequest(`${secure.base}/healthz`);
     expect(reply.status).toBe(200);
     expect(reply.headers["strict-transport-security"]).toBe("max-age=15552000");
-    expect(reply.headers["content-security-policy"]).toBe(csp);
+    expect(
+      String(reply.headers["content-security-policy"]).replace(
+        /frame-src https:\/\/localhost:\d+$/,
+        "frame-src PREVIEW",
+      ),
+    ).toBe(String(csp).replace(/frame-src http:\/\/localhost:\d+$/, "frame-src PREVIEW"));
   });
 
   it("answers 404 under every reserved prefix and still serves the app elsewhere (R78)", async () => {

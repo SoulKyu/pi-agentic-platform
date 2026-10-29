@@ -3,26 +3,23 @@ import { constants as osConstants } from "node:os";
 import type net from "node:net";
 import {
   AGENT_VM_MAX_FRAME_BYTES,
-  AGENT_VM_PROTOCOL,
   createFrameDecoder,
   encodeSocketFrame,
-  parseBoxKey,
   PTY_FOLDER_REFUSAL,
   PTY_FRAME_BYTES,
   PTY_WINDOW_BYTES,
   PtyCommand,
-  TerminalHello,
   type GuestCommand,
   type PtyReport,
   type VmLayout,
 } from "@pap/contracts/pi-host";
 import { errorClass } from "../../bounded.ts";
+import { dialSide, sideHello } from "../dial.ts";
 import type { GuestClock } from "../guest.ts";
 import { terminalCwd } from "./cwd.ts";
 import { ptyEnv } from "./env.ts";
 import type { NodePty, PtyChild } from "./load.ts";
 
-const CONNECT_MS = 10_000;
 /** A paused pty resumes when the unacknowledged output is down to this much. */
 const RESUME_BYTES = PTY_WINDOW_BYTES / 2;
 const PONG = encodeSocketFrame({ type: "pong" });
@@ -68,17 +65,8 @@ export function createPtyHost(deps: PtyHostDeps): PtyHost {
     const cwd = terminalCwd(layout.project, command.cwd);
     if (cwd === null) return deps.refuse(slot, PTY_FOLDER_REFUSAL);
     const address = deps.env.PAP_GATEWAY;
-    const hello = TerminalHello.safeParse({
-      type: "hello",
-      role: "terminal",
-      box: parseBoxKey(deps.env.PAP_BOX ?? ""),
-      launchId: deps.env.PAP_LAUNCH_ID,
-      token: deps.token,
-      protocol: AGENT_VM_PROTOCOL,
-      imageTag: deps.env.PAP_IMAGE_TAG,
-      slot,
-    });
-    if (!hello.success || !address) return deps.refuse(slot, "the terminal hello is invalid");
+    if (!address || sideHello(deps, { role: "terminal", slot }) === null)
+      return deps.refuse(slot, "the terminal hello is invalid");
     const pty = deps.load();
     if (pty === null) return deps.refuse(slot, "terminal_unavailable");
 
@@ -106,11 +94,10 @@ export function createPtyHost(deps: PtyHostDeps): PtyHost {
     let acked = 0;
     let exited = false;
     let dying = false;
-    let timer: unknown;
     let pendingExit: PtyReport | undefined;
-    const connection = deps.connect(address);
+    let connection: net.Socket | undefined;
     const send = (report: PtyReport): void => {
-      if (ready && !connection.destroyed) connection.write(encodeSocketFrame(report));
+      if (ready && connection && !connection.destroyed) connection.write(encodeSocketFrame(report));
     };
     const kill = (signal: "SIGHUP" | "SIGKILL"): void => {
       // node-pty reports the exit only once the master is read to its end: a paused pty must drain to die.
@@ -140,8 +127,7 @@ export function createPtyHost(deps: PtyHostDeps): PtyHost {
     };
     const finish = (): void => {
       live.delete(slot);
-      if (timer !== undefined) deps.clock.clearTimeout(timer);
-      connection.end();
+      connection?.end();
     };
 
     live.set(slot, () => {
@@ -172,7 +158,7 @@ export function createPtyHost(deps: PtyHostDeps): PtyHost {
       maxBytes: () => AGENT_VM_MAX_FRAME_BYTES,
       onFrame: (raw) => {
         if ((raw as { type?: unknown } | null)?.type === "ping") {
-          if (!connection.destroyed) connection.write(PONG);
+          if (connection && !connection.destroyed) connection.write(PONG);
           return;
         }
         const parsed = PtyCommand.safeParse(raw);
@@ -189,29 +175,32 @@ export function createPtyHost(deps: PtyHostDeps): PtyHost {
       },
       onError: (error) => {
         log(`slot ${slot} terminal frame refused (${error})`);
-        connection.destroy();
+        connection?.destroy();
       },
     });
-    connection.on("data", (chunk) => decoder.push(chunk));
-    timer = deps.clock.setTimeout(() => connection.destroy(), CONNECT_MS);
-    connection.once("connect", () => {
-      deps.clock.clearTimeout(timer);
-      timer = undefined;
-      connection.setNoDelay(true);
-      connection.write(encodeSocketFrame(hello.data));
-      ready = true;
-      if (pendingExit) {
-        send(pendingExit);
-        finish();
-      } else flow();
-    });
-    connection.on("error", (error) => log(`slot ${slot} terminal socket error: ${errorClass(error)}`));
-    connection.on("close", () => {
-      decoder.stop();
-      if (timer !== undefined) deps.clock.clearTimeout(timer);
-      if (!exited) kill("SIGKILL");
-      live.delete(slot);
-    });
+    dialSide(deps, { role: "terminal", slot }).then(
+      (dialed) => {
+        connection = dialed;
+        dialed.on("data", (chunk) => decoder.push(chunk));
+        dialed.on("error", (error) => log(`slot ${slot} terminal socket error: ${errorClass(error)}`));
+        dialed.on("close", () => {
+          decoder.stop();
+          if (!exited) kill("SIGKILL");
+          live.delete(slot);
+        });
+        ready = true;
+        if (pendingExit) {
+          send(pendingExit);
+          finish();
+        } else flow();
+      },
+      (error: unknown) => {
+        log(`slot ${slot} terminal connection failed: ${errorClass(error)}`);
+        decoder.stop();
+        if (!exited) kill("SIGKILL");
+        live.delete(slot);
+      },
+    );
   };
 
   return {

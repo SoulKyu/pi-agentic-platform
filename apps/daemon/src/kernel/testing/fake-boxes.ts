@@ -1,4 +1,11 @@
-import { PapError, type BoxOpArgs, type BoxOpName, type BoxOpValue, type BoxPhase } from "@pap/contracts";
+import {
+  PapError,
+  type BoxOpArgs,
+  type BoxOpName,
+  type BoxOpValue,
+  type BoxPhase,
+  type PreviewDecl,
+} from "@pap/contracts";
 import type { BoxAuditActor, BoxControl, BoxOps, ProjectBoxRow, ProjectBoxSource } from "../boxes.ts";
 
 type Handlers = {
@@ -56,12 +63,14 @@ export interface FakeBoxControl extends BoxControl {
     projectId: string,
     packages: { built: readonly string[]; wanted: readonly string[] | null },
   ): void;
+  setPreview(projectId: string, preview: { decl: PreviewDecl | null; invalid: boolean }): void;
 }
 
 /** Every box is `stopped` unless `initial` says otherwise; `start` and `restart` leave it `running`, `dispose` and `purge` stopped. */
 export function createFakeBoxControl(initial: Readonly<Record<string, BoxPhase>> = {}): FakeBoxControl {
   const phases = new Map(Object.entries(initial));
   const packages = new Map<string, { built: readonly string[]; wanted: readonly string[] | null }>();
+  const previews = new Map<string, { decl: PreviewDecl | null; invalid: boolean }>();
   const listeners = new Set<(projectId: string, phase: BoxPhase) => void>();
   const calls: FakeBoxCall[] = [];
   const setPhase = (projectId: string, phase: BoxPhase): void => {
@@ -73,6 +82,9 @@ export function createFakeBoxControl(initial: Readonly<Record<string, BoxPhase>>
     calls,
     setPhase,
     setPackages: (projectId, value) => void packages.set(projectId, value),
+    setPreview: (projectId, value) => void previews.set(projectId, value),
+    notePreview: (projectId, decl, invalid) => void previews.set(projectId, { decl, invalid }),
+    preview: (projectId) => previews.get(projectId) ?? { decl: null, invalid: false },
     phase: (projectId) => phases.get(projectId) ?? "stopped",
     async start(projectId) {
       calls.push(["start", projectId]);

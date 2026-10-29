@@ -35,8 +35,8 @@ describe("the test override stays in tests", () => {
       .sort();
     expect(users).toEqual([
       "compose-agents-vm-proxy.ts",
+      "kernel/net/vm-address.ts",
       "modules/egress/index.ts",
-      "modules/egress/vm-address.ts",
       "modules/egress/vm-judge.ts",
     ]);
   });

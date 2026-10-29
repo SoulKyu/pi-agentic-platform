@@ -1,10 +1,12 @@
 import { Button, InlineError, LoadingLine } from "@pap/ui";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
 import { errorKey, t } from "../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../runtime/index.ts";
+import { parseWindowPath } from "../features/previews/previews.vm.ts";
 import { LazyInvite } from "./invite/LazyInvite.tsx";
+import { LazyPreviewWindow } from "./preview/LazyPreviewWindow.tsx";
 import { LazyFirstRun } from "./setup/LazyFirstRun.tsx";
 import { AppShell } from "./shell/AppShell.tsx";
 
@@ -12,6 +14,8 @@ export function RootLayout() {
   const { state, refresh, retry } = useAuthGate();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
+  // `/preview/<box>/<name>` is a window of its own (UX2-R79): read once, the path never changes inside it.
+  const previewWindow = useMemo(() => parseWindowPath(window.location.pathname), []);
 
   useEffect(() => {
     if (state.phase === "ready") runtime.connection.start();
@@ -44,6 +48,7 @@ export function RootLayout() {
     return <LazyInvite token={state.token} signedInAs={state.signedInAs} onDone={refresh} />;
   if (state.phase === "login")
     return <LoginScreen passkeysAvailable={state.passkeysAvailable} onDone={refresh} />;
+  if (previewWindow !== null) return <LazyPreviewWindow box={previewWindow.box} name={previewWindow.name} />;
   return (
     <AppShell
       username={state.username}

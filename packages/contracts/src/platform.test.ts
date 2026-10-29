@@ -4,6 +4,8 @@ import {
   PLATFORM_ARGS,
   PLATFORM_OP_NAMES,
   PLATFORM_OPS,
+  PLATFORM_RESULTS,
+  InitPlatform,
   PlatformCallRecord,
   PlatformCancelRecord,
   PlatformError,
@@ -19,7 +21,7 @@ import {
 const quiet = { tainted: false, approvedCall: false } as const;
 
 describe("the op table and the caller verdict (M11R5)", () => {
-  it("lists exactly eight ops, in the table's order", () => {
+  it("lists exactly ten ops, in the table's order", () => {
     expect(PLATFORM_OP_NAMES).toEqual([
       "agent.notify",
       "agent.approve",
@@ -29,6 +31,8 @@ describe("the op table and the caller verdict (M11R5)", () => {
       "secret.request",
       "network.request",
       "subagent.run",
+      "preview.start",
+      "preview.stop",
     ]);
   });
 
@@ -58,6 +62,8 @@ describe("the op table and the caller verdict (M11R5)", () => {
       "secret.request": ["agent-thread"],
       "network.request": ["agent-thread", "plain", "task", "child"],
       "subagent.run": ["plain", "lane", "agent-thread"],
+      "preview.start": ["agent-thread", "plain"],
+      "preview.stop": ["agent-thread", "plain"],
     });
   });
 
@@ -114,6 +120,33 @@ describe("the op table and the caller verdict (M11R5)", () => {
     expect(PLATFORM_OPS["agent.notify"].deadlineMs).toBe(10_000);
   });
 
+  it("declares preview.start and preview.stop for a thread and a project box's plain session, run when tainted", () => {
+    expect(PLATFORM_OPS["preview.start"]).toEqual({
+      tool: "preview_start",
+      callers: ["agent-thread", "plain"],
+      exfiltration: false,
+      whenTainted: "run",
+      deadlineMs: 60_000,
+    });
+    expect(PLATFORM_OPS["preview.stop"]).toMatchObject({ tool: "preview_stop", deadlineMs: 10_000 });
+    const start = PLATFORM_ARGS["preview.start"];
+    const ok = { name: "site", command: "python3 -m http.server 8000", port: 8000 };
+    expect(start.safeParse(ok).success).toBe(true);
+    for (const bad of [{ port: 7843 }, { name: "Site" }, { command: "" }, { extra: 1 }]) {
+      expect(start.safeParse({ ...ok, ...bad }).success, JSON.stringify(bad)).toBe(false);
+    }
+    const result = { id: "a".repeat(32), name: "site", port: 8000, status: "running", reason: null };
+    expect(PLATFORM_RESULTS["preview.start"].safeParse(result).success).toBe(true);
+    expect(PLATFORM_RESULTS["preview.start"].safeParse({ ...result, status: "stopped" }).success).toBe(false);
+    expect(PLATFORM_RESULTS["preview.stop"].safeParse({ stopped: true }).success).toBe(true);
+    expect(PLATFORM_ARGS["preview.stop"].safeParse({ name: "site", extra: 1 }).success).toBe(false);
+  });
+
+  it("lets a thread's init record carry its nine ops", () => {
+    expect(InitPlatform.safeParse({ ops: opsFor("agent-thread") }).success).toBe(true);
+    expect(opsFor("agent-thread")).toHaveLength(9);
+  });
+
   it("registers only network.request for child and task (the daemon refuses a host row), no op for agent-task, and the table's lists in its order for the others", () => {
     expect(opsFor("child")).toEqual(["network.request"]);
     expect(opsFor("task")).toEqual(["network.request"]);
@@ -126,9 +159,11 @@ describe("the op table and the caller verdict (M11R5)", () => {
       "secret.request",
       "network.request",
       "subagent.run",
+      "preview.start",
+      "preview.stop",
     ]);
     expect(opsFor("lane")).toEqual(["lane.note", "subagent.run"]);
-    expect(opsFor("plain")).toEqual(["network.request", "subagent.run"]);
+    expect(opsFor("plain")).toEqual(["network.request", "subagent.run", "preview.start", "preview.stop"]);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { VmLayout } from "@pap/contracts";
+import type { BoxRef, VmLayout } from "@pap/contracts";
 import type { BoxStack } from "./compose-boxes-wiring.ts";
 import type { Boxes } from "./compose-boxes.ts";
 import type { composeVmProxy } from "./compose-agents-vm-proxy.ts";
@@ -101,4 +101,8 @@ export interface AgentsVm {
   /** Where the runtime's crash pause goes (RT-40): the agents' registry and Inbox, which are built after this. Until then it is logged. */
   bindCrashPause(handler: (agentId: string) => void): void;
   bindRefusals: ReturnType<typeof composeVmProxy>["bindRefusals"];
+  /** One line with every value of the owner's secrets masked, then the well-known formats scrubbed (the previews' logs, UX2-R30). */
+  readonly redact: (line: string) => Promise<string>;
+  /** The host list the egress proxy judges a box with now (an agent's own, else the owner's; a project box's owner list and its own); null before the late binding or for an unknown box (the previews' CSP, UX2-R71). */
+  hostsOf(box: BoxRef): readonly string[] | null;
 }

@@ -10,7 +10,19 @@ const ID = /^[A-Za-z0-9_-]{22}$/;
 const CLASS_NAMES = ["approval", "failed", "budget", "notify", "done", "reply", "digest", "test"];
 const NAV_TIMEOUT_MS = 8_000; // pi-web learned it: a reachable port backed by a dead upstream never answers
 // Anything the daemon serves that is not the SPA: never intercepted, never cached.
-const NOT_SPA = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/healthz", "/ws", "/sw.js"];
+const NOT_SPA = [
+  "/auth",
+  "/api",
+  "/files",
+  "/upload",
+  "/hooks",
+  "/metrics",
+  "/healthz",
+  "/ws",
+  "/sw.js",
+  "/github",
+  "/fonts",
+];
 
 interface SwEvent {
   waitUntil(work: Promise<unknown>): void;

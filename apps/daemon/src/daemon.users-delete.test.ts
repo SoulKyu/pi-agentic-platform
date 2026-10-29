@@ -53,6 +53,7 @@ function build() {
     };
   const cascade = createDeleteCascade({
     db,
+    previews: { revokeOwner: () => 0 },
     github: { releaseKeysOf: step("github.releaseKeys", [] as number[]) },
     projects: { removeAll: step("projects.removeAll", 1) },
     agents: { trashAll: step("agents.trashAll", 1) },
@@ -96,6 +97,7 @@ function build() {
       boxes: { ownerBoxes: () => ["p1"], stop: step("boxes.stop", undefined) },
       agents: { list: () => [{ id: "atlas-0001" }] },
       stopAgent: step("agents.stop", undefined),
+      previews: { revokeOwner: () => 0 },
       logger: silentLogger,
     }),
     cascade,

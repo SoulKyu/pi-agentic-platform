@@ -160,6 +160,8 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     pushSubject: null,
     pushExtraHosts: [],
     testPushLoopback: false,
+    previewPort: 0,
+    previewOrigin: null,
     agentsRuntimeSet: false,
     devVmd: false,
     agentsMemoryMaxMb: 8192,

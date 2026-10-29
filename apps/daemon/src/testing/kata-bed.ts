@@ -271,7 +271,13 @@ export async function startKataBed(
       return sessionId;
     },
     async prompt(sessionId, text) {
-      const sub = subs.get(sessionId);
+      // A session the bed did not open (a project box's) is watched from its first prompt.
+      const sub =
+        subs.get(sessionId) ??
+        (await call<{ sub: string }>("subscribe.session", { sessionId }).then((opened) => {
+          subs.set(sessionId, opened.sub);
+          return opened.sub;
+        }));
       const mark = owner.client.events.filter((f) => f.sub === sub).at(-1)?.seq ?? -1;
       const status = (name: string) => (frame: { event: unknown; seq: number; sub: string }) =>
         frame.sub === sub && (frame.event as { status?: string }).status === name;

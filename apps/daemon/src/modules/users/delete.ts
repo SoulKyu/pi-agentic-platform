@@ -15,6 +15,8 @@ export interface DeleteDeps {
   readonly sessions: { removeAll(ownerId: string): Promise<unknown> };
   readonly push: { forgetOwner(ownerId: string): unknown };
   readonly search: { dropOwner(ownerId: string): void };
+  /** A second revocation beside the disable's: the delete is the end of every token the user could still hold (UX2-R72). */
+  readonly previews: { revokeOwner(ownerId: string): unknown };
   readonly vault: { dropOwner(ownerId: string): void };
   readonly auth: { deleteUser(userId: string): void };
   readonly logger: Pick<Logger, "info" | "warn">;
@@ -35,6 +37,7 @@ export interface DeleteCascade {
 export function createDeleteCascade(deps: DeleteDeps): DeleteCascade {
   return {
     async run(userId) {
+      deps.previews.revokeOwner(userId);
       const left = await deps.github.releaseKeysOf(userId);
       if (left.length > 0) deps.logger.warn("user_delete_github_keys_left", { userId, keyIds: left });
       await deps.projects.removeAll(userId);

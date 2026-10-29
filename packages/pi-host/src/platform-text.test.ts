@@ -34,7 +34,11 @@ describe("the sentences the model reads", () => {
     for (const template of Object.values(REFUSAL_TEMPLATES))
       expect(new Set(placeholders(template))).toEqual(new Set(["tool"]));
     for (const [key, template] of Object.entries(SUCCESS_TEMPLATES)) {
-      const allowed = key.startsWith("secret.request") ? ["name", "ref"] : [];
+      const allowed = key.startsWith("secret.request")
+        ? ["name", "ref"]
+        : key.startsWith("preview.start")
+          ? ["name", "port"]
+          : [];
       for (const found of placeholders(template)) expect(allowed).toContain(found);
     }
   });
@@ -64,6 +68,27 @@ describe("the sentences the model reads", () => {
       "The owner allowed that host for this thread.",
     );
     expect(successText("network.request", { granted: false })).toBe("The owner did not allow that host.");
+  });
+
+  it("words the preview results from the daemon's own fields", () => {
+    const base = { id: "a".repeat(32), name: "site", port: 8000 };
+    expect(successText("preview.start", { ...base, status: "running", reason: null })).toBe(
+      "The preview site runs on port 8000. The owner opens it from the chat; you never get its address. Links inside it must be relative.",
+    );
+    const failed = (reason: string) => successText("preview.start", { ...base, status: "failed", reason });
+    expect(failed("port_timeout")).toBe(
+      "pap started site, but nothing listened on port 8000 within 30 s. Run the command in your shell to see its output.",
+    );
+    expect(failed("port_not_owned")).toBe(
+      "Another program in your VM already listens on port 8000. Pick another port.",
+    );
+    expect(failed("exited")).toBe(
+      "The command of site ended before it listened. Run it in your shell to see why.",
+    );
+    expect(failed("spawn_failed")).toBe("The command of site could not start.");
+    expect(failed("other")).toBeNull();
+    expect(successText("preview.stop", { stopped: true })).toBe("The preview is stopped.");
+    expect(successText("preview.stop", { stopped: false })).toBe("No preview of that name runs.");
   });
 
   it("words a secret_request refused for the sandbox as M11R103 pins it", () => {

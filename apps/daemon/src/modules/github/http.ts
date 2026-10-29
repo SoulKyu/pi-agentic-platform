@@ -29,8 +29,8 @@ function outcomePage(c: Context, outcome: CallbackOutcome): Response {
 }
 
 /**
- * The GitHub App flow's pages. `new` and `authorize` are entered from pap's own SPA and need the session cookie and
- * `settings:admin`. `created` and `authorized` are entered from github.com, cross site, so the SameSite=Strict cookie
+ * The GitHub App flow's pages. `new` is entered from pap's own SPA and needs the session cookie and
+ * `system:admin`; a sign-in starts from `github.authorizeUrl` only (decision 139). `created` and `authorized` are entered from github.com, cross site, so the SameSite=Strict cookie
  * does not come: `created` is matched by the single-use state alone (owner only); `authorized` binds nothing, it parks the
  * token, and `authorized/finish` stores it only for the session of the user who started the flow.
  * All GET: the origin guard does not look at a GET, and nothing here changes anything without that state.
@@ -48,14 +48,6 @@ export function mountGithubRoutes(app: Hono, deps: { service: GithubService; htt
     const start = state === null ? null : service.beginCreate(caller.userId, state);
     if (start === null) return send(c, refusedPage("link", null), 400);
     return send(c, manifestPage(service.webOrigin, start.state, start.manifest), 200);
-  });
-  app.get("/github/app/authorize", (c) => {
-    const caller = httpCaller(c, "settings:operate");
-    if (caller instanceof Response) return caller;
-    const url = service.reconnectUrl(caller.userId);
-    if (url === null) return send(c, refusedPage("link", null), 400);
-    c.header("cache-control", "no-store");
-    return c.redirect(url, 302);
   });
   app.get("/github/app/created", async (c) => {
     const state = stateOf(c);

@@ -1,6 +1,6 @@
 # End-to-end journeys
 
-Sixteen browser journeys (J01 to J17 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
+Nineteen browser journeys (J01 to J20 except J09, which tested pi-mem0 and is gone; the `.e2e.ts` files of `scripts/e2e`) drive the **built** daemon and web app with Playwright. ADR 0071 allows Playwright for this and nothing else; it is a dev dependency behind one script. Unit and integration tests stay in Vitest.
 
 ## What runs where
 
@@ -26,6 +26,23 @@ The 320 px width is set in the test (`setViewportSize`) on the desktop projects,
 
 J17 runs with `SHELL=/bin/bash` (`papEnv`) and the DOM renderer of xterm. A scripted reply holds three bash fences; the journey clicks To terminal on each. A single line and a two-line block (bracketed paste on, bash's default) appear in the terminal's rows while their files are absent, and only the owner's Enter creates them. After `bind 'set enable-bracketed-paste off'` the two-line block is refused with the `reply.shell.multiline` alert, no row holds it and no file exists. It ends on the files in the project folder.
 
+## Rich replies and artifacts (J18)
+
+J18 runs five cases in order on one page and one session (a scripted provider serves its steps from the first one to every new session, and a describe cannot change the script, so each case sends the next turn): an `html` fence PREVIEW (a real artifact minted by the daemon from the transcript; the frame is `sandbox="allow-scripts"`, the script's `fetch`, `WebSocket`, no-cors `POST` and an image of `example.invalid` all fail, the page sees no answer for them and the project folder is unchanged, the frame is at most 70 % of the viewport and the UNTRUSTED label sits outside it, a second toggle loads the same URL); a Mermaid fence with a `themeCSS` overlay and an HTML form label (one `data:` `<img>`, no `svg`, `style`, `form` or `foreignObject` in pap's DOM, the composer still the element at its centre, no `securitypolicyviolation`); KaTeX that paints past its box (`\raisebox` with negative and macro-built sizes, 50 `\kern-2em`, nested `\smash`; the element below each formula stays the one hit at its centre); five diagram types (flowchart, sequence, class, state, gantt) with no CSP violation; a box image through `/files/raw` and a remote one that stays text. `scripts/e2e/daemon.ts` gives every daemon its own `PAP_PREVIEW_PORT` and fills `{port}`, `{previewPort}` and `{standInPort}` in `papEnv` values and in the script; `pap.previewPort` and `pap.standInPort` expose them.
+
+## The untrusted origin framed in pap's page (J19, J20)
+
+J18 runs an artifact. J19 and J20 run a stand-in for an agent's service (`scripts/e2e/stand-in.ts`) in pap's real signed-in page: the daemon starts with `PAP_PREVIEW_ORIGIN` set to the stand-in's origin, so the app's own `frame-src` admits it, and the journey inserts `<iframe sandbox="allow-scripts allow-forms allow-downloads" referrerpolicy="no-referrer">` (the `PREVIEW_SANDBOX` set, copied because E2E code imports no `@pap/*`). The owner's cookie is `SameSite=Strict, HttpOnly` as the daemon sets it; WebKit sends it to the framed page's requests, Chromium does not. The stand-in serves `/headers`, whose headers are copied byte for byte from the daemon's preview listener's bare 404 (the no-network service CSP), and `/bare`, which keeps only the CSP `sandbox` and `frame-ancestors` directives (the layers under the fetch directives). Both pages try, with credentials, a read of a canary through `/files/raw` (cors and no-cors), a `POST /upload` and a WebSocket to pap; `/headers` also tries an address that no test may reach (`192.0.2.1`, RFC 5737). Each outcome lands in the frame's `document.body.dataset`; the journeys also read the network events, the frame's `securitypolicyviolation` events, and the disk (the canary's text is never in the frame, the upload's marker is in no file under the daemon's home or the project).
+
+- **J19** (`localhost`, so the browser sends Fetch Metadata): the CSP case expects four `connect-src` violations, one per target, and no request from the frame; the `/bare` case expects pap to answer 403 to every request the frame sends, by its `Sec-Fetch-Site`.
+- **J20** (`pap.test`, daemon started with `--insecure-http`, `PAP_PUBLIC_ORIGIN=http://pap.test:{port}`): plain HTTP to a name that is not potentially trustworthy gets no Fetch Metadata, as `http://192.168.1.182` does in the owner's LAN mode. The CSP case is J19's. The `/bare` case expects no `sec-fetch-*` header on any request pap receives, the `POST` refused 403 by the Origin guard (`Origin: null`), the reads answered 401 (Chromium, no cookie) or 200 with `Cross-Origin-Resource-Policy: same-origin` (WebKit, cookie sent) and cut by the browser, and a WebSocket handshake with `Origin: null` and the cookie refused 403 (opens with pap's own origin).
+
+Both run behind `scripts/e2e/name-proxy.ts`, a forward proxy on `127.0.0.1` set on the browser context (`test.use({ papProxy: ["pap.test"] })`, `papArgs: ["--insecure-http"]`). It maps the names it was given to loopback, answers absolute-form requests, `CONNECT` and upgrades, refuses any other host, and records every request it forwards with the answer's status and headers: the real status of an answer the browser hides from the page (a CORP-blocked 403 leaves no `response` event), and proof that nothing went to `192.0.2.1`. J19 uses it as a recorder for `localhost` (Chromium needs `bypass: "<-loopback>"`, which the fixture sets). Nothing listens on a LAN address and the daemon stays on `127.0.0.1`.
+
+Container mode (`PAP_E2E_WS` set by the runner): the browser container runs with `--network host`, so `127.0.0.1:<proxy port>` inside it is the host's loopback proxy. A browser server on another network (`PAP_E2E_WS` pointed elsewhere) cannot reach it and the journey fails at its first request.
+
+Known limit: WebKit cannot open a WebSocket through an HTTP proxy (the handshake reaches the proxy without its Upgrade headers; even pap's own socket fails there), so J20's socket leg is proved in the browser on Chromium only; for both engines a Node handshake with the framed page's headers is refused 403 by the Origin rule.
+
 ## Agents in the journeys (J07)
 
 The e2e daemon has no pap-vmd and no KVM, so J07 is the "no VM stack" journey: the New agent dialog shows the microVM EmptyState ("Agents run in microVMs: this machine needs KVM and `sudo pap vm setup`. See `pap doctor`.") in place of the form, and no agent appears. The phone's Agents tab shows the same EmptyState (unit test, not e2e).
@@ -34,7 +51,7 @@ The e2e daemon has no pap-vmd and no KVM, so J07 is the "no VM stack" journey: t
 
 - `pnpm build`: the journeys refuse to start without `apps/daemon/dist` and `apps/web/dist`.
 - `pnpm test:e2e`: the whole suite. Arguments go to Playwright after the config: `pnpm test:e2e j14` runs one journey (a file or title argument counts as a filter; the empty-project check then applies to what was selected only).
-- `pnpm test:unit`: includes the tests of the runner and of the helpers (`scripts/e2e/run.test.ts`, `catalog.test.ts`, `loopback-guard.test.ts`, `push-sink.test.ts`, `rpc.test.ts`, `fixtures.test.ts`, `git.test.ts`) and `scripts/ci-config.e2e.test.ts`. None of them starts a browser; `run.test.ts` lists the real routing of journeys to projects.
+- `pnpm test:unit`: includes the tests of the runner and of the helpers (`scripts/e2e/run.test.ts`, `catalog.test.ts`, `loopback-guard.test.ts`, `push-sink.test.ts`, `rpc.test.ts`, `fixtures.test.ts`, `git.test.ts`, `stand-in.test.ts`, `name-proxy.test.ts`) and `scripts/ci-config.e2e.test.ts`. None of them starts a browser; `run.test.ts` lists the real routing of journeys to projects.
 
 ## The two modes
 
@@ -66,6 +83,7 @@ All journeys run on both engines, with two exceptions (M13R5, M13R6):
 2. Fixtures (`scripts/e2e/fixtures.ts`):
    - `pap`: one built daemon per spec file and project, with a temporary HOME, `PAP_HOME` and Pi agent dir. `test.use({ papScript: scripted([...]), papEnv: { ... } })` sets its provider script and extra environment; a file with a different script or environment gets a daemon of its own. `pap.rpc(method, params)` calls the daemon as the owner; `pap.lines()` returns its JSON log lines; `pap.home`, `pap.work`, `pap.agentDir` are real folders to read back.
    - `signedIn`: a page that already holds the owner's session (J01 is the one journey that sets the owner up through the page).
+   - `test.use({ papArgs: [...], papProxy: [...] })`: extra flags of `pap serve` (J20: `--insecure-http`) and the host names the browser context reaches through the loopback proxy (`pap.proxy`: what it forwarded, with statuses). With `PAP_PUBLIC_ORIGIN` in `papEnv`, `pap.origin`, the cookie URL and the owner setup use that origin (the harness itself still dials `127.0.0.1`).
    - `scripted([...])` wraps the provider script: pass it to `papScript`, never a bare array.
    - `stepUp(page, pap)` confirms the owner password before a step-up-gated action.
    - `palette(page)` and `chord(page, key)` press Control or Meta by engine.

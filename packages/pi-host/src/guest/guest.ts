@@ -15,10 +15,13 @@ import {
 } from "@pap/contracts/pi-host";
 import { errorClass, logLineOf } from "../bounded.ts";
 import { proxyEnv } from "../vm-shell/proxy-env.ts";
+import { dialSide } from "./dial.ts";
 import { allowedExtraEnv } from "./extra-env.ts";
 import type { GuestOps } from "./ops/index.ts";
 import { loadNodePty, type NodePty } from "./pty/load.ts";
 import { createPtyHost } from "./pty/pty.ts";
+import { isServiceOp, type ServiceHost } from "./services/supervisor.ts";
+import { createTunnelHost, TUNNEL_REFUSAL } from "./services/tunnels.ts";
 
 /** Mirrors the daemon's kill-ladder grace (AVM-P6): pi-host cannot import the daemon. */
 export const GUEST_SHUTDOWN_GRACE_MS = 1500;
@@ -52,8 +55,12 @@ export interface GuestDeps {
   grow(): Promise<void>;
   /** A project box's operations on its project folder; absent in an agent's VM, which answers every `op` with `failed`. */
   ops?: GuestOps;
+  /** The preview services' host (UX-2 §5), built with the guest's report channel; absent in a guest without services. */
+  services?: (report: (report: Extract<GuestReport, { type: "service" }>) => void) => ServiceHost;
   /** Loads node-pty for a box terminal (tests give a fake); the default loads the module beside the bundle, once needed. */
   loadPty?: () => NodePty | null;
+  /** Registers what runs when the guest is told to stop (SIGTERM): workers and services die with it, then it exits. */
+  onTerminate?: (handler: () => void) => void;
   /** Ends the guest; Kata stops the VM when its entrypoint exits. */
   exit(code: number): void;
   /** Signals a worker's whole process group. */
@@ -99,6 +106,8 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     if (over) return;
     over = true;
     ptys.closeAll();
+    tunnels.closeAll();
+    services?.closeAll();
     if (graceTimer !== undefined) clock.clearTimeout(graceTimer);
     socket?.end();
     deps.exit(code);
@@ -107,11 +116,26 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
   const send = (report: GuestReport): void => {
     if (socket && !socket.destroyed && !over) socket.write(encodeSocketFrame(report));
   };
+  const services = deps.services?.((report) => send(report));
+  const tunnels = createTunnelHost({
+    services: {
+      connectTo: (id) => (services ? services.connectTo(id) : Promise.reject(new Error("no services"))),
+    },
+    side: (slot) => dialSide(deps, { role: "tunnel", slot }),
+    refuse: (slot) => failSlot(slot, TUNNEL_REFUSAL),
+    log,
+  });
   const killAll = (signal: "SIGTERM" | "SIGKILL"): void => {
     for (const { child } of workers.values()) deps.signalGroup(child, signal);
   };
   const failSlot = (slot: string, why: string): void =>
     send({ type: "exited", slot, code: 1, signal: null, tail: `pap-guest: ${why}` });
+
+  deps.onTerminate?.(() => {
+    log("terminated: stopping");
+    killAll("SIGKILL");
+    end(0);
+  });
 
   const hello = GuestHello.safeParse({
     type: "hello",
@@ -276,19 +300,23 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     const { id } = command;
     const refuse = (code: "failed" | "payload_too_large"): void =>
       send({ type: "op_result", id, ok: false, code });
-    if (!deps.ops) return refuse("failed");
-    void deps.ops(command.op).then((answer) => {
-      try {
-        send(
-          answer.ok
-            ? { type: "op_result", id, ok: true, value: answer.value }
-            : { type: "op_result", id, ok: false, code: answer.code },
-        );
-      } catch {
-        // a value over the frame bound cannot go out: the op says so, the link stays
-        refuse("payload_too_large");
-      }
-    });
+    const serve = isServiceOp(command.op) ? services?.op(command.op) : deps.ops?.(command.op);
+    if (!serve) return refuse("failed");
+    void serve.then(
+      (answer) => {
+        try {
+          send(
+            answer.ok
+              ? { type: "op_result", id, ok: true, value: answer.value }
+              : { type: "op_result", id, ok: false, code: answer.code },
+          );
+        } catch {
+          // a value over the frame bound cannot go out: the op says so, the link stays
+          refuse("payload_too_large");
+        }
+      },
+      () => refuse("failed"),
+    );
   };
 
   const handle = (raw: unknown): void => {
@@ -311,6 +339,7 @@ export async function runGuest(deps: GuestDeps): Promise<void> {
     if (command.type === "shutdown") return shutdown();
     if (command.type === "op") return runOp(command);
     if (command.type === "pty_open") return ptys.open(command);
+    if (command.type === "tunnel_open") return tunnels.open(command);
     const worker = workers.get(command.slot);
     if (!worker) return log(`ignored a signal for slot ${command.slot}: no such worker`);
     deps.signalGroup(worker.child, command.signal);

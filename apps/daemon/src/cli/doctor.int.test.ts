@@ -85,6 +85,7 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
       "https",
       "push",
       "update_available",
+      "preview.listener",
     ]);
   });
 

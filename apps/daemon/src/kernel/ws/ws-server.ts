@@ -13,6 +13,7 @@ import {
 } from "@pap/contracts";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import type { Clock, TimerHandle } from "../clock.ts";
+import { fetchSiteRefused, type FetchSiteRefused } from "../http/fetch-site.ts";
 import { originAllowed, type OriginRefused } from "../http/origin.ts";
 import type { Logger } from "../logger.ts";
 import { createBinaryStreams, type PreparedStream } from "./binary-streams.ts";
@@ -61,6 +62,8 @@ export interface WsServerOptions {
   readonly serverVersion: string;
   /** Called for every upgrade refused for its Origin. */
   readonly onOriginRefused?: OriginRefused;
+  /** Called for every upgrade refused for its `Sec-Fetch-Site`. */
+  readonly onFetchSiteRefused?: FetchSiteRefused;
 }
 
 export interface WsServer {
@@ -328,6 +331,15 @@ export function createWsServer(options: WsServerOptions): WsServer {
       const url = upgradeUrl(req);
       if (!url) return reject(socket, 400);
       if (url.pathname !== "/ws") return reject(socket, 404);
+      // A same-site page (the preview origin shares pap's site) or a cross-site one never opens the socket (UX-2 §4).
+      const site = req.headers["sec-fetch-site"];
+      if (
+        typeof site === "string" &&
+        fetchSiteRefused({ method: "GET", path: "/ws", site, mode: undefined, dest: undefined })
+      ) {
+        options.onFetchSiteRefused?.("ws", site);
+        return reject(socket, 403);
+      }
       const origin = req.headers.origin;
       const credential = options.credentialOf({
         cookie: req.headers.cookie,

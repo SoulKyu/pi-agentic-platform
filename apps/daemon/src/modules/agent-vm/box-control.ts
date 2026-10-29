@@ -1,4 +1,4 @@
-import { type BoxPhase, type BoxRef, PapError } from "@pap/contracts";
+import { type BoxPhase, type BoxRef, PapError, type PreviewDecl } from "@pap/contracts";
 import type { BoxControl, BoxOps, ProjectBoxSource } from "../../kernel/boxes.ts";
 import {
   imageStep,
@@ -50,6 +50,7 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
   const starting = new Map<string, Promise<void>>();
   const told = new Map<string, BoxPhase>();
   const unreadable = new Set<string>();
+  const previews = new Map<string, { decl: PreviewDecl | null; invalid: boolean }>();
 
   const phaseOf = (projectId: string): BoxPhase => {
     const phase = runtime.phase(boxOf(projectId));
@@ -73,17 +74,44 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
     }
   }
 
+  const up = new Set<string>();
   runtime.onPhase((box) => {
-    if (box.kind === "project") tell(box.id);
+    if (box.kind !== "project") return;
+    tell(box.id);
+    if (runtime.phase(box) !== "running") {
+      up.delete(box.id);
+      return;
+    }
+    if (!up.has(box.id)) {
+      up.add(box.id);
+      void refreshPreview(box.id);
+    }
   });
   deps.launches.onChange((box) => {
     if (box.kind === "project") tell(box.id);
   });
 
+  /**
+   * The preview `.pi/project.yaml` declares, read when a box reaches `running` by any path (a session's launch included). A poll:
+   * it never counts as activity and never starts a box; a failure keeps what was known (the next fresh read replaces it).
+   */
+  async function refreshPreview(projectId: string): Promise<void> {
+    try {
+      const config = await deps.ops.poll(projectId, { name: "project.config" });
+      const row = deps.source()?.box(projectId) ?? null;
+      if (row === null || row.deleting) return;
+      previews.set(projectId, { decl: config.preview ?? null, invalid: config.previewInvalid === true });
+    } catch {
+      // A box that stopped again, or a guest that cannot answer: the cache keeps what it had.
+    }
+  }
+
   /** The packages `.pi/project.yaml` asks for, read through the box that is up; a failure keeps what was known, logged once. */
   async function readWanted(projectId: string): Promise<void> {
     try {
       const config = await deps.ops.call(projectId, { name: "project.config" });
+      // The preview is recorded whatever the file says of its packages (UX2-R73): a file with a preview and no packages has one.
+      previews.set(projectId, { decl: config.preview ?? null, invalid: config.previewInvalid === true });
       if (config.error !== null || config.packages === null) throw new Error(config.error ?? "no packages");
       images.setWanted(projectId, config.packages);
       unreadable.delete(projectId);
@@ -163,7 +191,9 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
         await runtime.stop(boxOf(projectId));
         await disposeProject(deps.trash, projectId, stamp);
         images.forget(projectId);
+        previews.delete(projectId);
         told.delete(projectId);
+        up.delete(projectId);
         unreadable.delete(projectId);
       });
     },
@@ -190,6 +220,8 @@ export function createBoxControl(deps: BoxControlDeps): BoxControl {
         }
       }),
     packages: (projectId) => images.packages(projectId),
+    preview: (projectId) => previews.get(projectId) ?? { decl: null, invalid: false },
+    notePreview: (projectId, decl, invalid) => void previews.set(projectId, { decl, invalid }),
     onPhase(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

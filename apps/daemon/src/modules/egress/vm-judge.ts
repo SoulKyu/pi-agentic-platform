@@ -6,7 +6,7 @@ import { normalizeHost } from "./allow.ts";
 import type { Decision, VmDetail } from "./proxy-core.ts";
 import { createLookup } from "./lookup.ts";
 import { displayHost } from "./refusal.ts";
-import { canonicalAddress, type vmAddressRefused } from "./vm-address.ts";
+import { canonicalAddress, type vmAddressRefused } from "../../kernel/net/vm-address.ts";
 
 /** Who a VM's request is judged as: the launch behind its source address, and the box's host list now. */
 export interface VmScope {

@@ -1,3 +1,4 @@
+import { runsACommand } from "./preview-start-plan.ts";
 import type { CallFacts, StageResult } from "./pipeline.ts";
 
 export const UNSANDBOXED_SHELL = "unsandboxed shell in a sandboxed agent";
@@ -7,6 +8,8 @@ export const UNSANDBOXED_SHELL_MODEL_REASON =
 /** Stage 02, after the allowlist and the unattended block (M11R34): in a sandbox-required profile, only pap's `bash` runs commands. */
 export function sandboxVerdict(call: CallFacts): StageResult | null {
   if (!call.rules.sandbox?.required) return null;
+  // Only a platform op whose command runs in the guest's own bwrap (`preview_start`, UX2-R26) is exempt: any other tool with a command is judged.
+  if (runsACommand(call.kind)) return null;
   const commandBearing =
     call.kind.category === "exec" ||
     typeof (call.event.input as { command?: unknown } | null)?.command === "string";

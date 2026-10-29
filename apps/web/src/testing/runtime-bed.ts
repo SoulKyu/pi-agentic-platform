@@ -17,6 +17,7 @@ const SUB_METHODS = [
   "subscribe.tasks",
   "subscribe.ops",
   "subscribe.launches",
+  "subscribe.previews",
 ];
 
 /**
@@ -80,7 +81,8 @@ export function fakeRuntime(state: ConnectionState = "open") {
         | "subscribe.inbox"
         | "subscribe.tasks"
         | "subscribe.ops"
-        | "subscribe.launches",
+        | "subscribe.launches"
+        | "subscribe.previews",
       event: unknown,
       nth = 0,
     ) => {

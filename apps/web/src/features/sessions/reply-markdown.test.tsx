@@ -46,6 +46,37 @@ describe("useReplyMarkdown", () => {
     expect(openFile).toHaveBeenCalledWith("/w/p/src/a.ts", 9);
   });
 
+  it("richReplies: localized labels always, image and openFile only with a port", async () => {
+    await mount(<Probe sessionId="s1" />);
+    const without = seen.at(-1)?.richReplies;
+    expect(without?.image).toBeUndefined();
+    expect(without?.openFile).toBeUndefined();
+    expect(without?.labels.image("a cat")).toBe("[image: a cat]");
+    expect(without?.labels.diagram).toBe("Diagram");
+    expect(without?.labels.openFile("/w/p/a.csv")).toBe("Open /w/p/a.csv in Files");
+    useReplyPorts.getState().register("s1", port());
+    await mount(<Probe sessionId="s1" />);
+    const rich = seen.at(-1)?.richReplies;
+    expect(await rich?.image?.("https://x/a.png")).toEqual({ kind: "text" });
+    expect(await rich?.image?.("data.csv")).toEqual({ kind: "file", path: "/w/p/data.csv" });
+    rich?.openFile?.("/w/p/data.csv");
+    expect(openFile).toHaveBeenCalledWith("/w/p/data.csv", null);
+  });
+
+  it("richReplies is the same object when only `finished` changes, and reports a load failure", async () => {
+    useReplyPorts.getState().register("s1", port());
+    const finishedSeen: Array<Tools["richReplies"]> = [];
+    function Flip({ finished }: { readonly finished: boolean }) {
+      finishedSeen.push(useReplyMarkdown("s1", finished).richReplies);
+      return null;
+    }
+    const page = await mount(<Flip finished={false} />);
+    await page.rerender(<Flip finished />);
+    expect(finishedSeen.length).toBeGreaterThan(1);
+    expect(finishedSeen.at(-1)).toBe(finishedSeen[0]);
+    expect(finishedSeen[0]?.onLoadError).toBeTypeOf("function");
+  });
+
   it("another session's port is not used", async () => {
     useReplyPorts.getState().register("s2", port());
     await mount(<Probe sessionId="s1" />);

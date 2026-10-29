@@ -1,4 +1,4 @@
-import { AgentId, FanoutId, LaneId, type Role } from "@pap/contracts";
+import { AgentId, FanoutId, LaneId, parseBoxKey, ServiceName, type Role } from "@pap/contracts";
 import { sectionFor, SETTINGS_SECTIONS, type ItemRef, type SettingsSection } from "./model.ts";
 
 export const MAX_ID = 128;
@@ -22,6 +22,10 @@ export const isLaneId = (id: string): boolean => LaneId.safeParse(id).success;
 export const isFanoutId = (id: string): boolean => FanoutId.safeParse(id).success;
 /** An agent id as the daemon makes it (`<slug>-<4 hex>`): the agent tab's id (M11R109). */
 export const isAgentId = (id: string): boolean => AgentId.safeParse(id).success;
+
+/** A stored preview item: a box key the daemon could have made, and a service name as the guest accepts it. */
+export const isPreviewRef = (box: string, name: string): boolean =>
+  parseBoxKey(box) !== null && ServiceName.safeParse(name).success;
 
 /** A terminal id as the daemon makes it: 22 base64url characters. */
 export const isTerminalId = (id: string): boolean => TERMINAL_ID.test(id);
@@ -128,5 +132,7 @@ export function pathOfItem(item: ItemRef): string {
       return isValidId(item.id) ? `/trigger/${encodeURIComponent(item.id)}` : "/";
     case "agent":
       return isAgentId(item.id) ? `/agents/${item.id}` : "/";
+    case "preview":
+      return "/"; // not addressable: the pane reaches pap's own window through its OPEN IN A NEW TAB
   }
 }

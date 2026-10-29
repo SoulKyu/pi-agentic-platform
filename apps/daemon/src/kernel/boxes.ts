@@ -5,8 +5,11 @@ import type {
   BoxOpName,
   BoxOpValue,
   BoxPhase,
+  BoxRef,
+  PreviewDecl,
   PtyCommand,
   PtyReport,
+  TunnelFrame,
 } from "@pap/contracts";
 
 /** Who an audited change is for: no module exports one yet, so this follows the audit row's `actor` and `actorId`. */
@@ -46,6 +49,10 @@ export interface BoxControl {
     readonly built: readonly string[];
     readonly wanted: readonly string[] | null;
   };
+  /** The preview `.pi/project.yaml` declared when the box was last read (in memory): `invalid` when the file names one badly. */
+  preview(projectId: string): { readonly decl: PreviewDecl | null; readonly invalid: boolean };
+  /** A fresh read of `.pi/project.yaml` by someone else (START PREVIEW): the cache then holds what the file says now. */
+  notePreview(projectId: string, decl: PreviewDecl | null, invalid: boolean): void;
   onPhase(listener: (projectId: string, phase: BoxPhase) => void): () => void;
   /** The project folder of the box (`/boxes/<id>/project` on Kata): what `projects.root` stores and a session gets as its cwd. */
   rootOf(projectId: string): string;
@@ -87,4 +94,20 @@ export interface BoxTerminals {
   ): Promise<BoxPtyChannel>;
   /** The box has terminal activity: a box with no worker waits its idle time from now. */
   touch(projectId: string): void;
+}
+
+/** One preview tunnel: a relayed connection to a service in a box (UX-2 §6), carrying `tunnel-frames.ts` after the guest's hello. */
+export interface BoxTunnelChannel {
+  /** False when the connection is gone or cannot take the frame. */
+  send(frame: TunnelFrame): boolean;
+  /** The one listener: the frames received before it was set are delivered first, in order. */
+  onFrame(listener: (frame: TunnelFrame) => void): void;
+  /** Settles when the connection ended, whoever ended it (the guest, a lost link, a box stop). */
+  readonly closed: Promise<void>;
+  close(): void;
+}
+
+export interface BoxTunnels {
+  /** A box that is not running answers `box_stopped`; an open never starts it. Resolves once the guest's tunnel hello came. */
+  open(box: BoxRef, serviceId: string): Promise<BoxTunnelChannel>;
 }

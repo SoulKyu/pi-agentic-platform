@@ -20,6 +20,8 @@ import { everyOp, rawAnswers, rawCall, rawStep } from "./testing/raw-platform-ex
 // leaves one `block` audit row `{op, type, code}`. The `subagent.run` cells of plain, lane and agent-thread run (Task 29b's
 // handler; the owner's switch is on by default) and each of those workers registers the `subagent` tool (RT-09: read from its loadout).
 
+// The preview ops: the table lets a plain session in, and the daemon refuses a host row (UX2-R28); an agent thread's raw
+// `preview.start` runs a command that fails at once in its VM (a failed service is an answer, status `failed`).
 type Cell = "ok" | "forbidden";
 const NONE: Record<PlatformOp, Cell> = {
   "agent.notify": "forbidden",
@@ -30,6 +32,8 @@ const NONE: Record<PlatformOp, Cell> = {
   "secret.request": "forbidden",
   "network.request": "forbidden",
   "subagent.run": "forbidden",
+  "preview.start": "forbidden",
+  "preview.stop": "forbidden",
 };
 // The table, written out by hand: the oracle does not read the contract it checks.
 const MATRIX: Record<SessionType, Record<PlatformOp, Cell>> = {
@@ -45,6 +49,8 @@ const MATRIX: Record<SessionType, Record<PlatformOp, Cell>> = {
     "secret.request": "ok",
     "network.request": "ok",
     "subagent.run": "ok",
+    "preview.start": "ok",
+    "preview.stop": "ok",
   },
   "agent-task": NONE,
   child: NONE,

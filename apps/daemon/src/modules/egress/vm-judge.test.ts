@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { captureLogger } from "../../testing/capture-logger.ts";
 import { createVmJudge, type VmScope } from "./vm-judge.ts";
-import { vmAddressRefused } from "./vm-address.ts";
+import { vmAddressRefused } from "../../kernel/net/vm-address.ts";
 
 /*
  * Mutation checks (AVM2-E8), each reverted for real in the source, the named tests run and seen to fail:

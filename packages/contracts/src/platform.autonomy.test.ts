@@ -15,6 +15,8 @@ describe("the whenTainted column (M11R212, owner a4)", () => {
       "secret.request": "run",
       "network.request": "run",
       "subagent.run": "run",
+      "preview.start": "run",
+      "preview.stop": "run",
     });
   });
 });

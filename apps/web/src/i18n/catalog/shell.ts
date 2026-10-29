@@ -9,6 +9,8 @@ export const shellEn = {
   "shell.tab.settings": "Settings",
   "shell.tab.lane": "Lane",
   "shell.tab.agent": "Agent",
+  "shell.tab.preview": "Preview {name}",
+  "previews.surface": "Preview",
   "shell.tab.compare": "Compare · {count} lanes",
   "shell.lane.status.archived": "Archived",
   "shell.lane.status.setup": "Setting up",
@@ -112,6 +114,7 @@ export const shellEn = {
     "This file can run commands later, such as a git hook or an editor task. Confirm to save it.",
   "error.terminal_unavailable":
     "Terminals are not available on this server: the terminal module did not load.",
+  "error.unavailable": "Previews are not available: pap could not open its preview port. See pap doctor.",
   "error.helper_failed": "The Pi configuration helper failed. Try again.",
   "error.extensions_failed": "An extension did not load: nothing was changed.",
   "error.budget_cap": "Your daily budget is capped by the owner of this pap.",
@@ -163,6 +166,8 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.tab.settings": "Réglages",
   "shell.tab.lane": "Lane",
   "shell.tab.agent": "Agent",
+  "shell.tab.preview": "Aperçu {name}",
+  "previews.surface": "Aperçu",
   "shell.tab.compare": "Comparer · {count} lanes",
   "shell.lane.status.archived": "Archivée",
   "shell.lane.status.setup": "Préparation",
@@ -270,6 +275,8 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Ce fichier peut lancer des commandes plus tard, comme un hook git ou une tâche d'éditeur. Confirmez pour l'enregistrer.",
   "error.terminal_unavailable":
     "Les terminaux ne sont pas disponibles sur ce serveur : le module terminal ne s'est pas chargé.",
+  "error.unavailable":
+    "Les aperçus ne sont pas disponibles : pap n'a pas pu ouvrir son port d'aperçu. Voir pap doctor.",
   "error.helper_failed": "L'assistant de configuration de Pi a échoué. Réessayez.",
   "error.extensions_failed": "Une extension ne s'est pas chargée : rien n'a été modifié.",
   "error.budget_cap": "Votre budget quotidien est plafonné par le propriétaire de ce pap.",

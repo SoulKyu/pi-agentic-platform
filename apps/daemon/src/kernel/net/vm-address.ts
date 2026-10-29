@@ -1,8 +1,8 @@
 import { isIP } from "node:net";
 import { networkInterfaces } from "node:os";
 import { AGENT_NET } from "@pap/contracts";
-import { dotted, groupsOf, prefix } from "../../kernel/net/address.ts";
-import { blockedStrict } from "../../kernel/net/address-strict.ts";
+import { dotted, groupsOf, prefix } from "./address.ts";
+import { blockedStrict } from "./address-strict.ts";
 
 type Address = { readonly v4: string } | { readonly v6: readonly number[] };
 
@@ -60,6 +60,10 @@ export function vmAddressRefused(
   if (isPrivate(address)) return exact ? null : "private_wildcard";
   return blockedStrict(ip) ? "blocked_address" : null;
 }
+
+/** An IP entry the proxy refuses for every session, whatever its list says (the hosts' own addresses, pap0, loopback, link-local, CGNAT, multicast, unspecified, documentation, reserved); a private range is judged as an exact entry. */
+export const ipAlwaysRefused = (ip: string, hostAddresses: readonly string[]): boolean =>
+  vmAddressRefused(ip, true, hostAddresses) !== null;
 
 /** Every address of every interface of the host, read at each decision (an interface can come and go). */
 export const hostAddressesNow = (): string[] =>

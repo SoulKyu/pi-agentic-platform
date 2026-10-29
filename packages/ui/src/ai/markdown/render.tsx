@@ -1,10 +1,18 @@
-import { createContext, useContext } from "react";
+import { Children, createContext, useContext } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { cn } from "../../cn.ts";
+import { BoxImage } from "./BoxImage.tsx";
 import { CodeBlock, type CodeCopyLabels } from "./CodeBlock.tsx";
+import { HtmlFence } from "./HtmlFence.tsx";
+import { capImages, OVER_CAP } from "./image-cap.ts";
+import { pandocDollars } from "./inline-math.ts";
+import { MathBlock } from "./MathBlock.tsx";
+import { MermaidBlock } from "./MermaidBlock.tsx";
 import { PathText, ReplyTools } from "./PathText.tsx";
 import { SHELL_LANGS, type PathLinks, type ShellHandOff } from "./reply-tools.ts";
+import { RichRepliesContext, type RichReplies } from "./rich-replies.ts";
 import { safeHref } from "./safe-url.ts";
 import { ShellBlock, ShellHandOffContext } from "./ShellBlock.tsx";
 
@@ -55,6 +63,7 @@ interface HastNode {
   readonly value?: string;
   readonly properties?: Readonly<Record<string, unknown>>;
   readonly children?: readonly HastNode[];
+  readonly position?: { readonly start?: { readonly offset?: number } };
 }
 
 const textOf = (node: HastNode | undefined): string =>
@@ -77,6 +86,13 @@ function FencedCode({ node }: { readonly node: HastNode | undefined }) {
   const { code, lang } = fenced(node);
   const labels = useContext(CopyLabels);
   const handOff = useContext(ShellHandOffContext);
+  if (lang.toLowerCase() === "math") return <MathBlock tex={code} display />;
+  if (lang.toLowerCase() === "mermaid") return <MermaidBlock code={code} labels={labels} />;
+  if (lang.toLowerCase() === "html") {
+    return (
+      <HtmlFence code={code} lang={lang} labels={labels} offset={node?.position?.start?.offset ?? null} />
+    );
+  }
   if (handOff && SHELL_LANGS.has(lang.toLowerCase())) {
     return <ShellBlock code={code} lang={lang} labels={labels} handOff={handOff} />;
   }
@@ -94,8 +110,15 @@ const COMPONENTS: Components = {
       <span>{children}</span>
     );
   },
-  // An image would be a request to wherever the model pointed (zero telemetry, CSP img-src): show its alt text.
-  img: ({ alt }) => <span>{alt ?? ""}</span>,
+  // An image is never a request to wherever the model pointed (zero telemetry, CSP img-src): the app resolves a file of
+  // the session's roots, and anything else shows as `[image: alt]`.
+  img: (props) => (
+    <BoxImage
+      src={typeof props.src === "string" ? props.src : ""}
+      alt={props.alt ?? ""}
+      skip={(props as Record<string, unknown>)[OVER_CAP] === "true"}
+    />
+  ),
   pre: ({ node }) => <FencedCode node={node as HastNode | undefined} />,
   p: ({ children }) => (
     <p className="max-w-measure text-pretty">
@@ -107,11 +130,20 @@ const COMPONENTS: Components = {
       <PathText>{children}</PathText>
     </li>
   ),
-  code: ({ children }) => (
-    <code className={INLINE_CODE_CLASSES}>
-      <PathText whole>{children}</PathText>
-    </code>
-  ),
+  code: ({ children, className }) => {
+    // remark-math's inline formula: `language-math math-inline` (and `math-display` for `$$x$$` written inline).
+    const classes = (className ?? "").split(" ");
+    if (classes.includes("math-inline")) {
+      return (
+        <MathBlock tex={Children.toArray(children).join("")} display={classes.includes("math-display")} />
+      );
+    }
+    return (
+      <code className={INLINE_CODE_CLASSES}>
+        <PathText whole>{children}</PathText>
+      </code>
+    );
+  },
   strong: ({ children }) => (
     <strong>
       <PathText>{children}</PathText>
@@ -177,22 +209,26 @@ const COMPONENTS: Components = {
   ),
 };
 
-/** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. The reply tools wrap it from outside. */
+/** pi-web's pipeline (react-markdown + remark-gfm, plus remark-math) without raw HTML; lazy-loaded by Markdown.tsx. The reply tools wrap it from outside. */
 export default function MarkdownBody({
   text,
   copyLabels,
   pathLinks,
   shellHandOff,
+  richReplies,
 }: {
   readonly text: string;
   readonly copyLabels?: CodeCopyLabels;
   readonly pathLinks?: PathLinks;
   readonly shellHandOff?: ShellHandOff;
+  readonly richReplies?: RichReplies;
 }) {
   return (
     <ReplyTools pathLinks={pathLinks}>
       <ShellHandOffContext.Provider value={shellHandOff}>
-        <MarkdownTree text={text} copyLabels={copyLabels} />
+        <RichRepliesContext.Provider value={richReplies}>
+          <MarkdownTree text={text} copyLabels={copyLabels} />
+        </RichRepliesContext.Provider>
       </ShellHandOffContext.Provider>
     </ReplyTools>
   );
@@ -209,7 +245,11 @@ function MarkdownTree({ text, copyLabels }: { readonly text: string; readonly co
   return (
     <div data-markdown-body="" className={BODY_CLASSES}>
       <CopyLabels.Provider value={copyLabels}>
-        <ReactMarkdown remarkPlugins={[remarkGfm, htmlAsText]} skipHtml components={COMPONENTS}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, remarkMath, pandocDollars, capImages, htmlAsText]}
+          skipHtml
+          components={COMPONENTS}
+        >
           {text}
         </ReactMarkdown>
       </CopyLabels.Provider>

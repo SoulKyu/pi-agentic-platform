@@ -343,6 +343,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     history: (input, caller) => reads.history(input, caller),
     toolOutput: (input, caller) => reads.toolOutput(input, caller),
     branches: (sessionId, caller) => reads.branches(sessionId, caller),
+    entryText: (sessionId, entryId, caller) => reads.entryText(sessionId, entryId, caller),
     prepareSubscription: (sessionId, caller, after) => reads.prepare(sessionId, caller, after),
     snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {

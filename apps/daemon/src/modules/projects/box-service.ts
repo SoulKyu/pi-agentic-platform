@@ -134,6 +134,7 @@ export function createBoxService(deps: {
   });
   function boxView(record: BoxRecord): ProjectBoxView {
     const packages = wiring?.control.packages(record.projectId) ?? { built: [], wanted: null };
+    const preview = wiring?.control.preview(record.projectId) ?? { decl: null, invalid: false };
     return {
       phase: phaseOf(record.projectId),
       resources: record.resources,
@@ -143,6 +144,8 @@ export function createBoxService(deps: {
         wanted: packages.wanted === null ? null : [...packages.wanted],
       },
       scratch: record.scratch,
+      preview: preview.decl,
+      ...(preview.invalid ? { previewInvalid: true as const } : {}),
       counts: countsOf(record.ownerId, record.projectId),
     };
   }

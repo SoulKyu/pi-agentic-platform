@@ -15,16 +15,19 @@ import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
 import { settingsMembersOf } from "./compose-boxes-budget.ts";
 import { composeUsers, USERS_MIGRATION_SOURCES } from "./compose-users.ts";
+import { composePreviews } from "./compose-previews.ts";
+import { previewsLate } from "./compose-previews-late.ts";
 import { composePush, PUSH_MIGRATIONS } from "./compose-push.ts";
+import { announceStart } from "./daemon-announce.ts";
 import type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
 import { createSystemClock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
-import { openableSetupUrl } from "./daemon-setup-url.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
 import { KERNEL_MIGRATIONS, migrate } from "./kernel/db/migrate.ts";
 import { createReceiptStore, startReceiptPurge } from "./kernel/db/receipts.ts";
 import { acquireInstanceLock, prepareHome } from "./kernel/home.ts";
 import { createHttpApp } from "./kernel/http/app.ts";
+import { createFetchSiteRefusalLog } from "./kernel/http/fetch-site-refusals.ts";
 import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
 import { newId } from "./kernel/ids.ts";
@@ -65,7 +68,6 @@ export const MIGRATION_SOURCES = [
   PUSH_MIGRATIONS,
   ...USERS_MIGRATION_SOURCES,
 ] as const;
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promise<DaemonHandle> {
   const clock = deps.clock ?? createSystemClock();
@@ -126,6 +128,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
     const onOriginRefused = createOriginRefusalLog(logger, clock);
+    const onFetchSiteRefused = createFetchSiteRefusalLog(logger, clock);
     const auth = composeAuth(core, audit);
     vmRpc.claudeToken.migrateLegacy(auth.ownerId());
     const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
@@ -255,8 +258,11 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     vmRpc.bindAgents(m11.agents);
     const boxesLate = boxes.bind({ sessions, automation: m10Late.automation, inbox: m10Late.inbox });
     const github = composeGithub(gh, { ...core, audit, auth, projects, sessions, policy, boxes, closers });
+    // Before the users are bound: a disabled or deleted account revokes its preview tokens (UX2-R72).
+    const previews = await composePreviews(core, closers);
+    const previewsBound = previews.bind(previewsLate({ vm: agentsVm, boxes, sessions, m11 }));
     const memberLine = users.bind({ runs: m10.runs, settings, boxes, agents: m11.agents, agentsVm });
-    users.bindDelete({ github, projects, m11, m10Late, sessions, search });
+    users.bindDelete({ github, projects, m11, m10Late, sessions, search, previews: previews.tokens });
     agentsVm.bindLate({
       sessions,
       pi,
@@ -294,6 +300,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...github.rpc,
       ...users.rpc,
       ...m10.health.rpc,
+      ...previewsBound.rpc,
     };
     const dispatch = createDispatcher({
       handlers,
@@ -312,6 +319,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       clock,
       serverVersion: VERSION,
       onOriginRefused,
+      onFetchSiteRefused,
     });
     const wsProbe = createWsProbe(auth);
     const app = createHttpApp({
@@ -320,6 +328,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       servesTls: config.tls !== null,
       onOriginRefused,
+      onFetchSiteRefused,
+      frameSrc: previews.origin,
       mount: (hono) => {
         auth.mount(hono);
         wk.mount(hono, auth.authenticateCookieHeader);
@@ -347,22 +357,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // Pushed once the server is up: closing goes ws first, then http, then the entries above.
     closers.push({ name: "http", close: () => server.close() }, { name: "ws", close: () => ws.close() });
-    const setupUrl = openableSetupUrl(config, auth.setupUrl());
-    if (setupUrl) {
-      const fields = { url: setupUrl, hint: "Open this URL once to create the owner account." };
-      if (deps.announceSetupUrl) deps.announceSetupUrl(fields);
-      else logger.info("setup_url", fields);
-    }
-    if (!LOOPBACK.has(config.host) && !config.tls) {
-      logger.warn("plain_http_on_network", {
-        hint: "Passkeys, secure cookies and Web Push need HTTPS: use Tailscale serve, a reverse proxy or --tls-cert/--tls-key. Browsers on other machines are only accepted under the address in PAP_PUBLIC_ORIGIN; set it to the one they type.",
-      });
-    }
-    if (config.insecureHttp) {
-      logger.warn("insecure_http", {
-        hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network, and so is a terminal's shell (sniffing the cookie opens one). For testing on a trusted LAN only.",
-      });
-    }
+    const setupUrl = announceStart(config, logger, deps, auth.setupUrl());
     search.start();
     m10Late.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
@@ -377,6 +372,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         workerRssMb: (id) => sessions.inspect(id)?.rssMb ?? null,
         sessionCost: (id) => m10.runs.port.sessionCost(id),
         routes: () => app.routes.map((route) => `${route.method} ${route.path}`),
+        previews: () => previewsBound.registry,
       },
       killScopes: () => scopes.killAllNow(),
       stop() {

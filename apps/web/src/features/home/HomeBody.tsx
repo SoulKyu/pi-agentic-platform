@@ -2,7 +2,9 @@ import "../../i18n/register-home.ts";
 import type { HomeLayout, ProjectSummary } from "@pap/contracts";
 import { BoxFact } from "../boxes/BoxFact.tsx";
 import { GithubHomeEntry } from "../github/GithubHomeEntry.tsx";
+import { ServicesList } from "../previews/ServicesList.tsx";
 import { KnowledgeRow } from "../knowledge/KnowledgeRow.tsx";
+import { phaseOf } from "../../stores/box-phase.ts";
 import { useProjectSettingsRequest } from "../../stores/project-settings-request.ts";
 import { ActionRow } from "./ActionRow.tsx";
 import type { HomeActions, HomeShortcuts } from "./home-actions.ts";
@@ -31,6 +33,9 @@ export default function HomeBody({ project, layout, actions, shortcuts, asked }:
           opened={asked === true}
           onSettings={(id) => useProjectSettingsRequest.getState().ask(id)}
         />
+      ) : null}
+      {project?.kind === "box" ? (
+        <ServicesList box={{ kind: "project", id: project.id }} phase={phaseOf(project)} />
       ) : null}
       {project?.kind === "box" ? (
         <GithubHomeEntry

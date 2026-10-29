@@ -14,7 +14,7 @@ const base = (extra: Partial<ImageBuildRequest> = {}): ImageBuildRequest => ({
 });
 const BASE_TAG = `pap-agent-base-${"2".repeat(64)}`;
 const INSTALL =
-  "apt-get install -y --no-install-recommends bubblewrap git curl jq python3 ripgrep fd-find ca-certificates e2fsprogs gh openssh-client && rm -rf /var/lib/apt/lists/*";
+  "apt-get install -y --no-install-recommends bubblewrap git curl jq python3 ripgrep fd-find ca-certificates e2fsprogs gh openssh-client util-linux && rm -rf /var/lib/apt/lists/*";
 
 describe("renderDockerfile (R7)", () => {
   it("leaves IS_SANDBOX out of the base environment: pap sets it per agent (ADR 0080)", () => {
@@ -28,7 +28,7 @@ describe("renderDockerfile (R7)", () => {
     expect(builder).toContain("build-essential python3 make g++");
     expect(builder).toContain("npm install --no-audit --no-fund node-pty@1.1.0");
     expect(final).not.toContain("build-essential");
-    expect(final).toContain(" e2fsprogs gh openssh-client ");
+    expect(final).toContain(" e2fsprogs gh openssh-client util-linux ");
     expect(text).toContain(
       "COPY --from=pty-builder /build/node_modules/node-pty /opt/pap/pi-host/node_modules/node-pty",
     );

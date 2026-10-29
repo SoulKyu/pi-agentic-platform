@@ -11,8 +11,10 @@ import {
   MessageAction,
   MessageActions,
   MessageBranch,
+  PREVIEW_SANDBOX,
   Reasoning,
   RunStatusChip,
+  SandboxedFrame,
   ToolCard,
 } from "@pap/ui";
 import { useState } from "react";
@@ -92,6 +94,14 @@ function Runs() {
       </GalleryItem>
       <GalleryItem name="Fence" column>
         <Fence label={CHAT.fenceLabel}>{CHAT.fence}</Fence>
+      </GalleryItem>
+      <GalleryItem name="SandboxedFrame" column>
+        <SandboxedFrame
+          src="about:blank"
+          sandbox={PREVIEW_SANDBOX}
+          label={CHAT.frameLabel}
+          title={CHAT.frameTitle}
+        />
       </GalleryItem>
       <GalleryItem name="Reasoning" column>
         <Reasoning label={CHAT.thinking}>{CHAT.thoughtBody}</Reasoning>

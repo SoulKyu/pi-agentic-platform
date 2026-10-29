@@ -21,6 +21,8 @@ export const ARGS: Record<PlatformOp, unknown> = {
   "secret.request": { name: "API_KEY", reason: "deploy" },
   "network.request": { host: "api.example.com" },
   "subagent.run": { task: "read the file" },
+  "preview.start": { name: "site", command: "python3 -m http.server 8000", port: 8000 },
+  "preview.stop": { name: "site" },
 };
 
 /** A result each op's schema accepts. */
@@ -33,6 +35,8 @@ export const RESULTS: Record<PlatformOp, unknown> = {
   "secret.request": { ref: `secret-ref:${"a".repeat(32)}`, name: "API_KEY", mode: "once" },
   "network.request": { granted: true },
   "subagent.run": { childId: "c1", answer: "ok", clipped: false, tainted: false },
+  "preview.start": { id: "a".repeat(32), name: "site", port: 8000, status: "running", reason: null },
+  "preview.stop": { stopped: true },
 };
 
 export interface BedKind {

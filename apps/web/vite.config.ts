@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { BROWSER_TARGETS } from "./browser-targets.ts";
 import { appearanceBoot } from "./vite/appearance-boot.ts";
+import { katexFonts } from "./vite/katex-fonts.ts";
 import { serviceWorker } from "./vite/service-worker.ts";
 
 const daemon = process.env.PAP_DEV_DAEMON ?? "http://127.0.0.1:7777";
@@ -12,6 +13,7 @@ const daemon = process.env.PAP_DEV_DAEMON ?? "http://127.0.0.1:7777";
 export default defineConfig({
   plugins: [
     appearanceBoot(),
+    katexFonts(),
     react(),
     babel({ presets: [reactCompilerPreset()] }),
     tailwindcss(),
@@ -25,8 +27,9 @@ export default defineConfig({
     outDir: "dist",
     sourcemap: false,
     // The daemon's CSP is `font-src 'self'` (no data:). Vite inlines assets under 4 KiB as data: URIs by
-    // default; a font always stays a file (R118). Everything else keeps the default size limit.
-    assetsInlineLimit: (file) => (file.endsWith(".woff2") ? false : undefined),
+    // default; a font always stays a file (R118), whatever its format (UX2-R47: KaTeX's fonts, shipped as woff2 only by
+    // katexFonts). Everything else keeps the default size limit.
+    assetsInlineLimit: (file) => (/\.(?:woff2?|ttf)$/u.test(file) ? false : undefined),
     // One shared chunk for the modules already in the initial closure: without it Rolldown cuts them into several
     // small chunks as soon as a lazy chunk reuses them (about 3 KB gzip of glue). Lazy-only modules are untouched.
     // Besides dependencies and packages, the stores, lib, commands and appearance modules the palette entry reuses.

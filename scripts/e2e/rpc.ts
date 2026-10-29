@@ -5,6 +5,13 @@ import { WebSocket } from "ws";
 
 const RPC_MS = 15_000;
 
+/** The same origin on 127.0.0.1: the harness dials loopback and names the page's origin in `Origin` (`pap.test` included). */
+export function loopbackOf(origin: string): string {
+  const url = new URL(origin);
+  url.hostname = "127.0.0.1";
+  return url.origin;
+}
+
 export async function rpcCall<T>(
   origin: string,
   cookie: string,
@@ -12,7 +19,7 @@ export async function rpcCall<T>(
   params: object = {},
   timeoutMs = RPC_MS,
 ): Promise<T> {
-  const url = `${origin.replace("//localhost:", "//127.0.0.1:").replace(/^http/, "ws")}/ws?proto=2`;
+  const url = `${loopbackOf(origin).replace(/^http/, "ws")}/ws?proto=2`;
   const socket = new WebSocket(url, { headers: { origin, cookie: `pap_session=${cookie}` } });
   let timer: NodeJS.Timeout | undefined;
   try {

@@ -41,3 +41,34 @@ describe("readProjectConfig packages", () => {
     expect(readProjectConfig(new Uint8Array(70 * 1024))).toEqual({ ok: false, error: "too_large" });
   });
 });
+
+describe("readProjectConfig preview", () => {
+  it("reads a valid preview and leaves the other fields alone", () => {
+    expect(read("preview:\n  command: npm run dev\n  port: 5173\nsetup: make\n")).toEqual({
+      ok: true,
+      config: { setup: "make" },
+      warnings: [],
+      preview: { command: "npm run dev", port: 5173 },
+    });
+  });
+
+  it("names a bad preview and keeps the packages", () => {
+    for (const bad of [
+      "preview: 5\n",
+      "preview:\n  command: x\n  port: 80\n",
+      "preview:\n  command: x\n  port: 7842\n",
+      "preview:\n  command: x\n",
+      "preview:\n  command: x\n  port: 8000\n  extra: 1\n",
+    ]) {
+      const result = read(`${bad}packages: [jq]\n`);
+      expect(result, bad).toMatchObject({ ok: true, badPreview: true, packages: ["jq"] });
+      expect(result, bad).not.toHaveProperty("preview");
+    }
+  });
+
+  it("is absent when the file does not name the field", () => {
+    const result = read("setup: make\n");
+    expect(result).not.toHaveProperty("preview");
+    expect(result).not.toHaveProperty("badPreview");
+  });
+});

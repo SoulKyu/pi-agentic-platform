@@ -141,7 +141,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
 
   /** The digest of a bundle folder, salted like the base tag's: the installed one and the daemon's own compare under it. */
   const bundleDigest = (dir: string): Promise<string> =>
-    (deps.digestRunner ?? threadDigestRunner)(dir, `pap-base-2\0${deps.nodeImage}`);
+    (deps.digestRunner ?? threadDigestRunner)(dir, `pap-base-3\0${deps.nodeImage}`);
   const currentBaseTag = createBaseTag({ clock, logger, digest: () => bundleDigest(deps.bundleRoot) });
 
   /** The week is on disk before `baseUpgradeFinished` makes the new `baseKey` live: a restart finds the tags that were built. */

@@ -50,7 +50,7 @@ describe("assertAgentBundle", () => {
     expect(() => assertAgentBundle(bundle)).not.toThrow();
   });
 
-  for (const file of ["dist/guest/main.js", "dist/relay/main.js"])
+  for (const file of ["dist/guest/main.js", "dist/relay/main.js", "dist/guest/services/ns-dialer.js"])
     it(`refuses a bundle without ${file} (missing)`, () => {
       const bundle = bundleIn(tmp());
       rmSync(join(bundle, file));

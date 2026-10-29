@@ -36,11 +36,13 @@ import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { knowledgeEn } from "./catalog/knowledge.ts";
 import type { replyToolsEn } from "./catalog/reply-tools.ts";
+import type { richRepliesEn } from "./catalog/rich-replies.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
 import type { modelPickerEn } from "./catalog/model-picker.ts";
 import type { landingEn } from "./catalog/landing.ts";
 import type { notificationsEn } from "./catalog/notifications.ts";
 import type { pushEn } from "./catalog/push.ts";
+import type { previewsEn } from "./catalog/previews.ts";
 import type { pwaEn } from "./catalog/pwa.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
@@ -114,6 +116,7 @@ export type MessageKey =
   | keyof typeof homeEn
   | keyof typeof knowledgeEn
   | keyof typeof replyToolsEn
+  | keyof typeof richRepliesEn
   | keyof typeof boxesEn
   | keyof typeof githubEn
   | keyof typeof usageEn
@@ -135,7 +138,8 @@ export type MessageKey =
   | keyof typeof notificationsEn
   | keyof typeof landingEn
   | keyof typeof healthEn
-  | keyof typeof launchProgressEn;
+  | keyof typeof launchProgressEn
+  | keyof typeof previewsEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

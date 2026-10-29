@@ -103,6 +103,7 @@ describe("process backend", () => {
       PI_OFFLINE: "1",
     });
     expect(JSON.parse(env.PAP_GUEST_LAYOUT ?? "")).toEqual(layout);
+    expect(env.PAP_GUEST_SERVICES).toBe("plain");
     expect(cwd).toBe(layout.home);
     expect(statSync(layout.imageAgentDir).mode & 0o777).toBe(0o555);
     expect(statSync(join(layout.imageAgentDir, "sub")).mode & 0o777).toBe(0o555);

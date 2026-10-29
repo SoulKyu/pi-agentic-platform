@@ -68,3 +68,14 @@ describe("error copy", () => {
     expect(shellFr["shell.tabs.unsplit"]).toBe(lanesFr["lanes.pane.unsplit"]);
   });
 });
+
+describe("error.unavailable", () => {
+  it("has its exact EN and FR copy", () => {
+    expect((en as Record<string, string>)["error.unavailable"]).toBe(
+      "Previews are not available: pap could not open its preview port. See pap doctor.",
+    );
+    expect((fr as Record<string, string>)["error.unavailable"]).toBe(
+      "Les aperçus ne sont pas disponibles : pap n'a pas pu ouvrir son port d'aperçu. Voir pap doctor.",
+    );
+  });
+});

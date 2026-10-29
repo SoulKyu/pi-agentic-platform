@@ -238,6 +238,33 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
       /Ce shell ne peut pas retenir plusieurs lignes/,
     ],
   },
+  {
+    title:
+      "keeps the Preview pane, the strip above the composer and their strings out of the initial assets (UX-2)",
+    markers: [/data-preview-pane/, /UNTRUSTED · preview/, /NON FIABLE · aperçu/],
+  },
+  {
+    title:
+      "keeps KaTeX and the math block out of the initial assets, in a lazy chunk of their own (UX-2, remark-math stays in the renderer)",
+    markers: [/katex-mathml/, /katex-display/, /data-math/],
+  },
+  {
+    title:
+      "keeps Mermaid and its diagram types out of the initial assets, in lazy chunks of their own (UX-2, UX2-R83)",
+    markers: [/dompurifyConfig/, /suppressErrorRendering/],
+  },
+  {
+    title: "keeps the rich reply strings out of the initial assets (UX-2)",
+    markers: [/This diagram could not be drawn/, /Ce diagramme n'a pas pu être dessiné/],
+  },
+  {
+    title: "keeps the service logs dialog and its strings out of the initial assets (UX-2)",
+    markers: [/Nothing printed yet\./, /Rien d'affiché pour l'instant\./],
+  },
+  {
+    title: "keeps the new-tab preview window out of the initial assets (UX-2)",
+    markers: [/data-preview-window/],
+  },
 ];
 
 /**

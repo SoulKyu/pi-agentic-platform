@@ -61,6 +61,8 @@ const OPENERS: {
   ops: (rpc, _key, after) => rpc.call("subscribe.ops", after ? { after } : {}),
   // The caller's own live launches and the Pi helper counts, like `shell`: the key is a local name.
   launches: (rpc, _key, after) => rpc.call("subscribe.launches", after ? { after } : {}),
+  // The caller's own preview services, like `shell`: the key is a local name (UX-2).
+  previews: (rpc, _key, after) => rpc.call("subscribe.previews", after ? { after } : {}),
 };
 
 interface Listener {

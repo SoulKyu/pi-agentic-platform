@@ -22,6 +22,13 @@ export { RunStatusChip, type RunStatus } from "./ai/RunStatusChip.tsx";
 export { Fence } from "./ai/Fence.tsx";
 export { Markdown, type MarkdownProps } from "./ai/Markdown.tsx";
 export type { LinkedSpan, PathLinks, ShellHandOff, ShellStatus } from "./ai/markdown/reply-tools.ts";
+export type { ImageResult, RichReplies } from "./ai/markdown/rich-replies.ts";
+export {
+  ARTIFACT_SANDBOX,
+  PREVIEW_SANDBOX,
+  SandboxedFrame,
+  type SandboxedFrameProps,
+} from "./ai/SandboxedFrame.tsx";
 export { copyText } from "./clipboard.ts";
 export type { CodeCopyLabels } from "./ai/markdown/CodeBlock.tsx";
 export { Mark, type MarkProps } from "./brand/Mark.tsx";

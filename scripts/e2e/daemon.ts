@@ -31,9 +31,13 @@ export interface ScriptStep {
 }
 
 export interface PapProcess {
-  /** `http://localhost:<port>`: localhost, never 127.0.0.1, because the WebAuthn rpID and the allowed origins need it. */
+  /** `http://localhost:<port>`: localhost, never 127.0.0.1, because the WebAuthn rpID and the allowed origins need it; `PAP_PUBLIC_ORIGIN` when a journey sets it. */
   readonly origin: string;
   readonly port: number;
+  /** The preview listener's port (UX-2): a free one for every daemon, so two daemons never share main port + 1. */
+  readonly previewPort: number;
+  /** A free port for a stand-in service a journey starts itself (J19, J20). */
+  readonly standInPort: number;
   readonly home: string;
   readonly agentDir: string;
   readonly userHome: string;
@@ -90,6 +94,7 @@ function findPiFile(home: string, agentDir: string, sessionId: string): string {
 export async function startPap(
   script: readonly ScriptStep[],
   extraEnv: Record<string, string>,
+  papArgs: readonly string[] = [],
 ): Promise<{ pap: PapProcess; cleanup(): Promise<void> }> {
   const root = mkdtempSync(join(tmpdir(), "pap-e2e-"));
   const home = join(root, "home");
@@ -105,9 +110,18 @@ export async function startPap(
   writeFileSync(join(work, "README.md"), "e2e\n");
   git(work, userHome, "add", ".");
   git(work, userHome, "commit", "-q", "-m", "init");
-  const scriptFile = join(root, "script.json");
-  writeFileSync(scriptFile, JSON.stringify({ steps: script }));
   const port = await freePort();
+  const previewPort = await freePort();
+  const standInPort = await freePort();
+  const ports: Record<string, string> = {
+    "{port}": String(port),
+    "{previewPort}": String(previewPort),
+    "{standInPort}": String(standInPort),
+  };
+  const fill = (text: string): string =>
+    Object.entries(ports).reduce((out, [token, number]) => out.replaceAll(token, number), text);
+  const scriptFile = join(root, "script.json");
+  writeFileSync(scriptFile, fill(JSON.stringify({ steps: script })));
   const env: NodeJS.ProcessEnv = {
     PATH: process.env["PATH"],
     LANG: process.env["LANG"] ?? "C.UTF-8",
@@ -122,9 +136,11 @@ export async function startPap(
     PAP_TEST_PROVIDER_SCRIPT: scriptFile,
     PAP_TEST_VMD_SOCKET: join(home, "no-vmd.sock"),
     PAP_TEST_WORKER_IMPORT: NETWORK_GUARD,
-    ...extraEnv,
+    PAP_PREVIEW_PORT: String(previewPort),
+    ...Object.fromEntries(Object.entries(extraEnv).map(([name, value]) => [name, fill(value)])),
   };
-  const origin = `http://localhost:${port}`;
+  // PAP_PUBLIC_ORIGIN (J20: `http://pap.test:{port}`) is the address the browser uses; otherwise localhost.
+  const origin = env["PAP_PUBLIC_ORIGIN"] ?? `http://localhost:${port}`;
   const journal: string[][] = [];
   let daemon: Daemon | null = null;
 
@@ -141,10 +157,11 @@ export async function startPap(
               "serve",
               "--port",
               String(port),
+              ...papArgs,
             ],
           }
         : undefined;
-    const started = startDaemon(env, port, launch);
+    const started = startDaemon(env, port, launch, papArgs);
     journal.push(started.output);
     daemon = started;
     await within(started.line("listening"), STEP_MS, "the daemon to listen");
@@ -199,6 +216,8 @@ export async function startPap(
   const pap: PapProcess = {
     origin,
     port,
+    previewPort,
+    standInPort,
     home,
     agentDir,
     userHome,

@@ -48,6 +48,8 @@ export function itemTitle(
       );
     case "agent":
       return triggers.get(`agent:${item.id}`) ?? t("shell.tab.agent");
+    case "preview":
+      return t("shell.tab.preview", { name: item.name });
     case "dev-ui":
       // Production has no gallery: the tab of a /dev/ui item must not confirm that it exists elsewhere.
       return import.meta.env.DEV ? t("shell.tab.devUi") : t("shell.notFound.title");

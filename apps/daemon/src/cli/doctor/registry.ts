@@ -1,5 +1,6 @@
 import { pushReadiness } from "../../kernel/push-readiness.ts";
 import { CHECKS_DAEMON } from "./checks-daemon.ts";
+import { makePreviewCheck, probePreview } from "./checks-preview.ts";
 import { makeHttpsCheck, makePushCheck } from "./checks-push.ts";
 import { CHECKS_SYSTEM } from "./checks-system.ts";
 import { CHECKS_VM } from "./checks-vm.ts";
@@ -10,7 +11,7 @@ const updateAt = CHECKS_DAEMON.findIndex((check) => check.id === "update_availab
 
 /**
  * Every check, in the order they run, one line each. `https` and `push` are built from M12's `pushReadiness`
- * (`kernel/push-readiness.ts`) and sit between `backup` and `update_available`. The `vm.*` checks (T18) come last.
+ * (`kernel/push-readiness.ts`) and sit between `backup` and `update_available`. `preview.listener` follows them; the `vm.*` checks come last.
  */
 export const ALL_CHECKS: readonly Check[] = [
   ...CHECKS_SYSTEM,
@@ -18,6 +19,7 @@ export const ALL_CHECKS: readonly Check[] = [
   makeHttpsCheck(pushReadiness),
   makePushCheck(pushReadiness),
   ...CHECKS_DAEMON.slice(updateAt),
+  makePreviewCheck(probePreview),
   ...CHECKS_VM,
   ...CHECKS_VM_SKEW,
 ];

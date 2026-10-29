@@ -134,8 +134,11 @@ export async function daemon() {
   };
 }
 
-export async function start(over: Partial<GuestDeps> = {}) {
+export async function start(
+  overrides: Partial<GuestDeps> | ((gateway: { port: number }) => Partial<GuestDeps>) = {},
+) {
   const gateway = await daemon();
+  const over = typeof overrides === "function" ? overrides(gateway) : overrides;
   const clock = fakeClock();
   const exits: number[] = [];
   const logs: string[] = [];

@@ -5,6 +5,7 @@ import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
 import { type AgentsVmEnv, parseAgentsVm } from "./config-agents-vm.ts";
 import { type OtlpConfig, parseOtlp } from "./config-otlp.ts";
+import { parsePreview, type PreviewEnv } from "./config-preview.ts";
 import { parsePush, type PushEnv } from "./config-push.ts";
 import type { LogLevel } from "./logger.ts";
 import { type OutboxHold, parseOutboxHold } from "./outbox/hold.ts";
@@ -31,7 +32,7 @@ export class ConfigError extends Error {
   override name = "ConfigError";
 }
 
-export interface Config extends PushEnv, AgentsVmEnv {
+export interface Config extends PushEnv, AgentsVmEnv, PreviewEnv {
   readonly home: string;
   readonly host: string;
   readonly port: number;
@@ -212,6 +213,10 @@ export function loadConfig(input: ConfigInput): Config {
     metricsToken: parseMetricsToken(input.env.PAP_METRICS_TOKEN),
     otlp: parseOtlp(input.env, (message) => new ConfigError(message)),
     ...parsePush(input.env, script !== undefined, (message) => new ConfigError(message)),
+    ...parsePreview(
+      { flag: values["preview-port"], env: input.env, port, insecureHttp, appOrigins: allowedOrigins },
+      (message) => new ConfigError(message),
+    ),
     ...parseAgentsVm(
       input.env,
       input.totalMemMb,
@@ -295,6 +300,7 @@ function parseFlags(argv: readonly string[]) {
         dev: { type: "boolean", default: false },
         host: { type: "string" },
         port: { type: "string" },
+        "preview-port": { type: "string" },
         "tls-cert": { type: "string" },
         "tls-key": { type: "string" },
         "insecure-http": { type: "boolean", default: false },

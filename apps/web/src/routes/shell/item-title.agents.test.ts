@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { translate } from "../../i18n/index.ts";
+import { translate, type Translate } from "../../i18n/index.ts";
 import { EMPTY_LANES } from "../../stores/lane-reducer.ts";
 import { itemTitle } from "./item-title.ts";
 
@@ -19,5 +19,14 @@ describe("the agent tab's title (M11R109)", () => {
   it("does not take a trigger's name for an agent's", () => {
     const names = new Map([["atlas-1a2b", "Nightly report"]]);
     expect(itemTitle({ kind: "agent", id: "atlas-1a2b" }, none, {}, t, EMPTY_LANES, names)).toBe("Agent");
+  });
+});
+
+describe("the preview tab's title", () => {
+  it("names the service", () => {
+    const withVars: Translate = (key, vars) => translate("en", key, vars);
+    expect(itemTitle({ kind: "preview", box: "project:b1", name: "web" }, none, {}, withVars)).toBe(
+      "Preview web",
+    );
   });
 });

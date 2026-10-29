@@ -116,6 +116,7 @@ export const NO_FOREIGN_INPUT = {
   "subscribe.agents": {},
   "subscribe.ops": {},
   "subscribe.launches": {},
+  "subscribe.previews": {},
   "agents.vm.clearClaudeToken": {},
   "auth.devices.revokeOthers": {},
 } as const satisfies Record<string, object>;
@@ -135,6 +136,7 @@ const trigger = (s: OwnerSeeds) => ({ triggerId: s.triggerId });
 const agent = (s: OwnerSeeds) => ({ agentId: s.agentId });
 const root = (s: OwnerSeeds) => ({ root: s.project.root });
 const sha = "a".repeat(40);
+const box = (s: OwnerSeeds) => ({ kind: "project", id: s.project.id }) as const;
 const newAgent = {
   name: "Intruder",
   mode: "full-access",
@@ -154,6 +156,20 @@ export const PROBES = {
   "projects.box": { params: owned },
   "launches.log": { params: (s) => ({ box: { kind: "project", id: s.project.id } }) },
   "launches.stop": { params: () => ({ id: "00000000-0000-4000-8000-000000000000" }) },
+  "previews.list": { params: (s) => ({ box: box(s) }) },
+  "previews.stop": { params: (s) => ({ box: box(s), name: "site" }) },
+  "previews.restart": { params: (s) => ({ box: box(s), name: "site" }) },
+  "previews.logs": { params: (s) => ({ box: box(s), name: "site" }) },
+  "previews.open": { params: (s) => ({ box: box(s), name: "site" }) },
+  "previews.renew": { params: () => ({ lease: "ab".repeat(16) }) },
+  // An unknown lease and another user's answer the same silently (UX2-R55): an empty answer, never the owner's row.
+  "previews.close": { params: () => ({ lease: "ab".repeat(16) }), empty: true },
+  "previews.startProject": {
+    params: (s) => ({ projectId: s.project.id, command: "npm run dev", port: 5173 }),
+  },
+  "previews.artifact": {
+    params: (s) => ({ ...session(s), entryId: "e1", fenceIndex: 0 }),
+  },
   "projects.setBox": { params: owned },
   "projects.startBox": { params: owned },
   "projects.restartBox": { params: owned },
@@ -345,7 +361,6 @@ export const ROUTE_CLASS: Record<string, RouteClass> = {
   "POST /hooks/:id": "public",
   "GET /fonts/:slug/:file": "shared-read",
   "GET /github/app/new": "owner-only",
-  "GET /github/app/authorize": "own-flow",
   "GET /github/app/created": "callback",
   "GET /github/app/authorized": "callback",
   "GET /github/app/authorized/finish": "own-flow",

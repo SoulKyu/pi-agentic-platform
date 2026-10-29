@@ -45,7 +45,9 @@ const loadInbox = () => import("../../features/inbox/InboxPanel.tsx");
 /** The item a session tab shows on a phone: its chat, or its split when the split is what the view names. */
 function shownItem(tab: Tab, view: SurfaceView): ItemRef {
   const split = tab.split?.item;
-  const wanted = { review: "changes", term: "terminal", files: "files", chat: "session" }[view];
+  const wanted = { review: "changes", term: "terminal", files: "files", chat: "session", preview: "preview" }[
+    view
+  ];
   return split && split.kind === wanted ? split : tab.item;
 }
 
@@ -54,6 +56,7 @@ const CHOICE: Readonly<Record<string, SwitchChoice | "files">> = {
   changes: "review",
   terminal: "term",
   files: "files",
+  preview: "preview",
 };
 
 /** Below 768 px (DESIGN.md §8): one pane at a time, the four sections in a bottom nav. No split, no rail. */

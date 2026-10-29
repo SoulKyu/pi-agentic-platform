@@ -19,6 +19,8 @@ const ALLOWED: Record<PlatformOp, readonly SessionType[]> = {
   "secret.request": ["agent-thread"],
   "network.request": ["agent-thread", "plain", "task", "child"],
   "subagent.run": ["plain", "lane", "agent-thread"],
+  "preview.start": ["agent-thread", "plain"],
+  "preview.stop": ["agent-thread", "plain"],
 };
 
 describe("every op for every session type", () => {

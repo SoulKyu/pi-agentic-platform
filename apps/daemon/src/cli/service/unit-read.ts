@@ -4,6 +4,8 @@ export interface ParsedUnit {
   readonly node: string;
   readonly main: string;
   readonly port: number | null;
+  /** `--preview-port`; null: `PAP_PREVIEW_PORT` of the unit's environment, else the port + 1. */
+  readonly previewPort: number | null;
   readonly host: string | null;
   readonly home: string | null;
   readonly env: Record<string, string>;
@@ -79,6 +81,18 @@ export function parseUnit(text: string): ParsedUnit | null {
     !(port !== null && /^\d{1,5}$/.test(portFlag.value ?? "") && port >= 1 && port <= 65_535)
   )
     return null;
+  const previewFlag = flagValue(args, "--preview-port");
+  const previewPort = previewFlag.value === null ? null : Number(previewFlag.value);
+  if (
+    previewFlag.found &&
+    !(
+      previewPort !== null &&
+      /^\d{1,5}$/.test(previewFlag.value ?? "") &&
+      previewPort >= 1 &&
+      previewPort <= 65_535
+    )
+  )
+    return null;
   const hostFlag = flagValue(args, "--host");
   if (hostFlag.found && (hostFlag.value === null || !HOST.test(hostFlag.value))) return null;
   for (const name of ["--tls-cert", "--tls-key"]) {
@@ -89,6 +103,7 @@ export function parseUnit(text: string): ParsedUnit | null {
     node,
     main,
     port,
+    previewPort,
     host: hostFlag.value,
     home: env.PAP_HOME ?? null,
     env,

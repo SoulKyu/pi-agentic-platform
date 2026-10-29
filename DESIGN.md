@@ -274,6 +274,7 @@ Built on Radix and owned in shadcn style. Each primitive owns its look: callers 
 | DeferredFallback | renders nothing for 100 ms, then its children (§7.3) |
 | LoadingLine, StepPanel, Strip | `LoadingLine`: spinner and label after 100 ms, elapsed from 3 s, cause from 10 s. `StepPanel` (lazy): the launch's steps with times, "usually" and a neutral "slower than usual"; the ask is pink, a polite `role="status"` block. `Strip`: five role-coloured segments. Red only when a step failed (ADR 0087) |
 | CodeText | renders backticked runs of a catalog value as code (§11) |
+| SandboxedFrame | content an agent served (a preview, an HTML artifact) in the dashed attention frame of §2; its `UNTRUSTED · <source>` label is pap's text drawn outside the iframe, always visible (`label-hud`, `--attn`); the iframe never has `allow-same-origin` or `allow-popups`, and sends no referrer. Sandbox sets: `PREVIEW_SANDBOX`, `ARTIFACT_SANDBOX` (ADR 0088) |
 
 ### 9.2 AI components
 

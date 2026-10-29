@@ -74,7 +74,7 @@ const isHelloWithOtherProtocol = (value: unknown): boolean => {
   const { type, role, protocol } = value as { type?: unknown; role?: unknown; protocol?: unknown };
   return (
     type === "hello" &&
-    (role === "guest" || role === "worker" || role === "terminal") &&
+    (role === "guest" || role === "worker" || role === "terminal" || role === "tunnel") &&
     typeof protocol === "number" &&
     protocol !== AGENT_VM_PROTOCOL
   );
@@ -216,6 +216,12 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         const guest = guests.get(hello.launchId);
         if (!guest) return refuse(boxKey(hello.box), "slot");
         const result = guest.acceptWorker(hello, wire);
+        if (typeof result === "string") return refuse(boxKey(hello.box), result);
+        role = result;
+      } else if (hello.role === "tunnel") {
+        const guest = guests.get(hello.launchId);
+        if (!guest) return refuse(boxKey(hello.box), "slot");
+        const result = guest.acceptTunnel(hello, wire);
         if (typeof result === "string") return refuse(boxKey(hello.box), result);
         role = result;
       } else {

@@ -1,5 +1,5 @@
 import { execFile, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { closeSync, existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { parseBoxKey, VmLayout } from "@pap/contracts/pi-host";
@@ -11,6 +11,11 @@ import { BUNDLE_BIN } from "./ops/github-env.ts";
 import { ensureSigningAgent } from "./ops/github-agent.ts";
 import { createAgentGuestOps } from "./ops/agent.ts";
 import { createGuestOps } from "./ops/index.ts";
+import { bwrapLauncher, plainLauncher } from "./services/launcher.ts";
+import { openNetns, procNetnsFiles, startNsDialer } from "./services/ns-dial.ts";
+import { createNsDialerPool } from "./services/ns-pool.ts";
+import { procReader } from "./services/ownership.ts";
+import { createServiceHost } from "./services/supervisor.ts";
 import { takeGatewayToken } from "./scrub.ts";
 import { pickPackages, seedAgentFolder } from "./seed.ts";
 
@@ -72,6 +77,27 @@ if (githubDeps) {
   await ensureSigningAgent(githubDeps).catch(() => process.stderr.write("pap-guest: signing agent failed\n"));
 }
 
+const guestClock = {
+  now: () => Date.now(),
+  setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+  clearTimeout: (handle: unknown) => clearTimeout(handle as NodeJS.Timeout),
+  sleep: (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+};
+const guestLog = (line: string): void => void process.stderr.write(`pap-guest: ${line}\n`);
+// The plain launcher is the process backend's only (tests, UX2-R20): it needs both its layout and its own marker.
+const plainServices = Boolean(process.env.PAP_GUEST_LAYOUT) && process.env.PAP_GUEST_SERVICES === "plain";
+
+// A service without network is entered through one helper per namespace (UX2-R22); the plain launcher shares the guest's.
+const nsDialer = plainServices
+  ? undefined
+  : createNsDialerPool({
+      clock: guestClock,
+      open: (target) => openNetns(target, procNetnsFiles),
+      start: (nsFd) => startNsDialer({ nsFd, spawn, clock: guestClock, log: guestLog }),
+      closeFd: closeSync,
+      log: guestLog,
+    });
+
 await runGuest({
   env: process.env,
   token: token as string,
@@ -92,13 +118,19 @@ await runGuest({
     layout.project && githubDeps
       ? createGuestOps(layout.project, () => Date.now(), githubDeps)
       : createAgentGuestOps(layout.root, () => Date.now()),
-  clock: {
-    now: () => Date.now(),
-    setTimeout: (fn, ms) => setTimeout(fn, ms),
-    clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
-    sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-  },
-  seed: () => seedAgentFolder(layout, (line) => void process.stderr.write(`pap-guest: ${line}\n`)),
+  services: (report) =>
+    createServiceHost({
+      layout,
+      env: process.env,
+      clock: guestClock,
+      launcher: plainServices ? plainLauncher() : bwrapLauncher(guestLog),
+      proc: procReader(),
+      ...(nsDialer ? { nsDialer } : {}),
+      report,
+      log: guestLog,
+    }),
+  clock: guestClock,
+  seed: () => seedAgentFolder(layout, guestLog),
   pick: (packages) => pickPackages(layout, packages),
   grow: async () => {
     await growFilesystem({
@@ -123,5 +155,7 @@ await runGuest({
       child.kill(signal);
     }
   },
-  log: (line) => void process.stderr.write(`pap-guest: ${line}\n`),
+  log: guestLog,
+  // The process backend stops a box with SIGTERM to the guest's group: services (own sessions) must not outlive it.
+  onTerminate: (handler) => void process.once("SIGTERM", handler),
 });

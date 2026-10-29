@@ -179,6 +179,32 @@ html {
   max-width: var(--chat-max-width);
 }
 
+/* UX2-R81 (decision 139): rich reply content (math, diagrams) stays inside its box. KaTeX builds inline position:relative
+   boxes that can paint outside the formula's line; paint containment clips them to the box, isolation keeps their
+   stacking local. Inline math has no overflow, so its baseline stays KaTeX's. */
+@utility contain-rich {
+  contain: paint;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+@utility contain-rich-inline {
+  display: inline-block;
+  contain: paint;
+  isolation: isolate;
+  max-width: 100%;
+}
+
+/* UX2-R50: an HTML artifact in a reply is framed at a fixed height (its page cannot say how tall it is) and never taller
+   than 70 % of the viewport. */
+@utility h-artifact {
+  height: min(70vh, 32rem);
+}
+
+@utility max-h-artifact {
+  max-height: 70vh;
+}
+
 /* Code highlighting (Task 10b): shiki's css-variables theme mapped to role tokens on the block itself, so a themed
    subtree re-themes it. Only the agent hue appears: code blocks are agent output (DESIGN.md §2). */
 [data-slot="code-block"] {

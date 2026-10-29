@@ -99,10 +99,12 @@ export function startDaemon(
   env: NodeJS.ProcessEnv,
   port: number,
   launch?: { file: string; args: readonly string[] },
+  extraArgs: readonly string[] = [],
 ): Daemon {
   refuseLiveVmd(env);
   // No --conditions: this is the built daemon on its own. The guard reaches workers through PAP_TEST_WORKER_IMPORT.
-  // `launch` replaces the whole command line (smoke-install.ts runs the one the installed unit holds).
+  // `launch` replaces the whole command line (smoke-install.ts runs the one the installed unit holds); `extraArgs` follow
+  // `serve --port` (e2e J20: `--insecure-http`).
   const child = spawn(
     launch?.file ?? process.execPath,
     launch
@@ -114,6 +116,7 @@ export function startDaemon(
           "serve",
           "--port",
           String(port),
+          ...extraArgs,
         ],
     { env: { PAP_UPDATE_CHECK: "0", ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true },
   );

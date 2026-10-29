@@ -69,10 +69,12 @@ function build() {
       boxes: { ownerBoxes: () => ["p1"], stop: step("boxes.stop", undefined) },
       agents: { list: () => [{ id: "atlas-0001" }] },
       stopAgent: step("agents.stop", undefined),
+      previews: { revokeOwner: () => (log.push("previews.revoke"), 0) },
       logger: silentLogger,
     }),
     cascade: createDeleteCascade({
       db,
+      previews: { revokeOwner: () => (log.push("previews.revokeAll"), 0) },
       github: { releaseKeysOf: step("github.releaseKeys", [] as number[]) },
       projects: { removeAll: step("projects.removeAll", 1) },
       agents: { trashAll: step("agents.trashAll", 1) },
@@ -120,8 +122,10 @@ describe("users delete (A5b)", () => {
     expect(log).toEqual([
       "auth.setDisabled:true",
       "relay.refresh",
+      "previews.revoke",
       "boxes.stop",
       "agents.stop",
+      "previews.revokeAll",
       "github.releaseKeys",
       "projects.removeAll",
       "automation.removeAll",

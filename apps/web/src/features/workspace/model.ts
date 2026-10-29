@@ -73,7 +73,9 @@ export type ItemRef =
   | { readonly kind: "compare"; readonly id: string }
   | { readonly kind: "tasks" }
   | { readonly kind: "trigger"; readonly id: string }
-  | { readonly kind: "agent"; readonly id: string };
+  | { readonly kind: "agent"; readonly id: string }
+  /** A box's preview service (UX-2): `box` is the box key (`project:<uuid>`, `agent:<id>`). Not addressable. */
+  | { readonly kind: "preview"; readonly box: string; readonly name: string };
 
 export interface Split {
   readonly item: ItemRef;
@@ -112,6 +114,8 @@ export function itemKey(item: ItemRef): string {
       return `trigger:${item.id}`;
     case "agent":
       return `agent:${item.id}`;
+    case "preview":
+      return `preview:${item.box}/${item.name}`;
     case "home":
     case "settings":
     case "dev-ui":

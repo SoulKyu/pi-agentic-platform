@@ -3,8 +3,10 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { isReadOnlyError } from "../db/read-only.ts";
 import type { Logger } from "../logger.ts";
+import { fetchSiteGuard, type FetchSiteRefused } from "./fetch-site.ts";
 import { isHookRequest } from "./hook-path.ts";
 import { originGuard, type OriginRefused } from "./origin.ts";
+import { isReserved } from "./reserved.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
 declare module "hono" {
@@ -24,6 +26,10 @@ export interface HttpAppOptions {
   readonly servesTls?: boolean;
   /** Called for every request refused for its Origin: the composition root logs it, rate-limited. */
   readonly onOriginRefused?: OriginRefused;
+  /** Called for every request refused for its `Sec-Fetch-Site` (spec UX-2 §4): the composition root logs it, rate-limited. */
+  readonly onFetchSiteRefused?: FetchSiteRefused;
+  /** The preview origin, when its listener is up: the app's only `frame-src` (spec UX-2 §4). Null or absent: no frame at all. */
+  readonly frameSrc?: string | null;
   mount(app: Hono): void;
   wsProbe(c: Context): Response | Promise<Response>;
 }
@@ -45,35 +51,20 @@ const CONTENT_SECURITY_POLICY = {
   objectSrc: ["'none'"],
 };
 
+/** A `frame-src` value is an exact origin or nothing: anything else (a path, a wildcard, a second source) fails closed. */
+function exactOrigin(value: string | null | undefined): value is string {
+  if (value == null || /[*\s;,'"]/.test(value)) return false;
+  try {
+    return new URL(value).origin === value;
+  } catch {
+    return false;
+  }
+}
+
 // The token of an export download is a credential until it is used: it is never logged.
 const loggablePath = (path: string): string => path.replace(/(\/export\/)[^/]+$/, "$1[redacted]");
 
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
-
-// Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
-// API path cannot be masked by the SPA fallback (R78).
-const RESERVED_PREFIXES = [
-  "/auth",
-  "/api",
-  "/files",
-  "/upload",
-  "/hooks",
-  "/metrics",
-  "/ws",
-  "/fonts",
-  "/github",
-];
-function isReserved(path: string): boolean {
-  const forms = [path];
-  try {
-    forms.push(decodeURIComponent(path));
-  } catch {
-    // An undecodable path is refused by the static handler anyway.
-  }
-  return forms.some((form) =>
-    RESERVED_PREFIXES.some((prefix) => form === prefix || form.startsWith(`${prefix}/`)),
-  );
-}
 
 // Scheme and client address come from the socket only: no X-Forwarded-* / Forwarded header is read (R72).
 export function createHttpApp(options: HttpAppOptions): Hono {
@@ -89,10 +80,13 @@ export function createHttpApp(options: HttpAppOptions): Hono {
   app.use(
     "*",
     secureHeaders({
-      contentSecurityPolicy: CONTENT_SECURITY_POLICY,
+      contentSecurityPolicy: exactOrigin(options.frameSrc)
+        ? { ...CONTENT_SECURITY_POLICY, frameSrc: [options.frameSrc] }
+        : CONTENT_SECURITY_POLICY,
       strictTransportSecurity: options.servesTls === true ? HSTS : false,
     }),
   );
+  app.use("*", fetchSiteGuard(options.onFetchSiteRefused));
   app.use("*", originGuard(options.allowedOrigins, options.onOriginRefused, isHookRequest));
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   options.mount(app);

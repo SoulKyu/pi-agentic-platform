@@ -35,6 +35,7 @@ export const unitWith = (over: Partial<ParsedUnit> = {}): ParsedUnit => ({
   env: {},
   tls: false,
   insecureHttp: false,
+  previewPort: null,
   ...over,
 });
 

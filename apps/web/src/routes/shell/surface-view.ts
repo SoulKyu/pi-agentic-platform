@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 /** What a phone shows of a session tab: its chat, or the item the tab is split with (M8R72). */
-export type SurfaceView = "chat" | "review" | "term" | "files";
+export type SurfaceView = "chat" | "review" | "term" | "files" | "preview";
 
 interface SurfaceViewState {
   readonly tabKey: string | null;

@@ -26,6 +26,7 @@ export const REQUIRED_FILES = [
   "bin/gh",
   "bin/pap-git-credential",
   "bin/pap-ssh-sign",
+  "dist/guest/services/ns-dialer.js",
 ] as const;
 /** `pnpm deploy` copies these beside `dist`; the image needs none of them. */
 const PRUNED = ["src", "dist-agent", "tsconfig.json", "tsconfig.build.json", "pnpm-lock.yaml"] as const;

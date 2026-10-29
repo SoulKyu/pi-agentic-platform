@@ -74,8 +74,6 @@ export interface GithubService {
    * keeps the ticket for a retry; another user spends it and is refused.
    */
   finishAuthorize(ticket: string, userId: string | null): CallbackOutcome;
-  /** `GET /github/app/authorize`: the GitHub URL to sign in at (back to the App's own origin), or null without an App. */
-  reconnectUrl(userId: string): string | null;
   readonly webOrigin: string;
 }
 
@@ -199,7 +197,6 @@ export function createGithubService(deps: GithubServiceDeps): GithubService {
         manifest: buildManifest(origin, appName(deps.hostLabel)),
       };
     },
-    reconnectUrl: (userId) => authorizeUrlOf(userId),
     async completeCreate(code, state) {
       const entry = states.take(state, "created");
       if (!entry || entry.data === null || !CODE.test(code) || appSecrets.load()) return { kind: "refused" };

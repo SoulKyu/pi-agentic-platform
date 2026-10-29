@@ -8,11 +8,12 @@ import {
   PapError,
   SessionFileName,
 } from "@pap/contracts";
-import type { BoxPtyChannel } from "../../kernel/boxes.ts";
+import type { BoxPtyChannel, BoxTunnelChannel } from "../../kernel/boxes.ts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { classifyExit } from "../../kernel/supervisor/exit.ts";
 import { createGuestPtys, type TerminalConnection, type TerminalRefusal } from "./guest-ptys.ts";
+import { createGuestTunnels, type TunnelConnection, type TunnelRefusal } from "./guest-tunnels.ts";
 import {
   createVmWorker,
   type MirrorPort,
@@ -34,6 +35,10 @@ export interface GuestLink {
   sendOp(id: string, op: BoxOp): boolean;
   /** Asks the guest for a pty in a folder of the project; resolves once its terminal connection said hello (lot B2). */
   openTerminal(input: { cwd: string; cols: number; rows: number }): Promise<BoxPtyChannel>;
+  /** Asks the guest for a tunnel to a running service; resolves once its `tunnel` hello was accepted (UX-2 §6). */
+  openTunnel(input: { service: string }): Promise<BoxTunnelChannel>;
+  /** Every `service` report the guest sends (a service ended by itself), until the returned function is called. */
+  onServiceReport(listener: (report: Extract<GuestReport, { type: "service" }>) => void): () => void;
   /** Every `op_result` the guest sends, until the returned function is called. */
   onOpResult(listener: (result: OpResult) => void): () => void;
   readonly closed: Promise<void>;
@@ -58,6 +63,8 @@ export interface GuestLinkInternals {
     hello: Extract<Hello, { role: "terminal" }>,
     wire: Wire,
   ): TerminalConnection | TerminalRefusal;
+  /** A tunnel's hello on a new connection of this launch: the slot must have been asked by an `openTunnel`. */
+  acceptTunnel(hello: Extract<Hello, { role: "tunnel" }>, wire: Wire): TunnelConnection | TunnelRefusal;
   /** One frame from the guest's own connection (not a ping or pong). */
   frame(raw: unknown): void;
   /** The guest's connection closed. */
@@ -93,7 +100,9 @@ export function createGuestLink(deps: {
   let isClosed = false;
   let dropped = 0;
   const ptys = createGuestPtys({ clock, logger, box, wire });
+  const tunnels = createGuestTunnels({ clock, logger, box, wire });
   const opListeners = new Set<(result: OpResult) => void>();
+  const serviceListeners = new Set<(report: Extract<GuestReport, { type: "service" }>) => void>();
   let markClosed: () => void = () => {};
   const closedPromise = new Promise<void>((resolve) => {
     markClosed = resolve;
@@ -146,6 +155,11 @@ export function createGuestLink(deps: {
       wire.send({ type: "shutdown" } satisfies GuestCommand);
     },
     openTerminal: (input) => ptys.open(input),
+    openTunnel: (input) => tunnels.open(input.service),
+    onServiceReport(listener) {
+      serviceListeners.add(listener);
+      return () => void serviceListeners.delete(listener);
+    },
     sendOp: (id, op) => !isClosed && wire.send({ type: "op", id, op } satisfies GuestCommand),
     onOpResult(listener) {
       opListeners.add(listener);
@@ -206,6 +220,7 @@ export function createGuestLink(deps: {
       return { frame: (raw) => worker.receive(raw), closed: () => worker.wireClosed() };
     },
     acceptTerminal: (hello, terminalWire) => ptys.accept(hello, terminalWire),
+    acceptTunnel: (hello, tunnelWire) => tunnels.accept(hello, tunnelWire),
     frame(raw) {
       const report = GuestReport.safeParse(raw);
       if (!report.success) {
@@ -217,8 +232,13 @@ export function createGuestLink(deps: {
         for (const listener of [...opListeners]) listener(report.data);
         return;
       }
+      if (report.data.type === "service") {
+        for (const listener of [...serviceListeners]) listener(report.data);
+        return;
+      }
       if (report.data.type !== "exited") return;
       if (ptys.refused(report.data.slot, report.data.tail)) return;
+      if (tunnels.refused(report.data.slot)) return;
       const entry = slots.get(report.data.slot);
       if (entry === undefined || entry === USED) return;
       const { code, signal: name, tail } = report.data;
@@ -230,6 +250,7 @@ export function createGuestLink(deps: {
       if (isClosed) return;
       isClosed = true;
       ptys.closed();
+      tunnels.closed();
       for (const entry of slots.values()) {
         if (entry === USED) continue;
         entry.worker?.guestGone();

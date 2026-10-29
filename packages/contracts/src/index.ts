@@ -107,3 +107,8 @@ export * from "./health.ts";
 export * from "./health-methods.ts";
 export * from "./launches.ts";
 export * from "./launches-methods.ts";
+export * from "./box-service-ops.ts";
+export * from "./fences.ts";
+export * from "./preview-service.ts";
+export * from "./previews-methods.ts";
+export * from "./tunnel-frames.ts";

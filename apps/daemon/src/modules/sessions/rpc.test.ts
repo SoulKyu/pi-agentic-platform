@@ -15,6 +15,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     shellSnapshot: vi.fn(),
     listArchived: vi.fn(() => ({ sessions: [], hasMore: false })),
     summary: vi.fn(() => null),
+    entryText: vi.fn(async () => null),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
     reopen: vi.fn(async () => {}),

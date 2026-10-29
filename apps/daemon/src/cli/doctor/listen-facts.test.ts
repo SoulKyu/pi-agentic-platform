@@ -25,6 +25,7 @@ const unit = (over: Partial<ParsedUnit> = {}): ParsedUnit => ({
   env: {},
   tls: false,
   insecureHttp: false,
+  previewPort: null,
   ...over,
 });
 
@@ -34,6 +35,7 @@ const argvOf = (u: ParsedUnit | null): string[] => [
   ...(u?.host == null ? [] : ["--host", u.host]),
   ...(u?.tls ? ["--tls-cert", cert, "--tls-key", key] : []),
   ...(u?.insecureHttp ? ["--insecure-http"] : []),
+  ...(u?.previewPort == null ? [] : ["--preview-port", String(u.previewPort)]),
 ];
 
 function real(u: ParsedUnit | null, shell: NodeJS.ProcessEnv) {
@@ -47,7 +49,12 @@ function real(u: ParsedUnit | null, shell: NodeJS.ProcessEnv) {
     piHostExecArgv: [],
     staticRoot: null,
   });
-  return { publicOrigin: config.publicOrigin, tls: config.tls !== null, insecureHttp: config.insecureHttp };
+  return {
+    publicOrigin: config.publicOrigin,
+    tls: config.tls !== null,
+    insecureHttp: config.insecureHttp,
+    previewPort: config.previewPort,
+  };
 }
 
 const cases: Array<[string, ParsedUnit | null, NodeJS.ProcessEnv]> = [
@@ -75,6 +82,21 @@ const cases: Array<[string, ParsedUnit | null, NodeJS.ProcessEnv]> = [
   ["a shell origin is ignored when a unit exists", unit(), { PAP_PUBLIC_ORIGIN: "https://shell.example" }],
   ["an empty PAP_PUBLIC_ORIGIN", unit({ env: { PAP_PUBLIC_ORIGIN: "" } }), {}],
   ["a drop-in --insecure-http", unit({ insecureHttp: true, host: "192.0.2.5" }), {}],
+  ["--preview-port 9001", unit({ previewPort: 9001 }), {}],
+  ["--preview-port beside --port", unit({ port: 7800, previewPort: 9001 }), {}],
+  ["PAP_PREVIEW_PORT in the unit environment", unit({ env: { PAP_PREVIEW_PORT: "9100" } }), {}],
+  [
+    "--preview-port beats PAP_PREVIEW_PORT",
+    unit({ previewPort: 9001, env: { PAP_PREVIEW_PORT: "9100" } }),
+    {},
+  ],
+  ["PAP_PREVIEW_PORT only in the shell, no unit", null, { PAP_PREVIEW_PORT: "9200" }],
+  [
+    "a shell PAP_PREVIEW_PORT is ignored when a unit exists",
+    unit({ port: 7800 }),
+    { PAP_PREVIEW_PORT: "9200" },
+  ],
+  ["the default is the main port + 1", unit({ port: 7800 }), {}],
 ];
 
 describe("listenFacts derives like loadConfig", () => {
@@ -87,6 +109,7 @@ describe("listenFacts derives like loadConfig", () => {
       publicOrigin: "http://localhost:7777",
       tls: false,
       insecureHttp: false,
+      previewPort: 7778,
     });
   });
 

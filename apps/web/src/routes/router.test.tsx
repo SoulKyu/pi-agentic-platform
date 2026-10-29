@@ -42,6 +42,20 @@ describe("router", () => {
     await page.unmount();
   });
 
+  it("/preview/project:<uuid>/site is a route (UX2-R79)", async () => {
+    const history = createMemoryHistory({
+      initialEntries: ["/preview/project:0b8f6f6e-1111-4222-8333-444455556666/site"],
+    });
+    const router = createAppRouter(buildRouteTree(Fine), history);
+    await router.load();
+    const match = router.state.matches;
+    expect(match.at(-1)?.routeId).toBe("/preview/$box/$name");
+    expect(match.at(-1)?.params).toEqual({
+      box: "project:0b8f6f6e-1111-4222-8333-444455556666",
+      name: "site",
+    });
+  });
+
   it("declares the routes", () => {
     const router = createAppRouter(buildRouteTree(Fine), createMemoryHistory({ initialEntries: ["/"] }));
     expect(Object.keys(router.routesByPath).sort()).toEqual([
@@ -53,6 +67,7 @@ describe("router", () => {
       "/explore/$root",
       "/lane/$laneId",
       "/n/$id",
+      "/preview/$box/$name",
       "/s/$sessionId",
       "/settings",
       "/settings/$section",

@@ -112,8 +112,8 @@ describe("https", () => {
     );
     await makeHttpsCheck(spy).run(ctx({ unit: null, env: { PAP_PUBLIC_ORIGIN: "https://pap.example" } }));
     expect(seen).toEqual([
-      { publicOrigin: "http://192.0.2.1:7791", tls: false, insecureHttp: true },
-      { publicOrigin: "https://pap.example", tls: false, insecureHttp: false },
+      { publicOrigin: "http://192.0.2.1:7791", tls: false, insecureHttp: true, previewPort: 7792 },
+      { publicOrigin: "https://pap.example", tls: false, insecureHttp: false, previewPort: 7778 },
     ]);
   });
 });

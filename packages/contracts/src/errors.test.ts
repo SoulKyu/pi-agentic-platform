@@ -115,3 +115,13 @@ describe("M12 codes", () => {
     );
   });
 });
+
+describe("UX-2 codes", () => {
+  it("has unavailable with a fixed message", () => {
+    expect(ERROR_CODES).toContain("unavailable");
+    expect(ERROR_CODES.indexOf("unavailable")).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+    expect(new PapError("unavailable").message).toBe(
+      "Previews are not available: pap could not open its preview port. See pap doctor.",
+    );
+  });
+});

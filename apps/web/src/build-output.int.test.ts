@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { createRequire } from "node:module";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -21,6 +22,28 @@ globalThis.Function = new Proxy(Real, {
 });
 await import(process.argv[1]);
 console.log(refused.length);
+`;
+
+// Mermaid reads `document` while it loads: the same refusal, run over every chunk of its closure in one process, with a
+// happy-dom window in place. Prints one JSON line: the chunks that asked for eval (or failed to load) and how often.
+const MERMAID_PROBE = `
+const { Window } = await import(process.argv[1]);
+const win = new Window({ url: "https://pap.test/" });
+for (const key of ["document", "navigator", "location", "Element", "HTMLElement", "SVGElement", "Node", "DOMParser", "XMLSerializer", "getComputedStyle", "MutationObserver"]) { try { globalThis[key] = win[key]; } catch { /* a getter-only global of Node */ } }
+globalThis.window = win;
+let refused = 0;
+const Real = globalThis.Function;
+globalThis.Function = new Proxy(Real, {
+  apply(target, self, args) { if (args.length) { refused += 1; throw new EvalError("refused"); } return Reflect.apply(target, self, args); },
+  construct(target, args, newTarget) { if (args.length) { refused += 1; throw new EvalError("refused"); } return Reflect.construct(target, args, newTarget); },
+});
+const bad = {};
+for (const file of JSON.parse(process.argv[2])) {
+  refused = 0;
+  try { await import(file); } catch (failure) { bad[file] = String(failure).slice(0, 120); continue; }
+  if (refused > 0) bad[file] = refused;
+}
+console.log(JSON.stringify(bad));
 `;
 
 const webRoot = resolve(import.meta.dirname, "..");
@@ -92,7 +115,7 @@ describe("the built web app under the daemon's CSP", () => {
   });
 
   it("serves Manrope and JetBrains Mono as woff2 files, never inlined as data: URIs", async () => {
-    const fonts = assets.filter((name) => name.endsWith(".woff2"));
+    const fonts = assets.filter((name) => name.endsWith(".woff2") && !name.startsWith("KaTeX_"));
     expect(fonts.map((name) => name.replace(/-[\w-]{8}\.woff2$/, "")).sort()).toEqual([
       "jetbrains-mono-latin-ext-wght-normal",
       "jetbrains-mono-latin-wght-normal",
@@ -107,6 +130,27 @@ describe("the built web app under the daemon's CSP", () => {
     expect(css).not.toContain("data:");
     expect(css).toMatch(/font-family:\s*"?Manrope"?/);
     expect(css).toMatch(/font-family:\s*"?JetBrains Mono"?/);
+  });
+
+  // KaTeX's fonts ship as woff2 files only (katexFonts), never inlined (UX2-R47), reached only from the lazy math chunk's CSS.
+  it("serves KaTeX's fonts as files from a lazy stylesheet, never inlined and never initial (UX2-R47)", async () => {
+    const initial = new Set([...html.matchAll(/href="\/assets\/([^"]+\.css)"/g)].map((m) => m[1] ?? ""));
+    const sheets = new Map<string, string>();
+    for (const name of assets.filter((asset) => asset.endsWith(".css")))
+      sheets.set(name, await readFile(join(out, "assets", name), "utf8"));
+    const katexSheets = [...sheets].filter(([, text]) => /@font-face\{[^}]*KaTeX_Main/u.test(text));
+    expect(katexSheets.length).toBe(1);
+    for (const [name, text] of katexSheets) {
+      expect(initial.has(name), name).toBe(false);
+      expect(text).not.toContain("data:");
+      const urls = [...text.matchAll(/url\(\/assets\/(KaTeX_[^)]+\.woff2)\)/gu)].map((m) => m[1] ?? "");
+      expect(urls.length).toBeGreaterThan(0);
+      for (const file of urls) expect(assets, file).toContain(file);
+      expect(assets.filter((name) => name.startsWith("KaTeX_") && !name.endsWith(".woff2"))).toEqual([]);
+    }
+    for (const name of initial) expect(sheets.get(name) ?? "", name).not.toMatch(/KaTeX_|\.katex\b/u);
+    expect(css).toMatch(/\.contain-rich\s*\{[^}]*contain:\s*paint/u);
+    expect(css).toMatch(/\.contain-rich-inline\s*\{[^}]*contain:\s*paint/u);
   });
 
   it("ships CSS without native nesting, which Safari 16.4 cannot read", () => {
@@ -136,6 +180,49 @@ describe("the built web app under the daemon's CSP", () => {
       expect(stdout.trim(), name).toBe("0");
     }
   });
+
+  // UX2-R49, R84: Mermaid's core and its diagram types are lazy chunks, none in an initial file, and none asks for string
+  // evaluation while it loads (a core that did would stop the task: the app CSP has no 'unsafe-eval'). Drawing is checked
+  // in a browser by J18. The closure stops at the renderer's chunk and the shared one: it is the lazy side only.
+  it("loads every Mermaid chunk with string evaluation refused, and keeps Mermaid out of the initial assets (UX2-R49)", async () => {
+    const initial = new Set(
+      [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? ""),
+    );
+    const text = new Map<string, string>();
+    for (const name of assets.filter((asset) => asset.endsWith(".js")))
+      text.set(name, await readFile(join(out, "assets", name), "utf8"));
+    const roots = [...text].filter(
+      ([, code]) => /securityLevel/.test(code) && code.includes("ui-sans-serif, system-ui, sans-serif"),
+    );
+    expect(roots.length).toBeGreaterThan(0);
+    const closure = new Set<string>();
+    const queue = roots.map(([name]) => name);
+    for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
+      const code = text.get(name);
+      if (code === undefined || closure.has(name) || initial.has(name) || code.includes("data-markdown-body"))
+        continue;
+      closure.add(name);
+      for (const match of code.matchAll(/["'`]\.\/([^"'`]+\.js)["'`]/g)) queue.push(match[1] ?? "");
+    }
+    // The core and the diagram types (flowchart, sequence, class, state, gantt among them).
+    expect(closure.size).toBeGreaterThan(20);
+    for (const name of closure) expect(initial.has(name), name).toBe(false);
+    for (const type of ["flowDiagram", "sequenceDiagram", "classDiagram", "stateDiagram", "ganttDiagram"])
+      expect(
+        [...closure].some((name) => name.startsWith(type)),
+        type,
+      ).toBe(true);
+    const happyDom = pathToFileURL(createRequire(join(repoRoot, "package.json")).resolve("happy-dom")).href;
+    const files = JSON.stringify(
+      [...closure].sort().map((name) => pathToFileURL(join(out, "assets", name)).href),
+    );
+    const { stdout } = await run(
+      process.execPath,
+      ["--input-type=module", "-e", MERMAID_PROBE, happyDom, files],
+      { cwd: out, maxBuffer: 1 << 20 },
+    );
+    expect(JSON.parse(stdout.trim().split("\n").at(-1) ?? "{}")).toEqual({});
+  }, 120_000);
 
   it("keeps the initial JavaScript and CSS within the declared gzip budget", async () => {
     const budget = (

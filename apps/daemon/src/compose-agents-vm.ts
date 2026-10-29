@@ -30,7 +30,9 @@ import {
   createLaunchRegistry,
   createLaunchTokens,
   createProcessBackend,
+  createStderrRedactor,
   observedBackend,
+  redactionSource,
   relayListenOf,
 } from "./modules/agent-vm/index.ts";
 import type { AgentsPort } from "./modules/agents/index.ts";
@@ -353,6 +355,8 @@ export async function composeAgentsVm(
       forgetKept: agentLink.forgetKept,
       bindCrashPause: (handler) => void (crashPause = handler),
       bindRefusals: proxy.bindRefusals,
+      redact: createStderrRedactor({ clock, collect: redactionSource(ownerSecrets) }),
+      hostsOf: proxy.hostsOf,
     };
     seams.expose?.(composed);
     return composed;

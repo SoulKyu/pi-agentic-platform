@@ -2,7 +2,11 @@ import { cn, FOCUS_RING } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { useRole } from "../../lib/role-context.ts";
 import { reportClientIssue } from "../../lib/report.ts";
+import { boxOfSession, runningOf } from "../../features/previews/preview-box.ts";
+import { targetOf } from "../../features/previews/previews.vm.ts";
+import { usePreviewsStore } from "../../stores/previews-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { openPreview } from "./preview-tab.ts";
 import { placeOf, showSurface, terminalAllowed, useTerminalFeed } from "./surface.ts";
 import { useReplyPort } from "./reply-port-host.ts";
 import { useSurfaceView, useTerminalReady } from "./surface-view.ts";
@@ -15,7 +19,7 @@ export const surfaceItemClass = (current: boolean): string =>
     FOCUS_RING,
   );
 
-export type SwitchChoice = "chat" | "review" | "term";
+export type SwitchChoice = "chat" | "review" | "term" | "preview";
 
 interface SurfaceSwitchProps {
   readonly tabKey: string;
@@ -35,9 +39,20 @@ export function SurfaceSwitch({ tabKey, sessionId, selected }: SurfaceSwitchProp
     useShellStore((state) => state.view),
     sessionId,
   );
+  // The Preview entry shows while a service of the session's box runs, and while the preview is what the pane shows.
+  const boxId = useShellStore((state) => boxOfSession(state.view, sessionId)?.id ?? null);
+  const services = usePreviewsStore((state) => state.services);
+  const previewsReady = usePreviewsStore((state) => state.ready);
+  const runningName =
+    boxId === null || !previewsReady
+      ? undefined
+      : runningOf(services, { kind: "project", id: boxId })[0]?.name;
   const choose = (choice: SwitchChoice | "files") => {
     if (choice === "chat") useSurfaceView.getState().show(tabKey, "chat");
-    else if (choice !== "files")
+    else if (choice === "preview") {
+      if (boxId !== null && runningName !== undefined)
+        openPreview(targetOf({ kind: "project", id: boxId }, runningName));
+    } else if (choice !== "files")
       showSurface(tabKey, sessionId, choice === "review" ? "changes" : "terminal").catch(() =>
         reportClientIssue("command_failed"),
       );
@@ -55,6 +70,9 @@ export function SurfaceSwitch({ tabKey, sessionId, selected }: SurfaceSwitchProp
             busy: !ready,
           },
         ]
+      : []),
+    ...(runningName !== undefined || selected === "preview"
+      ? [{ id: "preview" as const, label: t("previews.surface"), off: false }]
       : []),
     ...(selected === "files" ? [{ id: "files" as const, label: t("shell.surface.files"), off: false }] : []),
   ];

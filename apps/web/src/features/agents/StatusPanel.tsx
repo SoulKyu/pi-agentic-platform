@@ -26,6 +26,7 @@ import {
   type TriggerRowVm,
 } from "./status.vm.ts";
 import { papText } from "../../i18n/pap-text.ts";
+import { ServicesList } from "../previews/ServicesList.tsx";
 import { ExtensionOverrideNote } from "./ExtensionOverrideNote.tsx";
 import { LifecycleChip } from "./LifecycleChip.tsx";
 import { useAgentLifecycle } from "./use-agent-lifecycle.ts";
@@ -91,6 +92,7 @@ export function StatusPanel(props: StatusPanelProps) {
         </div>
       ) : null}
       {load.kind === "ready" ? <Body {...props} status={load.status} /> : null}
+      <ServicesList box={{ kind: "agent", id: props.agentId }} />
     </section>
   );
 }

@@ -34,6 +34,12 @@ import { type SessionKind, sessionKind } from "./session-kind.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { VmLaunch } from "./vm-launch.ts";
 
+const BOX_OR_THREAD_OPS: ReadonlySet<PlatformOp> = new Set([
+  "network.request",
+  "preview.start",
+  "preview.stop",
+]);
+
 const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
 
 /** What later modules hand the sessions module once they exist (before any worker starts): `setAgentPorts` fills it. */
@@ -69,6 +75,8 @@ export interface AgentSurface {
   /** A worker started with this profile and keeps it until it exits (M11R47, W5-R26). */
   started(sessionId: string, profile: AgentProfile): void;
   ended(sessionId: string): void;
+  /** UX2-R68: the network the session's shell started with (its start-time profile); null when no worker started it. */
+  shellNetwork(sessionId: string): boolean | null;
   /** The session has a live worker started by the gate (every agent session is a VM one): the workers a vault reaches. */
   sandboxed(sessionId: string): boolean;
   /** R38: the worker's shell is pap's bwrap in the VM. */
@@ -207,11 +215,11 @@ export function createAgentSurface(deps: {
       try {
         const { type } = sessionKind(row, kindDeps);
         const inBox = projectRefOf(row) !== null;
-        // `network.request` is open to the sessions of a project box and to agent threads, never to a host row.
+        // `network.request` and the preview ops are open to the sessions of a project box and to agent threads, never to a host row.
         return opsFor(type).filter(
           (op) =>
             platform.available(op, row.ownerId) &&
-            (op !== "network.request" || type === "agent-thread" || inBox),
+            (!BOX_OR_THREAD_OPS.has(op) || type === "agent-thread" || inBox),
         );
       } catch (error) {
         // Fail closed: a worker whose type cannot be read starts without platform tools.
@@ -253,6 +261,7 @@ export function createAgentSurface(deps: {
     profileOf,
     started: (sessionId, profile) => void startTime.set(sessionId, profile),
     ended: (sessionId) => void startTime.delete(sessionId),
+    shellNetwork: (sessionId) => startTime.get(sessionId)?.input.sandbox.network ?? null,
     // Every agent session runs in a VM with pap's own shell, whatever its profile's retired sandbox switch says (ADR 0081).
     sandboxed: (sessionId) => startTime.has(sessionId),
     shellSandboxed: (sessionId) => startTime.has(sessionId),

@@ -146,6 +146,9 @@ const DESCRIPTIONS: Readonly<Record<PlatformOp, string>> = {
     "Ask the owner to allow one exact host (such as api.example.com) for your shell's network until this thread is reset. Use it when the network refused a host.",
   "subagent.run":
     "Run a task in a separate child session and get its final answer back. Give it everything it needs: it does not see this conversation.",
+  "preview.start":
+    "Start a small web server in your VM as a named service the owner can open as a preview inside pap. Give a command that stays in the foreground (for example `python3 -m http.server 8000`) and the port it listens on (1024 to 65535, not 7841 to 7843). It runs in your shell's sandbox with your shell's network, keeps running after this call, and stops when your VM stops. Starting a name that runs restarts it. The page is served under a path prefix: use relative links; logins by cookie or Authorization header do not work in a preview. You never get its address: the owner opens it.",
+  "preview.stop": "Stop a preview service you started, by its name.",
 };
 
 const one = (max: number) => Type.String({ minLength: 1, maxLength: max });
@@ -177,6 +180,18 @@ const PARAMETERS = {
       task: one(8000),
       profile: Type.Optional(Type.String({ pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" })),
     },
+    { additionalProperties: false },
+  ),
+  "preview.start": Type.Object(
+    {
+      name: Type.String({ pattern: "^[a-z0-9-]{1,32}$" }),
+      command: one(4096),
+      port: Type.Integer({ minimum: 1024, maximum: 65_535 }),
+    },
+    { additionalProperties: false },
+  ),
+  "preview.stop": Type.Object(
+    { name: Type.String({ pattern: "^[a-z0-9-]{1,32}$" }) },
     { additionalProperties: false },
   ),
 } as const satisfies Record<PlatformOp, unknown>;

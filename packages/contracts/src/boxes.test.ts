@@ -19,6 +19,7 @@ import { ERROR_CODES, ERROR_MESSAGES } from "./errors.ts";
 import { FILE_CHUNK_BYTES } from "./agents-vm.ts";
 
 const ID = "6f1c2f0e-8f5b-4b53-9a52-0d2f4a4c7d11";
+const NO_PREVIEW = { preview: null, previewInvalid: false };
 const PUT = {
   name: "fs.put",
   id: "a".repeat(32),
@@ -108,6 +109,11 @@ describe("box ops", () => {
       { name: "github.token", token: "ghs_x", expiresAt: "2026-10-24T10:00:00Z" },
       { name: "github.identity", login: "o", displayName: "o", email: "1+o@users.noreply.github.com" },
       { name: "github.forgetKey" },
+      { name: "svc.start", service: "s", command: "x", port: 8000, network: false },
+      { name: "svc.restart", service: "s" },
+      { name: "svc.stop", service: "s" },
+      { name: "svc.list" },
+      { name: "svc.logs", service: "s" },
     ];
     expect(new Set(valid.map((op) => (op as { name: string }).name))).toEqual(
       new Set(Object.keys(BOX_OP_RESULTS)),
@@ -134,13 +140,16 @@ describe("box ops", () => {
     );
     expect(BOX_OP_RESULTS["knowledge.state"].safeParse({ enabled: false, concepts: 0 }).success).toBe(true);
     expect(BOX_OP_RESULTS["knowledge.enable"].safeParse({ enabled: false }).success).toBe(false);
-    expect(BOX_OP_RESULTS["project.config"].safeParse({ packages: ["jq"], error: null }).success).toBe(true);
     expect(
-      BOX_OP_RESULTS["project.config"].safeParse({ packages: null, error: "bad_packages" }).success,
+      BOX_OP_RESULTS["project.config"].safeParse({ ...NO_PREVIEW, packages: ["jq"], error: null }).success,
     ).toBe(true);
-    expect(BOX_OP_RESULTS["project.config"].safeParse({ packages: null, error: "other" }).success).toBe(
-      false,
-    );
+    expect(
+      BOX_OP_RESULTS["project.config"].safeParse({ ...NO_PREVIEW, packages: null, error: "bad_packages" })
+        .success,
+    ).toBe(true);
+    expect(
+      BOX_OP_RESULTS["project.config"].safeParse({ ...NO_PREVIEW, packages: null, error: "other" }).success,
+    ).toBe(false);
   });
 });
 

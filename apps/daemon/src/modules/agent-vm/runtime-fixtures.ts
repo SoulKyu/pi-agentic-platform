@@ -80,6 +80,8 @@ export function fakeGuest(order: string[]): FakeGuest {
     },
     shutdown,
     openTerminal: () => Promise.reject(new Error("unused")),
+    openTunnel: () => Promise.reject(new Error("unused")),
+    onServiceReport: () => () => undefined,
     sendOp: () => false,
     onOpResult: () => () => undefined,
     closed,

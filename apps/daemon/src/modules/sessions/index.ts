@@ -1,7 +1,7 @@
 import { freemem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ApprovalMode } from "@pap/contracts";
+import type { ApprovalMode, Caller } from "@pap/contracts";
 import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
@@ -162,6 +162,8 @@ export interface SessionsModule {
   readonly agentSessions: SessionsAgentPort;
   /** What the subagents module may do to the child sessions of a parent (M11R136). */
   readonly child: SessionsChildPort;
+  /** The assistant text of a transcript entry of the caller's session, read by the daemon for an HTML artifact (UX2-R33). */
+  readonly entryText: (sessionId: string, entryId: string, caller: Caller) => Promise<string | null>;
   /** The mode in force for a session (the effective mode of an agent thread): what the usage resume reads (M10R104). */
   readonly modeOf: (ownerId: string, sessionId: string) => ApprovalMode;
   /** Owner a5: an agent thread whose sandbox is on now and at its worker's start (the usage resume reads it). */
@@ -175,6 +177,8 @@ export interface SessionsModule {
   readonly hostGrants: Pick<AgentSurface["hostGrants"], "has" | "of">;
   /** The project box a session runs in and its host list now; null for a host session (`network.request`, task A7). */
   readonly projectBoxOf: AgentSurface["projectBoxOfSession"];
+  /** The network a session's shell started with (UX2-R68), from its start-time profile; null without a worker. */
+  readonly shellNetwork: AgentSurface["shellNetwork"];
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -333,6 +337,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     ownerCascade: service.ownerCascade,
     agentSessions: service.agentSessions,
     child: service.child,
+    entryText: service.entryText,
     modeOf: service.modeOf,
     sandboxedThread: service.agent.sandboxedThread,
     kindOf: service.agent.kindOf,
@@ -340,5 +345,6 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     setAgentPorts: service.agent.setAgentPorts,
     hostGrants: service.agent.hostGrants,
     projectBoxOf: service.agent.projectBoxOfSession,
+    shellNetwork: service.agent.shellNetwork,
   };
 }

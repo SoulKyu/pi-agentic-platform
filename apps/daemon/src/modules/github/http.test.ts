@@ -259,16 +259,9 @@ describe("the install link and GET /github/app/authorized", () => {
     expect(bed.core.userTokens.state("owner-1")).toBe("none");
   });
 
-  it("GET /github/app/authorize redirects a signed-in owner to GitHub with a fresh state", async () => {
+  it("GET /github/app/authorize is gone: a sign-in starts from github.authorizeUrl only (decision 139)", async () => {
     await created();
-    expect((await get("/github/app/authorize")).status).toBe(401);
-    const response = await get("/github/app/authorize", COOKIE);
-    expect(response.status).toBe(302);
-    const target = new URL(response.headers.get("location") ?? "");
-    expect(target.origin + target.pathname).toBe(`${bed.fake.origin}/login/oauth/authorize`);
-    expect(target.searchParams.get("client_id")).toBe("Iv1.fake");
-    expect(target.searchParams.get("redirect_uri")).toBe(`${PAP_ORIGIN}/github/app/authorized`);
-    expect(target.searchParams.get("state")).toMatch(/^[0-9a-f]{32}$/);
+    expect((await get("/github/app/authorize", COOKIE)).status).toBe(404);
   });
 
   it("keeps other /github paths out of the SPA", async () => {

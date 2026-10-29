@@ -3,6 +3,7 @@ import type { Fetcher } from "./compose-fonts.ts";
 import type { PushSeams } from "./compose-push.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
+import type { PreviewRegistry } from "./modules/previews/index.ts";
 import type { WorkerExit } from "./kernel/supervisor/exit.ts";
 import type { probeScopes } from "./kernel/supervisor/scope.ts";
 
@@ -18,6 +19,8 @@ export interface DaemonHandle {
     sessionCost(sessionId: string): number | null;
     /** Tests: every route the HTTP app serves, as `METHOD /path` (the M14 route classification). */
     routes(): string[];
+    /** Tests: the previews registry, null without a VM stack. */
+    previews(): PreviewRegistry | null;
   };
   /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
   stop(): Promise<void>;
