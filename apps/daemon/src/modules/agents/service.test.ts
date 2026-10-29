@@ -103,17 +103,15 @@ describe("create (M11R46)", () => {
     );
   });
 
-  it("refuses a profile too large for its column (bad_request) and leaves nothing", async () => {
+  it("refuses a profile whose view would not fit a list page (bad_request) and leaves nothing; a long role fits", async () => {
     bed = createAgentsBed();
-    const hosts = Array.from(
-      { length: 100 },
-      (_, n) => `${"h".repeat(40)}${n}.${"d".repeat(60)}.example.com`,
-    );
-    const denylist = Array.from({ length: 50 }, (_, n) => `${n}${"x".repeat(250)}`);
-    const input = agentInput({ role: "r".repeat(8000), allowHosts: hosts, denylist });
-    expect(await refusalOf(() => bed.agents.create(bed.owner(), input))).toBe("bad_request");
+    const huge = agentInput({ role: "r".repeat(900_000) });
+    expect(await refusalOf(() => bed.agents.create(bed.owner(), huge))).toBe("bad_request");
     expect(rowCount()).toBe(0);
     expect(existsSync(join(bed.papHome, "agents"))).toBe(false);
+    const view = await bed.agents.create(bed.owner(), agentInput({ role: "r".repeat(100_000) }));
+    expect(view.input?.role).toHaveLength(100_000);
+    expect(bed.agents.list(bed.owner()).agents.map((agent) => agent.id)).toEqual([view.id]);
   });
 
   it("tries another id when the home exists", async () => {

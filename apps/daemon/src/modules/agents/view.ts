@@ -12,12 +12,14 @@ import type { AgentRecord } from "./store.ts";
 
 const VIEW_ENVELOPE_BYTES = sizeOf({ agents: [], truncated: true });
 
-const PROFILE_MAX_CHARS = 32_768;
+// The role has no cap of its own (decision 142), but a view must fit one list page alone (`agents.list`, the agents
+// stream): a bigger profile could be saved and never listed. The margin covers the view's other fields.
+const PROFILE_MAX_BYTES = PAGE_BYTES - 4_096;
 
-/** The profile as stored: the input as JSON, refused `bad_request` past the column's cap. */
+/** The profile as stored: the input as JSON, refused `bad_request` when its view would not fit a page. */
 export function profileOf(input: AgentInput): string {
   const profile = JSON.stringify(input);
-  if (profile.length > PROFILE_MAX_CHARS) throw new PapError("bad_request");
+  if (Buffer.byteLength(profile) > PROFILE_MAX_BYTES) throw new PapError("bad_request");
   return profile;
 }
 
