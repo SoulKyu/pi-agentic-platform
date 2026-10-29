@@ -17,6 +17,7 @@ import { useInboxStore } from "../../../stores/inbox-store.ts";
 import "../register-policy-catalog.ts";
 import { AlwaysScopeChoice, scopesOffered } from "./AlwaysScopeChoice.tsx";
 import { MarkLocal } from "./MarkLocal.tsx";
+import { rulesOf } from "./mark-local.ts";
 import { TaintCauseLine } from "./TaintCauseLine.tsx";
 import { withoutSessionCd } from "./session-cd.ts";
 import { timeoutLine } from "./request-frame.tsx";
@@ -77,13 +78,17 @@ export function ApprovalCardFor(props: {
   const withoutCd = dialog.tool === "bash" ? withoutSessionCd(body, props.cwd) : null;
   const bodyText = useClipped(withoutCd === null || fullCommand ? body : withoutCd, BODY_LIMITS);
   const causes = dialog.tainted ? dialog.taintCauses : undefined;
-  const markable =
-    props.sessionId !== undefined &&
-    props.sessionId !== "" &&
+  const causesMarkable =
     causes !== undefined &&
     causes.older === 0 &&
     causes.list.length > 0 &&
     causes.list.every((c) => c.markable);
+  // Decision 143: the asked extension tool of unknown kind can be declared local from its own card too.
+  const localRules =
+    props.sessionId === undefined || props.sessionId === ""
+      ? []
+      : rulesOf([...(causesMarkable ? causes.list : []), ...(dialog.localTool ? [dialog.localTool] : [])]);
+  const markable = localRules.length > 0;
   // The card splits the header off the first line itself; a message of one line has no header and is all body.
   const category = t(`dialog.category.${dialog.category ?? "unknown"}`);
   const bodyLines = bodyText.shown.split("\n").length;
@@ -158,7 +163,7 @@ export function ApprovalCardFor(props: {
               </Button>
             )}
             {markable && props.sessionId !== undefined ? (
-              <MarkLocal sessionId={props.sessionId} causes={causes?.list ?? []} />
+              <MarkLocal sessionId={props.sessionId} rules={localRules} clearsMark={causesMarkable} />
             ) : null}
             {scopes.length > 0 ? (
               <AlwaysScopeChoice dialog={dialog} scopes={scopes} value={scope} onChange={setScope} />

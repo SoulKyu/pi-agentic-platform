@@ -1,31 +1,33 @@
-import type { TaintCause } from "@pap/contracts";
+import type { LocalToolRule } from "@pap/contracts";
 import { Button, InlineError } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { getRuntime } from "../../../runtime/index.ts";
 import "../register-policy-catalog.ts";
 import { useAction } from "../use-action.ts";
-import { markCausesLocal, rulesOf } from "./mark-local.ts";
+import { markLocal } from "./mark-local.ts";
 
 /**
- * "Mark as local tool" on the card of a tainted session whose every cause is a tool the owner can declare local. The
- * confirmation says what the click allows. The pending question is not answered by this: it only stops the next result of
- * these tools from tainting, and lifts this session's mark.
+ * "Mark as local tool" on a card that names tools the owner can declare local: every cause of the session's taint, the
+ * asked extension tool of unknown kind (decision 143), or both. The confirmation says what the click allows. The pending
+ * question is not answered by this: it stops the next calls of these tools from asking and their results from tainting,
+ * and lifts this session's mark when `clearsMark` (the rules cover its every cause).
  */
 export function MarkLocal({
   sessionId,
-  causes,
+  rules,
+  clearsMark,
 }: {
   readonly sessionId: string;
-  readonly causes: readonly TaintCause[];
+  readonly rules: readonly LocalToolRule[];
+  readonly clearsMark: boolean;
 }) {
   const t = useT();
   const [asking, setAsking] = useState(false);
   const [done, setDone] = useState(false);
   const action = useAction();
-  const rules = rulesOf(causes);
   const mark = async () => {
-    const marked = await action.run(() => markCausesLocal(getRuntime().rpc, sessionId, causes));
+    const marked = await action.run(() => markLocal(getRuntime().rpc, sessionId, rules, clearsMark));
     if (!marked) return;
     setAsking(false);
     setDone(true);
@@ -52,6 +54,7 @@ export function MarkLocal({
         >
           <p className="text-ui text-fg">
             {t("sessionPolicy.markLocal.body", { tools: rules.map((rule) => rule.tool).join(", ") })}
+            {clearsMark ? ` ${t("sessionPolicy.markLocal.clears")}` : null}
           </p>
           <ul className="flex flex-col gap-s1 break-all font-mono text-ui text-fg">
             {rules.map((rule) => (

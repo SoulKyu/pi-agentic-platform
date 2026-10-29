@@ -5,6 +5,7 @@ import {
   ApprovalAnswers,
   GrantKey,
   GuardRule,
+  LocalToolRule,
   TOOL_CATEGORIES,
   TrustedHost,
 } from "./policy.ts";
@@ -57,6 +58,8 @@ export const ApprovalRequestRecord = z
     toolCallId: z.string().max(256).optional(),
     /** The host a `host` answer would allow (the `network_request` card); present exactly when `answers` holds `host`. */
     host: TrustedHost.optional(),
+    /** The asked tool is an extension tool of unknown kind: the rule that would declare it local (its exact registered source). */
+    localTool: LocalToolRule.optional(),
   })
   .refine((record) => (record.host !== undefined) === record.answers.includes("host"), {
     message: "a card carries its host exactly when it offers the host answer",

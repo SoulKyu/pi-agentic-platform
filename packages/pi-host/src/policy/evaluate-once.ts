@@ -1,12 +1,12 @@
 import type { ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import type { CallAuditEntry, GuardRule, StageId, ToolCategory } from "@pap/contracts/pi-host";
-import { GUARD_RULES } from "@pap/contracts/pi-host";
+import { GUARD_RULES, LocalToolRule } from "@pap/contracts/pi-host";
 import { autonomous } from "./agent-stage.ts";
 import { alwaysScopesOf, patternGrant, rememberScope, scopeOffered } from "./pattern-grants.ts";
 import { describeCall } from "./describe-call.ts";
 import { GUARD_MODEL_REASON } from "./run-guard.ts";
 import type { CallFacts, PipelineDeps, PolicyContext, PolicyEvent, Stages } from "./pipeline.ts";
-import type { ToolKind } from "./tool-kind.ts";
+import { isMarkableSource, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail } from "./trail.ts";
 import { markAskable, checkStage, type Unchecked, uncheckedCard, uncheckedPlan } from "./unchecked.ts";
 
@@ -170,6 +170,7 @@ export async function evaluateOnce(
       : undefined;
   const askedAt = deps.grants.version();
   const causes = call.tainted ? deps.taint.causes?.() : undefined;
+  const localTool = localToolOf(kind, event.toolName, deps);
   const outcome = await deps.ask(
     {
       category: kind.category,
@@ -191,6 +192,7 @@ export async function evaluateOnce(
         ? { taintCauses: causes }
         : {}),
       ...(trip ? { guard: trip.rule } : {}),
+      ...(localTool === null ? {} : { localTool }),
     },
     ctx.signal,
   );
@@ -219,4 +221,16 @@ export async function evaluateOnce(
     answered: true,
     guardReleased: trip && outcome.answer === "once" ? trip.rule : null,
   });
+}
+
+/**
+ * The rule the card offers to save when the asked tool is an extension tool of unknown kind (decision 143): its name and
+ * exact registered source, as `classifyTool` matches them. A built-in, MCP, platform, sandbox, codemode or tool-search
+ * source never is one, and neither is a pair the contract refuses.
+ */
+function localToolOf(kind: ToolKind, tool: string, deps: PipelineDeps): LocalToolRule | null {
+  const path = deps.toolFacts(tool)?.path;
+  if (kind.category !== "unknown" || path === undefined || !isMarkableSource(path)) return null;
+  const rule = LocalToolRule.safeParse({ tool, source: path });
+  return rule.success ? rule.data : null;
 }

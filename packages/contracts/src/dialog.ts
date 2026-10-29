@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { TaintCauses } from "./taint-cause.ts";
-import { AlwaysScopes, ApprovalAnswers, GuardRule, TOOL_CATEGORIES, TrustedHost } from "./policy.ts";
+import {
+  AlwaysScopes,
+  ApprovalAnswers,
+  GuardRule,
+  LocalToolRule,
+  TOOL_CATEGORIES,
+  TrustedHost,
+} from "./policy.ts";
 
 /** One open question of a session: an extension's dialog or the policy's approval card. */
 export const Dialog = z
@@ -29,6 +36,8 @@ export const Dialog = z
     host: TrustedHost.optional(),
     /** Approval dialogs only: the session runs in a VM, which has no host rule to write, so the card offers no "always" (AVM-E18). */
     vm: z.boolean().optional(),
+    /** Approval dialogs only: the asked tool is an extension tool of unknown kind, and this rule would declare it local. */
+    localTool: LocalToolRule.optional(),
   })
   .superRefine((dialog, ctx) => {
     if ((dialog.host !== undefined) !== (dialog.answers?.includes("host") ?? false)) {

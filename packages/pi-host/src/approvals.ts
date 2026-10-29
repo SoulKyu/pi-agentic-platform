@@ -5,6 +5,7 @@ import {
   type ApprovalAnswer,
   ApprovalRequestRecord,
   type GuardRule,
+  type LocalToolRule,
   type TaintCauses,
   type ToolCategory,
 } from "@pap/contracts/pi-host";
@@ -28,6 +29,8 @@ export interface ApprovalAsk {
   readonly toolCallId?: string | undefined;
   /** The host a `host` answer allows: present exactly when `answers` holds `host`. */
   readonly host?: string | undefined;
+  /** The asked tool is an extension tool of unknown kind: the rule that would declare it local, from its registration. */
+  readonly localTool?: LocalToolRule | undefined;
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;

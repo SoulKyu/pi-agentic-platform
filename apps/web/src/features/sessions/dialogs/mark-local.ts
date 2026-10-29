@@ -1,12 +1,12 @@
-import { DEFAULT_POLICY_SETTINGS, type LocalToolRule, PolicySettings, type TaintCause } from "@pap/contracts";
+import { DEFAULT_POLICY_SETTINGS, type LocalToolRule, PolicySettings } from "@pap/contracts";
 import type { RpcClient } from "../../../runtime/rpc.ts";
 import { failureCode } from "../failure.ts";
 
-/** The distinct tool and source pairs of the causes: what "Mark as local" stores (the exact registered source). */
-export function rulesOf(causes: readonly TaintCause[]): LocalToolRule[] {
+/** The distinct tool and source pairs (taint causes, the asked tool): what "Mark as local" stores (the exact registered source). */
+export function rulesOf(items: readonly LocalToolRule[]): LocalToolRule[] {
   const seen = new Set<string>();
   const rules: LocalToolRule[] = [];
-  for (const { tool, source } of causes) {
+  for (const { tool, source } of items) {
     const id = `${tool}\n${source}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -17,18 +17,18 @@ export function rulesOf(causes: readonly TaintCause[]): LocalToolRule[] {
 
 /**
  * Decision 117, A3. Adds the missing rules to the owner's settings (read, then written with the revision read), then
- * clears this session's taint. A `conflict` re-reads and tries once more; a second one is thrown. Nothing is written when
- * every rule is already listed, so a retry after a failed clear never writes twice.
+ * clears this session's taint when the rules cover its every cause. A `conflict` re-reads and tries once more; a second
+ * one is thrown. Nothing is written when every rule is already listed, so a retry after a failed clear never writes twice.
  */
-export async function markCausesLocal(
+export async function markLocal(
   rpc: RpcClient,
   sessionId: string,
-  causes: readonly TaintCause[],
+  rules: readonly LocalToolRule[],
+  clearTaint: boolean,
 ): Promise<void> {
-  const wanted = rulesOf(causes);
+  const wanted = rulesOf(rules);
   const write = async (): Promise<void> => {
     const stored = await rpc.call("policy.getSettings", {});
-    // The wire type leaves the defaults optional: parsing fills them.
     const base = PolicySettings.parse(stored.value ?? DEFAULT_POLICY_SETTINGS);
     const missing = wanted.filter(
       (rule) => !base.localTools.some((have) => have.tool === rule.tool && have.source === rule.source),
@@ -46,5 +46,5 @@ export async function markCausesLocal(
     if (failureCode(failure) !== "conflict") throw failure;
     await write();
   }
-  await rpc.call("policy.clearTaint", { sessionId }, { commandId: rpc.newCommandId() });
+  if (clearTaint) await rpc.call("policy.clearTaint", { sessionId }, { commandId: rpc.newCommandId() });
 }

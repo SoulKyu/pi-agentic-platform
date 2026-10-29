@@ -181,6 +181,7 @@ function approvalDialog(record: ApprovalRequestRecord, vm: boolean): Built {
     ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
     ...(record.host === undefined ? {} : { host: record.host }),
     ...(vm ? { vm: true } : {}),
+    ...(record.localTool ? { localTool: record.localTool } : {}),
   });
   if (!parsed.success) {
     const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;

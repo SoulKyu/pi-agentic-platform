@@ -189,6 +189,14 @@ describe("approvals", () => {
     expect(clean.kind === "opened" && clean.dialog).not.toHaveProperty("taintCauses");
   });
 
+  it("the local tool rule of an unknown tool reaches the dialog (decision 143)", () => {
+    const localTool = { tool: "todo", source: "/x/ext/todo.ts" };
+    const shown = createDialogRegistry().offerApproval({ ...approval("a5"), category: "unknown", localTool });
+    expect(shown.kind === "opened" && shown.dialog).toMatchObject({ localTool });
+    const plain = createDialogRegistry().offerApproval(approval("a6"));
+    expect(plain.kind === "opened" && plain.dialog).not.toHaveProperty("localTool");
+  });
+
   it("a tainted approval and its guard rule reach the dialog", () => {
     const dialogs = createDialogRegistry();
     const result = dialogs.offerApproval({ ...approval("a1"), tainted: true, guard: "tool-calls" });
