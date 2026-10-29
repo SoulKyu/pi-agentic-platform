@@ -2,9 +2,9 @@ packages:
   - apps/*
   - packages/*
 catalog:
-  "@earendil-works/pi-coding-agent": 1.1.0
-  "@earendil-works/pi-ai": 1.1.0
-  "@earendil-works/pi-tui": 1.1.0
+  "@earendil-works/pi-coding-agent": 1.4.0
+  "@earendil-works/pi-ai": 1.4.0
+  "@earendil-works/pi-tui": 1.4.0
 minimumReleaseAge: 4320
 onlyBuiltDependencies:
   - node-pty
