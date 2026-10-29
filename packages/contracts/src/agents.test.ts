@@ -139,7 +139,7 @@ describe("names and ids", () => {
       "a\u2029b",
     ])
       expect(AgentRole.safeParse(text).success, JSON.stringify(text)).toBe(false);
-    expect(AgentRole.safeParse("x".repeat(AGENT_LIMITS.roleChars + 1)).success).toBe(false);
+    expect(AgentRole.safeParse("x".repeat(100_000)).success).toBe(true);
   });
 });
 

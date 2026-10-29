@@ -335,7 +335,7 @@ export const InitPlatform = z
   .strict()
   .default({ ops: [] });
 /** `InitRecord.agent`: the agent a session belongs to (its thread, an isolated task, or a child of the thread). */
-export const InitAgent = z.object({ id: AgentId, name: AgentName, role: z.string().max(20_000) }).strict();
+export const InitAgent = z.object({ id: AgentId, name: AgentName, role: z.string() }).strict();
 
 /**
  * The M11 fields of the init record (M11R8), spread into `InitRecord`. The daemon never logs an init record: `vault` and `once` hold secrets.

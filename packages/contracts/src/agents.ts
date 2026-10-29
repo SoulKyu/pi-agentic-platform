@@ -11,7 +11,6 @@ import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 export const AGENT_LIMITS = {
   perOwner: 32,
   nameChars: 32,
-  roleChars: 20_000,
   hosts: MAX_ALLOW_HOSTS,
   denyPatterns: 50,
   trustedSources: MAX_TRUSTED_SOURCES,
@@ -21,10 +20,12 @@ export const AGENT_LIMITS = {
 const TEXT_HIDDEN = /(?![\t\n])\p{Cc}|[\p{Cf}\p{Zl}\p{Zp}]/u;
 /** One-line identifiers: the same, tabs and new lines included. */
 const visibleLine = (text: string): boolean => !LINE_HIDDEN.test(text);
-/** The agent's role: the owner's text appended to its system prompt at each worker start. Tabs and new lines only. */
+/**
+ * The agent's role: the owner's text appended to its system prompt at each worker start. Tabs and new lines only; no
+ * length cap of its own (owner, decision 142): the RPC frame (1 MiB) bounds it.
+ */
 export const AgentRole = z
   .string()
-  .max(AGENT_LIMITS.roleChars)
   .refine((text) => !TEXT_HIDDEN.test(text), "visible text, tabs and new lines only");
 
 /**

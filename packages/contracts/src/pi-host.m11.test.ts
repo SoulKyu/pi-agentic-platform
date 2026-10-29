@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_LIMITS, DaemonToWorker, InitRecord, parseWorkerRecord } from "./index.ts";
+import { DaemonToWorker, InitRecord, parseWorkerRecord } from "./index.ts";
 
 const init = { type: "init", cwd: "/w", agentDir: "/a", papHome: "/p", umask: 0o22, policy: {} };
 
@@ -18,7 +18,7 @@ describe("InitRecord platform, vault and agent fields (M11R8)", () => {
       platform: { ops: ["agent.notify", "subagent.run"] },
       vault: { GITHUB_TOKEN: "x".repeat(4096) },
       once: [{ id: "i1", name: "NPM_TOKEN", value: "v", expiresAt: 1 }],
-      agent: { id: "atlas-1a2b", name: "Atlas", role: "r".repeat(AGENT_LIMITS.roleChars) },
+      agent: { id: "atlas-1a2b", name: "Atlas", role: "r".repeat(100_000) },
     };
     expect(InitRecord.safeParse(record).success).toBe(true);
     expect(DaemonToWorker.safeParse(record).success).toBe(true);
@@ -72,9 +72,6 @@ describe("InitRecord platform, vault and agent fields (M11R8)", () => {
     const agent = (value: unknown) => InitRecord.safeParse({ ...init, agent: value }).success;
     expect(agent({ id: "not an id", name: "Atlas", role: "r" })).toBe(false);
     expect(agent({ id: "atlas-1a2b", name: "At las", role: "r" })).toBe(false);
-    expect(agent({ id: "atlas-1a2b", name: "Atlas", role: "r".repeat(AGENT_LIMITS.roleChars + 1) })).toBe(
-      false,
-    );
   });
 
   it("refuses a host sandbox field, naming its path and never its value", () => {

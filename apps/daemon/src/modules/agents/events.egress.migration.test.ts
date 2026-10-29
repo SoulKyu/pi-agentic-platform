@@ -18,7 +18,7 @@ describe("the egress_refused migration on a populated database (M1)", () => {
     const before = join(dir, "agents-before");
     mkdirSync(before);
     for (const file of readdirSync(AGENTS_MIGRATIONS.dir))
-      if (file !== LAST) copyFileSync(join(AGENTS_MIGRATIONS.dir, file), join(before, file));
+      if (file < LAST) copyFileSync(join(AGENTS_MIGRATIONS.dir, file), join(before, file));
     const options = {
       dbPath: join(dir, "state.db"),
       backupsDir: join(dir, "backups"),
