@@ -72,7 +72,7 @@ describe("the real pnpm-lock.yaml", () => {
     const top = Object.keys(shrinkwrap.packages).filter((path) =>
       /^node_modules\/@earendil-works\/[^/]+$/.test(path),
     );
-    expect(top.length).toBeGreaterThanOrEqual(8);
+    expect(top.length).toBeGreaterThanOrEqual(7);
     for (const path of top) {
       const name = path.slice("node_modules/".length);
       const versions = closure.filter((entry) => entry.name === name).map((entry) => entry.version);

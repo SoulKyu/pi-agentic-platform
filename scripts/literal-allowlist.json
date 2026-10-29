@@ -1,1 +1,7 @@
-[]
+[
+  {
+    "file": "packages/ui/src/ai/markdown/MermaidBlock.tsx",
+    "text": "mermaid",
+    "reason": "the diagram language's name, as written in a code fence: the same in every locale"
+  }
+]

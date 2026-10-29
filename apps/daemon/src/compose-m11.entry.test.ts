@@ -57,6 +57,7 @@ describe("the daemon's M11 entry", () => {
       "agents/202610201300_agent_trash.sql",
       "agents/202610211200_agent_events_egress.sql",
       "agent-vm/202610251200_launch_steps.sql",
+      "agents/202610291200_agents_profile_unbounded.sql",
     ]);
   });
 });

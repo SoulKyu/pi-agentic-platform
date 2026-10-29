@@ -55,7 +55,7 @@ describe("resolveManifest", () => {
     const entries = Object.entries(manifest.dependencies ?? {});
     expect(entries.length).toBeGreaterThan(5);
     for (const [name, version] of entries) expect(version, name).toMatch(EXACT);
-    expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("1.1.0");
+    expect(manifest.dependencies?.["@earendil-works/pi-coding-agent"]).toBe("1.4.0");
   });
 
   it("bundles exactly the two workspace packages, each also pinned in dependencies (npm bundles only those)", () => {

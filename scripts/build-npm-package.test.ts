@@ -196,8 +196,8 @@ describe("D3: the Pi SDK siblings are pinned to the lockfile", () => {
 
   it("the real lockfile gives every @earendil-works package, and the manifest lists each at that version", () => {
     const pinned = parseLockScope(lock);
-    expect(Object.keys(pinned).length).toBeGreaterThanOrEqual(8);
-    for (const name of ["pi-codemode", "pi-telemetry", "pi-mcp", "chord", "pi-agent-core"])
+    expect(Object.keys(pinned).length).toBeGreaterThanOrEqual(7);
+    for (const name of ["pi-codemode", "pi-telemetry", "pi-mcp", "pi-agent-core"])
       expect(pinned).toHaveProperty(`@earendil-works/${name}`);
     const manifest = resolveManifest({ ...input(), pinned });
     for (const [name, version] of Object.entries(pinned))

@@ -18,4 +18,6 @@ export const PINK_ALLOWLIST: Readonly<Record<string, string>> = {
   "gallery/sections/DisplayFigures.tsx": "a specimen of the pink tone in the gallery, not a failure",
   "features/github/GithubSettings.tsx":
     "created, reconnect, permission and origin notes wait for the person to act",
+  "features/previews/StartDeclared.tsx":
+    "a changed declared command waits for the person to check it and start it",
 };
