@@ -1,5 +1,77 @@
 # Changelog
 
+## [1.1.0](https://github.com/SoulKyu/pi-agentic-platform/compare/v1.0.0...v1.1.0) (2026-10-30)
+
+
+### Features
+
+* **agents-vm:** agent files, sub-project 2 part B (decision 121) ([f639cbb](https://github.com/SoulKyu/pi-agentic-platform/commit/f639cbbf2e692263ac77fefdb805bd77c1acde65))
+* **agents-vm:** agents run in Kata microVMs, sub-project 1 (decision 118) ([c97fa35](https://github.com/SoulKyu/pi-agentic-platform/commit/c97fa35de45a4707151d3c5fd58f987452996450))
+* **agents-vm:** Claude Code env for claude-bridge agents (IS_SANDBOX, CLAUDE_CONFIG_DIR) ([f843107](https://github.com/SoulKyu/pi-agentic-platform/commit/f84310799e2edcab92ae69827fe76589a1dac09b))
+* **agents-vm:** network for agent VMs, sub-project 2 part A (decision 120) ([c70b90a](https://github.com/SoulKyu/pi-agentic-platform/commit/c70b90a5b7ab63081fdff4e0f76b471a9e896194))
+* **agents-vm:** ssh from a box goes through the egress proxy (decision 145) ([5159766](https://github.com/SoulKyu/pi-agentic-platform/commit/5159766d1b53d577f736af15ef3503071e737587))
+* **agents-vm:** sub-project 3, the VM as the only agent runtime ([a46b2f0](https://github.com/SoulKyu/pi-agentic-platform/commit/a46b2f0e703c6fc6076c4a4440b6211ca8224b13))
+* **agents:** allow a 20000-character role ([b89d9bb](https://github.com/SoulKyu/pi-agentic-platform/commit/b89d9bbd9c1b565ec4aa1b631447a0db34c395fe))
+* **agents:** an agent's files in the explorer (decision 136) ([73cd111](https://github.com/SoulKyu/pi-agentic-platform/commit/73cd11113f6100e9e9c2f1efea76f87229130660))
+* **agents:** no length cap on an agent's role (decision 142) ([e1094bd](https://github.com/SoulKyu/pi-agentic-platform/commit/e1094bdf887ce8700452309ee6e095b1acd92205))
+* **agents:** run button for triggers in status panel ([301429c](https://github.com/SoulKyu/pi-agentic-platform/commit/301429c554726715c489686dc1421be088ed0b07))
+* **automation:** a trigger's isolated task keeps its folder between runs (decision 137) ([6e2efb6](https://github.com/SoulKyu/pi-agentic-platform/commit/6e2efb6a96ea001037dfdaaf0c3d2305e1cadaf9))
+* **boxes:** lot B1, projects and their sessions in a box ([84bcea2](https://github.com/SoulKyu/pi-agentic-platform/commit/84bcea21e8c7d013d75ee3bd3ca18a5f1ce2cfab))
+* **boxes:** lot B2, the terminal and GitHub in a box ([44fd319](https://github.com/SoulKyu/pi-agentic-platform/commit/44fd319653d9f0b28d1cf71c7a99c30c56ad6c1f))
+* **contracts:** health events contract and ops methods ([f51d4b9](https://github.com/SoulKyu/pi-agentic-platform/commit/f51d4b9fc6dd229a519c23f7be62a45a5912c475))
+* **daemon:** emit health events at the daemon's failure points ([5f5049d](https://github.com/SoulKyu/pi-agentic-platform/commit/5f5049da833b5917006d357614988a86e2d90fe7))
+* **daemon:** in-memory health event buffer ([fdb20d6](https://github.com/SoulKyu/pi-agentic-platform/commit/fdb20d606a7406794e5bcc86359d158dded71abf))
+* **daemon:** ops.events.list and the ops health stream ([0586aa8](https://github.com/SoulKyu/pi-agentic-platform/commit/0586aa877fa4e816474335c61bafbde6e80258e2))
+* **github:** the pap GitHub App is public (owner, M14 Q1) ([c24296c](https://github.com/SoulKyu/pi-agentic-platform/commit/c24296cf2030d229d163b4d1fc390fcbe7cc541f))
+* **knowledge:** sub-project 5, OKF knowledge replaces pi-mem0 ([9200b3c](https://github.com/SoulKyu/pi-agentic-platform/commit/9200b3c66d8355a20fbbc49e6cb2d771258ca679))
+* launch progress and waiting states (decision 134, ADR 0087) ([f4ea4a0](https://github.com/SoulKyu/pi-agentic-platform/commit/f4ea4a0e34fd179b8caef3da4bcc00b4a4531810))
+* **policy:** fewer approval cards, more trust in the audit (decision 117) ([b1eb34a](https://github.com/SoulKyu/pi-agentic-platform/commit/b1eb34af10066ec30d875c15c210a3821369ef77))
+* **policy:** Mark as local from an unknown tool's own card (decision 143) ([4b6e940](https://github.com/SoulKyu/pi-agentic-platform/commit/4b6e940db81b0c235f13c7b3fcfcc3ead351b53e))
+* **previews:** agents serve previews on an untrusted origin; rich replies (decisions 138, 139) ([787290c](https://github.com/SoulKyu/pi-agentic-platform/commit/787290c4cb25c87678b43edf40164d6c76923faa))
+* **ui:** a copy button on every code block of the chat ([0a61000](https://github.com/SoulKyu/pi-agentic-platform/commit/0a61000b22298e1b88e38fc9e732ba53f478c84d))
+* **users:** M14, owner and members ([7ea23ea](https://github.com/SoulKyu/pi-agentic-platform/commit/7ea23ea0d01e0bf687d634bf625a174c2592f8d7))
+* **ux:** one lifecycle for an agent's state ([ce57d96](https://github.com/SoulKyu/pi-agentic-platform/commit/ce57d968fa2cc47ae0e063423f7cb91ef82fa3cf))
+* **vmd:** reclaim a stopped box's disk ([67e5ee7](https://github.com/SoulKyu/pi-agentic-platform/commit/67e5ee7554874b27b6ac5bb7b108daa0cbdf12cc))
+* **web:** health screen filters with local persistence ([47dbe2b](https://github.com/SoulKyu/pi-agentic-platform/commit/47dbe2b167a605f9604f3ae2c19003ce8501ebba))
+* **web:** Night Control after the impeccable audit (design pass) ([a0c0b2c](https://github.com/SoulKyu/pi-agentic-platform/commit/a0c0b2c48b83c590608e5257060b2ab02532362b))
+* **web:** reply tools — paths open Files, shell blocks to the terminal, quotes, context and cost meter, prompt templates (decision 138) ([3a990f8](https://github.com/SoulKyu/pi-agentic-platform/commit/3a990f8f3b47eba4a33f7ec95251c6309815460f))
+* **web:** the Health section of Settings ([ec3441e](https://github.com/SoulKyu/pi-agentic-platform/commit/ec3441e7120bbeee0cb549f87d72fd3e73d41c9e))
+
+
+### Bug Fixes
+
+* **agents-vm:** a VM's Pi gets relay routes only for providers with a host credential ([ce8cfe0](https://github.com/SoulKyu/pi-agentic-platform/commit/ce8cfe07e67d206199f4aa8199b2d09188694a23))
+* **agents-vm:** image entries of project boxes survive a restart ([f907986](https://github.com/SoulKyu/pi-agentic-platform/commit/f9079868631f6e701da11c52833f6e61c8cd58dd))
+* **agents-vm:** IS_SANDBOX=1 in the VM image so pi-claude-bridge runs as guest root ([b387917](https://github.com/SoulKyu/pi-agentic-platform/commit/b387917fedd0a49cf1a70291f9ed240ca6bdbe33))
+* **agents-vm:** package picks survive a new version of the package ([1196dd2](https://github.com/SoulKyu/pi-agentic-platform/commit/1196dd2077e3886cf283fd7684e2ef29d6fa6c86))
+* **agents-vm:** show unscoped npm package names in the agent packages list ([c50e448](https://github.com/SoulKyu/pi-agentic-platform/commit/c50e44895b857b49130b7923c587887aaf079841))
+* **agents:** allow 256 hosts in an agent's list, like the owner's list ([6900116](https://github.com/SoulKyu/pi-agentic-platform/commit/690011695acaaccca077e300d58e0e1c54427f9a))
+* **agents:** drop the daemon's 32768-character profile check (decision 142) ([7f05c90](https://github.com/SoulKyu/pi-agentic-platform/commit/7f05c90b1f9df7998da949be35ab51ec4573cdeb))
+* **agents:** keep .claude/ out of an agent home's git ([9b47373](https://github.com/SoulKyu/pi-agentic-platform/commit/9b4737384177969c36b7a6c63cf7ae428c10d587))
+* **ci:** the React Compiler gate and the budget pin ([f4afa39](https://github.com/SoulKyu/pi-agentic-platform/commit/f4afa39306399a9073f796b0afe0eeb36563e7c0))
+* **daemon:** pass the ops subscription cursor through the stub ([1b1328a](https://github.com/SoulKyu/pi-agentic-platform/commit/1b1328a739465b133e2a1025d4b3775543579030))
+* **daemon:** stop reporting tool_name_collision as a failure, name the failing extension ([0484a69](https://github.com/SoulKyu/pi-agentic-platform/commit/0484a69e21679cad2801107a93ab8e164ff5217e))
+* **files:** an unsure save is confirmed the same way over HTTP and HTTPS ([80b04c0](https://github.com/SoulKyu/pi-agentic-platform/commit/80b04c00b97f7c0a702c731f3bbdcec3f69a4ef9))
+* **pwa:** a first install never shows the update banner ([4a8df52](https://github.com/SoulKyu/pi-agentic-platform/commit/4a8df527dbd7fcfdb0bd2834f53cba2b0f031a89))
+* **pwa:** a navigation away is not a stale build ([d309f2b](https://github.com/SoulKyu/pi-agentic-platform/commit/d309f2b952c57676375aad7383f494e6c19de2f9))
+* **sessions:** a cold VM session's menu keeps the box's extension models across restarts ([3707f92](https://github.com/SoulKyu/pi-agentic-platform/commit/3707f92ac38894fbecb9df7635f3a9cb6fa5fa44))
+* **sessions:** a cold VM session's model menu answers without starting the VM ([9526d5a](https://github.com/SoulKyu/pi-agentic-platform/commit/9526d5aafc1c84645e185158f00fbc64b52f2fdf))
+* **ui:** outline icons keep fill none ([87155a6](https://github.com/SoulKyu/pi-agentic-platform/commit/87155a667aec0e6d034c03a142044f9fdf1d0d86))
+* **vmd:** reclaim a pre-allocated disk by a sparse copy ([8cdf141](https://github.com/SoulKyu/pi-agentic-platform/commit/8cdf14126ef1b38517796879d13dcd5302372b14))
+* **vmd:** reclaim after the stop answers, skip a held disk ([2e5c733](https://github.com/SoulKyu/pi-agentic-platform/commit/2e5c733d24aa09f350041079c82c674d8b39adc1))
+* **vm:** pin Kata 4.3.1, box disks stay sparse ([540bfb8](https://github.com/SoulKyu/pi-agentic-platform/commit/540bfb835d5f28a4592ebcd86f6ea7257d261352))
+* **web:** a Models switch shows what was asked until the list catches up ([f7435ea](https://github.com/SoulKyu/pi-agentic-platform/commit/f7435ea66897177938dc57f68350a17811164264))
+* **web:** agent prose takes the whole column by default (decision 133) ([e1d1b4d](https://github.com/SoulKyu/pi-agentic-platform/commit/e1d1b4d3bb50f4e7e7934145a8d7b52f4ead8fcd))
+* **web:** an owner's link to Models, MCP, Skills or Users opens it ([13141c6](https://github.com/SoulKyu/pi-agentic-platform/commit/13141c65562dd17db8163bb7ef9acb6870ba225d))
+* **web:** every copy button works the same over HTTP and HTTPS ([a76cea7](https://github.com/SoulKyu/pi-agentic-platform/commit/a76cea73a379db3ba3597441d88c82ba179997ea))
+* **web:** Health stays right after Automation in Settings ([47c46f6](https://github.com/SoulKyu/pi-agentic-platform/commit/47c46f6a67e1728e835d16e01a35a2ddd1048e8c))
+
+
+### Performance Improvements
+
+* **agents-vm:** the bundle digest runs in a thread, and the hourly tick reads nothing when nothing is due ([e4d02a8](https://github.com/SoulKyu/pi-agentic-platform/commit/e4d02a88835ff106895923b80a7f13302869efbc))
+* **pi-host:** workers load only the contracts they use ([772ee71](https://github.com/SoulKyu/pi-agentic-platform/commit/772ee71de4620aea05d0d9820d9da162ed8ae562))
+
 ## 1.0.0 (2026-10-18)
 
 
