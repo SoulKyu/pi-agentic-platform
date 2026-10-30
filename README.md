@@ -87,6 +87,63 @@ Details: [docs/agents/sessions.md](docs/agents/sessions.md), [docs/agents/policy
 
 <sub>Screenshots use demo data and a scripted model (shown as faux).</sub>
 
+## Security
+
+pap runs code a model writes, on your machine, near your credentials. Each layer is kept narrow, and the docs say what it does not cover.
+
+**Boxes: every agent and project in its own microVM**
+
+- Each agent, and each project made from a name, runs in its own Kata Containers microVM (Cloud Hypervisor, KVM). The host only orchestrates: no host path reaches a box, and the daemon never reads a box's disk.
+- Inside the VM the shell runs in bubblewrap with a seccomp filter (no new namespaces, mounts, `ptrace`, `bpf` or `io_uring`), most capabilities dropped and the image root read-only. Pi's file tools never follow a link.
+- A VM reaches three ports on its bridge (gateway, model relay, egress proxy) and nothing else: no default route, no IPv6, no VM-to-VM traffic, address spoofing dropped per VM port.
+- One root helper, `pap-vmd`, drives containerd, Kata and BuildKit. It renders the Dockerfiles itself (the daemon sends only apt package names and pap tags); base images start from a pinned Node digest and are rebuilt with `apt-get upgrade` every week.
+
+**No provider key in a VM**
+
+- Model calls go through `pap-relay`, the only holder of provider credentials. Each request is checked against a fixed route table, the launch's key (bound to the VM's address), the agent's models, and its pause and budget state.
+- GitHub goes through a private pap GitHub App: a box gets a token for one repository (`contents` and `pull_requests`), renewed every 45 minutes.
+
+**Network: only the hosts you list**
+
+- Network is off by default. When on, everything leaves through pap's egress proxy, which checks `host[:port]` or IP entries against the agent's or project's list: HTTP, HTTPS, and ssh tunnelled over `CONNECT`. No other protocol has a path.
+- Always refused, whatever the list says: loopback, link-local (cloud metadata included), CGNAT, multicast, the host's own addresses and the VM bridge. A private range is reachable only through an exact name or an IP entry, never a `*.` wildcard.
+- Widening a list asks for your password again. A refused host shows a card with "Add to list"; nothing is retried behind your back.
+- The proxy guarantees which hosts and ports an agent reaches, not what it sends there: it reads no content and decrypts no TLS. Scope credentials at the source (read-only tokens, narrow RBAC).
+
+**Untrusted content and taint**
+
+- Web pages, webhook and feed text, MCP tools and unknown extensions mark the session as tainted (the "external content" chip). In a VM the daemon marks the launch from what its proxy let through, never from the VM's own report.
+- A tainted session asks Deny / Allow once before any call that could send data out, and each platform operation declares what it does when tainted. Tool results reach the model fenced as untrusted.
+- Every tool call goes through an eight-stage policy pipeline (exposure, command denylist, egress, approval, run guard, containment, redaction, fencing and taint), where a block wins over an approval. Tools are classified by their registered source, never by name; reads of pap's database, `secrets/`, backups, Pi's `auth.json` and other sessions' transcripts ask in every mode.
+
+**Secrets**
+
+- The vault stores values with AES-256-GCM. They reach a command as environment variables, never as text in the thread, and pap's own paths never write them to a log, an audit row or a response.
+- Limits (ADR 0049): a command can print a value, the redactor misses values under 8 characters and encoded ones, and the vault key sits beside the vault in `$PAP_HOME/secrets/`.
+
+**Accounts and the web app**
+
+- One owner and invited members. Invitations are single-use, last 24 hours and are stored hashed; a member reaches no host path and works only in boxes.
+- Passwords are hashed with scrypt; passkeys require user verification. Sign-in throttles are built so that a spray cannot lock the owner out. Session cookies are `SameSite=Strict` and stored hashed, and an open WebSocket re-checks its credential on every frame and every 15 seconds.
+- API tokens, passkey removal, a wider host list and edits under Pi's folders need a fresh password step-up (5 minutes). API tokens are hashed, always expire, and never carry a permission that changes what code runs (no auth, terminal, secrets, policy or box-network admin).
+- Agent previews are served on a second port. pap's own routes refuse same-site and cross-site requests (`Sec-Fetch-Site`), and pap's cookie and `Authorization` header are dropped before a request reaches the VM. Use HTTPS beyond localhost: `--insecure-http` is for a trusted LAN only.
+
+**Supply chain and operations**
+
+- Dependencies must be 3 days old before pnpm installs them (ADR 0072). The offline archive and the VM artefacts are pinned by SHA-256.
+- Children pap starts unattended get an allowlisted environment: never the SSH agent, `GIT_*`, `LD_*`, provider keys or credential-looking names.
+- A plain backup leaves `secrets/` out but is still sensitive; `--encrypt` encrypts it. A restore treats the archive as untrusted input.
+- Hostile-input and boundary tests (path traversal, token origins, protected files, fail-closed, taint, budgets) live in `apps/daemon/src/security/` and run in CI.
+
+**Known limits**
+
+- MCP stdio servers and extension children are not confined inside the VM (ADR 0081).
+- A member is root in their own box: their budget line guards against mistakes, it is not a hard cap.
+- Processes running as pap's user on the host can read its files and environment, and a backup of the whole `$PAP_HOME` holds the vault key.
+- A proxy tunnel lives at most 30 minutes.
+
+Details: [docs/agents/agents-vm.md](docs/agents/agents-vm.md), [docs/agents/policy.md](docs/agents/policy.md), [docs/agents/auth.md](docs/agents/auth.md), [docs/agents/agents.md](docs/agents/agents.md), [docs/agents/backup.md](docs/agents/backup.md), ADRs [0049](docs/adr/0049-the-vault-and-secret-requests.md), [0079](docs/adr/0079-agents-vm-egress-and-files.md), [0081](docs/adr/0081-agents-run-only-in-microvms.md), [0083](docs/adr/0083-the-host-is-an-orchestrator.md), [0085](docs/adr/0085-owner-and-members.md), [0088](docs/adr/0088-previews-and-the-untrusted-origin.md).
+
 ## Install
 
 Linux with systemd, no sudo (the offline archive is x86-64). Full guide: [docs/agents/install.md](docs/agents/install.md).
