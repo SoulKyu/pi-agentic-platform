@@ -1,0 +1,48 @@
+#!/usr/local/bin/node
+// ProxyCommand of a pap box's ssh (/etc/ssh/ssh_config.d/pap-proxy.conf): `pap-connect <host> <port>` opens a CONNECT tunnel
+// through the box's egress proxy, which judges host:port against the box's host list. Without a proxy (network off) it
+// connects directly, as ssh would have. A refusal prints the proxy's one-line reason and exits 1.
+import { connect } from "node:net";
+
+const [host = "", port = ""] = process.argv.slice(2);
+const proxy = process.env.HTTPS_PROXY || process.env.https_proxy;
+const MAX_HEAD = 16 * 1024;
+
+const fail = (text) => {
+  process.stderr.write(`pap-connect: ${text.trim()}\n`);
+  process.exit(1);
+};
+const pipe = (socket, rest) => {
+  if (rest.length > 0) process.stdout.write(rest);
+  socket.pipe(process.stdout);
+  process.stdin.pipe(socket);
+  socket.on("close", () => process.exit(0));
+};
+
+if (!host || !/^\d{1,5}$/.test(port)) fail("usage: pap-connect <host> <port>");
+if (!proxy) {
+  const socket = connect(Number(port), host, () => pipe(socket, Buffer.alloc(0)));
+  socket.on("error", (error) => fail(error.message));
+} else {
+  const { hostname, port: proxyPort } = new URL(proxy);
+  const target = `${host.includes(":") ? `[${host}]` : host}:${port}`;
+  const socket = connect(Number(proxyPort) || 80, hostname.replace(/^\[|\]$/g, ""), () =>
+    socket.write(`CONNECT ${target} HTTP/1.1\r\nHost: ${target}\r\n\r\n`),
+  );
+  socket.on("error", (error) => fail(`${proxy}: ${error.message}`));
+  let head = Buffer.alloc(0);
+  let refused = null;
+  const statusLine = () => head.toString("latin1", 0, head.indexOf("\r\n"));
+  socket.on("close", () => refused !== null && fail(head.subarray(refused).toString() || statusLine()));
+  const onData = (chunk) => {
+    head = Buffer.concat([head, chunk]);
+    if (refused !== null) return;
+    const end = head.indexOf("\r\n\r\n");
+    if (end < 0) return head.length > MAX_HEAD ? fail("the proxy's answer is too long") : undefined;
+    if (/^HTTP\/1\.[01] 200 /.test(head.toString("latin1", 0, end))) {
+      socket.off("data", onData);
+      pipe(socket, head.subarray(end + 4));
+    } else refused = end + 4;
+  };
+  socket.on("data", onData);
+}

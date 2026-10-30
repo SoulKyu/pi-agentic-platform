@@ -24,6 +24,8 @@ const BASE_PACKAGES = [
   "openssh-client",
   "util-linux",
 ] as const;
+const SSH_PROXY_CONF =
+  "Host *\\n  ProxyCommand /usr/local/bin/pap-connect %%h %%p\\n  ServerAliveInterval 60\\n";
 /** The box terminal's pty (lot B2, B0 §1): built in a stage of the same Node base (same ABI), then copied beside the bundle. */
 const PTY_BUILD_PACKAGES = ["build-essential", "python3", "make", "g++"] as const;
 const NODE_PTY = "node-pty@1.1.0";
@@ -51,8 +53,10 @@ export function renderDockerfile(request: ImageBuildRequest): string {
     );
     // `gh` of the bundle (token from /run) precedes /usr/bin/gh in any login PATH: Debian's /etc/profile resets it.
     lines.push(
-      `RUN chmod 0755 ${BASE_BUNDLE_DIR}/bin/* && ln -s ${BASE_BUNDLE_DIR}/bin/gh /usr/local/bin/gh && ln -s ${BASE_BUNDLE_DIR}/bin/pap-ssh-sign /usr/local/bin/pap-ssh-sign`,
+      `RUN chmod 0755 ${BASE_BUNDLE_DIR}/bin/* && ln -s ${BASE_BUNDLE_DIR}/bin/gh /usr/local/bin/gh && ln -s ${BASE_BUNDLE_DIR}/bin/pap-ssh-sign /usr/local/bin/pap-ssh-sign && ln -s ${BASE_BUNDLE_DIR}/bin/pap-connect /usr/local/bin/pap-connect`,
     );
+    // ssh ignores HTTP_PROXY: every ssh, scp, sftp and git-over-ssh tunnels through the egress proxy (keepalives beat its 120 s idle cut).
+    lines.push(`RUN printf '${SSH_PROXY_CONF}' > /etc/ssh/ssh_config.d/pap-proxy.conf`);
     lines.push(
       "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
     );

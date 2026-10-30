@@ -26,6 +26,7 @@ export const REQUIRED_FILES = [
   "bin/gh",
   "bin/pap-git-credential",
   "bin/pap-ssh-sign",
+  "bin/pap-connect",
   "dist/guest/services/ns-dialer.js",
 ] as const;
 /** `pnpm deploy` copies these beside `dist`; the image needs none of them. */

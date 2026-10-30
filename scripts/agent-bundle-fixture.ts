@@ -27,6 +27,7 @@ export const putAgentBundle = (bundle: string, { deployed = false } = {}): void 
   put(join(bundle, "bin/gh"), "#!/bin/sh\n");
   put(join(bundle, "bin/pap-git-credential"), "#!/bin/sh\n");
   put(join(bundle, "bin/pap-ssh-sign"), "#!/bin/sh\n");
+  put(join(bundle, "bin/pap-connect"), "#!/bin/sh\n");
   put(join(bundle, "node_modules/dep/package.json"), '{"name":"dep","version":"1.0.0"}\n');
   put(join(bundle, "node_modules/dep/cli.js"), "export {};\n");
   mkdirSync(join(bundle, "node_modules/.bin"), { recursive: true });
