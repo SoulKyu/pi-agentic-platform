@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vue d'ensemble · Mises en page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33; --border:#2D2840; --border-strong:#3D3657; --control-border:#6B6485;
+          --text:#F2EFFA; --text-muted:#9C95B5; --text-dim:#6B6485; --agent:#A78BFA; --agent-ink:#110F18; --you:#FB923C; --you-ink:#1B0D00;
+          --attn:#EC4899; --attn-tint:#EC48991A; --attn-line:#EC48998C; --attn-title:#F472B6; --ok:#34D399; --err:#F87171;
+          --r-sm:2px; --r-md:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); padding: 32px 16px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1180px; margin: 0 auto; }
+  .hud { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  h1 { font: 800 28px/1.2 var(--ui); letter-spacing: -.02em; margin-top: 6px; }
+  .lead { color: var(--text-muted); max-width: 920px; margin-top: 6px; font-size: 14px; }
+  h2 { font: 700 16px var(--ui); margin: 32px 0 10px; }
+  code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: var(--r-sm); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* option frame */
+  .option { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); margin-top: 18px; }
+  .option.selected { border-color: var(--you); box-shadow: inset 0 0 0 1px var(--you); }
+  .ohead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .ohead .letter { font: 700 12px var(--mono); width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--control-border); border-radius: var(--r-sm); }
+  .option.selected .ohead .letter { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  .ohead h3 { font: 700 15px var(--ui); }
+  .ohead p { color: var(--text-muted); font-size: 12.5px; }
+  .ohead .tag { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: var(--r-sm); margin-left: 6px; }
+  .pc { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-top: 1px solid var(--border); }
+  .pc div { padding: 10px 14px; font-size: 12.5px; }
+  .pc div + div { border-left: 1px solid var(--border); }
+  .pc b { font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .pc .p b { color: var(--ok); } .pc .c b { color: var(--err); }
+  .pc ul { list-style: none; display: grid; gap: 3px; } .pc li::before { content: "– "; color: var(--text-muted); }
+  textarea { width: calc(100% - 28px); margin: 0 14px 14px; background: var(--bg); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 6px 8px; font: 13px var(--ui); min-height: 34px; resize: vertical; }
+  textarea::placeholder { color: var(--text-muted); }
+
+  /* shell */
+  .shell { display: grid; grid-template-columns: 48px 1fr; background: var(--bg); margin: 14px; border: 1px solid var(--border-strong); border-radius: var(--r-md); overflow: hidden; min-height: 520px;
+           background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--bg-side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+  .rail .ri { width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--r-md); position: relative; color: var(--text-muted); }
+  .rail .ri.active { background: var(--surface-2); color: var(--text); }
+  .rail .ri.active::before { content: ""; position: absolute; left: -8px; top: 4px; bottom: 4px; width: 2px; background: var(--agent); }
+  .rail .sep { width: 24px; height: 1px; background: var(--border); }
+  .av { width: 28px; height: 28px; border: 1px solid var(--agent); border-radius: var(--r-md); display: grid; place-items: center; font: 600 10.5px var(--mono); color: var(--agent); position: relative; }
+  .av .dot { position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--bg-side); }
+  .av.idle { border-color: var(--text-dim); color: var(--text-dim); }
+  .av.box { border-color: var(--control-border); color: var(--text-muted); }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: 34px; background: var(--bg-side); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; padding: 0 12px; font-size: 12.5px; color: var(--text-muted); }
+  .top .sp { flex: 1; }
+  .badge { background: var(--attn-fill, var(--attn)); color: var(--agent-ink); border-radius: 50%; font: 700 10px var(--mono); min-width: 16px; height: 16px; display: inline-grid; place-items: center; padding: 0 4px; margin-left: 4px; }
+  .kbd { font: 11px var(--mono); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 0 4px; }
+  .tabs { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: stretch; padding: 0 8px; gap: 2px; }
+  .tab { font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); padding: 0 12px; display: flex; align-items: center; border-bottom: 2px solid transparent; }
+  .tab.active { color: var(--text); background: var(--surface-2); border-bottom-color: var(--agent); }
+  .content { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* capacity band */
+  .cap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border-strong); border-radius: var(--r-md); }
+  .cap > div { background: var(--surface); padding: 8px 12px; }
+  .cap .v { font: 600 15px var(--mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .cap .v small { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .meter { height: 4px; background: var(--surface-2); margin-top: 6px; } .meter i { display: block; height: 100%; }
+  .meter.agent i { background: var(--agent); } .meter.you i { background: var(--you); } .meter.neutral i { background: var(--text-muted); }
+
+  /* chips */
+  .chip { display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border: 1px solid; border-radius: var(--r-sm); white-space: nowrap; }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.ok { color: var(--ok); border-color: #34D39966; } .chip.run { color: var(--agent); border-color: #A78BFA88; }
+  .chip.att { color: var(--attn-title); border-color: var(--attn-line); background: var(--attn-tint); } .chip.err { color: var(--err); border-color: #F8717188; }
+  .chip.mut { color: var(--text-muted); border-color: var(--border-strong); }
+  .chip.nodot::before { display: none; }
+
+  .grouph { display: flex; align-items: baseline; gap: 8px; }
+  .grouph h4 { font: 600 13px var(--ui); }
+  .grouph span { color: var(--text-muted); font-size: 12px; }
+
+  /* buttons */
+  .btn { border: 1px solid var(--control-border); background: transparent; border-radius: var(--r-sm); padding: 0 8px; height: 22px; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text); display: inline-flex; align-items: center; white-space: nowrap; }
+  .btn.ghost { border-color: transparent; color: var(--text-muted); }
+  .btn.att { border-color: var(--attn-line); color: var(--attn-title); }
+
+  /* A: cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .card.waiting { border-color: var(--attn-line); }
+  .card .h { display: flex; align-items: center; gap: 8px; }
+  .card .h .name { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--agent); }
+  .card .h .name.proj { color: var(--text); }
+  .card .h .kind { font-size: 11.5px; color: var(--text-muted); }
+  .card .h .sp { flex: 1; }
+  .line { font-size: 12.5px; display: flex; gap: 6px; align-items: baseline; }
+  .line .k { font: 600 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); min-width: 64px; }
+  .ask { background: var(--attn-tint); border: 1px solid var(--attn-line); border-radius: var(--r-sm); padding: 6px 8px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .ask b { color: var(--attn-title); font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; }
+  .ask .sp { flex: 1; }
+  .launch { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .ring { width: 12px; height: 12px; border: 2px solid var(--surface-2); border-top-color: var(--agent); border-radius: 50%; }
+  .facts { display: flex; gap: 14px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 6px; margin-top: 2px; flex-wrap: wrap; }
+  .facts .num { color: var(--text); }
+  .facts .sp { flex: 1; }
+  .folded { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 8px 12px; display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 12.5px; }
+  .folded .sp { flex: 1; }
+
+  /* B: dense list */
+  table.dense { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); font-size: 12.5px; }
+  table.dense th { text-align: left; font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); padding: 6px 10px; border-bottom: 1px solid var(--border-strong); white-space: nowrap; }
+  table.dense td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.dense tr.sub td { padding-top: 0; border-top: 0; color: var(--text-muted); }
+  table.dense tr.waiting td:first-child { box-shadow: inset 2px 0 0 var(--attn); }
+  table.dense td.r { text-align: right; } table.dense .name { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--agent); }
+  table.dense .name.proj { color: var(--text); }
+  table.dense tr.grp td { background: var(--bg-side); font: 600 13px var(--ui); padding: 6px 10px; }
+  table.dense tr.grp td span { color: var(--text-muted); font-weight: 400; font-size: 12px; margin-left: 6px; }
+
+  /* C: lanes by state */
+  .cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .colh { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; border-bottom: 1px solid var(--border-strong); }
+  .colh .n { font: 600 11px var(--mono); color: var(--text-muted); }
+  .owner { font-size: 11.5px; color: var(--text-muted); }
+  .owner b { color: var(--text); font-weight: 600; }
+
+  .ask-box { margin-top: 32px; border: 1px solid var(--attn); background: var(--attn-tint); border-radius: var(--r-md); padding: 16px 18px; }
+  .ask-box .hud { color: var(--attn-title); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .bbtn { border: 1px solid var(--control-border); background: var(--surface); border-radius: var(--r-sm); padding: 0 12px; height: 26px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .bbtn.pri { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  #sent { margin-top: 8px; font: 600 11px var(--mono); color: var(--ok); text-transform: uppercase; letter-spacing: .08em; }
+  .decided { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px 16px; font-size: 12.5px; color: var(--text-muted); margin-top: 8px; }
+  .decided b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-overview" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+  <symbol id="i-mark" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="#F2EFFA"/><rect x="10.4" y="12" width="3.2" height="13" fill="#A78BFA"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="#FB923C"/></symbol>
+</svg>
+<div class="page">
+  <div class="hud">Lot 7 · Vue d'ensemble · Tour 2 : la mise en page</div>
+  <h1>Trois façons de ranger les mêmes boxes</h1>
+  <p class="lead">Même contenu dans les trois maquettes (thème Night, densité mixed) : tes réponses du tour 1, l'icône tout en haut du rail au-dessus des agents, le bandeau de capacité, la vue owner groupée par personne, les boxes arrêtées repliées. Seul le rangement change. Clique l'en-tête de l'option qui te convient ; une note par option si tu veux mélanger.</p>
+
+  <h2>Ce que tu as décidé au tour 1</h2>
+  <div class="decided">
+    <div><b>Nom</b> · Overview / Vue d'ensemble</div>
+    <div><b>Entrée</b> · onglet unique, icône en haut du rail, ⌘K</div>
+    <div><b>Ouverture</b> · Home, réglage « Ouvrir sur »</div>
+    <div><b>Unité</b> · une carte par box</div>
+    <div><b>Ordre</b> · par urgence</div>
+    <div><b>Arrêtées</b> · repliées en bas</div>
+    <div><b>Carte</b> · phase, activité, question, coût, mémoire, prochaine exécution, étape de démarrage</div>
+    <div><b>Bandeau</b> · mémoire, workers, coût du jour</div>
+    <div><b>Actions</b> · ouvrir, démarrer / arrêter, arrêter une tâche, Répondre → Inbox</div>
+    <div><b>Membres</b> · owner voit tout, groupé par personne</div>
+    <div><b>Téléphone</b> · onglet Agents (tour 3)</div>
+    <div><b>Temps</b> · présent seulement, heure de début fixe</div>
+  </div>
+
+  <!-- ===================== A ===================== -->
+  <div class="option" data-choice="layout-cards">
+    <div class="ohead" tabindex="0"><div class="letter">A</div><div><h3>Grille de cartes<span class="tag">reco</span></h3><p>Une carte par box, 2 à 3 par ligne selon la largeur, triées par urgence dans chaque groupe de personne.</p></div></div>
+    <div class="shell">
+      <nav class="rail">
+        <svg width="24" height="24"><use href="#i-mark"/></svg>
+        <div class="ri active"><svg width="16" height="16"><use href="#i-overview"/></svg></div>
+        <div class="sep"></div>
+        <div class="av">CN<span class="dot" style="background:var(--attn)"></span></div>
+        <div class="av">CL<span class="dot" style="background:var(--agent)"></span></div>
+        <div class="av idle">AT</div>
+        <div class="ri"><svg width="16" height="16"><use href="#i-plus"/></svg></div>
+      </nav>
+      <div class="main">
+        <div class="top">pap-site ▾<span class="sp"></span>Inbox<span class="badge">2</span><span class="kbd">⌘K</span></div>
+        <div class="tabs"><div class="tab active">Vue d'ensemble</div><div class="tab">CyberNews</div><div class="tab">fix/header</div></div>
+        <div class="content">
+          <div class="cap">
+            <div><span class="hud">Mémoire des boxes</span><div class="v">8,0 <small>/ 10 Go</small></div><div class="meter agent"><i style="width:80%"></i></div></div>
+            <div><span class="hud">Workers Pi</span><div class="v">4 <small>/ 6</small></div><div class="meter neutral"><i style="width:66%"></i></div></div>
+            <div><span class="hud">Coût du jour</span><div class="v">$1.84 <small>/ $10.00</small></div><div class="meter you"><i style="width:18%"></i></div></div>
+          </div>
+
+          <div class="grouph"><h4>Vous</h4><span>4 actives · 4 arrêtées</span></div>
+          <div class="cards">
+            <div class="card waiting">
+              <div class="h"><div class="av">CN</div><div><div class="name">CyberNews</div><div class="kind">Agent</div></div><span class="sp"></span><span class="chip att">Attend</span></div>
+              <div class="line"><span class="k">Thread</span>Revue des flux sécu · depuis <span class="num">14:02</span></div>
+              <div class="ask"><b>Approbation</b>Réseau : feeds.example.org<span class="sp"></span><span class="btn att">Répondre</span></div>
+              <div class="facts"><span class="num">$0.42</span><span><span class="num">1,5</span> Go</span><span>Prochaine <span class="num">18:00</span> · Pulse du soir</span><span class="sp"></span><span class="chip ok">En marche</span></div>
+            </div>
+            <div class="card">
+              <div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div><div class="name proj">homelab</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip err">Échec</span></div>
+              <div class="line"><span class="k">Tâche</span>Nightly backup check · échouée à <span class="num">13:10</span></div>
+              <div class="facts"><span class="num">$0.18</span><span><span class="num">0</span> Go</span><span>Prochaine demain <span class="num">02:00</span></span><span class="sp"></span><span class="chip mut">Arrêtée</span><span class="btn">Démarrer</span></div>
+            </div>
+            <div class="card">
+              <div class="h"><div class="av">CL</div><div><div class="name">CyberLooker</div><div class="kind">Agent</div></div><span class="sp"></span><span class="chip run">Tourne</span></div>
+              <div class="line"><span class="k">Tâche</span>Scan hebdo · dans le thread · depuis <span class="num">13:55</span><span class="btn ghost">Arrêter</span></div>
+              <div class="facts"><span class="num">$0.97</span><span><span class="num">1,5</span> Go</span><span>Prochaine lundi <span class="num">07:00</span></span><span class="sp"></span><span class="chip ok">En marche</span></div>
+            </div>
+            <div class="card">
+              <div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div><div class="name proj">pap-site</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip run">Démarre</span></div>
+              <div class="launch"><span class="ring"></span>Starting the VM… <span class="num">00:07</span></div>
+              <div class="line"><span class="k">Session</span>fix header · attend la box</div>
+              <div class="facts"><span class="num">$0.00</span><span><span class="num">2,5</span> Go</span><span class="sp"></span><span class="chip run">Démarre</span></div>
+            </div>
+          </div>
+          <div class="folded"><span class="chip mut nodot">4 arrêtées</span>Atlas · Scratch · docs · infra-lab<span class="sp"></span><span class="btn ghost">Déplier</span></div>
+
+          <div class="grouph"><h4>Camille</h4><span>membre · 1 active · 1 arrêtée</span></div>
+          <div class="cards">
+            <div class="card">
+              <div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div><div class="name proj">thesis</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip run">Tourne</span></div>
+              <div class="line"><span class="k">Session</span>chapitre 3 · depuis <span class="num">13:40</span></div>
+              <div class="facts"><span class="num">$0.27</span><span><span class="num">2,5</span> Go</span><span class="sp"></span><span class="chip ok">En marche</span><span class="btn">Arrêter</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>Lisible d'un coup d'œil, la question rose saute aux yeux.</li><li>Même grammaire que le Tasks board et le panneau de l'agent.</li><li>Se replie bien en une colonne sur un volet étroit et sur téléphone.</li></ul></div><div class="c"><b>Contre</b><ul><li>Prend de la hauteur : au-delà de ~9 boxes actives il faut défiler.</li><li>Les chiffres ne sont pas alignés d'une carte à l'autre.</li></ul></div></div>
+    <textarea placeholder="Note sur A (facultatif)"></textarea>
+  </div>
+
+  <!-- ===================== B ===================== -->
+  <div class="option" data-choice="layout-dense">
+    <div class="ohead" tabindex="0"><div class="letter">B</div><div><h3>Liste dense</h3><p>Une ligne par box, une sous-ligne par activité ; les chiffres en colonnes alignées.</p></div></div>
+    <div class="shell" style="min-height:0">
+      <nav class="rail">
+        <svg width="24" height="24"><use href="#i-mark"/></svg>
+        <div class="ri active"><svg width="16" height="16"><use href="#i-overview"/></svg></div>
+        <div class="sep"></div>
+        <div class="av">CN<span class="dot" style="background:var(--attn)"></span></div>
+        <div class="av">CL<span class="dot" style="background:var(--agent)"></span></div>
+        <div class="av idle">AT</div>
+        <div class="ri"><svg width="16" height="16"><use href="#i-plus"/></svg></div>
+      </nav>
+      <div class="main">
+        <div class="top">pap-site ▾<span class="sp"></span>Inbox<span class="badge">2</span><span class="kbd">⌘K</span></div>
+        <div class="tabs"><div class="tab active">Vue d'ensemble</div><div class="tab">CyberNews</div><div class="tab">fix/header</div></div>
+        <div class="content">
+          <div class="cap">
+            <div><span class="hud">Mémoire des boxes</span><div class="v">8,0 <small>/ 10 Go</small></div><div class="meter agent"><i style="width:80%"></i></div></div>
+            <div><span class="hud">Workers Pi</span><div class="v">4 <small>/ 6</small></div><div class="meter neutral"><i style="width:66%"></i></div></div>
+            <div><span class="hud">Coût du jour</span><div class="v">$1.84 <small>/ $10.00</small></div><div class="meter you"><i style="width:18%"></i></div></div>
+          </div>
+          <table class="dense">
+            <tr><th>État</th><th>Box</th><th>Ce qui tourne</th><th>Box</th><th class="r">Coût</th><th class="r">Mémoire</th><th>Prochaine</th><th></th></tr>
+            <tr class="grp"><td colspan="8">Vous<span>4 actives · 4 arrêtées</span></td></tr>
+            <tr class="waiting"><td><span class="chip att">Attend</span></td><td><span class="name">CyberNews</span></td><td>Thread · Revue des flux sécu · <span class="num">14:02</span></td><td><span class="chip ok">En marche</span></td><td class="r num">$0.42</td><td class="r num">1,5 Go</td><td><span class="num">18:00</span> Pulse du soir</td><td><span class="btn att">Répondre</span></td></tr>
+            <tr class="sub waiting"><td></td><td></td><td colspan="6" style="color:var(--attn-title)">Approbation · réseau : feeds.example.org</td></tr>
+            <tr><td><span class="chip err">Échec</span></td><td><span class="name proj">homelab</span></td><td>Tâche · Nightly backup check · échouée <span class="num">13:10</span></td><td><span class="chip mut">Arrêtée</span></td><td class="r num">$0.18</td><td class="r num">0 Go</td><td>demain <span class="num">02:00</span></td><td><span class="btn">Démarrer</span></td></tr>
+            <tr><td><span class="chip run">Tourne</span></td><td><span class="name">CyberLooker</span></td><td>Tâche · Scan hebdo · <span class="num">13:55</span></td><td><span class="chip ok">En marche</span></td><td class="r num">$0.97</td><td class="r num">1,5 Go</td><td>lundi <span class="num">07:00</span></td><td><span class="btn ghost">Arrêter</span></td></tr>
+            <tr><td><span class="chip run">Démarre</span></td><td><span class="name proj">pap-site</span></td><td><span class="launch" style="display:inline-flex"><span class="ring"></span>Starting the VM… <span class="num">00:07</span></span></td><td><span class="chip run">Démarre</span></td><td class="r num">$0.00</td><td class="r num">2,5 Go</td><td>–</td><td></td></tr>
+            <tr class="sub"><td></td><td></td><td colspan="6">Session · fix header · attend la box</td></tr>
+            <tr><td colspan="8" style="color:var(--text-muted)"><span class="chip mut nodot">4 arrêtées</span>&nbsp; Atlas · Scratch · docs · infra-lab &nbsp;<span class="btn ghost">Déplier</span></td></tr>
+            <tr class="grp"><td colspan="8">Camille<span>membre · 1 active · 1 arrêtée</span></td></tr>
+            <tr><td><span class="chip run">Tourne</span></td><td><span class="name proj">thesis</span></td><td>Session · chapitre 3 · <span class="num">13:40</span></td><td><span class="chip ok">En marche</span></td><td class="r num">$0.27</td><td class="r num">2,5 Go</td><td>–</td><td><span class="btn">Arrêter</span></td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>Tient 20+ boxes sans défiler.</li><li>Coût et mémoire alignés : on repère la box qui prend tout.</li><li>Le plus « mission control ».</li></ul></div><div class="c"><b>Contre</b><ul><li>Sur un volet étroit ou un téléphone, il faut une autre présentation (deux composants à maintenir).</li><li>La question en attente pèse moins visuellement.</li></ul></div></div>
+    <textarea placeholder="Note sur B (facultatif)"></textarea>
+  </div>
+
+  <!-- ===================== C ===================== -->
+  <div class="option" data-choice="layout-columns">
+    <div class="ohead" tabindex="0"><div class="letter">C</div><div><h3>Colonnes par état</h3><p>Attend · Échec · Tourne · Démarre ; une carte quitte sa colonne quand son état change. Les personnes deviennent une ligne sur la carte.</p></div></div>
+    <div class="shell" style="min-height:0">
+      <nav class="rail">
+        <svg width="24" height="24"><use href="#i-mark"/></svg>
+        <div class="ri active"><svg width="16" height="16"><use href="#i-overview"/></svg></div>
+        <div class="sep"></div>
+        <div class="av">CN<span class="dot" style="background:var(--attn)"></span></div>
+        <div class="av">CL<span class="dot" style="background:var(--agent)"></span></div>
+        <div class="av idle">AT</div>
+        <div class="ri"><svg width="16" height="16"><use href="#i-plus"/></svg></div>
+      </nav>
+      <div class="main">
+        <div class="top">pap-site ▾<span class="sp"></span>Inbox<span class="badge">2</span><span class="kbd">⌘K</span></div>
+        <div class="tabs"><div class="tab active">Vue d'ensemble</div><div class="tab">CyberNews</div><div class="tab">fix/header</div></div>
+        <div class="content">
+          <div class="cap">
+            <div><span class="hud">Mémoire des boxes</span><div class="v">8,0 <small>/ 10 Go</small></div><div class="meter agent"><i style="width:80%"></i></div></div>
+            <div><span class="hud">Workers Pi</span><div class="v">4 <small>/ 6</small></div><div class="meter neutral"><i style="width:66%"></i></div></div>
+            <div><span class="hud">Coût du jour</span><div class="v">$1.84 <small>/ $10.00</small></div><div class="meter you"><i style="width:18%"></i></div></div>
+          </div>
+          <div class="cols">
+            <div class="col"><div class="colh"><span class="chip att">Attend</span><span class="n">1</span></div>
+              <div class="card waiting"><div class="h"><div class="av">CN</div><div class="name">CyberNews</div></div>
+                <div class="line">Thread · flux sécu · <span class="num">14:02</span></div>
+                <div class="ask"><b>Approbation</b><span class="sp"></span><span class="btn att">Répondre</span></div>
+                <div class="facts"><span class="num">$0.42</span><span class="num">1,5 Go</span><span class="num">18:00</span></div></div>
+            </div>
+            <div class="col"><div class="colh"><span class="chip err">Échec</span><span class="n">1</span></div>
+              <div class="card"><div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div class="name proj">homelab</div></div>
+                <div class="line">Backup check · <span class="num">13:10</span></div>
+                <div class="facts"><span class="num">$0.18</span><span>Arrêtée</span><span class="btn">Démarrer</span></div></div>
+            </div>
+            <div class="col"><div class="colh"><span class="chip run">Tourne</span><span class="n">2</span></div>
+              <div class="card"><div class="h"><div class="av">CL</div><div class="name">CyberLooker</div></div>
+                <div class="line">Scan hebdo · <span class="num">13:55</span></div>
+                <div class="facts"><span class="num">$0.97</span><span class="num">1,5 Go</span></div></div>
+              <div class="card"><div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div class="name proj">thesis</div></div>
+                <div class="owner">de <b>Camille</b> · membre</div>
+                <div class="line">chapitre 3 · <span class="num">13:40</span></div>
+                <div class="facts"><span class="num">$0.27</span><span class="num">2,5 Go</span></div></div>
+            </div>
+            <div class="col"><div class="colh"><span class="chip run">Démarre</span><span class="n">1</span></div>
+              <div class="card"><div class="h"><svg width="16" height="16" style="color:var(--text-muted)"><use href="#i-box"/></svg><div class="name proj">pap-site</div></div>
+                <div class="launch"><span class="ring"></span>Starting the VM… <span class="num">00:07</span></div>
+                <div class="facts"><span class="num">$0.00</span><span class="num">2,5 Go</span></div></div>
+            </div>
+          </div>
+          <div class="folded"><span class="chip mut nodot">5 arrêtées</span>Atlas · Scratch · docs · infra-lab · Camille : notes<span class="sp"></span><span class="btn ghost">Déplier</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>L'état se lit par la position, pas seulement par le chip.</li><li>Colonnes vides = rien à faire.</li></ul></div><div class="c"><b>Contre</b><ul><li>Contredit ta Q10 : le regroupement par personne devient une ligne par carte (il faudrait l'info « propriétaire » que tu n'as pas retenue en Q7).</li><li>Quatre colonnes étroites : les cartes perdent du texte ; illisible sous 1280 px.</li><li>Une carte qui change de colonne fait bouger l'écran.</li></ul></div></div>
+    <textarea placeholder="Note sur C (facultatif)"></textarea>
+  </div>
+
+  <div class="ask-box">
+    <span class="hud">Ta validation</span>
+    <div>Une mise en page (rien = A, la reco), puis valide. Le tour 3 montrera le téléphone et les états limites (rien qui tourne, agents indisponibles, capacité pleine) avec la mise en page choisie.</div>
+    <div class="bar">
+      <button class="bbtn pri" type="button" onclick="submitLayout()">Valider la mise en page</button>
+    </div>
+    <div id="sent" hidden>Choix envoyé · tu peux revenir au terminal</div>
+  </div>
+</div>
+<script>
+  const KEY = 'pap.overview.q2';
+  const opts = [...document.querySelectorAll('.option')];
+  function pick(o) { opts.forEach(x => x.classList.toggle('selected', x === o)); save(); }
+  opts.forEach(o => {
+    const h = o.querySelector('.ohead');
+    h.addEventListener('click', () => pick(o));
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(o); } });
+    o.querySelector('textarea').addEventListener('input', save);
+  });
+  function state() {
+    const sel = opts.find(o => o.classList.contains('selected'));
+    const notes = {}; opts.forEach(o => { const v = o.querySelector('textarea').value.trim(); if (v) notes[o.dataset.choice] = v; });
+    return { layout: sel ? sel.dataset.choice : 'reco', notes };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state())); } catch (e) {} }
+  (function restore() {
+    let s; try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
+    if (!s) return;
+    opts.forEach(o => { o.classList.toggle('selected', o.dataset.choice === s.layout); o.querySelector('textarea').value = (s.notes || {})[o.dataset.choice] || ''; });
+  })();
+  function submitLayout() {
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: 'overview-layout-submitted', answers: state() });
+    document.getElementById('sent').hidden = false;
+  }
+</script>
+</body>
+</html>

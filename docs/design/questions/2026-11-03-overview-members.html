@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vue d'ensemble · Les membres vus par l'owner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33; --border:#2D2840; --border-strong:#3D3657; --control-border:#6B6485;
+          --text:#F2EFFA; --text-muted:#9C95B5; --text-dim:#6B6485; --agent:#A78BFA; --agent-ink:#110F18; --you:#FB923C; --you-ink:#1B0D00;
+          --attn:#EC4899; --attn-tint:#EC48991A; --attn-line:#EC48998C; --attn-title:#F472B6; --ok:#34D399; --err:#F87171;
+          --r-sm:2px; --r-md:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); padding: 32px 16px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1180px; margin: 0 auto; }
+  .hud { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  h1 { font: 800 28px/1.2 var(--ui); letter-spacing: -.02em; margin-top: 6px; }
+  .lead { color: var(--text-muted); max-width: 920px; margin-top: 6px; font-size: 14px; }
+  h2 { font: 700 16px var(--ui); margin: 32px 0 10px; }
+  h3 { font: 700 15px var(--ui); }
+  code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: var(--r-sm); }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .context { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 12px 14px; margin-top: 16px; display: grid; gap: 6px; font-size: 13px; }
+  .context b { font-weight: 600; }
+
+  .option { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); margin-top: 14px; }
+  .option.selected { border-color: var(--you); box-shadow: inset 0 0 0 1px var(--you); }
+  .ohead { display: flex; align-items: center; gap: 10px; padding: 12px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+  .ohead .letter { font: 700 12px var(--mono); width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid var(--control-border); border-radius: var(--r-sm); flex: none; }
+  .option.selected .ohead .letter { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  .ohead p { color: var(--text-muted); font-size: 12.5px; }
+  .ohead .tag { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: var(--r-sm); margin-left: 6px; }
+  .ohead .adr { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--you); border: 1px solid #FB923C88; padding: 0 4px; border-radius: var(--r-sm); margin-left: 6px; }
+  .pc { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
+  .pc div { padding: 10px 14px; font-size: 12.5px; } .pc div + div { border-left: 1px solid var(--border); }
+  .pc b { font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; display: block; margin-bottom: 4px; }
+  .pc .p b { color: var(--ok); } .pc .c b { color: var(--err); }
+  .pc ul { list-style: none; display: grid; gap: 3px; } .pc li::before { content: "– "; color: var(--text-muted); }
+  textarea { width: calc(100% - 28px); margin: 0 14px 14px; background: var(--bg); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 6px 8px; font: 13px var(--ui); min-height: 34px; resize: vertical; }
+  textarea::placeholder { color: var(--text-muted); }
+
+  .pane { margin: 14px; background: var(--bg); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 14px; display: flex; flex-direction: column; gap: 12px;
+          background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .cap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border-strong); border-radius: var(--r-md); }
+  .cap > div { background: var(--surface); padding: 8px 12px; }
+  .cap .v { font: 600 15px var(--mono); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .cap .v small { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .cap .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 2px; }
+  .meter { height: 4px; background: var(--surface-2); margin-top: 6px; } .meter i { display: block; height: 100%; }
+  .meter.agent i { background: var(--agent); } .meter.you i { background: var(--you); } .meter.neutral i { background: var(--text-muted); }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 1px 6px; border: 1px solid; border-radius: var(--r-sm); white-space: nowrap; }
+  .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .chip.ok { color: var(--ok); border-color: #34D39966; } .chip.run { color: var(--agent); border-color: #A78BFA88; }
+  .chip.att { color: var(--attn-title); border-color: var(--attn-line); background: var(--attn-tint); } .chip.err { color: var(--err); border-color: #F8717188; }
+  .chip.mut { color: var(--text-muted); border-color: var(--border-strong); } .chip.nodot::before { display: none; }
+  .btn { border: 1px solid var(--control-border); background: transparent; border-radius: var(--r-sm); padding: 0 8px; height: 22px; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--text); display: inline-flex; align-items: center; white-space: nowrap; }
+  .btn.ghost { border-color: transparent; color: var(--text-muted); } .btn.att { border-color: var(--attn-line); color: var(--attn-title); }
+  .av { width: 28px; height: 28px; border: 1px solid var(--agent); border-radius: var(--r-md); display: grid; place-items: center; font: 600 10.5px var(--mono); color: var(--agent); flex: none; }
+  .grouph { display: flex; align-items: baseline; gap: 8px; } .grouph h4 { font: 600 13px var(--ui); } .grouph span { color: var(--text-muted); font-size: 12px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .card.waiting { border-color: var(--attn-line); }
+  .card .h { display: flex; align-items: center; gap: 8px; } .card .h .sp { flex: 1; }
+  .card .h .name { font: 600 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--agent); }
+  .card .h .name.proj { color: var(--text); } .card .h .kind { font-size: 11.5px; color: var(--text-muted); }
+  .line { font-size: 12.5px; display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+  .line .k { font: 600 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); min-width: 56px; }
+  .ask { background: var(--attn-tint); border: 1px solid var(--attn-line); border-radius: var(--r-sm); padding: 6px 8px; display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+  .ask b { color: var(--attn-title); font: 600 10.5px var(--mono); letter-spacing: .06em; text-transform: uppercase; } .ask .sp { flex: 1; }
+  .facts { display: flex; gap: 12px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 6px; flex-wrap: wrap; align-items: center; }
+  .facts .num { color: var(--text); } .facts .sp { flex: 1; }
+  .ico { color: var(--text-muted); flex: none; }
+  .folded { border: 1px dashed var(--border-strong); border-radius: var(--r-md); padding: 8px 12px; display: flex; align-items: center; gap: 10px; color: var(--text-muted); font-size: 12.5px; }
+  .folded .sp { flex: 1; }
+  .members { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); }
+  .mrow { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.4fr; gap: 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .mrow:last-child { border-bottom: 0; }
+  .mrow.head { font: 600 10.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .mrow b { font-weight: 600; } .mrow .muted { color: var(--text-muted); }
+  .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px; }
+
+  .info { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 12px 14px; }
+  .info ul { list-style: none; display: grid; gap: 6px; margin-top: 6px; font-size: 13px; }
+  .info li { padding-left: 14px; position: relative; } .info li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--agent); }
+  .ask-box { margin-top: 32px; border: 1px solid var(--attn); background: var(--attn-tint); border-radius: var(--r-md); padding: 16px 18px; }
+  .ask-box .hud { color: var(--attn-title); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .bbtn { border: 1px solid var(--control-border); background: var(--surface); border-radius: var(--r-sm); padding: 0 12px; height: 26px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .bbtn.pri { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  #sent { margin-top: 8px; font: 600 11px var(--mono); color: var(--ok); text-transform: uppercase; letter-spacing: .08em; }
+  @media (max-width: 860px) { .cmp, .pc { grid-template-columns: 1fr; } .mrow { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></symbol>
+</svg>
+<div class="page">
+  <div class="hud">Lot 7 · Vue d'ensemble · Tour 4 : après la relecture de la spec</div>
+  <h1>Ce que l'owner voit des membres</h1>
+  <p class="lead">La relecture a soulevé un conflit que ma question Q10 du tour 1 a masqué. Deux questions ici, chacune avec une reco et une maquette par option ; le reste de la relecture est réglé sans toi (liste en bas).</p>
+
+  <div class="context">
+    <div><span class="hud">Ce que dit M14 (ta décision du 2026-10-24)</span></div>
+    <div><b>« L'owner voit l'usage et les coûts des membres, pas leur contenu. »</b> Rien des sessions, projets, fichiers, threads d'agents ou Inbox d'un membre : chaque lecture reste filtrée par <code>owner_id</code>. Settings › Users montre déjà, par membre : usage, coût aujourd'hui et 7 j, budget, dernière visite, boxes en marche.</div>
+    <div>Au tour 1, la Q10 « l'owner voit tout, groupé par personne » allait au-delà sans le dire. Les maquettes des tours 2 et 3 montraient le projet « thesis » de Camille et sa session « chapitre 3 » : c'est du contenu.</div>
+  </div>
+
+  <h2>Q1 · Les boxes d'un membre, dans la vue de l'owner</h2>
+
+  <div class="option" data-q="members" data-choice="members-summary">
+    <div class="ohead" tabindex="0"><div class="letter">A</div><div><h3>Une ligne par membre, sans contenu<span class="tag">reco</span></h3><p>Respecte M14 tel quel : boxes actives, mémoire réservée, coût du jour et budget. Aucun nom de box, de session ou de tâche ; aucune action.</p></div></div>
+    <div class="pane">
+      <div class="cap">
+        <div><span class="hud">Mémoire des boxes</span><div class="v">8,0 <small>/ 10 Go</small></div><div class="meter agent"><i style="width:80%"></i></div></div>
+        <div><span class="hud">Workers Pi</span><div class="v">4 <small>/ 6</small></div><div class="meter neutral"><i style="width:66%"></i></div></div>
+        <div><span class="hud">Coût du jour</span><div class="v">$1.57 <small>/ $10.00</small></div><div class="meter you"><i style="width:16%"></i></div></div>
+      </div>
+      <div class="grouph"><h4>Vous</h4><span>3 actives · 4 arrêtées</span></div>
+      <div class="cards">
+        <div class="card waiting"><div class="h"><div class="av">CN</div><div><div class="name">CyberNews</div><div class="kind">Agent</div></div><span class="sp"></span><span class="chip att">Attend</span></div>
+          <div class="ask"><b>Approbation</b>Réseau : feeds.example.org<span class="sp"></span><span class="btn att">Répondre</span></div>
+          <div class="facts"><span class="num">$0.42</span><span class="num">1,5 Go</span><span>18:00 · Pulse du soir</span><span class="sp"></span><span class="chip ok">En marche</span></div></div>
+        <div class="card"><div class="h"><div class="av">CL</div><div><div class="name">CyberLooker</div><div class="kind">Agent</div></div><span class="sp"></span><span class="chip run">Tourne</span></div>
+          <div class="line"><span class="k">Tâche</span>Scan hebdo · depuis <span class="num">13:55</span></div>
+          <div class="facts"><span class="num">$0.97</span><span class="num">1,5 Go</span><span class="sp"></span><span class="chip ok">En marche</span></div></div>
+      </div>
+      <div class="folded"><span class="chip mut nodot">4 arrêtées</span>Atlas · Scratch · docs · infra-lab<span class="sp"></span><span class="btn ghost">Déplier</span></div>
+      <div class="grouph"><h4>Membres</h4><span>2 membres · 5,0 Go réservés</span></div>
+      <div class="members">
+        <div class="mrow head"><span>Membre</span><span>Boxes actives</span><span>Mémoire</span><span>Coût du jour / budget</span></div>
+        <div class="mrow"><b>Camille</b><span class="num">2</span><span class="num">5,0 Go</span><span class="num">$0.27 <span class="muted">/ $2.00</span></span></div>
+        <div class="mrow"><b>Alex</b><span class="num muted">0</span><span class="num muted">0 Go</span><span class="num">$0.00 <span class="muted">/ $1.00</span></span></div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>Aucun changement de règle : pas d'ADR, rien de nouveau à protéger.</li><li>Répond à « qui prend la mémoire ? ».</li><li>Mêmes chiffres que Settings › Users, en direct.</li></ul></div><div class="c"><b>Contre</b><ul><li>Tu ne sais pas laquelle de ses boxes pèse le plus.</li><li>Pour libérer de la mémoire, il faut demander au membre (ou le désactiver dans Settings › Users).</li></ul></div></div>
+    <textarea placeholder="Note sur A (facultatif)"></textarea>
+  </div>
+
+  <div class="option" data-q="members" data-choice="members-names">
+    <div class="ohead" tabindex="0"><div class="letter">B</div><div><h3>Cartes réduites : nom, état, mémoire, coût<span class="adr">amende M14 · ADR</span></h3><p>Le nom de chaque box et son état, jamais les titres de session ou de tâche ni les questions. Aucune action.</p></div></div>
+    <div class="pane">
+      <div class="grouph"><h4>Camille</h4><span>membre · 2 actives · 1 arrêtée</span></div>
+      <div class="cards">
+        <div class="card"><div class="h"><svg class="ico" width="16" height="16"><use href="#i-box"/></svg><div><div class="name proj">thesis</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip run">Tourne</span></div>
+          <div class="facts"><span class="num">$0.27</span><span class="num">2,5 Go</span><span class="sp"></span><span class="chip ok">En marche</span></div></div>
+        <div class="card"><div class="h"><svg class="ico" width="16" height="16"><use href="#i-box"/></svg><div><div class="name proj">site-perso</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip att">Attend</span></div>
+          <div class="facts"><span class="num">$0.00</span><span class="num">2,5 Go</span><span class="sp"></span><span class="chip ok">En marche</span></div></div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>Tu vois quelle box d'un membre pèse et si elle attend.</li></ul></div><div class="c"><b>Contre</b><ul><li>Les noms de projets sont du contenu : M14 change, un ADR et des tests de filtrage en plus.</li><li>« Attend » sans pouvoir répondre ni voir quoi : une info que tu ne peux pas utiliser.</li></ul></div></div>
+    <textarea placeholder="Note sur B (facultatif)"></textarea>
+  </div>
+
+  <div class="option" data-q="members" data-choice="members-full">
+    <div class="ohead" tabindex="0"><div class="letter">C</div><div><h3>Cartes complètes + arrêter<span class="adr">amende M14 · ADR</span></h3><p>Comme tes propres boxes (titres, questions), et tu peux arrêter une box ou une tâche d'un membre pour libérer de la mémoire.</p></div></div>
+    <div class="pane">
+      <div class="grouph"><h4>Camille</h4><span>membre · 2 actives · 1 arrêtée</span></div>
+      <div class="cards">
+        <div class="card"><div class="h"><svg class="ico" width="16" height="16"><use href="#i-box"/></svg><div><div class="name proj">thesis</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip run">Tourne</span></div>
+          <div class="line"><span class="k">Session</span>chapitre 3 · depuis <span class="num">13:40</span></div>
+          <div class="facts"><span class="num">$0.27</span><span class="num">2,5 Go</span><span class="sp"></span><span class="chip ok">En marche</span><span class="btn">Arrêter</span></div></div>
+        <div class="card waiting"><div class="h"><svg class="ico" width="16" height="16"><use href="#i-box"/></svg><div><div class="name proj">site-perso</div><div class="kind">Projet</div></div><span class="sp"></span><span class="chip att">Attend</span></div>
+          <div class="ask"><b>Approbation</b>Commande : npm publish</div>
+          <div class="facts"><span class="num">$0.00</span><span class="num">2,5 Go</span><span class="sp"></span><span class="chip ok">En marche</span><span class="btn">Arrêter</span></div></div>
+      </div>
+    </div>
+    <div class="pc"><div class="p"><b>Pour</b><ul><li>Tu libères la mémoire toi-même.</li></ul></div><div class="c"><b>Contre</b><ul><li>Renverse M14 : tu lis le travail des membres. Gros ADR, et une nouvelle permission « agir dans la box d'un autre ».</li><li>Arrêter le travail de quelqu'un sans le prévenir.</li></ul></div></div>
+    <textarea placeholder="Note sur C (facultatif)"></textarea>
+  </div>
+
+  <h2>Q2 · La case « Coût du jour » de l'owner</h2>
+  <p class="lead">Le budget quotidien de Settings › Automation est le tien ; chaque membre a sa ligne de budget à lui.</p>
+  <div class="cmp">
+    <div class="option" data-q="cost" data-choice="cost-own" style="margin-top:0">
+      <div class="ohead" tabindex="0"><div class="letter">A</div><div><h3>Ta dépense face à ton budget<span class="tag">reco</span></h3><p>Les membres ont leur coût sur leur ligne (Q1).</p></div></div>
+      <div class="pane"><div class="cap" style="grid-template-columns:1fr"><div><span class="hud">Coût du jour</span><div class="v">$1.57 <small>/ $10.00</small></div><div class="meter you"><i style="width:16%"></i></div></div></div></div>
+      <textarea placeholder="Note (facultatif)"></textarea>
+    </div>
+    <div class="option" data-q="cost" data-choice="cost-all" style="margin-top:0">
+      <div class="ohead" tabindex="0"><div class="letter">B</div><div><h3>Le total de tout le monde</h3><p>Ce que l'installation dépense aujourd'hui, sans comparaison à un budget.</p></div></div>
+      <div class="pane"><div class="cap" style="grid-template-columns:1fr"><div><span class="hud">Coût du jour · tous</span><div class="v">$1.84</div><div class="sub">dont membres $0.27</div></div></div></div>
+      <textarea placeholder="Note (facultatif)"></textarea>
+    </div>
+  </div>
+
+  <h2>Réglé sans toi (remarques de la relecture, à vérifier en lisant la spec)</h2>
+  <div class="info"><ul>
+    <li><b>Arrêter une box</b> : le daemon a déjà <code>stop</code> sur une box projet, en file avec les démarrages et redémarrages ; les nouvelles RPC ne font que l'exposer. Le travail en cours finit comme lors d'un redémarrage : sessions interrompues, transcriptions intactes, tâches relançables. Sur une carte « Démarre », ARRÊTER annule le démarrage (<code>launches.stop</code> existe).</li>
+    <li><b>Capacité vue par un membre</b> : pourcentage arrondi à 5 %, ses boxes comprises. Si sa box ne rentre pas : « Pas assez de mémoire partagée : cette box demande 2,5 Go. Arrête une de tes boxes ou réessaie plus tard. » Ni la mémoire libre ni celle des autres. Un refus <code>capacity</code> renvoyé à un membre perd ses chiffres.</li>
+    <li><b>Coût par box</b> : simple jointure des runs sur leur session (projet ou agent). Pas de migration.</li>
+    <li><b>Plafond</b> : la valeur résolue (défaut : la moitié de la RAM), pas la variable brute. La plus petite VM vient du minimum de <code>memoryMb</code> (512) dans le schéma.</li>
+    <li><b>Workers</b> : le compteur qui refuse un fork (en cours + en démarrage / <code>PAP_MAX_WORKERS</code>), commun à tous les utilisateurs.</li>
+    <li><b>Mises à jour en direct</b> : le module écoute ce que le daemon émet déjà (changements de phase des VM, démarrages de box, sessions, tâches, état des agents, dépense). Si une source n'expose rien, on lui ajoute un écouteur, pas un nouveau bus.</li>
+    <li><b>Phase affichée</b> : celle de la VM du thread. Une tâche isolée apparaît en ligne d'activité et ajoute sa mémoire.</li>
+    <li><b>Réglage « Ouvrir sur »</b> : dans le document Appearance du compte (module settings), comme la position du rail.</li>
+    <li><b>Téléphone</b> : un agent arrêté s'ouvre depuis la bande des arrêtées ; le « + » du haut garde Nouvel agent et Nouveau projet.</li>
+  </ul></div>
+
+  <div class="ask-box">
+    <span class="hud">Ta validation</span>
+    <div>Une option par question (rien = la reco), puis valide. Ensuite je mets la spec à jour et je te la donne à relire.</div>
+    <div class="bar">
+      <button class="bbtn" type="button" onclick="applyRecos()">Appliquer toutes les recos</button>
+      <button class="bbtn pri" type="button" onclick="submitAll()">Valider le tour 4</button>
+    </div>
+    <div id="sent" hidden>Réponses envoyées · tu peux revenir au terminal</div>
+  </div>
+</div>
+<script>
+  const KEY = 'pap.overview.q4';
+  const opts = [...document.querySelectorAll('.option')];
+  function pick(o) { opts.filter(x => x.dataset.q === o.dataset.q).forEach(x => x.classList.toggle('selected', x === o)); save(); }
+  opts.forEach(o => {
+    const h = o.querySelector('.ohead');
+    h.addEventListener('click', () => pick(o));
+    h.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(o); } });
+    o.querySelector('textarea').addEventListener('input', save);
+  });
+  function state() {
+    const answers = {}, notes = {};
+    for (const q of ['members', 'cost']) { const s = opts.find(o => o.dataset.q === q && o.classList.contains('selected')); answers[q] = s ? s.dataset.choice : 'reco'; }
+    opts.forEach(o => { const v = o.querySelector('textarea').value.trim(); if (v) notes[o.dataset.choice] = v; });
+    return { answers, notes };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state())); } catch (e) {} }
+  (function restore() {
+    let s; try { s = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { s = null; }
+    if (!s) return;
+    opts.forEach(o => { o.classList.toggle('selected', Object.values(s.answers || {}).includes(o.dataset.choice)); o.querySelector('textarea').value = (s.notes || {})[o.dataset.choice] || ''; });
+  })();
+  function applyRecos() { opts.forEach(o => o.classList.toggle('selected', !!o.querySelector('.tag'))); save(); }
+  function submitAll() {
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: 'overview-q4-submitted', ...state() });
+    document.getElementById('sent').hidden = false;
+  }
+</script>
+</body>
+</html>

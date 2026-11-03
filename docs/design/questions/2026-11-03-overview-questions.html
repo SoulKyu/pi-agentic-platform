@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vue d'ensemble · Questions fonctionnelles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33; --border:#2D2840; --border-strong:#3D3657; --control-border:#6B6485;
+          --text:#F2EFFA; --text-muted:#9C95B5; --agent:#A78BFA; --you:#FB923C; --you-ink:#1B0D00; --attn:#EC4899; --attn-tint:#EC48991A; --attn-title:#F472B6;
+          --ok:#34D399; --err:#F87171; --r-sm:2px; --r-md:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 16px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1100px; margin: 0 auto; }
+  .hud { font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  h1 { font: 800 28px/1.2 var(--ui); letter-spacing: -.02em; margin-top: 6px; }
+  .lead { color: var(--text-muted); max-width: 900px; margin-top: 6px; }
+  h2 { font: 700 16px var(--ui); margin: 32px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: var(--r-sm); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r-md); }
+  th { text-align: left; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  td:first-child { font: 600 12px var(--mono); color: var(--agent); white-space: nowrap; }
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r-md); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--text-muted); margin: 2px 0 10px; }
+  .q .kind { font: 600 10px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--agent); margin-left: 6px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--control-border); background: var(--surface-2); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; cursor: pointer; user-select: none; max-width: 440px; }
+  .opt small { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+  .opt .tag { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: var(--r-sm); margin-left: 6px; }
+  .opt.selected { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .opt:focus-visible, .btn:focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
+  textarea { width: 100%; margin-top: 10px; background: var(--bg); color: var(--text); border: 1px solid var(--control-border); border-radius: var(--r-sm); padding: 6px 8px; font: 13px var(--ui); min-height: 34px; resize: vertical; }
+  textarea::placeholder { color: var(--text-muted); }
+  .ask { margin-top: 32px; border: 1px solid var(--attn); background: var(--attn-tint); border-radius: var(--r-md); padding: 16px 18px; }
+  .ask .hud { color: var(--attn-title); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--control-border); background: var(--surface); border-radius: var(--r-sm); padding: 0 12px; height: 26px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--you); color: var(--you-ink); border-color: transparent; }
+  #sent { margin-top: 8px; font: 600 11px var(--mono); color: var(--ok); text-transform: uppercase; letter-spacing: .08em; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="hud">Lot 7 · Inspiré du board de rerun · Tour 1 : le fonctionnel</div>
+  <h1>12 questions sur la vue d'ensemble</h1>
+  <p class="lead">Un écran qui répond à « qu'est-ce qui tourne, qu'est-ce qui m'attend, combien ça coûte » pour tous les agents et toutes les boxes projet. Chaque question a une reco ; « Appliquer toutes les recos » remplit tout. Une note libre par question si tu veux nuancer. Les maquettes viennent au tour 2, à partir de tes réponses.</p>
+
+  <h2>Ce qui existe déjà (le nouvel écran s'appuie dessus, sans le remplacer)</h2>
+  <table>
+    <tr><th>Surface</th><th>Ce qu'elle montre</th><th>Ce qui manque pour une vue d'ensemble</th></tr>
+    <tr><td>Rail</td><td>Un avatar par agent, point de présence (tourne / attend / repos), non-lus.</td><td>Pas les boxes projet, pas la phase de VM, pas le coût.</td></tr>
+    <tr><td>Tasks board</td><td>Une colonne par projet et par agent : déclencheurs, cartes de tâches, coût du jour.</td><td>Centré automatisation : ni sessions interactives, ni phase des boxes, ni mémoire.</td></tr>
+    <tr><td>Home du projet</td><td>StatusLine : lanes, tâches en cours, non-lus, coût 30 j ; phase de LA box du projet.</td><td>Un seul projet à la fois.</td></tr>
+    <tr><td>Panneau de l'agent</td><td>Budget du jour, coût 7 j / 30 j, dernières tâches, déclencheurs.</td><td>Un seul agent à la fois.</td></tr>
+    <tr><td>Inbox</td><td>Ce qui attend ta réponse (questions, approbations, box en pause).</td><td>Pas ce qui tourne sans rien demander.</td></tr>
+    <tr><td>Health</td><td>Les échecs depuis le dernier démarrage du daemon (en mémoire).</td><td>Pas ce qui va bien.</td></tr>
+  </table>
+  <p class="lead" style="margin-top:8px">Données déjà en flux : <code>subscribe.agents</code>, <code>subscribe.shell</code> (phase des boxes projet), <code>subscribe.tasks</code>, <code>subscribe.launches</code>, <code>subscribe.inbox</code>, <code>subscribe.usage</code>. <b>Pas exposé aujourd'hui</b> : la mémoire utilisée par toutes les boxes face au plafond <code>PAP_AGENTS_MEMORY_MAX_MB</code> (<code>agents.vmStatus</code> ne dit que ce qu'UNE VM peut demander).</p>
+
+  <h2>Tes choix</h2>
+
+  <div class="q" data-q="name"><h3>Q1 · Le nom de l'écran (anglais / français)</h3>
+    <p class="why">« Board » est déjà pris par le Tasks board : deux « boards » prêteraient à confusion.</p>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="name-overview">A · Overview / Vue d'ensemble<span class="tag">reco</span><small>Dit ce que c'est, aucun conflit dans le glossaire.</small></div>
+      <div class="opt" tabindex="0" data-choice="name-control">B · Control room / Salle de contrôle<small>Colle à l'identité « Night Control », plus long.</small></div>
+      <div class="opt" tabindex="0" data-choice="name-now">C · Now / En cours<small>Court, mais flou si on y montre aussi le planifié.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="entry"><h3>Q2 · Où on l'ouvre</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="entry-tab">A · Un onglet unique comme Tasks : icône dans le rail sous le logo, ⌘K, un raccourci<span class="tag">reco</span><small>Se range dans le modèle des onglets et volets, peut se scinder à côté d'un thread.</small></div>
+      <div class="opt" tabindex="0" data-choice="entry-home">B · Il remplace la Home du projet<small>La Home perd son composer de lancement.</small></div>
+      <div class="opt" tabindex="0" data-choice="entry-home-section">C · Une section sous la StatusLine de la Home<small>Visible souvent, mais à l'étroit et mêlé à un seul projet.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="landing"><h3>Q3 · L'écran à l'ouverture de pap</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="landing-setting">A · La Home comme aujourd'hui, avec un réglage Settings › Appearance « Ouvrir sur : Home / Vue d'ensemble »<span class="tag">reco</span><small>Rien ne change pour qui ne touche à rien ; tout reste réglable.</small></div>
+      <div class="opt" tabindex="0" data-choice="landing-overview">B · La vue d'ensemble par défaut<small>Change l'habitude actuelle.</small></div>
+      <div class="opt" tabindex="0" data-choice="landing-home">C · La Home, sans réglage</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="unit"><h3>Q4 · L'unité affichée</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="unit-box">A · Une carte par box (agent ou projet), avec dedans ce qui y tourne : thread, sessions, tâches<span class="tag">reco</span><small>La box est l'unité de mémoire, de coût et de démarrage / arrêt : c'est ce que tu pilotes.</small></div>
+      <div class="opt" tabindex="0" data-choice="unit-three">B · Trois listes : Agents · Projets · Tâches en cours<small>Une tâche apparaît loin de la box qui la fait tourner.</small></div>
+      <div class="opt" tabindex="0" data-choice="unit-activity">C · Une seule liste d'activités (sessions, tâches, threads), sans notion de box<small>Pas de place pour la phase ni la mémoire des boxes.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="order"><h3>Q5 · L'ordre des cartes</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="order-urgency">A · Par urgence : attend ta réponse → en échec → tourne → démarre → au repos<span class="tag">reco</span><small>Ce qui te concerne est en haut ; l'ordre bouge quand l'état change.</small></div>
+      <div class="opt" tabindex="0" data-choice="order-fixed">B · Fixe : agents dans l'ordre du rail, puis projets par nom<small>Mémoire spatiale ; l'urgence se lit par la couleur seulement.</small></div>
+      <div class="opt" tabindex="0" data-choice="order-cost">C · Par coût du jour, décroissant</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="idle"><h3>Q6 · Les boxes arrêtées</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="idle-folded">A · Repliées en bas : « 7 arrêtées », dépliable<span class="tag">reco</span><small>Le haut reste lisible ; un clic pour tout voir ou en démarrer une.</small></div>
+      <div class="opt" tabindex="0" data-choice="idle-all">B · Toutes visibles, en ton atténué</div>
+      <div class="opt" tabindex="0" data-choice="idle-hidden">C · Masquées : seulement ce qui tourne ou attend</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="card" data-multi><h3>Q7 · Ce qu'une carte montre<span class="kind">plusieurs choix</span></h3>
+    <p class="why">Chaque ajout coûte de la place ; les recos tiennent sur deux lignes par carte.</p>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="card-phase">Phase de la box : arrêtée / démarre / en marche / en pause<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="card-activity">Ce qui tourne : thread, session ou tâche, et depuis quand<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="card-ask">Une question en attente (rose), avec son titre<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="card-cost">Coût du jour (API-equivalent étiqueté sur abonnement)<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="card-memory">Mémoire réservée par la box<span class="tag">reco</span><small>Nouveau champ du daemon.</small></div>
+      <div class="opt" tabindex="0" data-choice="card-next">Prochaine exécution planifiée (déclencheur)<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="card-launch">L'étape du démarrage en direct (« Starting the VM… »)<span class="tag">reco</span><small>Le flux <code>launches</code> existe déjà.</small></div>
+      <div class="opt" tabindex="0" data-choice="card-unread">Non-lus</div>
+      <div class="opt" tabindex="0" data-choice="card-failure">Dernier échec (lien vers Health)</div>
+      <div class="opt" tabindex="0" data-choice="card-previews">Previews ouvertes</div>
+      <div class="opt" tabindex="0" data-choice="card-owner">Le membre propriétaire (vue owner)</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="capacity" data-multi><h3>Q8 · Le bandeau de capacité en tête de l'écran<span class="kind">plusieurs choix</span></h3>
+    <p class="why">Ton hôte a 20 Go sans swap disque et a déjà manqué de mémoire : la question « puis-je démarrer une box de plus ? » mérite une réponse visible.</p>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="cap-memory">Mémoire des boxes : utilisée / plafond <code>PAP_AGENTS_MEMORY_MAX_MB</code><span class="tag">reco</span><small>Nouveau champ du daemon ; c'est le calcul qui refuse déjà un démarrage (<code>capacity</code>).</small></div>
+      <div class="opt" tabindex="0" data-choice="cap-workers">Workers Pi : en cours / <code>PAP_MAX_WORKERS</code><span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="cap-cost">Coût du jour / budget quotidien<span class="tag">reco</span></div>
+      <div class="opt" tabindex="0" data-choice="cap-disk">Disque libre / seuil <code>PAP_MIN_FREE_DISK_MB</code></div>
+      <div class="opt" tabindex="0" data-choice="cap-hostram">RAM libre de l'hôte (hors pap)</div>
+      <div class="opt" tabindex="0" data-choice="cap-none">Aucun bandeau</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="actions"><h3>Q9 · Ce qu'on peut faire depuis l'écran</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="act-ops">A · Ouvrir (clic = l'onglet de l'agent, du projet ou de la tâche) + démarrer / arrêter une box + arrêter une tâche ; « Répondre » ouvre l'item dans l'Inbox<span class="tag">reco</span><small>Arrêter une box qui travaille demande confirmation. Les réponses restent à un seul endroit.</small></div>
+      <div class="opt" tabindex="0" data-choice="act-readonly">B · Lecture seule + ouvrir<small>Le plus simple ; il faut aller ailleurs pour libérer de la mémoire.</small></div>
+      <div class="opt" tabindex="0" data-choice="act-answer">C · A + répondre aux questions et approbations sur place<small>Doublon de l'Inbox et du thread.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="members"><h3>Q10 · Owner et membres</h3>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="mem-owner-all">A · Un membre voit ses boxes ; l'owner voit tout, groupé par personne<span class="tag">reco</span><small>La mémoire est partagée : l'owner doit voir qui la prend. Il voit déjà le budget de chaque membre ; un membre ne voit jamais les boxes des autres.</small></div>
+      <div class="opt" tabindex="0" data-choice="mem-own-only">B · Chacun ne voit que ses boxes, owner compris<small>Le bandeau de capacité devient trompeur pour l'owner.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="phone"><h3>Q11 · Sur téléphone</h3>
+    <p class="why">Le cas typique : une notification push arrive, tu veux voir l'état de tout en un coup d'œil.</p>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="phone-agents-tab">A · L'onglet « Agents » de la barre du bas devient cet écran (agents + projets), même badge<span class="tag">reco</span><small>La liste d'agents actuelle en est un sous-ensemble.</small></div>
+      <div class="opt" tabindex="0" data-choice="phone-lists">B · Une entrée dans « Lists »</div>
+      <div class="opt" tabindex="0" data-choice="phone-none">C · Pas de version téléphone en v1</div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="q" data-q="time"><h3>Q12 · Le temps : passé récent et durées</h3>
+    <p class="why">DESIGN.md §7.2 : rien ne se repeint en continu (seule exception : le compteur d'une étape de démarrage, une fois par seconde).</p>
+    <div class="opts">
+      <div class="opt" tabindex="0" data-choice="time-present">A · Le présent seulement (tourne, attend, planifié) + « N échecs récents → Health » ; heure de début fixe (« depuis 14:02 »)<span class="tag">reco</span><small>Respecte §7.2 tel quel ; l'historique reste dans Tasks et Health.</small></div>
+      <div class="opt" tabindex="0" data-choice="time-ticking">B · Comme A, mais une durée qui avance chaque minute (« 12 min »)<small>Plus lisible, amende §7.2 (une exception de plus).</small></div>
+      <div class="opt" tabindex="0" data-choice="time-24h">C · A + une bande « dernières 24 h » (tâches finies et échouées)<small>Plus de lecture côté daemon, plus de place.</small></div>
+    </div>
+    <textarea placeholder="Note (facultatif)"></textarea>
+  </div>
+
+  <div class="ask">
+    <span class="hud">Ta validation</span>
+    <div>Une réponse par question (rien = la reco), puis valide.</div>
+    <div class="bar">
+      <button class="btn" type="button" onclick="applyRecos()">Appliquer toutes les recos</button>
+      <button class="btn pri" type="button" onclick="submitAnswers()">Valider les réponses</button>
+    </div>
+    <div id="sent" hidden>Réponses envoyées · tu peux revenir au terminal</div>
+  </div>
+</div>
+<script>
+  const KEY = 'pap.overview.q1';
+  const qs = [...document.querySelectorAll('.q')];
+  function toggle(opt) {
+    const q = opt.closest('.q');
+    if (q.hasAttribute('data-multi')) { opt.classList.toggle('selected'); }
+    else { q.querySelectorAll('.opt').forEach(o => o.classList.remove('selected')); opt.classList.add('selected'); }
+    save();
+  }
+  document.querySelectorAll('.opt').forEach(o => {
+    o.addEventListener('click', () => toggle(o));
+    o.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(o); } });
+  });
+  document.querySelectorAll('textarea').forEach(t => t.addEventListener('input', save));
+  function state() {
+    const answers = {};
+    qs.forEach(q => {
+      const sel = [...q.querySelectorAll('.opt.selected')].map(o => o.dataset.choice);
+      const note = q.querySelector('textarea').value.trim();
+      answers[q.dataset.q] = { choice: sel.length ? sel : 'reco', note };
+    });
+    return answers;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state())); } catch (e) {} }
+  function restore() {
+    let saved; try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { saved = null; }
+    if (!saved) return;
+    qs.forEach(q => {
+      const a = saved[q.dataset.q]; if (!a) return;
+      if (Array.isArray(a.choice)) q.querySelectorAll('.opt').forEach(o => o.classList.toggle('selected', a.choice.includes(o.dataset.choice)));
+      q.querySelector('textarea').value = a.note || '';
+    });
+  }
+  function applyRecos() {
+    qs.forEach(q => q.querySelectorAll('.opt').forEach(o => o.classList.toggle('selected', !!o.querySelector('.tag'))));
+    save();
+  }
+  function submitAnswers() {
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: 'overview-q1-submitted', answers: state() });
+    document.getElementById('sent').hidden = false;
+  }
+  restore();
+</script>
+</body>
+</html>
