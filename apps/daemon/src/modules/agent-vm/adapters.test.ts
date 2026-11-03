@@ -32,28 +32,30 @@ describe("adapters", () => {
     expect(i.skipped).toEqual([]);
   });
 
-  it("pi-web-access: placeholder keys only, nothing else of the original", () => {
+  it("pi-web-access: placeholder keys and the proxy DNS switch, nothing else of the original", () => {
     const i = input();
     s.json("agent/web-search.json", {
       exaApiKey: `${MARKER}-exa`,
       perplexityKey: "k",
       provider: "exa",
       nested: { a: 1 },
+      ssrf: { trustEnvProxy: false },
     });
     applyAdapter("pi-web-access", i);
     expect(read("web-search.json")).toEqual({
       exaApiKey: "pap-placeholder",
       perplexityKey: "pap-placeholder",
+      ssrf: { trustEnvProxy: true },
     });
   });
 
-  it("pi-web-access: an absent or damaged original gives an empty config", () => {
+  it("pi-web-access: an absent or damaged original gives only the proxy DNS switch", () => {
     const i = input();
     applyAdapter("pi-web-access", i);
-    expect(read("web-search.json")).toEqual({});
+    expect(read("web-search.json")).toEqual({ ssrf: { trustEnvProxy: true } });
     s.put("agent/web-search.json", "{nope");
     applyAdapter("pi-web-access", i);
-    expect(read("web-search.json")).toEqual({});
+    expect(read("web-search.json")).toEqual({ ssrf: { trustEnvProxy: true } });
   });
 
   it("pi-mcp-adapter: keeps a stdio server whose binary is inside a copied package, drops the rest", () => {

@@ -38,14 +38,18 @@ function write(out: string, name: string, value: unknown): void {
   writeFileSync(join(out, name), `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
 }
 
-/** Only the names of the owner's key fields survive, each with a placeholder; nothing else of the original is carried. */
+/**
+ * Only the names of the owner's key fields survive, each with a placeholder; nothing else of the original is carried.
+ * `ssrf.trustEnvProxy`: the VM has no DNS, only the egress proxy resolves names, so the extension's own DNS preflight
+ * would refuse every fetch (`EAI_AGAIN`); it still blocks localhost and literal private addresses.
+ */
 function webAccess({ agentDir, out }: AdapterInput): void {
   const original = readConfig(join(agentDir, "web-search.json"), Loose) ?? {};
-  const config: Record<string, string> = {};
+  const config: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(original))
     if (typeof value === "string" && /key/i.test(name) && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(name))
       config[name] = PLACEHOLDER_KEY;
-  write(out, "web-search.json", config);
+  write(out, "web-search.json", { ...config, ssrf: { trustEnvProxy: true } });
 }
 
 function packagedBinary(input: AdapterInput, command: unknown): string | null {

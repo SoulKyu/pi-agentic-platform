@@ -141,7 +141,10 @@ describe("prepareProfileContext (RT-18)", () => {
     plantAgentDir(s);
     const { skipped } = prepare();
     expect(existsSync(join(s.out, "pi-claude-bridge.json"))).toBe(false);
-    expect(JSON.parse(read("web-search.json"))).toEqual({ exaApiKey: "pap-placeholder" });
+    expect(JSON.parse(read("web-search.json"))).toEqual({
+      exaApiKey: "pap-placeholder",
+      ssrf: { trustEnvProxy: true },
+    });
     expect(Object.keys((JSON.parse(read("mcp.json")) as { mcpServers: object }).mcpServers)).toEqual([
       "inside",
     ]);
