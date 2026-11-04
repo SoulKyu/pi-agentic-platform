@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { AGENT_GATE_ERRORS, ALL_PERMISSIONS, githubMethods, methods, previewsMethods } from "./index.ts";
-
 describe("method catalogue", () => {
   it("keys every method by its own name and declares a known permission", () => {
     for (const [key, def] of Object.entries(methods)) {
@@ -28,6 +27,7 @@ describe("method catalogue", () => {
       "agents.resetThread",
       "agents.setPaused",
       "agents.startBox",
+      "agents.stopBox",
       "agents.update",
       "agents.vm.clearClaudeToken",
       "agents.vm.setClaudeToken",
@@ -100,6 +100,7 @@ describe("method catalogue", () => {
       "projects.restartBox",
       "projects.setBox",
       "projects.startBox",
+      "projects.stopBox",
       "projects.update",
       "push.revoke",
       "push.subscribe",

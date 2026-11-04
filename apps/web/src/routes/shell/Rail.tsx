@@ -1,8 +1,8 @@
-import { IconAccount, IconButton, IconSettings, IconTasks, Mark } from "@pap/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { IconAccount, IconButton, IconOverview, IconSettings, IconTasks, Mark } from "@pap/ui";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { ShellActivity } from "./ShellActivity.tsx";
 import { runCommand } from "../../features/commands/index.ts";
-import { pathOfItem } from "../../features/workspace/index.ts";
+import { itemFromPath, pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { AgentRail } from "./AgentRail.tsx";
@@ -16,11 +16,14 @@ interface RailProps {
   onSignedOut(): void;
 }
 
-/** Logo, the agents (M11R108), Tasks, Settings and the account menu (with the keyboard shortcuts, §5). */
+/** Logo, the Overview, the agents (M11R108), Tasks, Settings and the account menu (with the keyboard shortcuts, §5). */
 export function Rail({ username, onSignedOut }: RailProps) {
   const t = useT();
   const navigate = useNavigate();
   const settings = useShortcut("settings.open");
+  const overview = useShortcut("overview.open");
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const onOverview = itemFromPath(pathname, false)?.kind === "overview";
   const lazyText = useLazyFailureText();
   return (
     <nav
@@ -31,6 +34,15 @@ export function Rail({ username, onSignedOut }: RailProps) {
       <Link to="/" aria-label={t("app.name")} className="focus-ring rounded-sm">
         <Mark />
       </Link>
+      <IconButton
+        icon={IconOverview}
+        label={t("shell.rail.overview")}
+        shortcut={overview.keys}
+        shortcutJoiner={overview.joiner}
+        selected={onOverview}
+        onClick={() => go(navigate, pathOfItem({ kind: "overview" }))}
+      />
+      <span aria-hidden className="h-px w-s5 shrink-0 bg-border" />
       <AgentRail />
       <ShellActivity />
       <div className="flex-1" />

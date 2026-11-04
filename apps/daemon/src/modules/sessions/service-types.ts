@@ -26,6 +26,7 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { RunObserver } from "../runs/index.ts";
 import type { SessionsAgentPort } from "./agent-port.ts";
+import type { ShellStatusFeed } from "./shell-publisher.ts";
 import type { SessionsChildPort } from "./child-port.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
@@ -218,7 +219,7 @@ export interface SessionsService extends SessionCommands, SessionModels {
 }
 
 /** The service as the module builds it: the RPC handlers need `SessionsService`, the automation module also this port. */
-export interface SessionsServiceWithAutomation extends SessionsService {
+export interface SessionsServiceWithAutomation extends SessionsService, ShellStatusFeed {
   /** What the automation and runs modules may do to a session, and nothing more (M10R32). */
   readonly automation: SessionsAutomationPort;
   /** What the projects module asks when a box project is deleted (boxes B1). */

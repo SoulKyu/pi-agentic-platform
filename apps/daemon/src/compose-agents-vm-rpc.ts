@@ -34,6 +34,7 @@ export type AgentsVmRpc = Pick<
   | "agents.vm.clearClaudeToken"
   | "agents.vmStatus"
   | "agents.startBox"
+  | "agents.stopBox"
   | "agents.files.list"
   | "agents.files.remove"
   | "subscribe.launches"
@@ -72,6 +73,7 @@ export function composeAgentsVmRpc(
   bindVm(vm: {
     readonly status: { view(ownerId: string): Promise<VmStatusView> };
     startAgent(ownerId: string, agentId: string): Promise<void>;
+    stopAgent(ownerId: string, agentId: string): Promise<void>;
   }): void;
   bindAgents(agents: { ownerOf(agentId: string): string | null }): void;
   /** What the explorer needs of an agent: its owner (null until the registry is bound) and its imported credential paths. */
@@ -102,6 +104,7 @@ export function composeAgentsVmRpc(
   const stopSweep = startFilesTrashSweep({ files: agentFiles, clock, logger: agentLogger });
   let vmView: ((ownerId: string) => Promise<VmStatusView>) | undefined;
   let startAgent: ((ownerId: string, agentId: string) => Promise<void>) | undefined;
+  let stopAgent: ((ownerId: string, agentId: string) => Promise<void>) | undefined;
   return {
     claudeToken,
     stopSweep,
@@ -123,6 +126,7 @@ export function composeAgentsVmRpc(
     bindVm(vm) {
       vmView = vm.status.view;
       startAgent = vm.startAgent;
+      stopAgent = vm.stopAgent;
     },
     bindAgents(agents) {
       ownerOf = (agentId) => agents.ownerOf(agentId);
@@ -140,6 +144,11 @@ export function composeAgentsVmRpc(
       "agents.startBox": async ({ agentId }, ctx) => {
         if (startAgent === undefined) throw new PapError("internal");
         await startAgent(ctx.caller.userId, agentId);
+        return { ok: true };
+      },
+      "agents.stopBox": async ({ agentId }, ctx) => {
+        if (stopAgent === undefined) throw new PapError("internal");
+        await stopAgent(ctx.caller.userId, agentId);
         return { ok: true };
       },
       "subscribe.launches": async (params, ctx) => ({

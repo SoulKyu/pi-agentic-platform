@@ -40,6 +40,12 @@ describe("itemTitle", () => {
     expect(itemTitle({ kind: "session", id: "zz" }, session("a", "/x"), {}, t)).toBe("Session");
     expect(itemTitle({ kind: "session", id: "a" }, session("a", "/"), {}, t)).toBe("Session");
   });
+  it("titles the Overview tab in both languages", () => {
+    expect(itemTitle({ kind: "overview" }, none, {}, t)).toBe("Overview");
+    expect(itemTitle({ kind: "overview" }, none, {}, (key, vars) => translate("fr", key, vars))).toBe(
+      "Vue d'ensemble",
+    );
+  });
   it("names the fixed items", () => {
     expect(itemTitle({ kind: "home" }, none, {}, t)).toBe("New session");
     expect(itemTitle({ kind: "settings", section: "appearance" }, none, {}, t)).toBe("Settings");

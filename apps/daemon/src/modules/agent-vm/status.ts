@@ -93,6 +93,8 @@ export interface VmStatus {
   view(ownerId: string): Promise<VmStatusView>;
   /** The launch gate: `sandbox_unavailable` when the stack is unusable, with the sentence logged (a `PapError` carries only a code). */
   require(): Promise<void>;
+  /** Whether the stack is usable now, from the same cache as the launch gate (the Overview's read): nothing is logged. */
+  usable(): Promise<boolean>;
 }
 
 const ceilings = (host: ReturnType<VmStatusDeps["host"]>, freeMb: number, floorMb: number) => ({
@@ -103,11 +105,25 @@ const ceilings = (host: ReturnType<VmStatusDeps["host"]>, freeMb: number, floorM
 
 export function createVmStatus(deps: VmStatusDeps): VmStatus {
   let cached: { readonly at: number; readonly stack: StackAssessment } | null = null;
+  let pending: Promise<StackAssessment> | null = null;
   async function fresh(): Promise<StackAssessment> {
     const stack = await deps.assess();
     cached = { at: deps.clock.now(), stack };
     return stack;
   }
+  const current = async (): Promise<StackAssessment> => {
+    const known = cached;
+    if (known !== null && deps.clock.now() - known.at < STACK_TTL_MS) return known.stack;
+    if (pending === null) {
+      const call = fresh();
+      pending = call;
+      const release = (): void => {
+        if (pending === call) pending = null;
+      };
+      call.then(release, release);
+    }
+    return pending;
+  };
   return {
     async view(ownerId) {
       const stack = await fresh();
@@ -125,10 +141,11 @@ export function createVmStatus(deps: VmStatusDeps): VmStatus {
           .map(({ id }) => ({ id, phase: deps.phaseOf(id) })),
       };
     },
+    async usable() {
+      return (await current()).usable;
+    },
     async require() {
-      const known = cached;
-      const stack =
-        known !== null && deps.clock.now() - known.at < STACK_TTL_MS ? known.stack : await fresh();
+      const stack = await current();
       if (stack.usable) return;
       deps.logger.warn("agent_vm_launch_refused", { reason: stack.reason });
       throw new PapError("sandbox_unavailable");

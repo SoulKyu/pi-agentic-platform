@@ -18,6 +18,7 @@ import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
 import { githubMethods } from "./github-methods.ts";
+import { overviewMethods } from "./overview-methods.ts";
 import { projectBoxMethods } from "./project-box-methods.ts";
 import { pushMethods } from "./push-methods.ts";
 import { secretsMethods } from "./secrets-methods.ts";
@@ -55,7 +56,6 @@ const RuleView = z.object({
   kind: z.enum(["exact", "prefix", "tool"]),
   pattern: z.array(CommandWord).min(1).max(4).optional(),
 });
-
 function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & string> }>(defs: T): T {
   return defs;
 }
@@ -89,6 +89,7 @@ export const methods = catalogue({
   ...pushMethods,
   ...fontsMethods,
   ...usersMethods,
+  ...overviewMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

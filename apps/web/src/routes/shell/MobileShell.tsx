@@ -1,4 +1,4 @@
-import { IconButton, IconOpenItems, IconPlus, IconSearch, LoadingLine, Mark } from "@pap/ui";
+import { IconButton, IconOpenItems, IconPlus, IconSearch, Mark } from "@pap/ui";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { ShellActivity } from "./ShellActivity.tsx";
@@ -24,6 +24,7 @@ import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useTriggerNames } from "./use-tasks-feed.ts";
 import { go } from "./tab-actions.ts";
+import { OverviewRoute } from "./OverviewRoute.tsx";
 import { Unrouted } from "./Unrouted.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
@@ -39,7 +40,6 @@ import { useShellStore } from "../../stores/shell-store.ts";
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
 const loadTree = () => import("../../features/projects/ProjectTree.tsx");
-const loadAgents = () => import("./AgentsSection.tsx").then((m) => ({ default: m.AgentsSection }));
 const loadInbox = () => import("../../features/inbox/InboxPanel.tsx");
 
 /** The item a session tab shows on a phone: its chat, or its split when the split is what the view names. */
@@ -138,14 +138,7 @@ export function MobileShell() {
       {/* The one main landmark: the screens inside it are sections. */}
       <main className="min-h-0 flex-1 overflow-y-auto">
         {section === "agents" ? (
-          <LazyPanel
-            text={lazyText}
-            load={loadAgents}
-            fallback={<LoadingLine label={t("app.loading")} deferred={false} />}
-            open={section === "agents"}
-            props={{}}
-            onFailed={() => setSection("work")}
-          />
+          <OverviewRoute onNavigate={() => setSection("work")} />
         ) : section === "lists" ? (
           <>
             <MobileListsMenu onSettings={() => setSection("work")} />

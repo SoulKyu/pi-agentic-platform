@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RpcError, type RpcErrorCode } from "../../runtime/index.ts";
-import { agentBoxFailure, boxFailure } from "./box-errors.ts";
+import { agentBoxFailure, boxFailure, stopFailure } from "./box-errors.ts";
 import { useBoxAction } from "./use-box-action.ts";
 
 describe("box failures", () => {
@@ -26,6 +26,15 @@ describe("box failures", () => {
     ["internal", "boxes.agentError.fallback"],
   ])("an agent's VM has its own key for %s", (code, key) => {
     expect(agentBoxFailure(new RpcError(code))).toBe(key);
+  });
+
+  it.each<[RpcErrorCode, string]>([
+    ["not_found", "boxes.stopError.not_found"],
+    ["command_failed", "boxes.stopError.fallback"],
+    ["internal", "boxes.stopError.fallback"],
+    ["timeout", "error.timeout"],
+  ])("a refused stop words %s in the stop's own words", (code, key) => {
+    expect(stopFailure(new RpcError(code))).toBe(key);
   });
 
   it("a code the box has no words for keeps the house text", () => {

@@ -171,6 +171,11 @@ describe("workspace persistence of the M8 items", () => {
     expect(parseWorkspace(raw, false).tabs[0]?.split).toBeNull();
   });
 
+  it("keeps an Overview tab across a reload (decision 147)", () => {
+    const ws = { tabs: [{ key: "overview", item: { kind: "overview" }, split: null }], active: "overview" };
+    expect(parseWorkspace(serializeWorkspace(ws as never), false)).toEqual(ws);
+  });
+
   it("keeps a Tasks tab and a trigger tab across a reload, and drops a malformed trigger id (M10R112)", () => {
     const ws = {
       tabs: [

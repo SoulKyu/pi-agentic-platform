@@ -324,6 +324,7 @@ Each screen was validated in a visual round; the HTML page next to it is the ref
 | Automation | [11-automation](docs/design/explorations/11-automation.html) | trigger editor + dry-run, fire journal, tasks board per agent |
 | Settings › Appearance | [08-settings-appearance](docs/design/explorations/08-settings-appearance.html) | per account vs per device, role-token theme editor |
 | Mobile + system | [12-mobile-system](docs/design/explorations/12-mobile-system.html) | push approval, thread, review, Inbox; setup, login, ⌘K, states |
+| Overview | [2026-11-03-overview-layouts](docs/design/questions/2026-11-03-overview-layouts.html) | cards by urgency, capacity band, member lines |
 
 Settings sections are grouped **You** (appearance, shortcuts, language, notifications, account) · **Work** (agents, approvals, automation, GitHub) · **This pap** (models, MCP, skills, users, health); a member sees only what M14 leaves them (ADR 0086, D4). Every column section has one width, `max-w-settings` (48rem), with no inner caps; Appearance, Models and MCP split into two columns and cap their forms at the same width. The home has one orange action (D7).
 

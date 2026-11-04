@@ -26,6 +26,7 @@ const base = {
   home: { status: true, explore: true, automate: true, project: true, help: true, recent: true },
   eventCards: "cards",
   statusPanel: "shown",
+  openOn: "home",
 } as const;
 const withoutGrid = Object.fromEntries(Object.entries(base).filter(([name]) => name !== "grid"));
 const ocean = {

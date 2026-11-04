@@ -72,6 +72,7 @@ export type ItemRef =
   | { readonly kind: "lane"; readonly id: string }
   | { readonly kind: "compare"; readonly id: string }
   | { readonly kind: "tasks" }
+  | { readonly kind: "overview" }
   | { readonly kind: "trigger"; readonly id: string }
   | { readonly kind: "agent"; readonly id: string }
   /** A box's preview service (UX-2): `box` is the box key (`project:<uuid>`, `agent:<id>`). Not addressable. */
@@ -120,6 +121,7 @@ export function itemKey(item: ItemRef): string {
     case "settings":
     case "dev-ui":
     case "tasks":
+    case "overview":
       return item.kind;
   }
 }

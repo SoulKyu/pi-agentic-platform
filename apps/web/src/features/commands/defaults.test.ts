@@ -18,4 +18,11 @@ describe("the default shortcuts kept from pi-web (spec C 7.3, parity P20)", () =
   it("writes every default chord in a form the parser reads", () => {
     for (const rule of DEFAULT_KEYBINDINGS) expect(parseChord(rule.key), rule.key).not.toBeNull();
   });
+
+  it("binds Ctrl+Alt+O to the Overview, a chord no other rule uses", () => {
+    expect(bound("ctrl+alt+o")).toEqual(["overview.open"]);
+    const keys = DEFAULT_KEYBINDINGS.map((rule) => rule.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(KNOWN_COMMANDS.has("overview.open")).toBe(true);
+  });
 });

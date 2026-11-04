@@ -10,6 +10,8 @@ import { createRunsService, type ObservabilityFacts, type RunsService } from "./
 import { createRunsStore } from "./store.ts";
 
 export { type AgentSpend, createAgentSpend } from "./agent-spend.ts";
+export { createBoxSpend } from "./box-spend.ts";
+export { startOfLocalDay } from "./days.ts";
 export { runsRpc, type RunsRpc, usageRpc, type UsageRpc } from "./rpc.ts";
 export type { RunEndEvent, RunObserver, RunsPort, RunsService, RunStartEvent } from "./service.ts";
 export { metricsAuthorized } from "./metrics-auth.ts";

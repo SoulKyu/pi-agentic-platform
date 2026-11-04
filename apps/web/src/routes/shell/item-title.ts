@@ -42,6 +42,8 @@ export function itemTitle(
       return t("shell.tab.compare", { count: lanes.fanouts.get(item.id)?.laneIds.length ?? 0 });
     case "tasks":
       return t("shell.tab.tasks");
+    case "overview":
+      return t("shell.tab.overview");
     case "trigger":
       return (
         triggers.get(item.id) ?? t(item.id.startsWith("new:") ? "shell.tab.newTrigger" : "shell.tab.trigger")

@@ -87,7 +87,8 @@ describe("the agent rail (M11R108, board 05 option 2)", () => {
     const names = [...rail().querySelectorAll("button[aria-label]")].map((one) =>
       one.getAttribute("aria-label"),
     );
-    expect(names.slice(0, 3)).toEqual(["Atlas, needs input, 3 unread", "Bolt", "Cato, 1 unread"]);
+    // The Overview icon comes first, then the agents.
+    expect(names.slice(1, 4)).toEqual(["Atlas, needs input, 3 unread", "Bolt", "Cato, 1 unread"]);
     expect(rail().querySelector('[data-slot="badge"] [aria-hidden]')?.textContent).toBe("3");
     expect(rail().querySelectorAll('[data-slot="badge"]')).toHaveLength(2);
     await page.unmount();

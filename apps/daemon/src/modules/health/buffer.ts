@@ -125,9 +125,13 @@ export function createHealthBuffer(deps: { readonly clock: Clock; readonly logge
     return { events, hasMore: events.length > 0 && hasMore };
   }
 
+  /** The owner's rows in the buffer (one per identity): the Overview's failure count. */
+  const count = (ownerId: string): number => rows.filter((row) => row.ownerId === ownerId).length;
+
   return {
     record,
     page,
+    count,
     snapshot: (ownerId: string) => ({ kind: "snapshot" as const, ...page(ownerId) }),
     on: (listener: (change: HealthChange) => void) => {
       listeners.add(listener);

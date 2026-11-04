@@ -4,6 +4,7 @@ import type { MessageKey } from "./index.ts";
 export const CODE_COPY_KEYS: Readonly<Partial<Record<MessageKey, "EmptyState" | "Banner" | "InlineError">>> =
   {
     "agentsPhone.noVmPurpose": "EmptyState",
+    "overview.noVm.purpose": "EmptyState",
     "boxes.error.sandbox_unavailable": "InlineError",
     "boxes.error.vm_bundle_stale": "InlineError",
     "boxes.error.command_failed": "InlineError",

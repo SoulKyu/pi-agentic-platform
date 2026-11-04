@@ -97,3 +97,4 @@ export { type AgentFilesPort, createFilesDelivery } from "./deliver-files.ts";
 export { type BundleSkew, createBundleSkew, treeBundleOf } from "./bundle-skew.ts";
 export { treeDigest } from "./image-inputs.ts";
 export { createAgentStart } from "./agent-start.ts";
+export { createAgentStop } from "./agent-stop.ts";

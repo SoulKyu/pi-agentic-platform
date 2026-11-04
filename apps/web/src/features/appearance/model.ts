@@ -28,6 +28,7 @@ export const DEFAULT_ACCOUNT: AccountAppearance = {
   home: DEFAULT_HOME_LAYOUT,
   eventCards: "cards",
   statusPanel: "shown",
+  openOn: "home",
 };
 
 export interface DeviceAppearance {
@@ -106,6 +107,7 @@ export function parseAccount(value: unknown): AccountAppearance {
     home: field("home"),
     eventCards: field("eventCards"),
     statusPanel: field("statusPanel"),
+    openOn: field("openOn"),
   };
 }
 

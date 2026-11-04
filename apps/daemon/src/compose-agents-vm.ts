@@ -26,6 +26,7 @@ import {
   createImageEntries,
   createAgentRuntime,
   createAgentStart,
+  createAgentStop,
   createGateway,
   createLaunchRegistry,
   createLaunchTokens,
@@ -84,7 +85,7 @@ export async function composeAgentsVm(
   });
   const lateHolder: {
     late: AgentsVmDerived | null;
-    agents: Pick<AgentsPort, "get"> | null;
+    agents: Pick<AgentsPort, "get" | "ownerOf"> | null;
   } = { late: null, agents: null };
   const notice = (agentId: string, text: string): void =>
     lateHolder.late
@@ -298,6 +299,11 @@ export async function composeAgentsVm(
         lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
       disabled: (box) => (lateHolder.late ? lateHolder.late.boxDisabled(box) : notBound()),
     });
+    const stopAgent = createAgentStop({
+      inflight: startAgent.inflight,
+      stop: agentLink.link.stop,
+      ownerOf: (agentId) => lateHolder.agents?.ownerOf(agentId) ?? null,
+    });
     const composed: AgentsVm = {
       runtime,
       launches,
@@ -352,6 +358,7 @@ export async function composeAgentsVm(
       proxyPort,
       agentLink: agentLink.link,
       startAgent,
+      stopAgent,
       forgetKept: agentLink.forgetKept,
       bindCrashPause: (handler) => void (crashPause = handler),
       bindRefusals: proxy.bindRefusals,

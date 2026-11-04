@@ -232,3 +232,47 @@ describe("require: the launch refusal", () => {
     await expect(status.require()).resolves.toBeUndefined();
   });
 });
+
+describe("usable: the Overview's read", () => {
+  it("answers whether the stack is usable and logs nothing (an Overview is not a launch)", async () => {
+    const { status, lines } = make();
+    await expect(status.usable()).resolves.toBe(true);
+    answer = { version: "0.9.0", ruleset: true, bridge: true, stateFreeMb: 1 };
+    await clock.advance(STACK_TTL_MS + 1);
+    await expect(status.usable()).resolves.toBe(false);
+    expect(lines.filter((line) => line.msg === "agent_vm_launch_refused")).toEqual([]);
+  });
+
+  it("shares the TTL window with the launch gate, so many readers ask pap-vmd once", async () => {
+    const { status } = make();
+    await status.usable();
+    await status.usable();
+    await status.require();
+    expect(healthCalls).toBe(1);
+    await clock.advance(STACK_TTL_MS + 1);
+    await status.usable();
+    expect(healthCalls).toBe(2);
+  });
+
+  it("concurrent readers past the TTL share one health call (in-flight dedupe)", async () => {
+    const { status } = make();
+    await status.usable();
+    await clock.advance(STACK_TTL_MS + 1);
+    await Promise.all([status.usable(), status.usable(), status.require()]);
+    expect(healthCalls).toBe(2);
+  });
+
+  it("a rejected check is not memoized: the next read asks again", async () => {
+    let calls = 0;
+    const { status } = make({
+      assess: () => {
+        calls += 1;
+        return calls === 1 ? Promise.reject(new Error("boom")) : assessStack(vmd, PAP, () => true);
+      },
+    });
+    await expect(Promise.all([status.usable(), status.usable()])).rejects.toThrow("boom");
+    expect(calls).toBe(1);
+    await expect(status.usable()).resolves.toBe(true);
+    expect(calls).toBe(2);
+  });
+});

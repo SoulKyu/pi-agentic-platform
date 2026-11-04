@@ -121,6 +121,7 @@ describe("files, changes and terminal items (M8R71)", () => {
 
   it.each([
     [{ kind: "tasks" }, "/tasks"],
+    [{ kind: "overview" }, "/overview"],
     [{ kind: "trigger", id: "g1" }, "/trigger/g1"],
     [{ kind: "trigger", id: "new:p1" }, "/trigger/new%3Ap1"],
   ] as const)("round-trips %j through %s (M10R112)", (item, path) => {

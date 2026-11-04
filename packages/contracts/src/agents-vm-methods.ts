@@ -104,6 +104,15 @@ export const agentsVmMethods = {
     result: Ok,
     errors: BOX_LIFE_ERRORS,
   }),
+  // Waits for an in-flight `agents.startBox` of that agent, then stops its VM (R6).
+  "agents.stopBox": defineMethod({
+    name: "agents.stopBox",
+    permission: "agents:admin",
+    idempotent: false,
+    params: Params({ agentId: AgentId }),
+    result: Ok,
+    errors: ["not_found", "sandbox_unavailable"],
+  }),
   // Agent files (sub-project 2): browser only like the agent form (agents:admin is outside the token permissions). The import
   // itself is `PUT /agent-files` (a body of up to 1 MiB does not fit a frame); a replace is an import to the same path.
   "agents.files.list": defineMethod({

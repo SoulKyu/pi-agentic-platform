@@ -42,10 +42,12 @@ import { type AutomationProjectPort, createAutomationProjectPort } from "./proje
 export type { AutomationOwnerCascade, AutomationProjectPort };
 import { createThreadQueue } from "./thread-queue.ts";
 import { type AutomationRpc, automationRpc, taskActions } from "./rpc.ts";
+import { createTaskReads, type TaskReads } from "./task-reads.ts";
+import { createTriggerChanges, type TriggerChangeFeed } from "./trigger-changes.ts";
 import { createTriggerStore } from "./store.ts";
 import { type AgentPorts, createAgentBinding, createAgentTriggerLink } from "./trigger-agent.ts";
 import { triggerSecretsDir } from "./trigger-secrets.ts";
-import { createTriggers, type TriggerChanged, type Triggers, type TriggersDeps } from "./triggers.ts";
+import { createTriggers, type Triggers, type TriggersDeps } from "./triggers.ts";
 
 export { type AgentBinding, type AgentPorts, createAgentBinding } from "./trigger-agent.ts";
 export { createTriggers, type TriggerChanged } from "./triggers.ts";
@@ -62,7 +64,6 @@ export type { BootReport } from "./boot.ts";
 export type { FireInput, FireResult } from "./fire.ts";
 export { type AutomationEvent, type AutomationEvents, createAutomationEvents } from "./events.ts";
 export { automationCollector } from "./metrics.ts";
-
 export const AUTOMATION_MIGRATIONS: MigrationSource = {
   module: "automation",
   dir: fileURLToPath(new URL("./migrations/", import.meta.url)),
@@ -134,25 +135,18 @@ export interface AutomationDeps {
   readonly feedFetch?: (url: string, signal: AbortSignal) => Promise<FeedFetchResult>;
 }
 
-export interface AutomationModule {
+export interface AutomationModule extends TriggerChangeFeed {
   readonly rpc: AutomationRpc;
   /** What the runner, the scheduler and the hook route read; they never write a trigger. */
-  readonly triggers: Pick<Triggers, "get" | "getAt" | "listEnabled">;
+  readonly triggers: Pick<Triggers, "get" | "getAt" | "listEnabled" | "listEnabledOf">;
   /** The one fire path (M10R34); the scheduler, the hook route, the feed poller and the manual fire call it. */
   readonly fire: Engine["fire"];
   /** What the runner says about tasks and their questions; the Inbox listens (M10R46). */
   readonly events: AutomationEvents;
-  /** Who a task belongs to and which trigger it came from; null once its row is gone. */
-  taskInfo(taskId: string): {
-    ownerId: string;
-    triggerName: string;
-    sessionId: string | null;
-    agentId: string | null;
-    /** The trigger's `trigger_name` only; null once the trigger is deleted (the push name, M12). */
-    registeredName: string | null;
-  } | null;
-  /** The task of a session and whether its trigger is over its daily budget (M10R66): the resume planner reads it. */
-  taskOf(ownerId: string, sessionId: string): { taskId: string; overBudget: boolean } | null;
+  /** Who a task belongs to, a session's task, and the board's rows (`task-reads.ts`). */
+  taskInfo: TaskReads["taskInfo"];
+  taskOf: TaskReads["taskOf"];
+  activeTasks: TaskReads["activeTasks"];
   readonly keptKeyOf: Engine["keptKeyOf"];
   /** What the agents registry asks of the triggers and tasks of an agent (M11, carry 1; quarantine, M11R115); bound by `agents.setLinks`. */
   readonly agentLink: ReturnType<typeof createAgentLink>;
@@ -184,14 +178,14 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
   const backoff = createBackoff(deps.clock);
   const rate = createHookRate(deps.clock);
   const agents = createAgentBinding();
-  const triggerChanged = (change: TriggerChanged): void => {
+  const { changed: triggerChanged, onTriggerChanged } = createTriggerChanges(logger, (change) => {
     if (change.removed) {
       backoff.forget(change.triggerId);
       rate.forget(change.triggerId);
     }
     late.engine?.stream.triggerChanged(change);
     late.scheduler?.refresh();
-  };
+  });
   const triggers = createTriggers({
     agents,
     db: deps.db,
@@ -310,28 +304,12 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
     logger,
     rotate: (caller, triggerId) => triggers.rotateSecret(caller, triggerId, true),
   });
+  const taskReads = createTaskReads({ ...built, clock: deps.clock });
   return {
     events: built.events,
-    taskOf(ownerId, sessionId) {
-      const row = built.store.bySession(sessionId);
-      // An ended task leaves its session to the owner: a later quota resume there is an ordinary one.
-      if (!row || row.owner_id !== ownerId || (row.state !== "limited" && row.state !== "running"))
-        return null;
-      return { taskId: row.id, overBudget: built.gates.taskOver(ownerId, row) };
-    },
+    onTriggerChanged,
+    ...taskReads,
     keptKeyOf: built.keptKeyOf,
-    taskInfo(taskId) {
-      const row = built.store.get(taskId);
-      return row
-        ? {
-            ownerId: row.owner_id,
-            triggerName: row.trigger_name ?? row.title,
-            sessionId: row.session_id,
-            agentId: row.agent_id,
-            registeredName: row.trigger_name,
-          }
-        : null;
-    },
     agentLink: createAgentLink({
       taskLink: built.taskLink,
       deleteTriggersOf: triggerLink.deleteTriggersOf,
@@ -366,7 +344,12 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
       }),
       journal: createJournal({ db: deps.db, triggers, runs: deps.runs }),
     }),
-    triggers: { get: triggers.get, getAt: triggers.getAt, listEnabled: triggers.listEnabled },
+    triggers: {
+      get: triggers.get,
+      getAt: triggers.getAt,
+      listEnabled: triggers.listEnabled,
+      listEnabledOf: triggers.listEnabledOf,
+    },
     fire: built.fire,
     mountHooks: (app) =>
       mountHookRoute(app, {

@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { CODE_COPY_KEYS } from "./i18n/code-copy.ts";
 import { agentsPhoneEn, agentsPhoneFr } from "./i18n/catalog/agents-phone.ts";
 import { boxesEn, boxesFr } from "./i18n/catalog/boxes.ts";
+import { overviewEn, overviewFr } from "./i18n/catalog/overview.ts";
 import { shellEn, shellFr } from "./i18n/catalog/shell.ts";
 
-const EN: Readonly<Record<string, string>> = { ...agentsPhoneEn, ...boxesEn, ...shellEn };
-const FR: Readonly<Record<string, string>> = { ...agentsPhoneFr, ...boxesFr, ...shellFr };
+const EN: Readonly<Record<string, string>> = { ...agentsPhoneEn, ...boxesEn, ...overviewEn, ...shellEn };
+const FR: Readonly<Record<string, string>> = { ...agentsPhoneFr, ...boxesFr, ...overviewFr, ...shellFr };
 
 describe("CODE_COPY_KEYS", () => {
   it("each key renders through its component with code and no backtick", () => {

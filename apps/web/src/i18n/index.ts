@@ -42,6 +42,7 @@ import type { modelPickerEn } from "./catalog/model-picker.ts";
 import type { landingEn } from "./catalog/landing.ts";
 import type { notificationsEn } from "./catalog/notifications.ts";
 import type { pushEn } from "./catalog/push.ts";
+import type { overviewEn } from "./catalog/overview.ts";
 import type { previewsEn } from "./catalog/previews.ts";
 import type { pwaEn } from "./catalog/pwa.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
@@ -139,7 +140,8 @@ export type MessageKey =
   | keyof typeof landingEn
   | keyof typeof healthEn
   | keyof typeof launchProgressEn
-  | keyof typeof previewsEn;
+  | keyof typeof previewsEn
+  | keyof typeof overviewEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

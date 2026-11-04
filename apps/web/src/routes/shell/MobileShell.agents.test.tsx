@@ -25,10 +25,10 @@ vi.mock("../../runtime/index.ts", async (original) => ({
 vi.mock("./HomePane.tsx", () => ({ HomePane: () => createElement("p", { "data-stub": "home" }) }));
 // The test bed's warm-up would wait for the held-back chunk below.
 vi.mock("../../testing/chunks.ts", () => ({ loadShellChunks: async () => {} }));
-// The Agents tab's chunk: held back until the test lets it through.
-vi.mock("./AgentsSection.tsx", async () => {
+// The Agents tab's chunk (the Overview pane's entry): held back until the test lets it through.
+vi.mock("./overview-pane-entry.tsx", async () => {
   await chunk.loaded;
-  return { AgentsSection: () => createElement("p", { "data-stub": "agents" }) };
+  return { OverviewPane: () => createElement("p", { "data-stub": "agents" }) };
 });
 
 let started: Array<{ stop(): void }> = [];

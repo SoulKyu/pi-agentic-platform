@@ -72,6 +72,13 @@ export function createTriggerStore(db: Db) {
     listEnabled: (): TriggerRow[] =>
       db.all<TriggerRow>("SELECT * FROM triggers WHERE enabled = 1 ORDER BY created_at, id"),
 
+    /** One owner's enabled triggers: the Overview's read, which never loads another owner's rows. */
+    listEnabledOf: (ownerId: string): TriggerRow[] =>
+      db.all<TriggerRow>(
+        "SELECT * FROM triggers WHERE enabled = 1 AND owner_id = $ownerId ORDER BY created_at, id",
+        { ownerId },
+      ),
+
     /** An agent's triggers, all of them (M11): the agent's delete removes them. */
     ofAgent: (ownerId: string, agentId: string): TriggerRow[] =>
       db.all<TriggerRow>("SELECT * FROM triggers WHERE owner_id = $ownerId AND agent_id = $agentId", {

@@ -17,6 +17,7 @@ export {
   Hourglass as IconHourglass,
   Inbox as IconInbox,
   Keyboard as IconKeyboard,
+  LayoutDashboard as IconOverview,
   Languages as IconLanguage,
   List as IconLists,
   ListTodo as IconTasks,

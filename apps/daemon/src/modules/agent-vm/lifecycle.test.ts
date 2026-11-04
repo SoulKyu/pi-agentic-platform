@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
-import { CRASH_WINDOW_MS, createCrashLog, createIdleStop, fitsCapacity } from "./lifecycle.ts";
+import { CRASH_WINDOW_MS, createCrashLog, createIdleStop, fitsCapacity, memoryInUseMb } from "./lifecycle.ts";
 
 describe("createCrashLog (RT-40)", () => {
   it("reports the third crash within ten minutes", async () => {
@@ -30,12 +30,20 @@ describe("createCrashLog (RT-40)", () => {
   });
 });
 
+describe("memoryInUseMb", () => {
+  it("adds the fixed overhead to each VM", () => {
+    expect(memoryInUseMb([1024, 2048])).toBe(1024 + 2048 + 2 * 512);
+    expect(memoryInUseMb([])).toBe(0);
+  });
+});
+
 describe("fitsCapacity (R29)", () => {
   it("counts each VM as memory plus 512", () => {
     expect(fitsCapacity([], 1024, 1536)).toBe(true);
     expect(fitsCapacity([], 1025, 1536)).toBe(false);
     expect(fitsCapacity([1024], 1024, 3072)).toBe(true);
     expect(fitsCapacity([1024], 1024, 3071)).toBe(false);
+    expect(fitsCapacity([1024], 1025, 3072)).toBe(false);
   });
 });
 

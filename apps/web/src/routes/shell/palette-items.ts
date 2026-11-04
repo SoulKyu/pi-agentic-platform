@@ -55,6 +55,13 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
     ...(input.triggers ?? []).map((trigger): [string, string] => [trigger.id, trigger.name]),
     ...(input.agents ?? []).map((agent): [string, string] => [`agent:${agent.id}`, agent.name]),
   ]);
+  const overview: PaletteItem = {
+    id: "overview:open",
+    group: "open",
+    title: t("commands.overview.open"),
+    searchTerms: [t("commands.overview.open"), t("shell.tab.overview")],
+    run: () => navigate({ kind: "overview" }),
+  };
   const open = input.tabs.map((tab): PaletteItem => {
     const title = itemTitle(tab.item, known, input.views, t, input.lanes, names);
     return {
@@ -188,6 +195,7 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
     ),
   ];
   return [
+    overview,
     ...open,
     ...terminals,
     ...actions,

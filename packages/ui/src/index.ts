@@ -84,6 +84,7 @@ export {
   IconFailed,
   IconCancelled,
   IconOpenItems,
+  IconOverview,
 } from "./icons.ts";
 export { useIsPhone, useMediaQuery } from "./media.ts";
 export { once } from "./once.ts";

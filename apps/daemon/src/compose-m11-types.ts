@@ -95,6 +95,8 @@ export interface M11 {
   readonly vmLate: { agents: AgentsPort; ownerHosts(ownerId: string): readonly string[] | null };
   /** M11's RPC methods; each task adds its table here, never in `daemon.ts`. */
   readonly rpc: AgentsRpc & SecretsRpc & SecretRequestsRpc & SubagentsRpc;
+  /** The Overview hears an owner's rail change here: after a batch of agent events went out, and at a removal. */
+  readonly onRailChange: (listener: (ownerId: string) => void) => () => void;
   /** First in the daemon's stop: the dispatcher answers `unavailable` before the sessions' workers are stopped. */
   stop(): void;
 }

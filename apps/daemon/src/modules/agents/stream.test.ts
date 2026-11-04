@@ -1,6 +1,7 @@
 import { AgentsStreamEvent } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { silentLogger } from "../../kernel/logger.ts";
+import { createFakeClock } from "../../kernel/clock.ts";
+import { createLogger, silentLogger, type Logger } from "../../kernel/logger.ts";
 import type { RunEndEvent, RunStartEvent } from "../runs/index.ts";
 import type { AgentLinks } from "./links.ts";
 import { createRequestViews } from "./requests-store.ts";
@@ -13,7 +14,7 @@ let bed: AgentsBed;
 afterEach(() => bed.dispose());
 const { insertRows } = bedHelpers(() => bed);
 
-async function setup(links: AgentLinks = {}) {
+async function setup(links: AgentLinks = {}, logger: Logger = silentLogger) {
   bed = createAgentsBed();
   const { id } = await bed.agents.create(bed.owner(), agentInput());
   const published: Array<{ stream: string; key: string; event: AgentsStreamEvent }> = [];
@@ -26,7 +27,7 @@ async function setup(links: AgentLinks = {}) {
     store: bed.agents.store,
     requests: createRequestViews(bed.db),
     clock: bed.clock,
-    logger: silentLogger,
+    logger,
     hub: {
       publish: (stream, key, event) =>
         void published.push({ stream, key, event: event as AgentsStreamEvent }),
@@ -314,6 +315,54 @@ describe("rail events (M11R62, throttled to 250 ms per owner)", () => {
     start("t1");
     expect(events()).toEqual([]);
     expect(bed.clock.pending()).toBe(0);
+  });
+});
+
+describe("rail listeners (Overview)", () => {
+  it("tells each listener the owner once per published batch, not for a batch that changed nothing, until it stops", async () => {
+    const { id, stream } = await setup();
+    const heard: string[] = [];
+    const stop = stream.onRailChange((ownerId) => void heard.push(ownerId));
+    stream.touch("u1", id);
+    stream.touch("u1", id);
+    expect(heard).toEqual([]);
+    await bed.clock.advance(RAIL_EVERY_MS);
+    expect(heard).toEqual(["u1"]);
+    stream.touch("u1", id);
+    await bed.clock.advance(RAIL_EVERY_MS);
+    expect(heard).toEqual(["u1"]);
+    stop();
+    bed.db.run("UPDATE agents SET unread = 2");
+    stream.publish("u1");
+    await bed.clock.advance(RAIL_EVERY_MS);
+    expect(heard).toEqual(["u1"]);
+  });
+
+  it("tells a removal at once", async () => {
+    const { id, stream } = await setup();
+    const heard: string[] = [];
+    stream.onRailChange((ownerId) => void heard.push(ownerId));
+    stream.registryChanged({ ownerId: "u1", agentId: id, removed: true });
+    expect(heard).toEqual(["u1"]);
+  });
+
+  it("logs a throwing listener once per call and still tells the next one", async () => {
+    const lines: Array<Record<string, unknown>> = [];
+    const logger = createLogger({
+      level: "warn",
+      clock: createFakeClock(),
+      write: (line) => void lines.push(JSON.parse(line) as Record<string, unknown>),
+    });
+    const { id, stream } = await setup({}, logger);
+    const heard: string[] = [];
+    stream.onRailChange(() => {
+      throw new Error("listener");
+    });
+    stream.onRailChange((ownerId) => void heard.push(ownerId));
+    stream.touch("u1", id);
+    await bed.clock.advance(RAIL_EVERY_MS);
+    expect(heard).toEqual(["u1"]);
+    expect(lines.filter((line) => line.msg === "agents_rail_listener_failed")).toHaveLength(1);
   });
 });
 

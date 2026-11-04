@@ -97,6 +97,7 @@ export function DisplayFigures() {
           badge={{ count: 3, label: SAMPLE.badge }}
         />
         <IconButton icon={IconSearch} label={SAMPLE.tooltip} size="sm" />
+        <IconButton icon={IconSearch} label={SAMPLE.tooltip} variant="ghost" selected />
       </GalleryItem>
       <GalleryItem name="Tooltip">
         <Tooltip label={SAMPLE.tooltip} shortcut={SAMPLE.tooltipShortcut} shortcutJoiner="+">
@@ -130,6 +131,7 @@ export function DisplayFigures() {
       <GalleryItem name="Meter" column>
         <Meter label={SAMPLE.tokens} value={48} max={200} kind="tokens" valueText={SAMPLE.tokensValue} />
         <Meter label={SAMPLE.cost} value={1.24} max={5} kind="cost" valueText={SAMPLE.costValue} />
+        <Meter label={SAMPLE.progress} value={4} max={6} kind="neutral" valueText="4 / 6" />
       </GalleryItem>
       <GalleryItem name="ProgressBar" column>
         <ProgressBar label={SAMPLE.progress} value={40} />

@@ -8,6 +8,7 @@ import {
   agentBox,
   type Bed,
   bed,
+  CAP_MB,
   IMAGE,
   PROJECT_ID,
   settle,
@@ -131,6 +132,40 @@ describe("capacity (R29)", () => {
       b.runtime.spawn(specOf("a3"), workerInput(), null).catch((error: unknown) => error),
     ]);
     expect(b.starts.map((s) => boxKey(s.spec.box))).toEqual(["agent:a1", "agent:a2"]);
+  });
+
+  it("reports the memory in use over every entry, a starting one included", async () => {
+    await b.runtime.spawn(specOf("a1"), workerInput(), null);
+    await b.runtime.spawn(specOf("a2"), workerInput(), null);
+    expect(b.runtime.memory()).toEqual({ usedMb: 3072, maxMb: CAP_MB });
+    const fresh = bed();
+    await fresh.runtime.stopAll();
+    fresh.gateway.awaitGuest.mockReturnValueOnce(new Promise(() => {}));
+    void fresh.runtime.spawn(specOf("a1"), workerInput(), null).catch(() => {});
+    await settle();
+    expect(fresh.runtime.phase(agentBox("a1"))).toBe("starting");
+    expect(fresh.runtime.memory().usedMb).toBe(1536);
+    await fresh.runtime.stop(agentBox("a1"));
+  });
+
+  it("reserves a box's memory over its thread VM and its isolated tasks' VMs", async () => {
+    await b.runtime.spawn(specOf("a1"), workerInput(), null);
+    await b.runtime.spawn(specOf("a1", { kind: "isolated", taskKey: "t1" }), workerInput(), null);
+    expect(b.runtime.reservedMb(agentBox("a1"))).toBe(3072);
+    expect(b.runtime.reservedMb(agentBox("a2"))).toBe(0);
+  });
+
+  it("refuses with the used figure memory() reports, and band and refusal agree at the edge", async () => {
+    await b.runtime.spawn(specOf("a1"), workerInput(), null);
+    await b.runtime.spawn(specOf("a2"), workerInput(), null);
+    const { usedMb } = b.runtime.memory();
+    const over = specOf("a3", { resources: { ...DEFAULT_AGENT_RESOURCES, memoryMb: 513 } });
+    await expect(b.runtime.spawn(over, workerInput(), null)).rejects.toMatchObject({
+      code: "capacity",
+      memory: { used: usedMb, max: CAP_MB },
+    });
+    const edge = specOf("a3", { resources: { ...DEFAULT_AGENT_RESOURCES, memoryMb: 512 } });
+    await b.runtime.spawn(edge, workerInput(), null);
   });
 
   it("frees the room when a VM stops", async () => {

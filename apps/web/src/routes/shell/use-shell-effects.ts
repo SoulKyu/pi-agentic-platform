@@ -1,7 +1,7 @@
 import type { Role } from "@pap/contracts";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
-import { syncAccountAppearance } from "../../features/appearance/index.ts";
+import { syncAccountAppearance, useAppearanceStore } from "../../features/appearance/index.ts";
 import {
   detectPlatform,
   installDispatcher,
@@ -35,7 +35,22 @@ export function useShellEffects(shell: {
   // The URL names the active item; the tab follows it. An unknown path opens nothing. An empty workspace opens the
   // URL's item again: closing the last tab at "/" leaves the path unchanged, so the pathname alone would not.
   const empty = useWorkspaceStore((state) => state.ws.active === null);
+  // "Open on: Overview" (R11) applies to the app's first load at "/" only: the account is cached on the device, so it is
+  // read here at once. Any later visit to "/" (the logo) is Home. StrictMode runs this effect twice: the redirect is idempotent.
+  const landing = useRef(true);
   useEffect(() => {
+    if (
+      landing.current &&
+      pathname === "/" &&
+      useWorkspaceStore.getState().ws.tabs.length === 0 &&
+      useAppearanceStore.getState().account.openOn === "overview"
+    ) {
+      navigate({ to: pathOfItem({ kind: "overview" }), replace: true }).catch(() =>
+        reportClientIssue("command_failed"),
+      );
+      return;
+    }
+    landing.current = false;
     const item = itemFromPath(pathname, import.meta.env.DEV, role);
     if (item) open(item);
     // A section the role is not shown (a member's deep link to Models): the URL says Appearance too.

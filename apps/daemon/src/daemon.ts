@@ -15,10 +15,12 @@ import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
 import { settingsMembersOf } from "./compose-boxes-budget.ts";
 import { composeUsers, USERS_MIGRATION_SOURCES } from "./compose-users.ts";
+import { composeOverview } from "./compose-overview.ts";
 import { composePreviews } from "./compose-previews.ts";
 import { previewsLate } from "./compose-previews-late.ts";
 import { composePush, PUSH_MIGRATIONS } from "./compose-push.ts";
 import { announceStart } from "./daemon-announce.ts";
+import { stopOnce } from "./daemon-stop.ts";
 import type { DaemonDeps, DaemonHandle } from "./daemon-types.ts";
 import { createSystemClock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
@@ -33,7 +35,6 @@ import { startServer } from "./kernel/http/server.ts";
 import { newId } from "./kernel/ids.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { probeScopes } from "./kernel/supervisor/scope.ts";
-import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { VERSION } from "./kernel/version.ts";
 import { execFileCode, execFileText, whichOnPath } from "./kernel/which.ts";
 import { createDispatcher } from "./kernel/ws/dispatcher.ts";
@@ -280,6 +281,20 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       deps.push,
     );
     const fonts = composeFonts(core, deps.fontsFetcher);
+    const overview = composeOverview({
+      ...core,
+      closers,
+      auth,
+      agentsVm,
+      m10,
+      m10Late,
+      m11,
+      sessions,
+      projects,
+      boxes,
+      settings,
+      memberLine,
+    });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -301,6 +316,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...users.rpc,
       ...m10.health.rpc,
       ...previewsBound.rpc,
+      ...overview.rpc,
     };
     const dispatch = createDispatcher({
       handlers,
@@ -362,7 +378,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     m10Late.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
 
-    let stopping: Promise<void> | undefined;
     return {
       url: config.publicOrigin,
       port: server.port,
@@ -375,19 +390,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         previews: () => previewsBound.registry,
       },
       killScopes: () => scopes.killAllNow(),
-      stop() {
-        stopping ??= (async () => {
-          m11.stop();
-          await m10Late.stop();
-          // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
-          // trees on the way; SIGKILL to every group first would leak them (R104).
-          await Promise.all([pi.stopAll(), sessions.shutdownAll(), lanes.shutdown()]);
-          await wk.shutdown();
-          killAllWorkerGroups();
-          await closeAll();
-        })();
-        return stopping;
-      },
+      stop: stopOnce({ m11, m10Late, pi, sessions, lanes, wk, closeAll }),
     };
   } catch (error) {
     await closeAll();

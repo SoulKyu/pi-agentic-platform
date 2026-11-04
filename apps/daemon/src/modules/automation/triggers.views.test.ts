@@ -75,6 +75,22 @@ describe("views", () => {
     expect(bed.triggers.remove(bed.owner(), trigger.id)).toEqual({ ok: true });
   });
 
+  it("listEnabledOf reads one owner's enabled triggers that parse, never another owner's", () => {
+    bed = createAutomationBed();
+    const mine = bed.triggers.create(bed.owner(), { ...manualInput(bed.folder), enabled: true }).trigger;
+    const theirs = bed.triggers.create(bed.owner({ userId: "u2" }), {
+      ...manualInput(bed.folder),
+      enabled: true,
+    }).trigger;
+    const off = bed.triggers.create(bed.owner(), { ...manualInput(bed.folder), enabled: false }).trigger;
+    expect(bed.triggers.listEnabledOf(bed.owner().userId).map((record) => record.id)).toEqual([mine.id]);
+    expect(bed.triggers.listEnabledOf("u2").map((record) => record.id)).toEqual([theirs.id]);
+    expect(bed.triggers.listEnabledOf("u3")).toEqual([]);
+    bed.db.run("UPDATE triggers SET config = '{\"x\":1}' WHERE id = $id", { id: mine.id });
+    expect(bed.triggers.listEnabledOf(bed.owner().userId)).toEqual([]);
+    expect(off.enabled).toBe(false);
+  });
+
   it("hides a feed URL's query (and any userinfo) from a token, and shows the browser the full URL", () => {
     bed = createAutomationBed();
     const url = "https://example.com/feeds/me.private.atom?token=s3cret#frag";

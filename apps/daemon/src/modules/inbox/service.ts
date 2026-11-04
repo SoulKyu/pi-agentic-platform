@@ -244,6 +244,11 @@ export function createInbox(deps: InboxDeps) {
       const rows = store.page(ownerId, before, INBOX_LIMITS.page, filter);
       return { items: rows.slice(0, INBOX_LIMITS.page), hasMore: rows.length > INBOX_LIMITS.page };
     },
+    /** The open to-handle items, newest first, at most `limit`: what the Overview shows as asks. */
+    pendingToHandle: (ownerId: string, limit: number): InboxItem[] => store.pendingToHandle(ownerId, limit),
+    /** The subjects of the owner's unresolved items of one kind (a `box_paused` item's ref is its project): the Overview's failed boxes. */
+    unresolvedRefs: (ownerId: string, kind: string, limit: number): string[] =>
+      store.unresolvedRefs(ownerId, kind, limit),
     markRead(ownerId: string, params: { ids?: string[]; all?: true }): { updated: number } {
       const changed = store.markRead(ownerId, params.all ? null : (params.ids ?? []), clock.now());
       if (changed.length > 0) {

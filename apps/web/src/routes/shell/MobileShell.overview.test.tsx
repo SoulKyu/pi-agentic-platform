@@ -8,6 +8,7 @@ import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/ind
 import type { Runtime } from "../../runtime/index.ts";
 import { useAgentsStore } from "../../stores/agents-store.ts";
 import { button, click, settle } from "../../testing/dom.ts";
+import { ownerSnapshot } from "../../features/overview/overview-fixtures.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 
@@ -61,55 +62,33 @@ const load = (agents: readonly AgentSummary[]) =>
     useAgentsStore.getState().apply({ kind: "snapshot", agents, requests: [], truncated: false });
   });
 
-describe("the phone's Agents tab (M11R109, board 12)", () => {
-  it("offers to create the first agent when there is none", async () => {
-    const page = await renderShell("/", { phone: true, chunks: ["newAgent"] });
-    await load([]);
-    await click(button(nav(page.container), "Agents"));
-    await settle();
-    expect(page.container.textContent).toContain("Create your first agent");
-    await click(button(page.container, "New agent"));
-    await vi.waitFor(
-      () => expect(document.querySelector('[role="dialog"] h2')?.textContent).toBe("New agent"),
-      { timeout: 2_000 },
-    );
-    await page.unmount();
-  });
-
-  it("shows the microVM EmptyState when the VM stack is unusable", async () => {
-    bed.handlers["agents.vmStatus"] = () => ({
-      usable: false,
-      reason: "no kvm",
-      vmdVersion: null,
-      claudeToken: "missing",
-      agents: [],
-    });
-    const page = await renderShell("/", { phone: true, chunks: ["newAgent"] });
-    await load([]);
-    await click(button(nav(page.container), "Agents"));
-    await settle();
-    expect(page.container.textContent).toContain(
-      "Agents run in microVMs: this machine needs KVM and sudo pap vm setup. See pap doctor.",
-    );
-    expect(page.container.textContent).not.toContain("Create your first agent");
-    expect([...page.container.querySelectorAll("main button")].map((one) => one.textContent)).not.toContain(
-      "New agent",
-    );
-    await page.unmount();
-  });
-
-  it("lists the agents with their state in words and opens one in the work section", async () => {
-    const page = await renderShell("/", { phone: true });
-    await load([summary("atlas-1a2b", { state: "needs_input", unread: 3 }), summary("bolt-0001")]);
+describe("the phone's Agents tab shows the Overview (decision 147, §3.7)", () => {
+  it("renders the Overview pane in place of the agents list", async () => {
+    bed.handlers["overview.get"] = () => ownerSnapshot();
+    const page = await renderShell("/", { phone: true, chunks: ["overview"] });
+    await load([summary("atlas-1a2b"), summary("bolt-0001")]);
     await click(agentsTab(page.container));
-    const rows = [...page.container.querySelectorAll("main li button")].map((one) =>
-      one.getAttribute("aria-label"),
-    );
-    expect(rows).toEqual(["Atlas, needs input, 3 unread", "Bolt"]);
-    await click(button(page.container, "Bolt"));
+    await vi.waitFor(() => expect(page.container.querySelector("main [data-overview-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(page.container.querySelector("main li button")).toBeNull();
+    expect(page.container.querySelector("main [data-box-card]")).not.toBeNull();
+    await page.unmount();
+  });
+
+  it("keeps the tab, and offers New agent and New project from the pane's own + menu", async () => {
+    bed.handlers["overview.get"] = () => ownerSnapshot({ boxes: [] });
+    const page = await renderShell("/", { phone: true, chunks: ["overview"] });
+    await load([]);
+    await click(agentsTab(page.container));
+    await vi.waitFor(() => expect(page.container.querySelector("main [data-overview-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
     await settle();
-    expect(page.router.state.location.pathname).toBe("/agents/bolt-0001");
-    expect(button(nav(page.container), "Work").getAttribute("aria-current")).toBe("page");
+    expect(page.container.textContent).toContain("Here you will see every agent and every project");
+    expect(button(page.container, "New project")).toBeTruthy();
+    expect(button(page.container, "New agent")).toBeTruthy();
+    expect(agentsTab(page.container).getAttribute("aria-current")).toBe("page");
     await page.unmount();
   });
 
@@ -118,17 +97,6 @@ describe("the phone's Agents tab (M11R109, board 12)", () => {
     await load([summary("atlas-1a2b", { unread: 3 }), summary("bolt-0001", { unread: 2 })]);
     const badge = nav(page.container).querySelector('button [data-slot="badge"]');
     expect(badge?.textContent).toContain("5 unread");
-    await page.unmount();
-  });
-
-  it("says in the list that a profile is unreadable, not only paused", async () => {
-    const page = await renderShell("/", { phone: true });
-    await load([summary("atlas-1a2b", { state: "paused", unreadable: true })]);
-    await click(agentsTab(page.container));
-    await settle();
-    const row = page.container.querySelector("main li button");
-    expect(row?.textContent).toContain("paused");
-    expect(row?.textContent).toContain("profile unreadable");
     await page.unmount();
   });
 

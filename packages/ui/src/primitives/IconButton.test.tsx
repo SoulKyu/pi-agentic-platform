@@ -34,3 +34,22 @@ describe("IconButton badge", () => {
     expect(none).not.toContain('data-slot="badge"');
   });
 });
+
+describe("IconButton selected", () => {
+  const html = (selected?: boolean) =>
+    renderToStaticMarkup(
+      <TooltipProvider>
+        <IconButton icon={IconSettings} label="Overview" selected={selected} />
+      </TooltipProvider>,
+    );
+  it("marks the current page and takes the agent border and surface fill", () => {
+    const on = html(true);
+    expect(on).toContain('aria-current="page"');
+    expect(on).toContain("border-agent");
+    expect(on).toContain("bg-surface-2");
+  });
+  it("says nothing when not selected", () => {
+    expect(html(false)).not.toContain("aria-current");
+    expect(html()).not.toContain("border-agent");
+  });
+});

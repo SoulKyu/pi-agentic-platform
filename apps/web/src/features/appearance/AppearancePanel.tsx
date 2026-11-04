@@ -8,6 +8,7 @@ import { AppearancePreview } from "./AppearancePreview.tsx";
 import { DetailsSection } from "./DetailsSection.tsx";
 import { HomeSection } from "./HomeSection.tsx";
 import { ReadingSection } from "./ReadingSection.tsx";
+import { StartSection } from "./StartSection.tsx";
 import { ThemeSection } from "./ThemeSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { parseAccount } from "./model.ts";
@@ -72,6 +73,7 @@ export function AppearancePanel() {
               <ThemeSection />
               <ReadingSection />
               <DetailsSection />
+              <StartSection />
               <HomeSection />
               <AgentsSection />
             </div>

@@ -93,6 +93,8 @@ export const AccountAppearanceFields = z.object({
   eventCards: z.enum(["cards", "compact"]).default("cards"),
   /** The agent's status panel: shown (decision 29), or behind a toggle in the agent header (M11R98). */
   statusPanel: z.enum(["shown", "hidden"]).default("shown"),
+  /** Where the app opens at `/` (R11): Home, or the Overview. */
+  openOn: z.enum(["home", "overview"]).default("home"),
 });
 
 export const AccountAppearance = AccountAppearanceFields.superRefine((value, ctx) => {

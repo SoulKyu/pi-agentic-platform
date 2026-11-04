@@ -67,6 +67,7 @@ describe("router", () => {
       "/explore/$root",
       "/lane/$laneId",
       "/n/$id",
+      "/overview",
       "/preview/$box/$name",
       "/s/$sessionId",
       "/settings",

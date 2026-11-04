@@ -17,6 +17,8 @@ export interface HealthModule {
   /** The daemon's one health bus: every emitter is handed this, never a bus of its own. */
   readonly port: HealthEvents;
   readonly rpc: HealthRpc;
+  /** How many events of the owner the buffer holds (in memory, since the daemon started). */
+  count(ownerId: string): number;
   /** Drops the outbox subscriptions, the stream and the bus-to-buffer link. */
   stop(): void;
 }
@@ -55,6 +57,7 @@ export function createHealthModule(deps: {
   });
   return {
     port: events,
+    count: buffer.count,
     rpc: healthRpc({
       page: (ownerId, params) => buffer.page(ownerId, params.before, params.limit),
     }),

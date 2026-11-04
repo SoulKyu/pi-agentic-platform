@@ -34,7 +34,9 @@ export type ClientIssue =
   | "push_bind_failed"
   | "push_revoke_failed"
   | "push_unsubscribe_failed"
-  | "terminal_hand_off_failed";
+  | "terminal_hand_off_failed"
+  | "overview_read_failed"
+  | "overview_stream_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

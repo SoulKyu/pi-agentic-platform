@@ -28,9 +28,11 @@ export function createCrashLog(clock: Clock): CrashLog {
 }
 
 /** R29: a VM costs its `memoryMb` and the fixed overhead; a start that does not fit under the cap is refused. */
+export const memoryInUseMb = (memoryMbs: readonly number[]): number =>
+  memoryMbs.reduce((sum, each) => sum + each + VM_OVERHEAD_MB, 0);
+
 export function fitsCapacity(runningMemoryMb: readonly number[], memoryMb: number, capMb: number): boolean {
-  const used = runningMemoryMb.reduce((sum, each) => sum + each + VM_OVERHEAD_MB, 0);
-  return used + memoryMb + VM_OVERHEAD_MB <= capMb;
+  return memoryInUseMb([...runningMemoryMb, memoryMb]) <= capMb;
 }
 
 /** Calls `onIdle` once `idleMs` after the last worker left, never while one lives; `idleMs` 0 never calls it. */

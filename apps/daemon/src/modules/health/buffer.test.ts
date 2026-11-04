@@ -187,3 +187,15 @@ it("snapshot is the page in the client shape", () => {
     ...buffer.page("u1"),
   });
 });
+
+it("counts the rows of one owner, a collapse counting once", () => {
+  const clock = createFakeClock(1_000);
+  const buffer = createHealthBuffer({ clock, logger: loggerOf(clock).logger });
+  buffer.record(input());
+  buffer.record(input());
+  buffer.record(input({ code: "feed_network" }));
+  buffer.record(input({ ownerId: "u2" }));
+  expect(buffer.count("u1")).toBe(2);
+  expect(buffer.count("u2")).toBe(1);
+  expect(buffer.count("nobody")).toBe(0);
+});

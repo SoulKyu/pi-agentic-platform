@@ -43,3 +43,10 @@ export function boxFailure(failure: unknown, scratch = false): MessageKey {
   if (code === "conflict") return scratch ? "boxes.error.conflictScratch" : "boxes.error.conflict";
   return BOX_WORDS[code] ?? errorKey(code);
 }
+
+/** A refused STOP (box or agent): only `not_found` is a stop code; the box's other refusals read as "not stopped". */
+export function stopFailure(failure: unknown): MessageKey {
+  const code = failure instanceof RpcError ? failure.code : "internal";
+  if (code === "not_found") return "boxes.stopError.not_found";
+  return BOX_CODES.has(code) || code === "conflict" ? "boxes.stopError.fallback" : errorKey(code);
+}

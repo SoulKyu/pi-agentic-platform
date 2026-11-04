@@ -1,6 +1,6 @@
 import { cn } from "../cn.ts";
 
-const METER_TONES = { tokens: "bg-agent-fill", cost: "bg-you-fill" } as const;
+const METER_TONES = { tokens: "bg-agent-fill", cost: "bg-you-fill", neutral: "bg-muted" } as const;
 
 export interface MeterProps {
   readonly label: string;
@@ -10,7 +10,7 @@ export interface MeterProps {
   readonly valueText: string;
 }
 
-/** DESIGN.md §9.1: tokens are agent, cost is you. The value is clamped to the range (M3R19). */
+/** DESIGN.md §9.1: tokens are agent, cost is you, neutral is a count that is neither (the workers, R10). The value is clamped to the range (M3R19). */
 export function Meter({ label, value, max, kind, valueText }: MeterProps) {
   const top = Number.isFinite(max) && max > 0 ? max : 0;
   const now = Number.isFinite(value) ? Math.min(top, Math.max(0, value)) : 0;

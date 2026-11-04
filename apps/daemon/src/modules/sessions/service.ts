@@ -364,6 +364,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     activity: organiser.activity,
     backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
     scanPort: adoption.scanPort,
+    onStatus: publisher.onStatus,
   };
   return self;
 }

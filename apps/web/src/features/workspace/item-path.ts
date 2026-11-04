@@ -72,6 +72,7 @@ export function itemFromPath(pathname: string, devUi: boolean, role: Role = "own
   if (path === "/settings") return { kind: "settings", section: "appearance" };
   if (path === "/dev/ui") return devUi ? { kind: "dev-ui" } : null;
   if (path === "/tasks") return { kind: "tasks" };
+  if (path === "/overview") return { kind: "overview" };
   const settings = /^\/settings\/([a-z]+)$/.exec(path);
   if (settings) {
     const section = settings[1] as SettingsSection;
@@ -128,6 +129,8 @@ export function pathOfItem(item: ItemRef): string {
       return "/dev/ui";
     case "tasks":
       return "/tasks";
+    case "overview":
+      return "/overview";
     case "trigger":
       return isValidId(item.id) ? `/trigger/${encodeURIComponent(item.id)}` : "/";
     case "agent":

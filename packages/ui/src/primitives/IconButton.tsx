@@ -11,6 +11,8 @@ const ICON_BUTTON_VARIANTS = {
   ghost: "border-transparent bg-transparent text-muted can-hover:hover:bg-surface-2 can-hover:hover:text-fg",
   secondary: "border-control-border bg-surface text-fg can-hover:hover:bg-surface-2",
 } as const;
+/** The current page of a rail: the agent border and the surface fill, like an agent button of the rail. */
+const ICON_BUTTON_SELECTED = "border-agent bg-surface-2";
 const ICON_BUTTON_SIZES = { sm: "size-6", md: "size-control" } as const;
 
 export interface IconButtonProps extends Omit<
@@ -25,6 +27,8 @@ export interface IconButtonProps extends Omit<
   readonly variant?: keyof typeof ICON_BUTTON_VARIANTS;
   readonly size?: keyof typeof ICON_BUTTON_SIZES;
   readonly badge?: { readonly count: number; readonly label: string };
+  /** The button names the page that is open: `aria-current="page"` and the selected look. */
+  readonly selected?: boolean;
 }
 
 // Defaults are read in the body: the React Compiler (Babel 8 AST) bails out on defaults in a destructured parameter.
@@ -36,6 +40,7 @@ export function IconButton({
   variant,
   size,
   badge,
+  selected,
   type,
   ...rest
 }: IconButtonProps) {
@@ -46,10 +51,12 @@ export function IconButton({
         type={type ?? "button"}
         data-slot="icon-button"
         aria-label={label}
+        aria-current={selected === true ? "page" : undefined}
         className={cn(
           ICON_BUTTON_BASE_CLASSES,
           ICON_BUTTON_VARIANTS[variant ?? "ghost"],
           ICON_BUTTON_SIZES[sizeKey],
+          selected === true ? ICON_BUTTON_SELECTED : null,
         )}
         {...rest}
       >

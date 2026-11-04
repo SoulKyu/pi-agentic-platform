@@ -37,7 +37,13 @@ export interface AgentStartDeps {
  * Not serialized with a stop (unlike `box-control`'s `inOrder`): an agent has no restart path, so a stop racing a start relies
  * on the runtime's close and its `stopped` answer.
  */
-export function createAgentStart(deps: AgentStartDeps): (ownerId: string, agentId: string) => Promise<void> {
+export function createAgentStart(deps: AgentStartDeps): ((
+  ownerId: string,
+  agentId: string,
+) => Promise<void>) & {
+  /** The start in flight for the agent, for a stop that waits for it. */
+  inflight(agentId: string): Promise<void> | undefined;
+} {
   const starting = new Map<string, Promise<void>>();
 
   async function bringUp(ownerId: string, agentId: string): Promise<void> {
@@ -72,7 +78,7 @@ export function createAgentStart(deps: AgentStartDeps): (ownerId: string, agentI
     }
   }
 
-  return (ownerId, agentId) => {
+  const start = (ownerId: string, agentId: string): Promise<void> => {
     const key = `${ownerId}\u0000${agentId}`;
     const live = starting.get(key);
     if (live !== undefined) return live;
@@ -82,4 +88,10 @@ export function createAgentStart(deps: AgentStartDeps): (ownerId: string, agentI
     starting.set(key, run);
     return run;
   };
+  return Object.assign(start, {
+    inflight(agentId: string): Promise<void> | undefined {
+      for (const [key, run] of starting) if (key.endsWith(`\u0000${agentId}`)) return run;
+      return undefined;
+    },
+  });
 }

@@ -84,6 +84,10 @@ export const boxesEn = {
     "The agent's VM was not started: the disk is almost full. Its files are intact. Free some space on the server, then try again.",
   "boxes.agentError.fallback":
     "The agent's VM could not start. Its files are intact. Try again; if it fails again, run `pap doctor`.",
+  "boxes.stopError.not_found":
+    "This box no longer exists, so there is nothing to stop. Nothing was changed. Reload the Overview.",
+  "boxes.stopError.fallback":
+    "The box was not stopped. Its files are intact. Try again; if it fails again, open Settings › Health.",
 } as const;
 
 export const boxesFr: { readonly [K in keyof typeof boxesEn]: string } = {
@@ -174,4 +178,8 @@ export const boxesFr: { readonly [K in keyof typeof boxesEn]: string } = {
     "La VM de l'agent n'a pas été démarrée : le disque est presque plein. Ses fichiers sont intacts. Libérez de l'espace sur le serveur, puis réessayez.",
   "boxes.agentError.fallback":
     "La VM de l'agent n'a pas pu démarrer. Ses fichiers sont intacts. Réessayez ; si cela échoue encore, lancez `pap doctor`.",
+  "boxes.stopError.not_found":
+    "Cette box n'existe plus, il n'y a donc rien à arrêter. Rien n'a été modifié. Rechargez la vue d'ensemble.",
+  "boxes.stopError.fallback":
+    "La box n'a pas été arrêtée. Ses fichiers sont intacts. Réessayez ; si cela échoue encore, ouvrez Réglages › Santé.",
 };

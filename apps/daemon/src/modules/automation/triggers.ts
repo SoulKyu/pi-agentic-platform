@@ -233,6 +233,8 @@ export function createTriggers(deps: TriggersDeps) {
     const row = store.get(ownerId, id);
     return row ? recordOf(row) : null;
   };
+  const parsed = (rows: TriggerRow[]): TriggerRecord[] =>
+    rows.map(recordOf).filter((record) => record.input !== null);
   return {
     // Reads for the other automation tasks (the runner, the scheduler, the hook route); `kept` forgets kept folders.
     kept: forgetKept,
@@ -252,11 +254,9 @@ export function createTriggers(deps: TriggersDeps) {
       return record && record.revision === revision ? record : null;
     },
     /** Enabled triggers that parse, of every owner: an unreadable row never fires. */
-    listEnabled: (): TriggerRecord[] =>
-      store
-        .listEnabled()
-        .map(recordOf)
-        .filter((record) => record.input !== null),
+    listEnabled: (): TriggerRecord[] => parsed(store.listEnabled()),
+    /** `listEnabled` of one owner. */
+    listEnabledOf: (ownerId: string): TriggerRecord[] => parsed(store.listEnabledOf(ownerId)),
 
     view(caller: Caller, triggerId: string): TriggerView {
       return viewOf(owned(caller.userId, triggerId), caller.kind === "token");

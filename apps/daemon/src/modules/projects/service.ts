@@ -256,6 +256,7 @@ export function createProjectsService(deps: {
     setBox: boxes.setBox,
     startBox: boxes.start,
     restartBox: boxes.restart,
+    stopBox: boxes.stop,
     rebuild: boxes.rebuild,
     remove: boxes.remove,
     removeAll: boxes.removeAll,

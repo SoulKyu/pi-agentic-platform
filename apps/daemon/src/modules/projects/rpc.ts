@@ -14,6 +14,7 @@ export type ProjectsRpc = Pick<
   | "projects.setBox"
   | "projects.startBox"
   | "projects.restartBox"
+  | "projects.stopBox"
   | "projects.rebuild"
 >;
 
@@ -35,6 +36,7 @@ export function projectsRpc(service: ProjectsService): ProjectsRpc {
     "projects.setBox": async (params, ctx) => ({ box: service.setBox(ctx.caller, params) }),
     "projects.startBox": async ({ projectId }, ctx) => service.startBox(ctx.caller, projectId),
     "projects.restartBox": async ({ projectId }, ctx) => service.restartBox(ctx.caller, projectId),
+    "projects.stopBox": async ({ projectId }, ctx) => service.stopBox(ctx.caller, projectId),
     "projects.rebuild": async ({ projectId }, ctx) => service.rebuild(ctx.caller, projectId),
   };
 }

@@ -1,7 +1,7 @@
 import { freemem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ApprovalMode, Caller } from "@pap/contracts";
+import type { ApprovalMode, Caller, ShellSession } from "@pap/contracts";
 import type { IsMember } from "../../kernel/box-path.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
@@ -32,6 +32,7 @@ import { createAdmission, DEFAULT_MIN_FREE_DISK_MB } from "./fork-quota.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
+import type { ShellStatusFeed } from "./shell-publisher.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import type { ProjectBoxSource } from "../../kernel/boxes.ts";
 import { createSessionsService } from "./service.ts";
@@ -123,6 +124,15 @@ export interface SessionsModule {
   ): void;
   /** What the search module reads from sessions. */
   readonly scanPort: SessionsScanPort;
+  /** Called wherever `ShellPublisher.changed` ends up publishing a session: its owner and the session; returns the way to stop. */
+  readonly onStatus: ShellStatusFeed["onStatus"];
+  /** The sessions the owner's `shell` snapshot sends (the newest window and the pins): the Overview's read, never another owner's. */
+  shellRows(ownerId: string): ShellSession[];
+  /** An agent's thread session by id, for its owner only (the shell window never lists agent threads): the Overview's thread facts. */
+  threadOf(
+    ownerId: string,
+    sessionId: string,
+  ): { running: boolean; starting: boolean; needsInput: boolean; name: string | null } | null;
   shutdownAll(): Promise<void>;
   /** The owner of a session, or null when there is none: the policy module's late-bound lookup (M5R56). */
   ownerOf(sessionId: string): string | null;
@@ -289,6 +299,18 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
     scanPort: service.scanPort,
+    onStatus: service.onStatus,
+    shellRows(ownerId) {
+      const shell = service.shellSnapshot(ownerId);
+      return shell.kind === "snapshot" ? shell.sessions : [];
+    },
+    threadOf(ownerId, sessionId) {
+      const state = service.agentSessions.threadState(ownerId, sessionId);
+      const row = state === null ? null : store.get(sessionId);
+      return state === null || !row
+        ? null
+        : { running: state.running, starting: state.starting, needsInput: state.needsInput, name: row.name };
+    },
     cost,
     async shutdownAll() {
       try {

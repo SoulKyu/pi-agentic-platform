@@ -48,6 +48,7 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
   const { clock, logger, store } = deps;
   /** The last summary sent per agent, as JSON: a change that leaves it as it was publishes nothing. */
   const sent = new Map<string, string>();
+  const railListeners = new Set<(ownerId: string) => void>();
   const batches = new Map<string, { readonly timer: TimerHandle; readonly dirty: Set<string> }>();
 
   /** A fact read through a link that throws counts as "no": the rail never fails a snapshot (logged, bounded by the cap). */
@@ -103,6 +104,17 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
     }
   }
 
+  /** The rail of an owner changed on the wire: each listener hears it; one that throws is logged and the next still runs. */
+  function railChanged(ownerId: string): void {
+    for (const listener of [...railListeners]) {
+      try {
+        listener(ownerId);
+      } catch (error) {
+        logger.warn("agents_rail_listener_failed", { err: error });
+      }
+    }
+  }
+
   function snapshot(ownerId: string): Snapshot {
     const waiting = deps.requests.waiting(ownerId);
     const agents = store
@@ -135,6 +147,7 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
     batches.delete(ownerId);
     if (!batch) return;
     const waiting = deps.requests.waiting(ownerId);
+    let published = false;
     for (const agentId of batch.dirty) {
       const record = store.get(ownerId, agentId);
       if (!record) continue;
@@ -143,7 +156,9 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
       if (sent.get(agentId) === text) continue;
       sent.set(agentId, text);
       publish(ownerId, { kind: "agent", agent });
+      published = true;
     }
+    if (published) railChanged(ownerId);
   }
 
   /** The agent's entry may have changed: it goes out with the owner's next batch. */
@@ -191,6 +206,7 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
       sent.delete(change.agentId);
       batches.get(change.ownerId)?.dirty.delete(change.agentId);
       publish(change.ownerId, { kind: "agent_removed", id: change.agentId });
+      railChanged(change.ownerId);
     },
     /** A request opened or closed: told from the row, so a late call cannot show a closed request as open (Task 17). */
     requestChanged(ownerId: string, requestId: string): void {
@@ -199,7 +215,13 @@ export function createAgentsStream(deps: AgentsStreamDeps) {
       else publish(ownerId, { kind: "request_closed", id: requestId });
       if (found) touch(ownerId, found.request.agentId);
     },
+    /** Hears an owner's batch of agent events once it went out, and a removal: the Overview's feed. Returns the way to stop. */
+    onRailChange(listener: (ownerId: string) => void): () => void {
+      railListeners.add(listener);
+      return () => void railListeners.delete(listener);
+    },
     stop(): void {
+      railListeners.clear();
       for (const stopListening of stops.splice(0)) stopListening();
       for (const batch of batches.values()) clock.clearTimeout(batch.timer);
       batches.clear();

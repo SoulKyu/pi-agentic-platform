@@ -91,7 +91,7 @@ describe("buildPaletteItems", () => {
       { key: "session:a", item: { kind: "session", id: "a" }, split: null },
     ];
     const { items, navigate } = build({ tabs, sessions: [session("a", "/x/proj", 1)], role: "owner" });
-    const open = items.filter((i) => i.group === "open");
+    const open = items.filter((i) => i.group === "open" && i.id.startsWith("open:"));
     expect(open.map((i) => i.title)).toEqual(["New session", "proj"]);
     open[1]?.run();
     expect(navigate).toHaveBeenCalledWith({ kind: "session", id: "a" });
@@ -206,5 +206,13 @@ describe("tasks and triggers in the palette (M10R112)", () => {
       for (const gone of ["models", "mcp", "skills", "users"]) expect(ids).not.toContain(`settings:${gone}`);
       expect(ids).toContain("settings:health");
     }
+  });
+
+  it("offers Open overview in the Open group, and it opens the Overview tab (decision 147)", () => {
+    const { items, navigate } = build();
+    const entry = items.find((i) => i.id === "overview:open");
+    expect([entry?.group, entry?.title]).toEqual(["open", "Open overview"]);
+    entry?.run();
+    expect(navigate).toHaveBeenCalledWith({ kind: "overview" });
   });
 });

@@ -23,7 +23,7 @@ registerCatalog({ en: EN, fr: FR });
 
 const ACRONYMS = [
   "AA", "HMAC",
-  "API", "CPU", "CSP", "DNS", "HTTP", "HTTPS", "ID", "IP", "JSON", "KVM", "MCP", "OKF", "OTLP", "PR",
+  "API", "CPU", "CSP", "DNS", "GB", "HTTP", "HTTPS", "ID", "IP", "JSON", "KVM", "MCP", "OKF", "OTLP", "PR",
   "RAM", "SSH", "TLS", "URL", "USD", "VAPID", "VM", "YAML",
 ]; // prettier-ignore
 

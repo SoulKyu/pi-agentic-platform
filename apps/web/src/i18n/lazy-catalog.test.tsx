@@ -116,6 +116,7 @@ describe("lazy catalog (Settings)", () => {
       "features/appearance/FontsBlock.tsx",
       "features/appearance/HomeSection.tsx",
       "features/appearance/ReadingSection.tsx",
+      "features/appearance/StartSection.tsx",
       "features/appearance/ThemeEditor.tsx",
       "features/appearance/ThemeImport.tsx",
       "features/appearance/ThemeSection.tsx",

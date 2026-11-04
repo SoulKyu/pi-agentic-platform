@@ -201,10 +201,6 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
     ],
   },
   {
-    title: "keeps the phone Agents list and its empty-state strings out of the initial assets (M11R109)",
-    markers: [/Create your first agent/, /Créez votre premier agent/],
-  },
-  {
     title: "keeps Settings › Agents, the agent form and its strings out of the initial assets (M11R97)",
     markers: [
       /A named assistant with its own home, memory and limits\./,
@@ -264,6 +260,14 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
   {
     title: "keeps the new-tab preview window out of the initial assets (UX-2)",
     markers: [/data-preview-window/],
+  },
+  {
+    title: "keeps the Overview pane and its strings out of the initial assets (decision 147)",
+    markers: [
+      /data-overview-pane/,
+      /Nothing is running\. Start a box or open an agent to talk to it\./,
+      /Rien ne tourne\. Démarrez une box ou ouvrez un agent pour lui parler\./,
+    ],
   },
 ];
 

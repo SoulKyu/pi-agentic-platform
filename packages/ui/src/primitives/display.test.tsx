@@ -47,6 +47,13 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     expect(html(<Avatar initials="AT" name="Atlas" avatarStyle="glyph" />)).toContain("bg-agent-fill");
   });
 
+  it("a neutral meter fills with the muted text colour (R10)", () => {
+    const markup = html(<Meter label="Workers" value={4} max={6} kind="neutral" valueText="4 / 6" />);
+    expect(markup).toContain("bg-muted");
+    expect(markup).not.toContain("bg-agent-fill");
+    expect(markup).not.toContain("bg-you-fill");
+  });
+
   it("meters use agent for tokens and you for cost", () => {
     expect(html(<Meter label="Tokens today" value={10} max={100} kind="tokens" valueText="10k" />)).toContain(
       "bg-agent-fill",

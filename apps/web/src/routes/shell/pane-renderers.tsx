@@ -27,6 +27,7 @@ import { leaveTerminal, openTerminalInstead } from "./terminal-tab.ts";
 import { armedKey, openPreview } from "./preview-tab.ts";
 import { openTriggerInstead } from "./trigger-tab.ts";
 import { NotFound } from "./NotFound.tsx";
+import { OverviewRoute } from "./OverviewRoute.tsx";
 
 type Renderers = { readonly [K in ItemRef["kind"]]: (item: Extract<ItemRef, { kind: K }>) => ReactNode };
 
@@ -311,6 +312,7 @@ export const PANE_RENDERERS: Renderers = {
     />
   ),
   tasks: () => <TasksPane />,
+  overview: () => <OverviewRoute />,
   trigger: (item) => <TriggerPane key={item.id} triggerId={item.id} />,
   agent: (item) => <AgentTab key={item.id} agentId={item.id} />,
   preview: (item) => <PreviewTab key={`${item.box}/${item.name}`} box={item.box} name={item.name} />,

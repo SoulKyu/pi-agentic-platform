@@ -29,6 +29,7 @@ const appearance: AccountAppearance = {
   home: { status: false, explore: true, automate: true, project: true, help: true, recent: true },
   eventCards: "compact",
   statusPanel: "hidden",
+  openOn: "overview",
 } as const;
 
 let root: string;

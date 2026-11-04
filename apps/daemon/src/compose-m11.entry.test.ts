@@ -9,10 +9,13 @@ describe("the daemon's M11 entry", () => {
   const source = readFileSync(fileURLToPath(new URL("./daemon.ts", import.meta.url)), "utf8");
 
   it("stops the platform dispatcher before the sessions' workers", () => {
-    const stopsPlatform = source.indexOf("m11.stop()");
-    const stopsSessions = source.indexOf("sessions.shutdownAll()");
+    // The stop sequence lives in daemon-stop.ts; daemon.ts hands it the modules.
+    const stop = readFileSync(fileURLToPath(new URL("./daemon-stop.ts", import.meta.url)), "utf8");
+    const stopsPlatform = stop.indexOf("m11.stop()");
+    const stopsSessions = stop.indexOf("sessions.shutdownAll()");
     expect(stopsPlatform).toBeGreaterThan(0);
     expect(stopsSessions).toBeGreaterThan(stopsPlatform);
+    expect(source).toContain("stopOnce({ m11, m10Late, pi, sessions, lanes, wk, closeAll })");
   });
 
   it("builds the M11 entry after the sessions module and lanes.bind", () => {

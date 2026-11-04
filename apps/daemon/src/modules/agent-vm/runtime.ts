@@ -5,7 +5,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { Gateway } from "./gateway.ts";
 import type { GuestLink } from "./guest-link.ts";
-import { createCrashLog } from "./lifecycle.ts";
+import { createCrashLog, memoryInUseMb } from "./lifecycle.ts";
 import { createVmStarter, cutShort, type Entry, isStopping } from "./runtime-start.ts";
 import type { LaunchTokens } from "./tokens.ts";
 import type { PackagePicks, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
@@ -78,6 +78,10 @@ export interface AgentRuntime {
   threadWorker(box: BoxRef): WorkerHandle | undefined;
   /** How many VMs of the box are up or starting (its thread VM and its isolated tasks'). */
   liveVms(box: BoxRef): number;
+  /** The memory the start check counts: every entry whatever its phase, each with its overhead, and the cap. */
+  memory(): { usedMb: number; maxMb: number };
+  /** What the box's entries hold (its thread VM and its isolated tasks'), overhead included. */
+  reservedMb(box: BoxRef): number;
   /** Stops every VM of the box (its own and its isolated tasks'). */
   stop(box: BoxRef): Promise<void>;
   /** Boot (spec §8, decision 109 Q4): stop every VM the backend lists, before any spawn runs (RT-42). */
@@ -298,6 +302,12 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       return (mine.find((e) => e.spec.kind === "thread") ?? mine[0])?.phase ?? "stopped";
     },
     liveVms: (box) => [...entries.values()].filter((e) => isBox(e, box) && !isStopping(e)).length,
+    memory: () => ({
+      usedMb: memoryInUseMb([...entries.values()].map((e) => e.spec.resources.memoryMb)),
+      maxMb: deps.memoryCapMb,
+    }),
+    reservedMb: (box) =>
+      memoryInUseMb([...entries.values()].filter((e) => isBox(e, box)).map((e) => e.spec.resources.memoryMb)),
     async stop(box) {
       await Promise.all([...entries.values()].filter((e) => isBox(e, box)).map(tearDown));
     },

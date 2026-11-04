@@ -29,6 +29,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "drawer.inbox.toggle", titleKey: "commands.drawer.inbox.toggle", group: "navigation" },
   { id: "settings.open", titleKey: "commands.settings.open", group: "navigation" },
   { id: "tasks.open", titleKey: "commands.tasks.open", group: "navigation" },
+  { id: "overview.open", titleKey: "commands.overview.open", group: "navigation" },
   { id: "shortcuts.help", titleKey: "commands.shortcuts.help", group: "app" },
   { id: "session.new", titleKey: "commands.session.new", group: "session" },
   { id: "lanes.new", titleKey: "commands.lanes.new", group: "session" },
@@ -91,6 +92,7 @@ export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
   { key: "alt+w", command: "tab.close", when: "!panelFocus && !editableFocus && !dialogOpen" },
   { key: "mod+\\", command: "pane.split", when: "!panelFocus && !dialogOpen && !mobile" },
   // The agent keys never fire with the caret in a text field, the composer included (RT-19, M11R109).
+  { key: "ctrl+alt+o", command: "overview.open", when: AGENT_KEYS_WHEN },
   { key: "alt+arrowdown", command: "agent.nextUnread", when: AGENT_KEYS_WHEN },
   { key: "alt+arrowup", command: "agent.prevUnread", when: AGENT_KEYS_WHEN },
   ...Array.from({ length: 9 }, (_, i) => ({

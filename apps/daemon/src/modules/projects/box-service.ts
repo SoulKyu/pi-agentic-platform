@@ -224,6 +224,8 @@ export function createBoxService(deps: {
     },
     start: lifecycle((control, projectId) => control.start(projectId)),
     restart: lifecycle((control, projectId) => control.restart(projectId)),
+    /** Queued with starts and restarts (`box-control`'s order): a stop sent right after a start runs after it. */
+    stop: lifecycle((control, projectId) => control.stop(projectId)),
     /** A failed image build is `command_failed` (the control logged it once): the box and its packages stay as they were. */
     rebuild: lifecycle(async (control, projectId) => {
       try {

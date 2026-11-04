@@ -272,6 +272,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     platform,
     agents: agents.port,
     agentsCascade: createAgentsOwnerCascade(agents),
+    onRailChange: stream.onRailChange,
     vmLate: {
       agents: agents.port,
       ownerHosts: (ownerId: string) => modules.policy?.port.settings(ownerId).allowHosts ?? null,

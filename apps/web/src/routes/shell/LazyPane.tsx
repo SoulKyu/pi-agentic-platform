@@ -1,5 +1,5 @@
 import { Button, EmptyState } from "@pap/ui";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { isStaleChunk, LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
@@ -7,13 +7,15 @@ import { isStaleChunk, LazyBoundary, notifyLazyFailure, useRetryableLazy } from 
 interface LazyPaneProps<P extends object> {
   readonly load: () => Promise<{ default: ComponentType<P> }>;
   readonly props: P;
+  /** Shown (after the usual 100 ms) while the chunk loads; nothing by default. */
+  readonly fallback?: ReactNode;
 }
 
 /**
  * A lazy screen that fills a pane and cannot be closed on failure (M3R109): one failure says so once and shows a
  * Retry state; it never retries by itself. Retry imports again; a stale chunk keeps failing until the page reloads.
  */
-export function LazyPane<P extends object>({ load, props }: LazyPaneProps<P>) {
+export function LazyPane<P extends object>({ load, props, fallback }: LazyPaneProps<P>) {
   const t = useT();
   const text = useLazyFailureText();
   const { Lazy, attempt, retry } = useRetryableLazy(load);
@@ -40,6 +42,7 @@ export function LazyPane<P extends object>({ load, props }: LazyPaneProps<P>) {
   return (
     <LazyBoundary
       resetKey={attempt}
+      fallback={fallback}
       onError={(error) => {
         setFailure(isStaleChunk(error) ? text.stale : text.broken);
         notifyLazyFailure(error, text);

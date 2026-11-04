@@ -67,3 +67,44 @@ describe("shell publisher (M4R33)", () => {
     expect(lines.filter((line) => line.msg === "shell_publish_failed")).toHaveLength(1);
   });
 });
+
+describe("shell publisher status listeners (Overview)", () => {
+  it("tells each listener the owner and the session once per flushed change, until it stops", () => {
+    const { publisher, flush } = setup((id) => ({
+      ownerId: id === "s3" ? "u2" : "u1",
+      session: { id } as never,
+    }));
+    const heard: Array<[string, string]> = [];
+    const stop = publisher.onStatus((ownerId, sessionId) => void heard.push([ownerId, sessionId]));
+    publisher.changed("s1");
+    publisher.changed("s1");
+    publisher.changed("s3");
+    expect(heard).toEqual([]);
+    flush();
+    expect(heard).toEqual([
+      ["u1", "s1"],
+      ["u2", "s3"],
+    ]);
+    stop();
+    publisher.changed("s1");
+    flush();
+    expect(heard).toHaveLength(2);
+  });
+
+  it("does not tell a session that is gone, and a throwing listener neither stops the next nor the publish", () => {
+    const { published, publisher, flush, lines } = setup((id) =>
+      id === "gone" ? null : { ownerId: "u1", session: { id } as never },
+    );
+    const heard: string[] = [];
+    publisher.onStatus(() => {
+      throw new Error("listener");
+    });
+    publisher.onStatus((_ownerId, sessionId) => void heard.push(sessionId));
+    publisher.changed("gone");
+    publisher.changed("s1");
+    expect(() => flush()).not.toThrow();
+    expect(heard).toEqual(["s1"]);
+    expect(published).toHaveLength(1);
+    expect(lines.filter((line) => line.msg === "session_status_listener_failed")).toHaveLength(1);
+  });
+});

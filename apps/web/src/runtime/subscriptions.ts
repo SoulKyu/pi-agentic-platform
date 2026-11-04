@@ -63,6 +63,8 @@ const OPENERS: {
   launches: (rpc, _key, after) => rpc.call("subscribe.launches", after ? { after } : {}),
   // The caller's own preview services, like `shell`: the key is a local name (UX-2).
   previews: (rpc, _key, after) => rpc.call("subscribe.previews", after ? { after } : {}),
+  // The caller's own Overview ticks, like `shell`: the key is a local name.
+  overview: (rpc, _key, after) => rpc.call("subscribe.overview", after ? { after } : {}),
 };
 
 interface Listener {

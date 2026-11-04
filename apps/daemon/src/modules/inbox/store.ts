@@ -208,7 +208,30 @@ export function createInboxStore(db: Db) {
       return rows.map(itemOf);
     },
 
+    /** The owner's open to-handle items, newest first, at most `limit`. */
+    pendingToHandle(ownerId: string, limit: number): InboxItem[] {
+      return db
+        .all<Row>(
+          `SELECT * FROM inbox_items WHERE owner_id = $ownerId AND ${OPEN}
+           ORDER BY created_at DESC, id DESC LIMIT $limit`,
+          { ownerId, limit },
+        )
+        .map(itemOf);
+    },
+
     byRef,
+
+    /** The ref ids of the owner's unresolved items of this kind (to handle or not), newest first, at most `limit`. */
+    unresolvedRefs(ownerId: string, kind: string, limit: number): string[] {
+      return db
+        .all<{ ref_id: string }>(
+          `SELECT ref_id FROM inbox_items
+           WHERE owner_id = $ownerId AND kind = $kind AND ref_id IS NOT NULL AND resolved_at IS NULL
+           ORDER BY created_at DESC, id DESC LIMIT $limit`,
+          { ownerId, kind, limit },
+        )
+        .map((row) => row.ref_id);
+    },
 
     /**
      * Writes the item of `(refId, kind)`, or reopens the owner's row (read and resolution cleared, text replaced). The unique

@@ -22,6 +22,7 @@ export function buildRouteTree(Root: () => ReactNode) {
     route("/lane/$laneId"),
     route("/compare/$fanoutId"),
     route("/tasks"),
+    route("/overview"),
     route("/trigger/$id"),
     route("/agents/$id"),
     route("/n/$id"),

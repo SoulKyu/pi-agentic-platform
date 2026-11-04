@@ -16,6 +16,11 @@ export const settingsAppearanceEn = {
   "settings.appearance.section.theme": "Theme",
   "settings.appearance.section.reading": "Reading",
   "settings.appearance.section.details": "Details",
+  "settings.appearance.start.title": "Start",
+  "settings.appearance.start.openOn": "Open on",
+  "settings.appearance.start.openOn.home": "Home",
+  "settings.appearance.start.openOn.overview": "Overview",
+  "settings.appearance.start.hint": "Applies when pap first opens, not when you click the logo.",
   "settings.appearance.section.home": "Home",
   "settings.appearance.home.intro":
     "What the project home shows under its composer. The composer is always shown.",
@@ -187,6 +192,11 @@ export const settingsAppearanceFr: { readonly [K in keyof typeof settingsAppeara
   "settings.appearance.section.theme": "Thème",
   "settings.appearance.section.reading": "Lecture",
   "settings.appearance.section.details": "Détails",
+  "settings.appearance.start.title": "Démarrage",
+  "settings.appearance.start.openOn": "Ouvrir sur",
+  "settings.appearance.start.openOn.home": "Accueil",
+  "settings.appearance.start.openOn.overview": "Vue d'ensemble",
+  "settings.appearance.start.hint": "S'applique à la première ouverture de pap, pas au clic sur le logo.",
   "settings.appearance.section.home": "Accueil",
   "settings.appearance.home.intro":
     "Ce que l'accueil du projet montre sous sa zone de saisie. La zone de saisie est toujours affichée.",

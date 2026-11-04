@@ -2,10 +2,13 @@ import { z } from "zod";
 import { PluginId } from "./skills-methods.ts";
 import { LINE_HIDDEN } from "./text-rules.ts";
 
+/** The smallest VM memory (the schema floor); the Overview adds `VM_OVERHEAD_MB` for what a start needs. */
+export const MIN_VM_MEMORY_MB = 512;
+
 /** Decision 109. Host-dependent ceilings (the memory cap, the host's cores) are checked by the agents service at save (RT-30). */
 export const AgentResources = z
   .object({
-    memoryMb: z.number().int().min(512).max(1_048_576),
+    memoryMb: z.number().int().min(MIN_VM_MEMORY_MB).max(1_048_576),
     cpus: z.number().int().min(1).max(256),
     diskMb: z.number().int().min(1024).max(65_536),
   })

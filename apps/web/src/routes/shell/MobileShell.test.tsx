@@ -8,6 +8,7 @@ import { startKeybindings } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { button, click, mount, settle } from "../../testing/dom.ts";
+import { ownerSnapshot } from "../../features/overview/overview-fixtures.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { BottomNav } from "./BottomNav.tsx";
@@ -35,6 +36,7 @@ beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
   const bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
+  bed.handlers["overview.get"] = () => ownerSnapshot({ boxes: [] });
   current.runtime = bed.runtime;
   localStorage.clear();
   useShellStore.getState().reset();
@@ -87,15 +89,12 @@ describe("phone shell", () => {
     await page.unmount();
   });
 
-  it("Agents offers to create the first agent (M11R109)", async () => {
-    const page = await renderShell("/", { phone: true });
+  it("Agents shows the Overview pane, and its empty state offers the first agent (decision 147)", async () => {
+    const page = await renderShell("/", { phone: true, chunks: ["overview"] });
     await click(button(nav(page.container) as HTMLElement, "Agents"));
-    await settle();
-    expect(page.container.textContent).toContain("Create your first agent");
-    expect(button(page.container, "New agent")).toBeTruthy();
-    expect(page.container.textContent).toContain(
-      "A long-term agent has its own thread, memory, budget and triggers.",
-    );
+    await vi.waitFor(() => expect(page.container.querySelector("main [data-overview-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
     expect(button(nav(page.container) as HTMLElement, "Agents").getAttribute("aria-current")).toBe("page");
     expect(page.container.querySelector('[data-pane-kind="home"]')).toBeNull();
     await page.unmount();

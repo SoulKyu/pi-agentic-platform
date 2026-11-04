@@ -104,6 +104,15 @@ export const projectBoxMethods = {
     result: Ok,
     errors: BOX_LIFE_ERRORS,
   }),
+  // Queued with starts and restarts (R6); stopping a box that is not running is a no-op.
+  "projects.stopBox": defineMethod({
+    name: "projects.stopBox",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: Params({ projectId: Id }),
+    result: Ok,
+    errors: ["not_found"],
+  }),
   "projects.restartBox": defineMethod({
     name: "projects.restartBox",
     permission: "sessions:operate",

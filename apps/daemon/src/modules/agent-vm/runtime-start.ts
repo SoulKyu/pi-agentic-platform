@@ -1,7 +1,6 @@
 import { boxKey, PapError, type VmLayout } from "@pap/contracts";
-import { VM_OVERHEAD_MB } from "../../kernel/config-agents-vm.ts";
 import type { GuestLink } from "./guest-link.ts";
-import { createIdleStop, fitsCapacity, type IdleStop, KEPT_IDLE_MS } from "./lifecycle.ts";
+import { createIdleStop, fitsCapacity, type IdleStop, KEPT_IDLE_MS, memoryInUseMb } from "./lifecycle.ts";
 import type { AgentRuntimeDeps, VmPhaseChange, VmSpec } from "./runtime.ts";
 import type { VmWorkerHandle } from "./vm-worker.ts";
 
@@ -56,7 +55,7 @@ export function createVmStarter(context: VmStarterContext) {
       )
     ) {
       deps.notifyCapacity([...new Set(running.map((e) => boxKey(e.spec.box)))]);
-      const used = running.reduce((sum, e) => sum + e.spec.resources.memoryMb + VM_OVERHEAD_MB, 0);
+      const used = memoryInUseMb(running.map((e) => e.spec.resources.memoryMb));
       throw new PapError("capacity", { memory: { used, max: deps.memoryCapMb } });
     }
     const layout = deps.layout(spec); // before the token: a box without a layout leaves nothing behind

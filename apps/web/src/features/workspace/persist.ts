@@ -55,6 +55,8 @@ function parseItem(value: unknown, devUi: boolean): ItemRef | null {
       return typeof value.id === "string" && isFanoutId(value.id) ? { kind: "compare", id: value.id } : null;
     case "tasks":
       return { kind: "tasks" };
+    case "overview":
+      return { kind: "overview" };
     case "trigger":
       return typeof value.id === "string" && isValidId(value.id) ? { kind: "trigger", id: value.id } : null;
     case "agent":
