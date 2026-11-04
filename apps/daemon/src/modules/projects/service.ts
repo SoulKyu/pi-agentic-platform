@@ -113,6 +113,18 @@ export function createProjectsService(deps: {
       }
     }
   };
+  const alwaysOnListeners = new Set<
+    (change: { ownerId: string; projectId: string; alwaysOn: boolean }) => void
+  >();
+  const alwaysOnChanged = (change: { ownerId: string; projectId: string; alwaysOn: boolean }) => {
+    for (const listener of [...alwaysOnListeners]) {
+      try {
+        listener(change);
+      } catch (error) {
+        deps.logger.warn("projects_listener_failed", { err: error });
+      }
+    }
+  };
   const owned = (ownerId: string, id: string): ProjectRow => {
     const row = deps.store.get(ownerId, id);
     if (!row) throw new PapError("not_found");
@@ -126,6 +138,7 @@ export function createProjectsService(deps: {
     newId: deps.newId,
     changed,
     removed,
+    alwaysOnChanged,
     owned,
     ...(deps.audit ? { audit: deps.audit } : {}),
   });
@@ -309,6 +322,13 @@ export function createProjectsService(deps: {
     onRemoved(listener: (ownerId: string, projectId: string) => void): () => void {
       removedListeners.add(listener);
       return () => void removedListeners.delete(listener);
+    },
+    /** Called after a `setBox` that changed `alwaysOn` (decision 149). */
+    onAlwaysOnChange(
+      listener: (change: { ownerId: string; projectId: string; alwaysOn: boolean }) => void,
+    ): () => void {
+      alwaysOnListeners.add(listener);
+      return () => void alwaysOnListeners.delete(listener);
     },
   };
 }

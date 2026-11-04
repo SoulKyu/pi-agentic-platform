@@ -16,6 +16,7 @@ const ROW: ProjectBoxRow = {
   root: "/boxes/x/project",
   resources: { ...DEFAULT_AGENT_RESOURCES, memoryMb: 1024 },
   hosts: [],
+  alwaysOn: false,
   deleting: false,
 };
 let root: string;

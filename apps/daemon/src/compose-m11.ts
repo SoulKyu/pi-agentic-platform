@@ -117,6 +117,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     automation,
     agentSessions: modules.sessions.agentSessions,
     releaseIdle: modules.sessions.releaseIdle,
+    releaseWhenQuiet: modules.sessions.releaseWhenQuiet,
     runs: modules.runs,
     clock: core.clock,
     logger: agentsLogger,

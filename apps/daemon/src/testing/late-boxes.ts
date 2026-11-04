@@ -14,6 +14,7 @@ export const boxRow = (extra: Partial<ProjectBoxRow> = {}): ProjectBoxRow => ({
   root: `/boxes/${PROJECT}`,
   resources: DEFAULT_PROJECT_RESOURCES,
   hosts: [],
+  alwaysOn: false,
   deleting: false,
   ...extra,
 });

@@ -81,6 +81,8 @@ export interface SessionsServiceDeps {
   onOutsideToolResults(sessionId: string): void;
   /** The lanes module's hooks around a prompt and a run's end (M9R114); none: a prompt goes at once. */
   readonly laneHooks?: Pick<LaneHooksSlot, "beforePrompt" | "published" | "waiting" | "assertOwn">;
+  /** A kept session counts as busy for the idle release only (always-on boxes); none: nothing is kept. */
+  keepWorker?(ownerId: string, sessionId: string): boolean;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
   /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
@@ -200,6 +202,10 @@ export interface SessionsService extends SessionCommands, SessionModels {
   restartFolder(ownerId: string, folder: string): number;
   /** Stops the worker of the owner's session when it is quiet (M9R113, M10R154): `released`, `busy` (left alone) or `cold` (no worker). */
   releaseIdle(ownerId: string, sessionId: string): ReleaseResult;
+  /** `releaseIdle` now when quiet, otherwise once the session's run is over (a kept worker has no idle timer to wait for). */
+  releaseWhenQuiet(ownerId: string, sessionId: string): void;
+  /** Restarts the idle wait of the owner's live session; a no-op for a cold, stopping, unknown or foreign one. */
+  touchIdle(ownerId: string, sessionId: string): void;
   /** What the lane port reads of live sessions and files (M9R37). */
   readonly laneProbe: LaneProbe;
   /**

@@ -15,6 +15,7 @@ export interface ThreadLinkDeps {
   readonly automation: Automation;
   readonly agentSessions: Pick<SessionsAgentPort, "applyLive">;
   readonly releaseIdle: SessionsModule["releaseIdle"];
+  readonly releaseWhenQuiet: SessionsModule["releaseWhenQuiet"];
   readonly runs: Pick<RunsPort, "onRunEnd">;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -114,6 +115,13 @@ export function createThreadLink(deps: ThreadLinkDeps) {
       }
     },
     releaseIdle: ask,
+    releaseWhenQuiet(ownerId, sessionId) {
+      try {
+        deps.releaseWhenQuiet(ownerId, sessionId);
+      } catch (error) {
+        if (!gone(error)) logger.warn("agent_release_failed", { err: error });
+      }
+    },
     applyLive(ownerId, sessionId, change) {
       const { model, thinking } = change;
       deps.agentSessions

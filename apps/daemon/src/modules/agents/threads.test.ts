@@ -121,7 +121,7 @@ describe("openThread (M11R59)", () => {
 
   it("discards a session the row no longer wants (the thread changed under the call)", async () => {
     const links: AgentLinks = {
-      threads: { busy: () => false, archive: vi.fn(), releaseIdle: vi.fn() },
+      threads: { busy: () => false, archive: vi.fn(), releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
     };
     const { id, sessions, threads } = await setup(links);
     sessions.gate.hold = true;
@@ -138,7 +138,13 @@ describe("openThread (M11R59)", () => {
 
 describe("resetThread (M11R60)", () => {
   const withThread = (extra: Partial<NonNullable<AgentLinks["threads"]>> = {}, inbox = vi.fn()) => {
-    const threads = { busy: () => false, archive: vi.fn(), releaseIdle: vi.fn(), ...extra };
+    const threads = {
+      busy: () => false,
+      archive: vi.fn(),
+      releaseIdle: vi.fn(),
+      releaseWhenQuiet: vi.fn(),
+      ...extra,
+    };
     return {
       threads,
       inbox,

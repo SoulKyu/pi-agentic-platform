@@ -35,6 +35,7 @@ const box = (name: string, state: OverviewBox["state"]): OverviewBox => ({
   needMb: 0,
   fits: true,
   busy: false,
+  alwaysOn: false,
   nextRun: null,
 });
 

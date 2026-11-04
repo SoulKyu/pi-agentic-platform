@@ -354,6 +354,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     restartFolder: folderRestart.restart,
     releaseIdle: folderRestart.releaseIdle,
+    releaseWhenQuiet: folderRestart.releaseWhenQuiet,
+    touchIdle(ownerId, sessionId) {
+      const session = live.get(sessionId);
+      if (session && !session.stopping() && deps.store.get(sessionId)?.ownerId === ownerId)
+        session.touchIdle();
+    },
     laneProbe: { live, statusOf, branchPath: reads.branchPath, agentText: reads.agentText },
     inspect(sessionId) {
       const session = live.get(sessionId);

@@ -24,6 +24,7 @@ export const ProjectBoxView = z
       })
       .strict(),
     scratch: z.boolean(),
+    alwaysOn: z.boolean(),
     /** `.pi/project.yaml`'s preview as the page shows it (the command is shown, UX2-R80); null when the file declares none. */
     preview: PreviewDecl.nullable().optional(),
     previewInvalid: z.literal(true).optional(),
@@ -92,7 +93,12 @@ export const projectBoxMethods = {
     name: "projects.setBox",
     permission: "sessions:admin",
     idempotent: false,
-    params: Params({ projectId: Id, resources: AgentResources.optional(), hosts: ProjectHosts.optional() }),
+    params: Params({
+      projectId: Id,
+      resources: AgentResources.optional(),
+      hosts: ProjectHosts.optional(),
+      alwaysOn: z.boolean().optional(),
+    }),
     result: Params({ box: ProjectBoxView }),
     errors: ["not_found", "bad_request", "read_only", "internal"],
   }),

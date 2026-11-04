@@ -47,6 +47,7 @@ describe("lanes.preview of a box root", () => {
         root,
         resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
         hosts: [],
+        alwaysOn: false,
         deleting: false,
       },
     });

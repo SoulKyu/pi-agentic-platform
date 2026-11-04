@@ -48,7 +48,13 @@ export interface IdleStop {
 /** A kept task's VM holds its trigger's disk: it stops this long after its worker left, whatever PAP_WORKER_IDLE_MINUTES says (K2). */
 export const KEPT_IDLE_MS = 1_000;
 
-export function createIdleStop(clock: Clock, idleMs: number, onIdle: () => void): IdleStop {
+export function createIdleStop(
+  clock: Clock,
+  idleMs: number,
+  onIdle: () => void,
+  /** True while the box must stay up (always on): the timer fires and does nothing. */
+  holds?: () => boolean,
+): IdleStop {
   let live = 0;
   let timer: TimerHandle | undefined;
   const cancel = (): void => {
@@ -60,7 +66,7 @@ export function createIdleStop(clock: Clock, idleMs: number, onIdle: () => void)
     if (idleMs === 0) return;
     timer = clock.setTimeout(() => {
       timer = undefined;
-      if (live === 0) onIdle();
+      if (live === 0 && !holds?.()) onIdle();
     }, idleMs);
   };
   return {

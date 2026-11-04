@@ -41,6 +41,7 @@ export interface M11Modules {
     | "approvedCalls"
     | "setAgentPorts"
     | "releaseIdle"
+    | "releaseWhenQuiet"
     | "automation"
     | "agentSessions"
     | "hostGrants"

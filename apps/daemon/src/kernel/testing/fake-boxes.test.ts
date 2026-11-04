@@ -40,6 +40,7 @@ describe("fake boxes", () => {
       root: "/boxes/p1/project",
       resources: DEFAULT_PROJECT_RESOURCES,
       hosts: [],
+      alwaysOn: false,
       deleting: false,
     };
     const source = createFakeProjectBoxSource({ p1: row });

@@ -52,6 +52,7 @@ export const OverviewBox = z
     needMb: Count,
     fits: z.boolean(),
     busy: z.boolean(),
+    alwaysOn: z.boolean(),
     nextRun: z
       .object({ at: Millis, name: z.string().max(320) })
       .strict()

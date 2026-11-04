@@ -32,6 +32,7 @@ function setup() {
     automation,
     agentSessions: { applyLive },
     releaseIdle,
+    releaseWhenQuiet: vi.fn(),
     runs: { onRunEnd: (listener) => (ended.push(listener), () => void ended.splice(0)) },
     clock,
     logger,

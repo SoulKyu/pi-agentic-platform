@@ -32,6 +32,7 @@ function fakeLinks(log: string[], fail: ReadonlySet<string> = new Set()): AgentL
       busy: () => false,
       archive: () => call("archive", undefined),
       releaseIdle: () => call("releaseIdle", undefined),
+      releaseWhenQuiet: () => {},
       abort: async () => call("abort", undefined),
     },
     automation: {
@@ -262,6 +263,7 @@ describe("a step that never answers (time is bounded)", () => {
           busy: () => false,
           archive: () => log.push("archive"),
           releaseIdle: () => log.push("releaseIdle"),
+          releaseWhenQuiet: () => {},
           abort: () => new Promise<void>(() => {}),
         },
       }),

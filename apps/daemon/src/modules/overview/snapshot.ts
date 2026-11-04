@@ -28,6 +28,7 @@ export interface OverviewAgentFacts {
   readonly name: string;
   readonly threadSessionId: string | null;
   readonly memoryMb: number;
+  readonly alwaysOn: boolean;
   /** The rail's word now; null for a rail that is not bound yet. */
   readonly rail: AgentRailState | null;
 }
@@ -38,6 +39,7 @@ export interface OverviewProjectFacts {
   readonly kind: "box" | "host";
   /** The box's `memoryMb`; 0 for a host project. */
   readonly memoryMb: number;
+  readonly alwaysOn: boolean;
 }
 
 /** What the users module knows of one account; only the member line's six fields ever leave the snapshot. */
@@ -221,6 +223,7 @@ export function createOverviewSnapshot(
         needMb,
         fits: fit(needMb),
         busy: list.length > 0,
+        alwaysOn: agent.alwaysOn,
         nextRun: nextRunOf(triggers, ref),
       };
     };
@@ -280,6 +283,7 @@ export function createOverviewSnapshot(
         needMb,
         fits: isBox ? fit(needMb) : true,
         busy: list.length > 0,
+        alwaysOn: project.alwaysOn,
         nextRun: nextRunOf(triggers, { kind: "project", id: project.id }),
       };
     };

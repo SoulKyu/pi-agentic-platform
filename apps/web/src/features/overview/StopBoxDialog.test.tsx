@@ -9,8 +9,16 @@ const ACTIVITIES = [
   { kind: "thread", id: "s1", title: "", since: null, stoppable: false },
 ] as const;
 
-const open = (onConfirm: () => Promise<void>, onClose = vi.fn()) =>
-  mount(<StopBoxDialog name="Atlas" activities={ACTIVITIES} onConfirm={onConfirm} onClose={onClose} />);
+const open = (onConfirm: () => Promise<void>, onClose = vi.fn(), alwaysOn = false) =>
+  mount(
+    <StopBoxDialog
+      name="Atlas"
+      activities={ACTIVITIES}
+      alwaysOn={alwaysOn}
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />,
+  );
 
 describe("StopBoxDialog", () => {
   it("says what is interrupted and what stays, with Cancel secondary and the confirm primary", async () => {
@@ -22,6 +30,16 @@ describe("StopBoxDialog", () => {
     );
     expect(button(dialog, "Cancel").getAttribute("data-variant")).toBe("secondary");
     expect(button(dialog, "Stop the box").getAttribute("data-variant")).toBe("primary");
+  });
+
+  it("says an always-on box comes back at the next pap start, and says nothing otherwise", async () => {
+    await open(async () => {}, vi.fn(), true);
+    expect(text(document.body)).toContain("It stays always on: pap starts it again when pap next starts.");
+  });
+
+  it("has no always-on line for a box that is not", async () => {
+    await open(async () => {});
+    expect(text(document.body)).not.toContain("always on");
   });
 
   it("speaks French", async () => {

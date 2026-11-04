@@ -12,6 +12,7 @@ export interface BoxRecord {
   readonly resources: AgentResources;
   readonly hosts: readonly string[];
   readonly scratch: boolean;
+  readonly alwaysOn: boolean;
   readonly deleting: boolean;
 }
 
@@ -22,6 +23,7 @@ interface RawBox {
   resources: string;
   hosts: string;
   scratch: number;
+  alwaysOn: number;
   deleting: number;
 }
 
@@ -36,14 +38,17 @@ export interface BoxStore {
     hosts: readonly string[];
     scratch: boolean;
   }): void;
-  set(projectId: string, change: { resources?: AgentResources; hosts?: readonly string[] }): void;
+  set(
+    projectId: string,
+    change: { resources?: AgentResources; hosts?: readonly string[]; alwaysOn?: boolean },
+  ): void;
   markDeleting(projectId: string): void;
   /** The box record and the project row, in one transaction. */
   remove(projectId: string): void;
 }
 
 const SELECT = `SELECT p.id AS projectId, p.owner_id AS ownerId, p.root AS root, b.resources AS resources,
-  b.hosts AS hosts, b.scratch AS scratch, b.deleting AS deleting
+  b.hosts AS hosts, b.scratch AS scratch, b.always_on AS alwaysOn, b.deleting AS deleting
   FROM project_boxes b JOIN projects p ON p.id = b.project_id`;
 
 const resourcesOf = (text: string): AgentResources => {
@@ -70,6 +75,7 @@ const recordOf = (raw: RawBox): BoxRecord => ({
   resources: resourcesOf(raw.resources),
   hosts: hostsOf(raw.hosts),
   scratch: raw.scratch === 1,
+  alwaysOn: raw.alwaysOn === 1,
   deleting: raw.deleting === 1,
 });
 
@@ -109,6 +115,11 @@ export function createBoxStore(db: Db): BoxStore {
           db.run("UPDATE project_boxes SET hosts = $value WHERE project_id = $projectId", {
             projectId,
             value: JSON.stringify(change.hosts),
+          });
+        if (change.alwaysOn !== undefined)
+          db.run("UPDATE project_boxes SET always_on = $value WHERE project_id = $projectId", {
+            projectId,
+            value: change.alwaysOn ? 1 : 0,
           });
       });
     },

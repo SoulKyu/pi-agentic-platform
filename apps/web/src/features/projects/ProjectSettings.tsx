@@ -98,7 +98,7 @@ export function ProjectSettings({ projectId, onClose }: Props) {
       try {
         const answer = await rpc.call(
           "projects.setBox",
-          { projectId, resources: built.resources, hosts: [...built.hosts] },
+          { projectId, resources: built.resources, hosts: [...built.hosts], alwaysOn: built.alwaysOn },
           { commandId: rpc.newCommandId() },
         );
         replace(answer.box);
@@ -157,15 +157,15 @@ export function ProjectSettings({ projectId, onClose }: Props) {
                 <InlineError announce="action">{restart.problem}</InlineError>
               )}
             </Section>
-            <div className="flex flex-col gap-s2">
-              <ResourceFields
-                draft={draft}
-                errors={errors}
-                legend={t("boxes.section.resources")}
-                set={change}
-              />
-              <p className="text-ui text-muted">{t("boxes.resources.hint")}</p>
-            </div>
+            <ResourceFields
+              draft={draft}
+              errors={errors}
+              legend={t("boxes.section.resources")}
+              alwaysOn={draft.alwaysOn}
+              setAlwaysOn={(alwaysOn) => change({ alwaysOn })}
+              set={change}
+              note={t("boxes.resources.hint")}
+            />
             <Section title={t("boxes.section.hosts")}>
               <HostsField
                 hint={t("boxes.hosts.hint")}

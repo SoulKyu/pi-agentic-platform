@@ -14,6 +14,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { GitRunner } from "../../kernel/git/runner.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
+import { onlyAlwaysOnChanged } from "./always-on-edit.ts";
 import { withDeadline } from "./deadline.ts";
 import { agentIdOf, randomAgentHex } from "./ids.ts";
 import { checkAgentSave } from "./resources-check.ts";
@@ -141,9 +142,9 @@ export function createAgents(deps: AgentsDeps) {
   /** M11R47: the edit applies at the thread worker's next start; a model or thinking change reaches a live thread now. */
   function applyToThread(before: AgentRecord, after: AgentRecord): void {
     const sessionId = after.threadSessionId;
-    if (sessionId === null || !links.threads) return;
+    if (sessionId === null || !links.threads || onlyAlwaysOnChanged(before.input, after.input)) return;
     try {
-      links.threads.releaseIdle(after.ownerId, sessionId);
+      links.threads.releaseWhenQuiet(after.ownerId, sessionId);
       const model = JSON.stringify(before.input?.model) !== JSON.stringify(after.input?.model);
       const thinking = before.input?.thinking !== after.input?.thinking;
       if ((model || thinking) && after.input)

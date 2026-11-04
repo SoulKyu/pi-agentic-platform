@@ -8,6 +8,13 @@ export const agentVmEn = {
   "agentVm.disk": "Disk (MiB)",
   "agentVm.range": "From {min} to {max}. The machine's own limits are checked when you save.",
   "agentVm.disk.hint": "The disk can only be enlarged.",
+  "agentVm.size": "{value} GB",
+  "agentVm.alwaysOn.label": "Always on",
+  "agentVm.alwaysOn.hint":
+    "Never stops on its own; pap starts it again when pap starts. Keeps {memory} of shared memory reserved at all times.",
+  "agentVm.alwaysOn.applyHint":
+    "Memory, CPU, disk and package changes apply at the box's next start: stop it, then start it from the Overview.",
+  "agentVm.alwaysOn.hintShort": "Never stops on its own; pap starts it again when pap starts.",
   "agentVm.error.number": "Enter a whole number within the range shown.",
   "agentVm.error.diskShrink": "The disk cannot go below its saved size: it can only be enlarged.",
   "agentVm.system.title": "System packages",
@@ -69,6 +76,13 @@ export const agentVmFr: Record<keyof typeof agentVmEn, string> = {
   "agentVm.disk": "Disque (Mio)",
   "agentVm.range": "De {min} à {max}. Les limites de la machine sont vérifiées à l'enregistrement.",
   "agentVm.disk.hint": "Le disque ne peut qu'être agrandi.",
+  "agentVm.size": "{value} Go",
+  "agentVm.alwaysOn.label": "Toujours allumée",
+  "agentVm.alwaysOn.hint":
+    "Ne s'arrête jamais d'elle-même ; pap la rallume à son démarrage. Garde {memory} de mémoire partagée réservés en permanence.",
+  "agentVm.alwaysOn.applyHint":
+    "Les changements de mémoire, de CPU, de disque et de paquets s'appliquent au prochain démarrage de la box : arrêtez-la puis redémarrez-la depuis la Vue d'ensemble.",
+  "agentVm.alwaysOn.hintShort": "Ne s'arrête jamais d'elle-même ; pap la rallume à son démarrage.",
   "agentVm.error.number": "Entrez un nombre entier dans l'intervalle indiqué.",
   "agentVm.error.diskShrink":
     "Le disque ne peut pas descendre sous sa taille enregistrée : il ne peut qu'être agrandi.",

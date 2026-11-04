@@ -45,6 +45,18 @@ describe("owner view: the agents", () => {
     });
   });
 
+  it("carries alwaysOn for an agent and a box project, and false otherwise", () => {
+    const { snapshot } = build({
+      agents: { [OWNER]: [agent("agent-on", "idle", { alwaysOn: true }), agent("agent-off", "idle")] },
+      projects: { [OWNER]: [project("box-on", "box", { alwaysOn: true }), project("box-off", "box")] },
+    });
+    const { boxes } = snapshot(OWNER, true);
+    expect(boxOf(boxes, "agent-on").alwaysOn).toBe(true);
+    expect(boxOf(boxes, "agent-off").alwaysOn).toBe(false);
+    expect(boxOf(boxes, "box-on").alwaysOn).toBe(true);
+    expect(boxOf(boxes, "box-off").alwaysOn).toBe(false);
+  });
+
   it("shows an idle thread as no activity, and a thread of another owner as nothing", () => {
     const idle = build({
       agents: { [OWNER]: [agent("agent-a", "idle")] },

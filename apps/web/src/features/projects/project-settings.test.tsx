@@ -83,7 +83,28 @@ describe("project settings", () => {
       projectId: "b1",
       resources: { memoryMb: 4096, cpus: 2, diskMb: 8192 },
       hosts: ["api.example.com", "*.example.org"],
+      alwaysOn: false,
     });
+  });
+
+  it("places the next-start hint with the resource fields, before the Always on switch", async () => {
+    await open();
+    const fieldset = document.querySelector("[data-project-settings] fieldset") as HTMLElement;
+    const hint = [...fieldset.querySelectorAll("p")].find(
+      (p) => p.textContent === "They apply at the next start of the box.",
+    );
+    const toggle = fieldset.querySelector('[role="switch"]') as HTMLElement;
+    expect(hint?.compareDocumentPosition(toggle)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  it("saves the Always on switch with the rest", async () => {
+    await open();
+    const toggle = document.querySelector('[data-project-settings] [role="switch"]') as HTMLElement;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await click(toggle);
+    await click(button(document.body, "Save"));
+    await settle();
+    expect(bed.called("projects.setBox")[0]?.params).toMatchObject({ projectId: "b1", alwaysOn: true });
   });
 
   it("a smaller disk is refused", async () => {

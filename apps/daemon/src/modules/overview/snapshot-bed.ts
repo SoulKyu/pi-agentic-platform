@@ -165,6 +165,7 @@ export const agent = (
   name: `agent ${id}`,
   threadSessionId: `thread-${id}`,
   memoryMb: 1024,
+  alwaysOn: false,
   rail,
   ...patch,
 });
@@ -178,6 +179,7 @@ export const project = (
   name: `project ${id}`,
   kind,
   memoryMb: kind === "box" ? 1024 : 0,
+  alwaysOn: false,
   ...patch,
 });
 

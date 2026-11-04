@@ -26,6 +26,8 @@ export function createIdleRelease(deps: {
   idleMs: number;
   backgroundMs?: number;
   state(): IdleState;
+  /** True: the worker is kept (always-on); the check waits `idleMs` again, whatever the state says. */
+  keep?(): boolean;
   release(): void;
 }): IdleRelease {
   const backgroundMs = deps.backgroundMs ?? BACKGROUND_RELEASE_MS;
@@ -40,6 +42,7 @@ export function createIdleRelease(deps: {
     if (stopped) return;
     const quietFor = deps.clock.now() - lastActivity;
     if (quietFor < deps.idleMs) return arm(deps.idleMs - quietFor);
+    if (deps.keep?.() === true) return arm(deps.idleMs);
     const state = deps.state();
     if (state === "quiet") return deps.release();
     if (state === "background") {

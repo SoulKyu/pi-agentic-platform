@@ -1,8 +1,8 @@
 import type { OverviewActivity, OverviewAsk, OverviewBox, OverviewState } from "@pap/contracts";
 import type { ChipTone } from "@pap/ui";
 import type { Locale, Translate } from "../../i18n/index.ts";
+import { formatGb } from "../../lib/format-gb.ts";
 
-const MB_PER_GB = 1024;
 const DAY = 24 * 60 * 60_000;
 
 export type ActiveBox = OverviewBox & { readonly state: Exclude<OverviewState, "stopped"> };
@@ -26,13 +26,6 @@ export const PHASE_TONE: Readonly<Record<NonNullable<OverviewBox["phase"]>, Chip
   paused: "mut",
   stopping: "mut",
 };
-
-/** MB / 1024, always one decimal, with the locale's separator. */
-export function formatGb(mb: number, locale: Locale): string {
-  return new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(
-    mb / MB_PER_GB,
-  );
-}
 
 export const sizeText = (mb: number, locale: Locale, t: Translate): string =>
   t("overview.size", { value: formatGb(mb, locale) });

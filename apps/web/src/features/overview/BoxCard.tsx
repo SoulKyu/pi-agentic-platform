@@ -1,5 +1,5 @@
 import type { OverviewActivity, OverviewBox, OverviewSnapshot } from "@pap/contracts";
-import { Button, Chip, Icon, IconAgents, IconFolder, cn, formatCost } from "@pap/ui";
+import { Button, Chip, Icon, IconAgents, IconFolder, IconPin, cn, formatCost } from "@pap/ui";
 import type { ReactNode } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { LaunchLine } from "./LaunchLine.tsx";
@@ -142,6 +142,12 @@ export function BoxCard({ box, capacity, now, on }: Props) {
         {box.apiEquivalent ? <span>{t("overview.band.apiEquivalent")}</span> : null}
         {box.reservedMb > 0 ? (
           <span className="font-mono tabular-nums">{sizeText(box.reservedMb, locale, t)}</span>
+        ) : null}
+        {box.alwaysOn ? (
+          <span className="inline-flex items-center gap-s1">
+            <Icon icon={IconPin} size={14} />
+            <Chip tone="mut" label={t("overview.alwaysOn")} />
+          </span>
         ) : null}
         {box.nextRun === null ? null : <span>{nextRunLine(box.nextRun, now, locale, t)}</span>}
         {extra === undefined || extra === null ? null : <span className="ml-auto flex gap-s2">{extra}</span>}

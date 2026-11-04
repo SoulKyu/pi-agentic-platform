@@ -36,28 +36,39 @@ export function createFolderRestart(deps: {
     session.stop().catch((error: unknown) => deps.logger.warn("worker_stop_failed", { err: error }));
   }
 
+  /**
+   * Stops the worker of the owner's session only when it is quiet: idle, not busy, no prompt waiting in the lane hooks,
+   * no open dialog or panel, an empty queue. `busy`: a worker is there and is left alone (one being opened counts).
+   * `cold`: the owner has no worker for it.
+   */
+  function releaseIdle(ownerId: string, sessionId: string): ReleaseResult {
+    if (deps.row(sessionId)?.ownerId !== ownerId) return "cold";
+    const session = deps.live.get(sessionId);
+    if (!session) return deps.reopening.has(sessionId) ? "busy" : "cold";
+    if (session.stopping()) return "cold";
+    const quiet =
+      session.status() === "idle" &&
+      !session.busy() &&
+      !deps.waiting(sessionId) &&
+      session.dialogs().length === 0 &&
+      session.panels().length === 0 &&
+      session.queue().count === 0;
+    if (!quiet) return "busy";
+    waiting.delete(sessionId);
+    session.stop().catch((error: unknown) => deps.logger.warn("worker_stop_failed", { err: error }));
+    return "released";
+  }
+
   return {
+    releaseIdle,
     /**
-     * Stops the worker of the owner's session only when it is quiet: idle, not busy, no prompt waiting in the lane hooks,
-     * no open dialog or panel, an empty queue. `busy`: a worker is there and is left alone (one being opened counts).
-     * `cold`: the owner has no worker for it.
+     * Releases the owner's worker now when it is quiet; otherwise when its run is over (a kept worker is never released
+     * by the idle timer, so an edit that must reach it cannot wait for one). Cold or foreign: nothing to do.
      */
-    releaseIdle(ownerId: string, sessionId: string): ReleaseResult {
-      if (deps.row(sessionId)?.ownerId !== ownerId) return "cold";
-      const session = deps.live.get(sessionId);
-      if (!session) return deps.reopening.has(sessionId) ? "busy" : "cold";
-      if (session.stopping()) return "cold";
-      const quiet =
-        session.status() === "idle" &&
-        !session.busy() &&
-        !deps.waiting(sessionId) &&
-        session.dialogs().length === 0 &&
-        session.panels().length === 0 &&
-        session.queue().count === 0;
-      if (!quiet) return "busy";
-      waiting.delete(sessionId);
-      session.stop().catch((error: unknown) => deps.logger.warn("worker_stop_failed", { err: error }));
-      return "released";
+    releaseWhenQuiet(ownerId: string, sessionId: string): void {
+      if (releaseIdle(ownerId, sessionId) !== "busy") return;
+      if (!deps.live.has(sessionId)) waiting.set(sessionId, { needsRun: true });
+      else waiting.set(sessionId, { needsRun: waiting.get(sessionId)?.needsRun === true });
     },
     /** Returns how many workers are released or will be: the ones the decision concerns. */
     restart(ownerId: string, folder: string): number {

@@ -202,16 +202,40 @@ describe("update (M11R44, M11R47)", () => {
     bed = createAgentsBed();
     await made();
     bed.db.run("UPDATE agents SET thread_session_id = 's1' WHERE id = 'atlas-0000'");
-    const threads = { busy: vi.fn(() => false), archive: vi.fn(), releaseIdle: vi.fn(), applyLive: vi.fn() };
+    const threads = {
+      busy: vi.fn(() => false),
+      archive: vi.fn(),
+      releaseIdle: vi.fn(),
+      releaseWhenQuiet: vi.fn(),
+      applyLive: vi.fn(),
+    };
     bed.agents.setLinks({ threads });
     await edit(1, { role: "new role" });
-    expect(threads.releaseIdle).toHaveBeenCalledWith("u1", "s1");
+    expect(threads.releaseWhenQuiet).toHaveBeenCalledWith("u1", "s1");
     expect(threads.applyLive).not.toHaveBeenCalled();
     await edit(2, { model: { provider: "p", modelId: "m" }, thinking: "high" });
     expect(threads.applyLive).toHaveBeenCalledWith("u1", "s1", {
       model: { provider: "p", modelId: "m" },
       thinking: "high",
     });
+  });
+
+  it("an edit of alwaysOn alone does not release the worker; a model edit does", async () => {
+    bed = createAgentsBed();
+    await made();
+    bed.db.run("UPDATE agents SET thread_session_id = 's1' WHERE id = 'atlas-0000'");
+    const threads = {
+      busy: vi.fn(() => false),
+      archive: vi.fn(),
+      releaseIdle: vi.fn(),
+      releaseWhenQuiet: vi.fn(),
+      applyLive: vi.fn(),
+    };
+    bed.agents.setLinks({ threads });
+    expect(await edit(1, { alwaysOn: true })).toMatchObject({ revision: 2, input: { alwaysOn: true } });
+    expect(threads.releaseWhenQuiet).not.toHaveBeenCalled();
+    await edit(2, { alwaysOn: true, model: { provider: "p", modelId: "m" } });
+    expect(threads.releaseWhenQuiet).toHaveBeenCalledWith("u1", "s1");
   });
 
   it("a failing live link never fails the saved edit", async () => {
@@ -222,7 +246,8 @@ describe("update (M11R44, M11R47)", () => {
       threads: {
         busy: () => false,
         archive: vi.fn(),
-        releaseIdle: () => {
+        releaseIdle: vi.fn(),
+        releaseWhenQuiet: () => {
           throw new Error("boom");
         },
       },

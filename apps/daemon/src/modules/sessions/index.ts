@@ -148,6 +148,12 @@ export interface SessionsModule {
   restartFolder(ownerId: string, folder: string): number;
   /** Stops the worker of the owner's quiet session (M9R113): `released`, `busy` (left alone) or `cold` (no worker). */
   releaseIdle(ownerId: string, sessionId: string): "released" | "busy" | "cold";
+  /** `releaseIdle` now when quiet, otherwise once the session's run is over: an agent edit must reach a kept worker. */
+  releaseWhenQuiet(ownerId: string, sessionId: string): void;
+  /** Late-bound (the agents module): a session it keeps counts as busy for the idle release. Binding again replaces it. */
+  bindKeepWorker(keep: (ownerId: string, sessionId: string) => boolean): void;
+  /** Restarts the idle wait of the owner's live session; a no-op for a cold, stopping, unknown or foreign one. */
+  touchIdle(ownerId: string, sessionId: string): void;
   /**
    * What a VM mirror says to a session (R14, AVM-E21): a notice in its thread and the taint of ADR 0074's outside-write
    * detection (a session whose file the VM rewrote may hold content pap never fenced).
@@ -210,6 +216,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   const forkTmpDir = join(config.home, "fork-tmp");
   purgeForkTmp(forkTmpDir, logger);
   const store = createSessionsStore(deps.db);
+  let keepWorker: (ownerId: string, sessionId: string) => boolean = () => false;
   const cost = createSessionCost({ hub: deps.hub, clock: deps.clock, store, logger });
   const laneHooks = createLaneHooks({
     clock: deps.clock,
@@ -245,6 +252,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     containment: deps.scopes.enabled ? "scope" : "none",
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,
+    keepWorker: (ownerId, sessionId) => keepWorker(ownerId, sessionId),
     worker: {
       agentDir: config.piAgentDir,
       papHome: config.home,
@@ -345,6 +353,11 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
     releaseIdle: (ownerId, sessionId) => service.releaseIdle(ownerId, sessionId),
+    releaseWhenQuiet: (ownerId, sessionId) => service.releaseWhenQuiet(ownerId, sessionId),
+    bindKeepWorker(keep) {
+      keepWorker = keep;
+    },
+    touchIdle: (ownerId, sessionId) => service.touchIdle(ownerId, sessionId),
     lanes: createSessionsLanePort({
       service,
       store,

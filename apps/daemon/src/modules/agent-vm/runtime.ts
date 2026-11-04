@@ -52,6 +52,12 @@ export interface AgentRuntimeBackend {
   list(): Promise<Array<{ box: BoxRef; taskKey: string | null }>>;
 }
 
+/** Always-on boxes (late-bound): `holds` keeps a box's idle stop off; `exited` tells an unasked exit that the box must come back. */
+export interface AlwaysOnHooks {
+  holds(box: BoxRef): boolean;
+  exited(box: BoxRef): void;
+}
+
 export interface AgentRuntime {
   /** Starts the box's VM if needed (one per box; an isolated task of an agent gets its own) and a worker in it. Waits for boot's stopAll. */
   spawn(
@@ -91,6 +97,10 @@ export interface AgentRuntime {
   /** The box is being deleted: a start or a spawn for it answers `not_found` from now on (it stays so; `reopen` is the purge's). */
   close(box: BoxRef): void;
   reopen(box: BoxRef): void;
+  /** Late-binds the always-on hooks; before it, `holds` is false and `exited` does nothing. */
+  bindAlwaysOn(hooks: AlwaysOnHooks): void;
+  /** The box's thread VM with no worker waits its idle time from now, unless `holds`; a no-op otherwise and for an absent box. */
+  refreshIdle(box: BoxRef): void;
   /** The owner's Resume: forgets the crashes and lets the agent start VMs again (the persisted pause is the agent store's). */
   resume(box: BoxRef): void;
 }
@@ -126,6 +136,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const paused = new Set<string>();
   const closed = new Set<string>();
   const crashes = createCrashLog(clock);
+  let alwaysOn: AlwaysOnHooks | undefined;
   const listeners = new Set<(box: BoxRef, phase: VmPhaseChange) => void>();
   const announce = (entry: Entry, phase: VmPhaseChange): void => {
     if (entry.spec.kind !== "thread") return;
@@ -190,8 +201,9 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     const hadWorkers = entry.idle.live > 0;
     const box = entry.spec.box;
     const key = boxKey(box);
+    const alwaysOnThread = entry.spec.kind === "thread" && alwaysOn?.holds(box) === true;
     logger.warn("agent_vm_exited", { box: key, withWorkers: hadWorkers });
-    if (hadWorkers && crashes.record(key) && !paused.has(key)) {
+    if ((hadWorkers || alwaysOnThread) && crashes.record(key) && !paused.has(key)) {
       paused.add(key);
       try {
         deps.onCrashPause(box);
@@ -199,7 +211,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
         logger.error("agent_vm_crash_pause_failed", { box: key, err: error });
       }
     }
-    void tearDown(entry);
+    void tearDown(entry).then(() => {
+      if (!alwaysOnThread || paused.has(key) || closed.has(key)) return;
+      try {
+        alwaysOn?.exited(box);
+      } catch (error) {
+        logger.warn("agent_vm_always_on_exit_failed", { box: key, err: error });
+      }
+    });
   }
 
   const startVm = createVmStarter({
@@ -211,6 +230,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     stopLate,
     onClosed,
     taskKeyOf,
+    holds: (box) => alwaysOn?.holds(box) === true,
   });
 
   /** The VM of `spec` once its guest is up, started when it must be; the refusals a spawn and a start share. */
@@ -332,6 +352,14 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       } finally {
         boot.wake();
       }
+    },
+    bindAlwaysOn(hooks) {
+      alwaysOn = hooks;
+    },
+    refreshIdle(box) {
+      const entry = entries.get(boxKey(box));
+      if (entry?.spec.kind === "thread" && !isStopping(entry) && alwaysOn?.holds(box) !== true)
+        entry.idle.armIfEmpty();
     },
     imageOf: (launchId) => images.get(launchId) ?? null,
     close: (box) => void closed.add(boxKey(box)),

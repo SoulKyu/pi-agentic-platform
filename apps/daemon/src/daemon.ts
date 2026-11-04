@@ -3,6 +3,7 @@ import type { HandlerTable } from "@pap/contracts";
 import { createClaudeEnvOf } from "./compose-agents-vm-late.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
 import { composeAgentsVm } from "./compose-agents-vm.ts";
+import { composeAlwaysOn } from "./compose-always-on.ts";
 import { composeAuth } from "./compose-auth.ts";
 import { composeBoxWiring } from "./compose-boxes-wiring.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
@@ -295,6 +296,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       settings,
       memberLine,
     });
+    const alwaysOn = composeAlwaysOn({ ...core, closers, auth, agentsVm, m11, sessions, projects, boxes });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -318,18 +320,17 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...previewsBound.rpc,
       ...overview.rpc,
     };
-    const dispatch = createDispatcher({
-      handlers,
-      receipts,
-      logger,
-      gate: boxes.workspace.gate,
-      onCall: m10.onCall,
-    });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
       credentialOf: auth.credentialOf,
       authenticate: auth.authenticateCredential,
-      dispatch,
+      dispatch: createDispatcher({
+        handlers,
+        receipts,
+        logger,
+        gate: boxes.workspace.gate,
+        onCall: m10.onCall,
+      }),
       hub,
       logger,
       clock,
@@ -337,7 +338,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       onOriginRefused,
       onFetchSiteRefused,
     });
-    const wsProbe = createWsProbe(auth);
     const app = createHttpApp({
       allowedOrigins: config.allowedOrigins,
       staticRoot: config.staticRoot,
@@ -355,7 +355,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         vmRpc.mount(hono, auth.authenticateCookieHeader);
         github.mount(hono);
       },
-      wsProbe,
+      wsProbe: createWsProbe(auth),
     });
     let fatal = false;
     const server = await startServer({
@@ -376,6 +376,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const setupUrl = announceStart(config, logger, deps, auth.setupUrl());
     search.start();
     m10Late.start();
+    alwaysOn.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
 
     return {

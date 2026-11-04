@@ -90,6 +90,8 @@ const AgentInputFields = z
       .refine((hosts) => new Set(hosts).size === hosts.length, "each host once")
       .default([]),
     resources: AgentResources.default(DEFAULT_AGENT_RESOURCES),
+    /** Decision 149: the agent's VM never stops on its own. A stored profile without the field reads false. */
+    alwaysOn: z.boolean().default(false),
     systemPackages: SystemPackages.default([]),
     packages: PluginPicks.default(null),
   })

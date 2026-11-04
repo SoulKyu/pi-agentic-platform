@@ -87,6 +87,12 @@ describe("catalog (overview)", () => {
         "What runs in it will be interrupted: {list}. Transcripts and the box's files are intact; tasks can be retried.",
         "Ce qui y tourne sera interrompu : {list}. Les transcriptions et les fichiers de la box sont intacts ; les tâches peuvent être relancées.",
       ],
+      ["overview.alwaysOn", "Always on", "Toujours allumée"],
+      [
+        "overview.stopDialog.alwaysOn",
+        "It stays always on: pap starts it again when pap next starts.",
+        "Elle reste toujours allumée : pap la rallumera à son prochain démarrage.",
+      ],
       ["overview.stopDialog.cancel", "Cancel", "Annuler"],
       ["overview.stopDialog.confirm", "Stop the box", "Arrêter la box"],
       ["overview.health.one", "{count} recent failure", "{count} échec récent"],

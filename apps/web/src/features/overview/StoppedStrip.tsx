@@ -1,5 +1,5 @@
 import type { OverviewBox, OverviewSnapshot } from "@pap/contracts";
-import { Button, Chip } from "@pap/ui";
+import { Button, Chip, Icon, IconPin } from "@pap/ui";
 import { useState } from "react";
 import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { BoxGlyph, openBox } from "./BoxCard.tsx";
@@ -53,6 +53,7 @@ export function StoppedStrip({ boxes, capacity, startOpen, now, on }: Props) {
                   {box.name}
                 </Button>
               </span>
+              {box.alwaysOn ? <Icon icon={IconPin} size={14} label={t("overview.alwaysOn")} /> : null}
               {box.nextRun === null ? null : (
                 <span className="text-ui text-muted">{nextRunLine(box.nextRun, now, locale, t)}</span>
               )}

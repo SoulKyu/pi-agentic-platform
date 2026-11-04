@@ -30,9 +30,15 @@ describe("AgentInput defaults and shape", () => {
       budget: { usdPerDay: null, tokensPerDay: null },
       acceptsDelegation: false,
       resources: { memoryMb: 1024, cpus: 1, diskMb: 4096 },
+      alwaysOn: false,
       systemPackages: [],
       packages: null,
     });
+  });
+
+  it("reads alwaysOn as false by default and keeps an explicit true", () => {
+    expect(base().alwaysOn).toBe(false);
+    expect(base({ alwaysOn: true }).alwaysOn).toBe(true);
   });
 
   it("refuses a read-only folder list in the sandbox (owner m7) and any unknown key", () => {

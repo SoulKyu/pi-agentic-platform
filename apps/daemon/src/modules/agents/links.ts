@@ -28,6 +28,8 @@ export interface AgentLinks {
     archive(ownerId: string, sessionId: string): void;
     /** M9's `releaseIdle` (M11R47): an edit applies at the worker's next start; a running thread keeps its profile. */
     releaseIdle(ownerId: string, sessionId: string): void;
+    /** An edit reaches the worker (M11R47): released now when quiet, else when its run is over; a kept worker too. */
+    releaseWhenQuiet(ownerId: string, sessionId: string): void;
     /** Stops the run in progress, if any (quarantine, M11R115); a session that is gone is nothing to abort. */
     abort?(ownerId: string, sessionId: string): Promise<void>;
     /** A model or thinking change reaches a live thread at once (`set_model`, `set_thinking_level`). */

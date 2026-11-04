@@ -48,6 +48,19 @@ describe("fitsCapacity (R29)", () => {
 });
 
 describe("createIdleStop", () => {
+  it("never calls onIdle while holds is true; once it is false, armIfEmpty then idleMs calls it once", async () => {
+    const clock = createFakeClock();
+    const onIdle = vi.fn();
+    let held = true;
+    const idle = createIdleStop(clock, 1000, onIdle, () => held);
+    idle.armIfEmpty();
+    await clock.advance(5000);
+    expect(onIdle).not.toHaveBeenCalled();
+    held = false;
+    idle.armIfEmpty();
+    await clock.advance(1000);
+    expect(onIdle).toHaveBeenCalledTimes(1);
+  });
   it("fires idleMs after the last worker left, not before", async () => {
     const clock = createFakeClock();
     const onIdle = vi.fn();

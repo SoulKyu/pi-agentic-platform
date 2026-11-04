@@ -7,6 +7,7 @@ export interface SettingsDraft {
   readonly cpus: string;
   readonly diskMb: string;
   readonly hosts: string;
+  readonly alwaysOn: boolean;
 }
 
 export const draftOf = (box: ProjectBoxView): SettingsDraft => ({
@@ -14,6 +15,7 @@ export const draftOf = (box: ProjectBoxView): SettingsDraft => ({
   cpus: String(box.resources.cpus),
   diskMb: String(box.resources.diskMb),
   hosts: box.hosts.join("\n"),
+  alwaysOn: box.alwaysOn,
 });
 
 export type Built =
@@ -21,6 +23,7 @@ export type Built =
       readonly ok: true;
       readonly resources: AgentResources;
       readonly hosts: readonly string[];
+      readonly alwaysOn: boolean;
     }
   | { readonly ok: false; readonly errors: Readonly<Partial<Record<string, MessageKey>>> };
 
@@ -52,5 +55,5 @@ export function toSetBox(draft: SettingsDraft, savedDiskMb: number): Built {
   if (!hosts.success) errors["hosts"] = "boxes.hosts.error";
   if (!resources.success || !hosts.success || errors["resources.diskMb"] !== undefined)
     return { ok: false, errors };
-  return { ok: true, resources: resources.data, hosts: hosts.data };
+  return { ok: true, resources: resources.data, hosts: hosts.data, alwaysOn: draft.alwaysOn };
 }

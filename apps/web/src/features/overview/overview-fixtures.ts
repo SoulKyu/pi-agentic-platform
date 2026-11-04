@@ -16,6 +16,7 @@ export const box = (patch: Partial<OverviewBox> = {}): OverviewBox => ({
   needMb: 1536,
   fits: true,
   busy: false,
+  alwaysOn: false,
   nextRun: null,
   ...patch,
 });

@@ -14,6 +14,7 @@ const source = createFakeProjectBoxSource({
     root: ROOT,
     resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
     hosts: [],
+    alwaysOn: false,
     deleting: false,
   },
 });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { translate, type MessageKey } from "../../i18n/index.ts";
 import "../../i18n/register-overview.ts";
-import { activityLine, askWords, formatGb, memoryText, nextRunText, percentText } from "./overview.vm.ts";
+import { formatGb } from "../../lib/format-gb.ts";
+import { activityLine, askWords, memoryText, nextRunText, percentText } from "./overview.vm.ts";
 import { NOW, box } from "./overview-fixtures.ts";
 
 const en = (key: MessageKey, vars?: Record<string, string | number>) => translate("en", key, vars);

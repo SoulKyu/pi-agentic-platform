@@ -13,6 +13,7 @@ const box = (extra: Partial<ProjectBoxRow> = {}): ProjectBoxRow => ({
   root: layout.project ?? "",
   resources: DEFAULT_PROJECT_RESOURCES,
   hosts: [],
+  alwaysOn: false,
   deleting: false,
   ...extra,
 });

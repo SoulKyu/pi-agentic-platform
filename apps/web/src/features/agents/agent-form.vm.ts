@@ -29,6 +29,7 @@ export interface Draft {
   readonly usd: string;
   readonly tokens: string;
   readonly acceptsDelegation: boolean;
+  readonly alwaysOn: boolean;
   /** VM resources as typed; whole numbers, judged by `AgentInput` (memory and disk in MiB). */
   readonly memoryMb: string;
   readonly cpus: string;
@@ -87,6 +88,7 @@ export function draftFromInput(input: AgentInput | null): Draft {
     usd: text(base.budget.usdPerDay),
     tokens: text(base.budget.tokensPerDay),
     acceptsDelegation: base.acceptsDelegation,
+    alwaysOn: base.alwaysOn,
     memoryMb: String(base.resources.memoryMb),
     cpus: String(base.resources.cpus),
     diskMb: String(base.resources.diskMb),
@@ -140,6 +142,7 @@ export function toInput(draft: Draft): Built {
     denylist: lines(draft.denylist),
     budget: { usdPerDay: numberOrNull(draft.usd), tokensPerDay: numberOrNull(draft.tokens) },
     acceptsDelegation: draft.acceptsDelegation,
+    alwaysOn: draft.alwaysOn,
     resources: {
       memoryMb: numberOrNull(draft.memoryMb),
       cpus: numberOrNull(draft.cpus),

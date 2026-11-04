@@ -52,6 +52,8 @@ export function createBoxService(deps: {
   changed(ownerId: string, project: ProjectView): void;
   /** Tells the shell stream the project is gone (the projects service's removal listeners). */
   removed(ownerId: string, projectId: string): void;
+  /** Tells the always-on listeners a `setBox` changed the value (the projects service's set). */
+  alwaysOnChanged(change: { ownerId: string; projectId: string; alwaysOn: boolean }): void;
   owned(ownerId: string, id: string): ProjectRow;
 }) {
   let wiring: ProjectBoxWiring | undefined;
@@ -144,6 +146,7 @@ export function createBoxService(deps: {
         wanted: packages.wanted === null ? null : [...packages.wanted],
       },
       scratch: record.scratch,
+      alwaysOn: record.alwaysOn,
       preview: preview.decl,
       ...(preview.invalid ? { previewInvalid: true as const } : {}),
       counts: countsOf(record.ownerId, record.projectId),
@@ -215,11 +218,18 @@ export function createBoxService(deps: {
         deps.boxes.set(record.projectId, {
           ...(input.resources ? { resources: input.resources } : {}),
           ...(input.hosts ? { hosts: input.hosts } : {}),
+          ...(input.alwaysOn === undefined ? {} : { alwaysOn: input.alwaysOn }),
         });
       } catch (error) {
         throw isReadOnlyError(error) ? new PapError("read_only") : error;
       }
       audit(caller, "project_box_changed", record.projectId);
+      if (input.alwaysOn !== undefined && input.alwaysOn !== record.alwaysOn)
+        deps.alwaysOnChanged({
+          ownerId: record.ownerId,
+          projectId: record.projectId,
+          alwaysOn: input.alwaysOn,
+        });
       return boxView(boxOf(caller.userId, input.projectId));
     },
     start: lifecycle((control, projectId) => control.start(projectId)),

@@ -35,5 +35,11 @@ describe("project box methods", () => {
     expect(methods["projects.create"].params.safeParse({ name: "" }).success).toBe(false);
     expect(methods["projects.create"].params.safeParse({ name: "a", extra: 1 }).success).toBe(false);
     expect(methods["projects.setBox"].params.safeParse({ projectId: "p" }).success).toBe(true);
+    expect(methods["projects.setBox"].params.safeParse({ projectId: "p", alwaysOn: true }).success).toBe(
+      true,
+    );
+    expect(methods["projects.setBox"].params.safeParse({ projectId: "p", alwaysOn: "yes" }).success).toBe(
+      false,
+    );
   });
 });

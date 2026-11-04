@@ -10,6 +10,7 @@ export { createLaunchLog, type LaunchLog } from "./launch-log.ts";
 export { createLaunchStop, type LaunchStop } from "./launch-stop.ts";
 export { createGateway, type Gateway } from "./gateway.ts";
 export { layoutOf, layoutOfSpec, processRootOf } from "./layouts.ts";
+export { type AlwaysOnBox, createAlwaysOnKeeper } from "./always-on.ts";
 export { createKeptForget } from "./kept-forget.ts";
 export { projectLayoutOf } from "./project-layout.ts";
 export { observedBackend } from "./observed-backend.ts";
@@ -19,6 +20,7 @@ export { mirrorFileOf } from "./mirror-paths.ts";
 export { createProcessBackend } from "./process-backend.ts";
 export {
   type AgentRuntime,
+  type AlwaysOnHooks,
   type AgentRuntimeBackend,
   type AgentRuntimeDeps,
   createAgentRuntime,

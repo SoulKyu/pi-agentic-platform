@@ -30,6 +30,7 @@ const box = {
   needMb: 1536,
   fits: true,
   busy: true,
+  alwaysOn: false,
   nextRun: { at: 9, name: "nightly" },
 };
 const owner = {
@@ -55,6 +56,11 @@ describe("the Overview snapshot", () => {
   it("parses a full owner and a full member snapshot", () => {
     expect(OverviewSnapshot.safeParse(owner).success).toBe(true);
     expect(OverviewSnapshot.safeParse(member).success).toBe(true);
+  });
+
+  it("requires alwaysOn on a box", () => {
+    expect(OverviewBox.safeParse({ ...box, alwaysOn: undefined }).success).toBe(false);
+    expect(OverviewBox.safeParse({ ...box, alwaysOn: true }).success).toBe(true);
   });
 
   it("refuses four activities, a percentage over 100 and an unknown ask source", () => {

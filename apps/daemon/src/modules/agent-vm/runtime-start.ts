@@ -1,4 +1,4 @@
-import { boxKey, PapError, type VmLayout } from "@pap/contracts";
+import { type BoxRef, boxKey, PapError, type VmLayout } from "@pap/contracts";
 import type { GuestLink } from "./guest-link.ts";
 import { createIdleStop, fitsCapacity, type IdleStop, KEPT_IDLE_MS, memoryInUseMb } from "./lifecycle.ts";
 import type { AgentRuntimeDeps, VmPhaseChange, VmSpec } from "./runtime.ts";
@@ -38,10 +38,12 @@ export interface VmStarterContext {
   readonly stopLate: (entry: Entry) => Promise<void>;
   readonly onClosed: (entry: Entry) => void;
   readonly taskKeyOf: (spec: VmSpec) => string | null;
+  /** Always on: whether the box's idle stop must hold (unbound: false). */
+  readonly holds: (box: BoxRef) => boolean;
 }
 
 export function createVmStarter(context: VmStarterContext) {
-  const { deps, entries, images, announce, tearDown, stopLate, onClosed, taskKeyOf } = context;
+  const { deps, entries, images, announce, tearDown, stopLate, onClosed, taskKeyOf, holds } = context;
   const { backend, gateway, tokens, clock } = deps;
 
   /** Synchronous up to the entry's insertion: two spawns cannot both pass the capacity check. */
@@ -70,6 +72,7 @@ export function createVmStarter(context: VmStarterContext) {
         clock,
         spec.kind === "isolated" && spec.keepKey ? KEPT_IDLE_MS : deps.idleMs,
         () => void tearDown(entry),
+        spec.kind === "thread" ? () => holds(spec.box) : undefined,
       ),
       workers: new Set(),
       abort: new AbortController(),

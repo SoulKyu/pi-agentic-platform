@@ -18,6 +18,7 @@ const source = createFakeProjectBoxSource({
     root: ROOT,
     resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
     hosts: [],
+    alwaysOn: false,
     deleting: false,
   },
 });
@@ -39,6 +40,7 @@ describe("a session cwd under a box root", () => {
         root: link,
         resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
         hosts: [],
+        alwaysOn: false,
         deleting: false,
       },
     });
@@ -97,6 +99,7 @@ describe("new work in a box being deleted", () => {
       root: ROOT,
       resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
       hosts: [],
+      alwaysOn: false,
       deleting: true,
     },
   });

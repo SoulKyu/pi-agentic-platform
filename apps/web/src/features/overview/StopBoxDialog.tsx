@@ -9,6 +9,8 @@ import { activityLine } from "./overview.vm.ts";
 interface Props {
   readonly name: string;
   readonly activities: readonly OverviewActivity[];
+  /** The box comes back at the next pap start: say so. */
+  readonly alwaysOn: boolean;
   /** Stops the box; a refusal rejects with an Error whose message is the text to show. */
   onConfirm(): Promise<void>;
   onClose(): void;
@@ -18,7 +20,7 @@ interface Props {
  * Stopping a busy box interrupts what runs in it: say what, and what stays. Nothing here is irreversible (transcripts
  * and files are intact), so the confirm is primary, never danger; Cancel is secondary.
  */
-export function StopBoxDialog({ name, activities, onConfirm, onClose }: Props) {
+export function StopBoxDialog({ name, activities, alwaysOn, onConfirm, onClose }: Props) {
   const t = useT();
   const locale = useLocale();
   const pending = usePendingAction();
@@ -55,6 +57,7 @@ export function StopBoxDialog({ name, activities, onConfirm, onClose }: Props) {
       }
     >
       <div className="flex flex-col gap-s2 p-s3">
+        {alwaysOn ? <p className="text-ui text-muted">{t("overview.stopDialog.alwaysOn")}</p> : null}
         {problem === null ? null : <InlineError announce="action">{problem}</InlineError>}
       </div>
     </Dialog>

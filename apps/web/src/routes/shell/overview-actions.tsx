@@ -103,6 +103,7 @@ function StopRunning({ box, ref }: { box: OverviewBox; ref: BoxRef }) {
         <StopBoxDialog
           name={box.name}
           activities={box.activities}
+          alwaysOn={box.alwaysOn}
           onConfirm={confirm}
           onClose={() => setAsking(false)}
         />

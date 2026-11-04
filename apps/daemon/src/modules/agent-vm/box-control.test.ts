@@ -32,6 +32,7 @@ const ROW: ProjectBoxRow = {
   root: "/boxes/x/project",
   resources: { ...DEFAULT_AGENT_RESOURCES, memoryMb: 1024 },
   hosts: [],
+  alwaysOn: false,
   deleting: false,
 };
 let root: string;
@@ -153,7 +154,7 @@ describe("start", () => {
     await expect(control.start(PROJECT_ID)).rejects.toMatchObject({ code: "capacity" });
     row = null;
     await expect(control.start(PROJECT_ID)).rejects.toMatchObject({ code: "not_found" });
-    row = { ...ROW, deleting: true };
+    row = { ...ROW, alwaysOn: false, deleting: true };
     await expect(control.start(PROJECT_ID)).rejects.toMatchObject({ code: "not_found" });
   });
 

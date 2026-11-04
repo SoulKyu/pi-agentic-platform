@@ -38,7 +38,12 @@ describe("delete (M11R48, M11R183)", () => {
         `${step} paused=${pausedNow()} home=${existsSync(home)} row=${bed.agents.port.get("u1", id) !== null}`,
       );
     const links: AgentLinks = {
-      threads: { busy: () => false, archive: () => snap("archive"), releaseIdle: vi.fn() },
+      threads: {
+        busy: () => false,
+        archive: () => snap("archive"),
+        releaseIdle: vi.fn(),
+        releaseWhenQuiet: vi.fn(),
+      },
       automation: {
         busy: () => false,
         deleteTriggersOf: () => snap("triggers"),
@@ -73,7 +78,7 @@ describe("delete (M11R48, M11R183)", () => {
     bed.db.run("UPDATE agents SET thread_session_id = 's1'");
     const cleanup = vi.fn();
     bed.agents.setLinks({
-      threads: { busy: () => true, archive: cleanup, releaseIdle: vi.fn() },
+      threads: { busy: () => true, archive: cleanup, releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
       automation: { busy: () => false, deleteTriggersOf: cleanup, cancelQueuedOf: cleanup },
     });
     expect(await refusalOf(() => bed.agents.remove(bed.owner(), id))).toBe("session_busy");
@@ -293,7 +298,9 @@ describe("late-bound links (fix round 1)", () => {
     bed = createAgentsBed();
     await bed.agents.create(bed.owner(), agentInput());
     bed.db.run("UPDATE agents SET thread_session_id = 's1'");
-    bed.agents.setLinks({ threads: { busy: () => true, archive: vi.fn(), releaseIdle: vi.fn() } });
+    bed.agents.setLinks({
+      threads: { busy: () => true, archive: vi.fn(), releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
+    });
     bed.agents.setLinks({ vault: { drop: vi.fn() } });
     bed.agents.setLinks({
       automation: { busy: () => false, deleteTriggersOf: vi.fn(), cancelQueuedOf: vi.fn() },
@@ -306,9 +313,13 @@ describe("late-bound links (fix round 1)", () => {
     bed = createAgentsBed();
     await bed.agents.create(bed.owner(), agentInput());
     bed.db.run("UPDATE agents SET thread_session_id = 's1'");
-    bed.agents.setLinks({ threads: { busy: () => true, archive: vi.fn(), releaseIdle: vi.fn() } });
+    bed.agents.setLinks({
+      threads: { busy: () => true, archive: vi.fn(), releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
+    });
     expect(() =>
-      bed.agents.setLinks({ threads: { busy: () => false, archive: vi.fn(), releaseIdle: vi.fn() } }),
+      bed.agents.setLinks({
+        threads: { busy: () => false, archive: vi.fn(), releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
+      }),
     ).toThrow(/threads/);
     expect(await refusalOf(() => bed.agents.remove(bed.owner(), "atlas-0000"))).toBe("session_busy");
   });

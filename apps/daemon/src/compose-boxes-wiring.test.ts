@@ -19,7 +19,14 @@ const row = (cwd: string): SessionRow => ({ id: "s1", ownerId: "u1", cwd, piPath
 function build(logger = silentLogger) {
   const boxes = composeBoxes(HOME, logger, null);
   const boxSource = createFakeProjectBoxSource({
-    [ID]: { ownerId: "u1", root: ROOT, resources: DEFAULT_PROJECT_RESOURCES, hosts: [], deleting: false },
+    [ID]: {
+      ownerId: "u1",
+      root: ROOT,
+      resources: DEFAULT_PROJECT_RESOURCES,
+      hosts: [],
+      alwaysOn: false,
+      deleting: false,
+    },
   });
   const bindBoxes = vi.fn();
   const runtime = {

@@ -20,6 +20,7 @@ export const boxView = (patch: Partial<ProjectBoxView> = {}): ProjectBoxView => 
   hosts: ["api.example.com"],
   packages: { built: ["git"], wanted: null },
   scratch: false,
+  alwaysOn: false,
   counts: { sessions: 3, triggers: 1 },
   ...patch,
 });

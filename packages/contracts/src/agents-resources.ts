@@ -5,6 +5,9 @@ import { LINE_HIDDEN } from "./text-rules.ts";
 /** The smallest VM memory (the schema floor); the Overview adds `VM_OVERHEAD_MB` for what a start needs. */
 export const MIN_VM_MEMORY_MB = 512;
 
+/** R29: what one VM costs besides its agent's memory (Kata's guest kernel and hypervisor); 512 until T20a measures it. */
+export const VM_OVERHEAD_MB = 512;
+
 /** Decision 109. Host-dependent ceilings (the memory cap, the host's cores) are checked by the agents service at save (RT-30). */
 export const AgentResources = z
   .object({

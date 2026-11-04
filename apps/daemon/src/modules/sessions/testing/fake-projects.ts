@@ -59,5 +59,6 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
       return () => void listeners.delete(listener);
     },
     onRemoved: () => () => {},
+    onAlwaysOnChange: () => () => {},
   };
 }

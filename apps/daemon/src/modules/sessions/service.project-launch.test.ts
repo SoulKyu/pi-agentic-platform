@@ -128,6 +128,7 @@ function setup(row: Partial<ProjectBoxRow> = {}) {
     root,
     resources: DEFAULT_PROJECT_RESOURCES,
     hosts: ["project.example.test"],
+    alwaysOn: false,
     deleting: false,
     ...row,
   };

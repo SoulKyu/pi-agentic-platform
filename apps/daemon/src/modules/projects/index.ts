@@ -43,6 +43,10 @@ export interface ProjectsPort {
   onChange(listener: (ownerId: string, project: ProjectView) => void): () => void;
   /** A box project was deleted: its row and its sessions are gone. */
   onRemoved(listener: (ownerId: string, projectId: string) => void): () => void;
+  /** A `setBox` changed a box project's `alwaysOn` (decision 149); a throwing listener is logged. */
+  onAlwaysOnChange(
+    listener: (change: { ownerId: string; projectId: string; alwaysOn: boolean }) => void,
+  ): () => void;
 }
 
 export interface ProjectsModule {
@@ -102,6 +106,7 @@ export function createProjectsModule(deps: {
       ...(deps.knowledge ? { knowledgeRootOf: deps.knowledge.rootOfRow } : {}),
       onChange: service.onChange,
       onRemoved: service.onRemoved,
+      onAlwaysOnChange: service.onAlwaysOnChange,
     },
   };
 }

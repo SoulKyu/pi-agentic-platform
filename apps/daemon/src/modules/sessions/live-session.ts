@@ -132,6 +132,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       commands.activity().retry !== null;
     return busy ? "busy" : agentProcesses > 0 ? "background" : "quiet";
   };
+  let keepFailed = false;
   const idle = createLiveIdle({
     clock: deps.clock,
     idleMs: deps.idleMs,
@@ -140,6 +141,15 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     cancelPanels: () => ui.cancelPanels(),
     setStatus,
     state,
+    keep: () => {
+      try {
+        return deps.keep?.() === true;
+      } catch (error) {
+        if (!keepFailed) logger.warn("session_keep_worker_failed", { err: error });
+        keepFailed = true;
+        return false;
+      }
+    },
   });
 
   // Whoever starts a session awaits this; one that is torn down meanwhile must not leave an unhandled rejection.
@@ -351,6 +361,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     stop: idle.stop,
     stopping: () => idle.stopping(),
     quietSince: () => idle.quietSince(),
+    touchIdle: () => idle.touch(),
     exited: () => gone,
   };
 }

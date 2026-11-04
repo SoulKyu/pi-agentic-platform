@@ -27,6 +27,7 @@ export {
   Palette as IconAppearance,
   PanelLeft as IconTree,
   LayoutTemplate as IconTemplate,
+  Pin as IconPin,
   Plus as IconPlus,
   Quote as IconQuote,
   RefreshCw as IconRefresh,

@@ -27,7 +27,7 @@ describe("delete: a warm thread takes a prompt during the await (Task 7 carry 4)
     let promptArrives = true;
     const vault = vi.fn();
     const links: AgentLinks = {
-      threads: { busy: () => busy, archive: vi.fn(), releaseIdle: vi.fn() },
+      threads: { busy: () => busy, archive: vi.fn(), releaseIdle: vi.fn(), releaseWhenQuiet: vi.fn() },
       automation: {
         busy: () => false,
         deleteTriggersOf: vi.fn(),
@@ -61,6 +61,7 @@ describe("delete: a warm thread takes a prompt during the await (Task 7 carry 4)
         busy: () => false,
         archive: () => order.push("archive"),
         releaseIdle: () => order.push(`release home=${existsSync(home)}`),
+        releaseWhenQuiet: () => {},
       },
       vault: { drop: () => order.push(`vault home=${existsSync(home)}`) },
     });
@@ -96,6 +97,7 @@ describe("delete: the thread's session row is gone (Task 7 carry 3)", () => {
       },
       agentSessions: { applyLive: async () => "cold" },
       releaseIdle: gone,
+      releaseWhenQuiet: gone,
       runs: { onRunEnd: () => () => {} },
       clock: bed.clock,
       logger: silentLogger,

@@ -1,5 +1,4 @@
-/** R29: what one VM costs besides its agent's memory (Kata's guest kernel and hypervisor); 512 until T20a measures it. */
-export const VM_OVERHEAD_MB = 512;
+export { VM_OVERHEAD_MB } from "@pap/contracts";
 const MIN_MEMORY_MAX_MB = 1024;
 
 /** The agents-in-VM settings of `loadConfig`. */

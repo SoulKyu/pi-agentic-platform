@@ -37,6 +37,7 @@ export function createLiveIdle(deps: {
   cancelPanels(): void;
   setStatus(status: SessionStatus): void;
   state(): IdleState;
+  keep?(): boolean;
 }): LiveIdle {
   let requestedStop = false;
   let lastTouch = deps.clock.now();
@@ -44,6 +45,7 @@ export function createLiveIdle(deps: {
     clock: deps.clock,
     idleMs: deps.idleMs,
     state: deps.state,
+    ...(deps.keep ? { keep: deps.keep } : {}),
     release: () => {
       if (requestedStop) return;
       deps.setStatus("releasing");

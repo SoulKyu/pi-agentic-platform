@@ -63,6 +63,7 @@ export interface ProjectBoxRow {
   readonly root: string;
   readonly resources: AgentResources;
   readonly hosts: readonly string[];
+  readonly alwaysOn: boolean;
   readonly deleting: boolean;
 }
 

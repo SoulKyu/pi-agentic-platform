@@ -258,6 +258,7 @@ export function createLaunch(ctx: LaunchContext) {
         },
         idleMs: deps.idleMs,
         held: () => deps.laneHooks?.waiting(row.id) ?? false,
+        keep: () => deps.keepWorker?.(row.ownerId, row.id) ?? false,
         // Before the row exists the name is taken from the session once it is ready (below).
         onName: (name) => {
           if (stored) syncName(row.id, name);

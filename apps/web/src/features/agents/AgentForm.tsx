@@ -231,7 +231,15 @@ export function AgentForm({ agent, presetField, start, onSaved, onCancel, onRelo
         checked={draft.acceptsDelegation}
         onChange={(acceptsDelegation) => set({ acceptsDelegation })}
       />
-      <ResourceFields draft={draft} errors={errors} legend={t("agentVm.title")} set={set} />
+      <ResourceFields
+        draft={draft}
+        errors={errors}
+        legend={t("agentVm.title")}
+        alwaysOn={draft.alwaysOn}
+        setAlwaysOn={(alwaysOn) => set({ alwaysOn })}
+        set={set}
+      />
+      {draft.alwaysOn ? <p className="text-ui text-muted">{t("agentVm.alwaysOn.applyHint")}</p> : null}
       <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
       {widens ? (
         <p role="status" className="text-ui text-attn">

@@ -18,6 +18,7 @@ const box = (extra: Partial<ProjectBoxRow> = {}): ProjectBoxRow => ({
   root: `${ROOT}/project`,
   resources: DEFAULT_PROJECT_RESOURCES,
   hosts: [],
+  alwaysOn: false,
   deleting: false,
   ...extra,
 });

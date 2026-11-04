@@ -19,6 +19,7 @@ export function createProjectBoxSource(store: BoxStore, audit?: Pick<AuditPort, 
             root: record.root,
             resources: record.resources,
             hosts: record.hosts,
+            alwaysOn: record.alwaysOn,
             deleting: record.deleting,
           }
         : null;

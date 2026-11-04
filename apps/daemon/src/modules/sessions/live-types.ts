@@ -41,6 +41,8 @@ export interface LiveSessionDeps {
   readonly idleMs: number;
   /** A prompt of this session waits for the lanes side (a capture or a restore): the worker is not idle, whatever its status says. */
   held?(): boolean;
+  /** An always-on agent's thread: the idle release waits again instead of letting go. Read apart from `held`, so the quiet time stays known. */
+  keep?(): boolean;
   /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
   /** The worker's policy extension refused a `policy_update`: it blocks every call from then on (M5R11). */
@@ -130,6 +132,8 @@ export interface LiveSession {
   stopping(): boolean;
   /** The time of the last activity of the worker, or null while it has work pending (M13R45). */
   quietSince(): number | null;
+  /** Moves the idle timer's last activity to now (a kept worker that is no longer kept waits `idleMs` from here). */
+  touchIdle(): void;
   /** Resolves, never rejects, once the worker has exited and the exit has been handled (the service has forgotten the session by then). */
   exited(): Promise<void>;
 }

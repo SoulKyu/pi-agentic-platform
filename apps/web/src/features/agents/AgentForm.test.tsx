@@ -4,6 +4,7 @@ import { TooltipProvider } from "@pap/ui";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { agentSettingsEn, agentSettingsFr } from "../../i18n/catalog/agent-settings.ts";
+import { frenchSpacing } from "../../i18n/fr-spacing.ts";
 import { setLocale } from "../../i18n/index.ts";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { RpcError } from "../../runtime/rpc.ts";
@@ -230,6 +231,43 @@ describe("agent form: the fields", () => {
     await open();
     await click(button(document.body, "Cancel"));
     expect(calls.cancelled).toHaveBeenCalledTimes(1);
+  });
+});
+
+const alwaysOnSwitch = () => document.querySelector('[data-slot="agent-vm"] [role="switch"]') as HTMLElement;
+
+describe("agent form: always on", () => {
+  it("sends alwaysOn after the switch is toggled", async () => {
+    const { bed } = await open();
+    await say("Name", "atlas");
+    await click(alwaysOnSwitch());
+    await click(button(document.body, "Create agent"));
+    await settle();
+    expect((bed.called("agents.create")[0]?.params as { input: AgentInput }).input.alwaysOn).toBe(true);
+  });
+
+  it("shows the next-start hint only while the switch is on, in English and French", async () => {
+    const en =
+      "Memory, CPU, disk and package changes apply at the box's next start: stop it, then start it from the Overview.";
+    setLocale("en");
+    await open();
+    expect(text(document.body)).not.toContain(en);
+    await click(alwaysOnSwitch());
+    expect(text(document.body)).toContain(en);
+    await click(alwaysOnSwitch());
+    expect(text(document.body)).not.toContain(en);
+    setLocale("fr");
+    await open(view({ alwaysOn: true }));
+    expect(text(document.body)).toContain(
+      frenchSpacing(
+        "Les changements de mémoire, de CPU, de disque et de paquets s'appliquent au prochain démarrage de la box : arrêtez-la puis redémarrez-la depuis la Vue d'ensemble.",
+      ),
+    );
+  });
+
+  it("shows the switch on for a profile that is always on", async () => {
+    await open(view({ alwaysOn: true }));
+    expect(alwaysOnSwitch().getAttribute("aria-checked")).toBe("true");
   });
 });
 

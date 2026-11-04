@@ -51,7 +51,9 @@ export interface OverviewComposition {
     readonly onRailChange: (listener: (ownerId: string) => void) => () => void;
   };
   readonly sessions: Pick<SessionsModule, "shellRows" | "threadOf" | "onStatus" | "automation">;
-  readonly projects: { readonly port: Pick<ProjectsPort, "all" | "onChange" | "onRemoved"> };
+  readonly projects: {
+    readonly port: Pick<ProjectsPort, "all" | "onChange" | "onRemoved" | "onAlwaysOnChange">;
+  };
   readonly boxes: {
     readonly control: Pick<BoxControl, "onPhase">;
     readonly workspace: { readonly boxes: () => Pick<ProjectBoxSource, "ownerBoxes" | "box"> };
@@ -112,6 +114,7 @@ export function composeOverview(modules: OverviewComposition): OverviewModule {
         name: agent.name,
         threadSessionId: agent.threadSessionId,
         memoryMb: agent.input?.resources.memoryMb ?? DEFAULT_AGENT_RESOURCES.memoryMb,
+        alwaysOn: agent.input?.alwaysOn ?? false,
         rail: m11.agents.state(ownerId, agent.id),
       })),
     projects: (ownerId) =>
@@ -122,6 +125,7 @@ export function composeOverview(modules: OverviewComposition): OverviewModule {
           name: project.name,
           kind: project.kind === "box" ? "box" : "host",
           memoryMb: box?.resources.memoryMb ?? 0,
+          alwaysOn: box?.alwaysOn ?? false,
         };
       }),
     sessions: (ownerId) => sessions.shellRows(ownerId),
@@ -154,6 +158,7 @@ export function composeOverview(modules: OverviewComposition): OverviewModule {
     m11.onRailChange(tell),
     m11.agents.onChange(tell),
     projects.port.onChange(tell),
+    projects.port.onAlwaysOnChange(tell),
     projects.port.onRemoved(tell),
   ];
   modules.closers.push({

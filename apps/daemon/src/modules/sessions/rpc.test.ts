@@ -49,6 +49,8 @@ function setup(overrides: Partial<SessionsService> = {}) {
     inspect: vi.fn(() => null),
     restartFolder: vi.fn(() => 0),
     releaseIdle: vi.fn(() => "cold" as const),
+    releaseWhenQuiet: vi.fn(),
+    touchIdle: vi.fn(),
     laneProbe: { live: new Map(), statusOf: () => "cold", branchPath: vi.fn(), agentText: vi.fn() },
     mark: vi.fn(),
     startOrganiser: vi.fn(),
