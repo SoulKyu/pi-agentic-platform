@@ -1,0 +1,16 @@
+{
+  "type": "answers",
+  "choice": "keepon-q1-submitted",
+  "answers": {
+    "alive": "alive-agent",
+    "restart": "restart-always",
+    "where": "where-form",
+    "projects": "projects-yes",
+    "members": "members-own",
+    "stop": "stop-temporary"
+  },
+  "notes": {},
+  "timestamp": 1793793480587,
+  "page": "2026-11-04-always-on-questions.html",
+  "note": "Context correction after the answers: a worker with processes the agent left running is released after 8 h (BACKGROUND_RELEASE_MS), not 30 min; spec section 1."
+}
