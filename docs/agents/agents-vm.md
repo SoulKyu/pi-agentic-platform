@@ -173,6 +173,7 @@ Delete moves the agent's disk to pap-vmd's trash, its mirrors to `$PAP_HOME/agen
 | `relay_listener_foreign` | Another process holds `10.213.0.1:7842` (or `:7841`, `:7843`): `ss -ltnp 'sport = :7842'`, stop it. A held gateway or proxy port leaves agents unavailable (down mode) and the rest of pap running. |
 | "A new image is being prepared" | A base or profile rebuild runs; the agent keeps its old image. A failed weekly upgrade retries after an hour. |
 | Disk pressure | `vm.disk`; trash and kept mirrors count; `pap vm uninstall --purge` removes every disk. |
+| After a host reboot every box fails at once ("The session process stopped") | pap-vmd logs `vm.start` `failed` in about 100 ms and `vmd_volume_remove` `code 1`: its unit predates the `mkdir` pre-step, so `/run/kata-containers` stayed read-only in its sandbox. Run `sudo pap vm setup`, then restart pap. |
 
 ## Tests
 

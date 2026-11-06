@@ -71,6 +71,8 @@ export const vmdUnit = (): string =>
     ...RUNTIME_DIR,
     "StateDirectory=pap-vm",
     ...bridgeSteps(),
+    // ReadWritePaths skips a missing `-` path, and /run is empty after a reboot: kata-ctl and nerdctl write there at every start.
+    "ExecStartPre=+/usr/bin/mkdir -p /run/kata-containers /run/netns",
     `ExecStart=${PATHS.opt}/node/bin/node ${PATHS.opt}/vmd/dist/main.js`,
     // T20a validated this hardening on the real stack: nerdctl needs its network config folder writable (it locks it at every run).
     "ProtectSystem=strict",

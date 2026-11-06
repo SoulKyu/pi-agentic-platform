@@ -40,6 +40,16 @@ describe("units", () => {
     ]);
   });
 
+  // 2026-11-06: after a host reboot /run/kata-containers and /run/netns do not exist when pap-vmd starts, so ProtectSystem=strict
+  // leaves them read-only (the `-` skips them) and `kata-ctl direct-volume add` failed every `vm.start` until pap-vmd restarted.
+  // Mutant: the step dropped, or run after ExecStart -> this case fails.
+  it("pap-vmd.service makes its optional writable folders before the sandbox is set up", () => {
+    const text = UNIT_FILES["pap-vmd.service"]();
+    const step = "ExecStartPre=+/usr/bin/mkdir -p /run/kata-containers /run/netns\n";
+    expect(text).toContain(step);
+    expect(text.indexOf(step)).toBeLessThan(text.indexOf("ExecStart=/"));
+  });
+
   // T20a: `After=` waits for containerd to be started, not ready (about 2 s on a fresh state). With systemd's 100 ms restart delay the
   // five tries of the start limit were over before the socket answered, and pap-vmd stayed failed after every setup.
   // Mutant: RestartSec dropped -> this case fails.
